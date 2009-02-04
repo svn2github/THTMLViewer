@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2008.06.17 16:16:49.749.pas,Y:\Development\Delphi Includes\Common\THtml\source\zlibEx.pas=</Transaction>
+    <Transaction>2008.06.17 17:09:13.870.pas,Y:\Development\Delphi Includes\Common\THtml\source\pngimage.pas=Y:\Development\Delphi Includes\Common\THtml\source\PngImage1.pas</Transaction>
+    <Transaction>2008.06.17 17:09:16.548.pas,Y:\Development\Delphi Includes\Common\THtml\source\PngImage1.pas=Y:\Development\Delphi Includes\Common\THtml\source\PngImage.pas</Transaction>
+    <Transaction>2008.06.17 17:09:18.902.pas,Y:\Development\Delphi Includes\Common\THtml\source\PngImage.pas=</Transaction>
+  </Transactions>
+</BorlandProject>
