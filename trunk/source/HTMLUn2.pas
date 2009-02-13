@@ -1,4 +1,4 @@
-{Version 9.45}
+{Version 9.47}
 {*********************************************************}
 {*                     HTMLUN2.PAS                       *}
 {*********************************************************}
@@ -36,7 +36,7 @@ uses
   Forms, Dialogs, StdCtrls, ExtCtrls, Clipbrd, StyleUn, GDIPL2A; 
 
 const
-  VersionNo = '9.45';
+  VersionNo = '9.46';
   MaxHScroll = 6000;  {max horizontal display in pixels}      
   HandCursor = 10101;        
   OldThickIBeamCursor = 2;
@@ -134,7 +134,7 @@ type
     WhichName: string;
     Value: integer;  {numeric value if appropriate}
     Percent: boolean;{if value is in percent}
-    Name: String;   {String (mixed case), value after '=' sign}
+    Name: string;   {String (mixed case), value after '=' sign}
     CodePage: integer;
     constructor Create(ASym: Symb; AValue: integer;
            Const NameStr, ValueStr: string; ACodePage: integer);  

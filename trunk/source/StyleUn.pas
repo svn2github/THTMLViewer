@@ -1,4 +1,4 @@
-{Version 9.45}
+{Version 9.47}
 {*********************************************************}
 {*                     STYLEUN.PAS                       *}
 {*********************************************************}
@@ -314,7 +314,7 @@ var
   S: string;
 begin
 Result := '';
-if VarType(Item) = VarString then
+if VarIsStr(Item) then
   begin
   S := Item;
   I := Pos('url(', S);
@@ -513,7 +513,7 @@ end;
 
 function TProperties.GetBackgroundImage(var Image: string): boolean;
 begin
-if (VarType(Props[BackgroundImage]) = VarString) then
+if (VarIsStr(Props[BackgroundImage])) then
   if (Props[BackgroundImage] = 'none') then
     begin
     Image := '';
@@ -602,7 +602,7 @@ var
   Tmp: string;
   I, N, XY: integer;
 begin
-if (VarType(Props[BackgroundPosition]) <> VarString) then
+if (VarIsStr(Props[BackgroundPosition])) then
   begin
   P[1].PosType := pDim;
   P[1].Value := 0;
@@ -670,7 +670,7 @@ else
   end;
 P[1].RepeatD := True;
 P[2].RepeatD := True;
-if (VarType(Props[BackgroundRepeat]) = VarString) then
+if (VarIsStr(Props[BackgroundRepeat])) then
   begin
   Tmp := Trim(Props[BackgroundRepeat]);
   if Tmp = 'no-repeat' then
@@ -684,7 +684,7 @@ if (VarType(Props[BackgroundRepeat]) = VarString) then
     P[1].RepeatD := False;
   end;
 P[1].Fixed := False;
-if (VarType(Props[BackgroundAttachment]) = VarString) and
+if (VarIsStr(Props[BackgroundAttachment])) and
        (Trim(Props[BackgroundAttachment]) = 'fixed') then
   P[1].Fixed := True;
 P[2].Fixed := P[1].Fixed;
@@ -695,7 +695,7 @@ function TProperties.GetVertAlign(var Align: AlignmentType): boolean;
 var
   S: string;
 begin
-if (VarType(Props[VerticalAlign]) = VarString) then
+if (VarIsStr(Props[VerticalAlign])) then
   begin
   Result := True;
   S := Props[VerticalAlign];
@@ -712,14 +712,14 @@ end;
 
 function TProperties.IsOverflowHidden: boolean;
 begin
-Result := (VarType(Props[OverFlow]) = VarString) and (Props[OverFlow] = 'hidden');
+Result := (VarIsStr(Props[OverFlow])) and (Props[OverFlow] = 'hidden');
 end;
 
 function TProperties.GetFloat(var Align: AlignmentType): boolean;
 var
   S: string;
 begin
-if (VarType(Props[Float]) = VarString) then
+if (VarIsStr(Props[Float])) then
   begin
   Result := True;
   S := Props[Float];
@@ -735,7 +735,7 @@ function TProperties.GetClear(var Clr: ClearAttrType): boolean;
 var
   S: string;
 begin
-if (VarType(Props[Clear]) = VarString) then
+if (VarIsStr(Props[Clear])) then
   begin
   Result := True;
   S := Props[Clear];
@@ -758,7 +758,7 @@ var
   I: ListBulletType;
 
 begin
-if VarType(Props[ListStyleType]) = VarString then
+if VarIsStr(Props[ListStyleType]) then
   for I := Low(ListBulletType) to High(ListBulletType) do
     if S[I] = Props[ListStyleType] then
       begin
@@ -776,7 +776,7 @@ end;
 function TProperties.GetPosition: PositionType;
 begin
 Result := posStatic;
-if VarType(Props[Position]) = VarString then
+if VarIsStr(Props[Position]) then
   begin
   if Props[Position] = 'absolute' then
     Result := posAbsolute
@@ -798,18 +798,18 @@ begin
 Result := 0;
 if VarType(Props[ZIndex]) in VarInt then
   Result := Props[ZIndex]
-else if VarType(Props[ZIndex]) = VarString then
+else if VarIsStr(Props[ZIndex]) then
   Result := StrToIntDef(Props[ZIndex], 0);
 end;
 
 function TProperties.DisplayNone: boolean;
 begin
-Result := (VarType(Props[Display]) = VarString) and (Props[Display] = 'none');
+Result := (VarIsStr(Props[Display])) and (Props[Display] = 'none');
 end;
 
 function TProperties.Collapse: boolean;
 begin
-Result := (VarType(Props[BorderCollapse]) = VarString) and (Props[BorderCollapse] = 'collapse');
+Result := (VarIsStr(Props[BorderCollapse])) and (Props[BorderCollapse] = 'collapse');
 end;
 
 function TProperties.GetLineHeight(NewHeight:integer): integer;
@@ -817,7 +817,7 @@ var
   V: double;
   Code: integer;
 begin
-if VarType(Props[LineHeight]) = varString then
+if VarIsStr(Props[LineHeight]) then
   begin
   Val(Props[LineHeight], V, Code);
   if Code = 0 then   {a numerical entry with no 'em', '%', etc.  Use the new font height}
@@ -834,7 +834,7 @@ var
   I: integer;
 begin
 PC := False;
-if VarType(Props[TextIndent]) = varString then
+if VarIsStr(Props[TextIndent]) then
   begin
   I := Pos('%', Props[TextIndent]);
   if I > 0 then
@@ -862,7 +862,7 @@ end;
 function TProperties.GetFontVariant: string;
 begin
 try
-  if VarType(Props[FontVariant]) = varString then
+  if VarIsStr(Props[FontVariant]) then
     Result := Props[FontVariant]
   else Result := 'normal';
 except
@@ -872,9 +872,9 @@ end;
 
 procedure TProperties.GetPageBreaks(var Before, After, Intact: boolean);
 begin
-Before := (VarType(Props[PageBreakBefore]) = varString) and  (Props[PageBreakBefore] = 'always');
-After := (VarType(Props[PageBreakAfter]) = varString) and  (Props[PageBreakAfter] = 'always');
-Intact := (VarType(Props[PageBreakInside]) = varString) and  (Props[PageBreakInside] = 'avoid');
+Before := (VarIsStr(Props[PageBreakBefore])) and  (Props[PageBreakBefore] = 'always');
+After := (VarIsStr(Props[PageBreakAfter])) and  (Props[PageBreakAfter] = 'always');
+Intact := (VarIsStr(Props[PageBreakInside])) and  (Props[PageBreakInside] = 'avoid');
 end;
 
 function TProperties.GetBackgroundColor: TColor;
@@ -913,14 +913,14 @@ end;
 function TProperties.GetBorderStyle: BorderStyleType;
 begin
 Result := bssNone;
-if VarType(Props[BorderStyle]) = VarString then
+if VarIsStr(Props[BorderStyle]) then
   Result := BorderStyleFromString(Props[BorderStyle]);
 end;
 
 function TProperties.BorderStyleNotBlank: boolean;
 {was a border of some type (including bssNone) requested?}
 begin
-Result := VarType(Props[BorderStyle]) = VarString;
+Result := VarIsStr(Props[BorderStyle]);
 end;
 
 procedure TProperties.SetFontBG;
@@ -937,7 +937,7 @@ procedure ConvVertMargins(const VM: TVMarginArray;
   function Convert(V: Variant; var IsAutoParagraph: boolean): integer;
   begin
   IsAutoParagraph := False;
-  if VarType(V) = VarString then
+  if VarIsStr(V) then
     Result := LengthConv(V, False, BaseHeight, EmSize, ExSize, 0) {Auto will be 0}
   else if VarType(V) in varInt then
     begin
@@ -988,7 +988,7 @@ for I := Low(VM) to High(VM) do
         M[I] := 0
       else
         begin
-        if VarType(VM[I]) = VarString then
+        if VarIsStr(VM[I]) then
           begin
           if VM[I] = 'thin' then
             M[I] := 2
@@ -1009,7 +1009,7 @@ for I := Low(VM) to High(VM) do
       end;
     Height, PaddingTop..PaddingLeft:
       begin
-      if VarType(VM[I]) = VarString then
+      if VarIsStr(VM[I]) then
         begin
         M[I] := LengthConv(VM[I], False, Base, EmSize, ExSize, 0); {Auto will be 0}
         if (I = Height) and (Pos('%', VM[I]) > 0) then        {include border in % heights}
@@ -1025,7 +1025,7 @@ for I := Low(VM) to High(VM) do
       end;
     TopPos, RightPos, BottomPos, LeftPos:
       begin
-      if VarType(VM[I]) = VarString then
+      if VarIsStr(VM[I]) then
         M[I] := LengthConv(VM[I], False, Base, EmSize, ExSize, Auto) {Auto will be Auto}
       else if VarType(VM[I]) in varInt then
         begin
@@ -1037,7 +1037,7 @@ for I := Low(VM) to High(VM) do
       end;
     MarginLeft, MarginRight:
       begin
-      if VarType(VM[I]) = VarString then
+      if VarIsStr(VM[I]) then
         begin
         if VM[I] = 'auto' then
           begin
@@ -1056,7 +1056,7 @@ for I := Low(VM) to High(VM) do
       end;
     Width:
       begin
-      if VarType(VM[I]) = VarString then
+      if VarIsStr(VM[I]) then
         M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, Auto)
       else if VarType(VM[I]) in varInt then
         begin
@@ -1071,7 +1071,7 @@ for I := Low(VM) to High(VM) do
     MarginTop, MarginBottom:  ;   {do nothing}
     else
       begin
-      if VarType(VM[I]) = VarString then
+      if VarIsStr(VM[I]) then
         M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, 0)
       else if VarType(VM[I]) in varInt then
         begin
@@ -1092,7 +1092,7 @@ var
   I: PropIndices;
 begin
 for I := PaddingTop to PaddingLeft do
-  if VarType(VM[I]) = VarString then
+  if VarIsStr(VM[I]) then
     M[I] := LengthConv(VM[I], False, -100, EmSize, ExSize, 0) {Auto will be 0}
   else if VarType(VM[I]) in varInt then
     begin
@@ -1114,7 +1114,7 @@ for I := Low(VM) to High(VM) do
   case I of
     Height, Width:
       begin
-      if VarType(VM[I]) = VarString then
+      if VarIsStr(VM[I]) then
         M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, Auto) {Auto will be Auto}
       else if VarType(VM[I]) in varInt then
         begin
@@ -1126,7 +1126,7 @@ for I := Low(VM) to High(VM) do
       end;
     MarginLeft, MarginRight, MarginTop, MarginBottom:
       begin
-      if VarType(VM[I]) = VarString then
+      if VarIsStr(VM[I]) then
         M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, 0)  {auto is 0}
       else if VarType(VM[I]) in varInt then
         begin
@@ -1142,7 +1142,7 @@ for I := Low(VM) to High(VM) do
         M[I] := 0
       else
         begin
-        if VarType(VM[I]) = VarString then
+        if VarIsStr(VM[I]) then
           begin
           if VM[I] = 'thin' then
             M[I] := 2
@@ -1596,7 +1596,7 @@ if not Assigned(TheFont) then
   TheFont.tmCharset := tm.tmCharset;
   if VarType(V) in VarInt then
     TheFont.CharExtra := V
-  else if VarType(V) = VarString then
+  else if VarIsStr(V) then
     if V = 'normal' then
       TheFont.CharExtra := 0
     else TheFont.CharExtra := LengthConv(V, False, EmSize, EmSize, ExSize, 0)
@@ -1773,7 +1773,7 @@ begin
 for I := Low(Marray) to High(MArray) do
   case I of
     BorderTopStyle..BorderLeftStyle:
-      if VarType(Props[I]) = VarString then
+      if VarIsStr(Props[I]) then
         MArray[I] := BorderStyleFromString(Props[I])
       else MArray[I] := bssNone;
     else

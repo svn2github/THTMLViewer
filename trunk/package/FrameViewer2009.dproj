@@ -23,6 +23,7 @@
 			<Base>true</Base>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Base)'!=''">
+			<DCC_WIDECHAR_REDUCED>false</DCC_WIDECHAR_REDUCED>
 			<DCC_DependencyCheckOutputName>C:\Users\Public\Documents\RAD Studio\6.0\Bpl\FrameViewer2009.bpl</DCC_DependencyCheckOutputName>
 			<DCC_ImageBase>00400000</DCC_ImageBase>
 			<DesignOnlyPackage>true</DesignOnlyPackage>
@@ -86,17 +87,11 @@
 			<DCCReference Include="..\source\HTMLGif2.pas"/>
 			<DCCReference Include="..\source\htmlgif1.pas"/>
 			<DCCReference Include="..\source\zlibEx1.pas"/>
-			<DCCReference Include="..\source\PngLang1.pas"/>
 			<DCCReference Include="FrameViewerReg.pas"/>
 			<DCCReference Include="..\source\GDIPL2A.pas"/>
 			<DCCReference Include="framview.dcr"/>
 			<DCCReference Include="htmlview.dcr"/>
 			<DCCReference Include="frambrwz.dcr"/>
-			<DCCReference Include="vclim.dcp"/>
-			<DCCReference Include="vcli.dcp"/>
-			<DCCReference Include="vclj.dcp"/>
-			<DCCReference Include="vcljp.dcp"/>
-			<DCCReference Include="vcljpg.dcp"/>
 			<BuildConfiguration Include="Base">
 				<Key>Base</Key>
 			</BuildConfiguration>
@@ -132,7 +127,7 @@
 						<VersionInfo Name="Special">False</VersionInfo>
 						<VersionInfo Name="Private">False</VersionInfo>
 						<VersionInfo Name="DLL">False</VersionInfo>
-						<VersionInfo Name="Locale">1031</VersionInfo>
+						<VersionInfo Name="Locale">1033</VersionInfo>
 						<VersionInfo Name="CodePage">1252</VersionInfo>
 					</VersionInfo>
 					<VersionInfoKeys>

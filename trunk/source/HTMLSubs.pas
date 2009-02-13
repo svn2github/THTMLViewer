@@ -1,5 +1,5 @@
 
-{Version 9.45}
+{Version 9.47}
 {*********************************************************}
 {*                     HTMLSUBS.PAS                      *}
 {*********************************************************}
@@ -209,7 +209,7 @@ type
     PercentWidth: boolean;           {if width is percent}
     PercentHeight: boolean;           {if height is percent}
     ImageTitle:  string;
-    FAlt: string;          {the alt= attribute}
+    FAlt: AnsiString;          {the alt= attribute}
     FAltW: WideString;
 
     function GetYPosition: integer; override;
@@ -223,7 +223,7 @@ type
     procedure DrawLogic(SectionList: TSectionList; Canvas: TCanvas;
                   FO: TFontObj; AvailableWidth, AvailableHeight: integer);  virtual; abstract;
     procedure ProcessProperties(Prop: TProperties);
-    property Alt: string read FAlt;
+    property Alt: AnsiString read FAlt;
   end;
 
   TPanelObj = class(TFloatingObj)
@@ -995,7 +995,7 @@ type
     NoPartialLine: boolean;  {set when printing if no partial line allowed
                               at page bottom}
     SelB, SelE: integer;
-    PreFontName : string[lf_FaceSize+1];  {<pre>, <code> font for document}
+    PreFontName : string;  {<pre>, <code> font for document}
     LinkVisitedColor, LinkActiveColor,
     HotSpotColor: TColor;
     PrintTableBackground: boolean;
@@ -1822,7 +1822,7 @@ if MargArray[Width] <> IntNull then
   PercentWidth := False;
   if MargArray[Width] = Auto then
     SpecWidth := -1
-  else if (VarType(MargArrayO[Width]) = varString)
+  else if (VarIsStr(MargArrayO[Width]))
            and (System.Pos('%', MargArrayO[Width]) > 0) then
     begin
     PercentWidth := True;
@@ -1836,7 +1836,7 @@ if MargArray[Height] <> IntNull then
   PercentHeight := False;
   if MargArray[Height] = Auto then
     SpecHeight := -1
-  else if (VarType(MargArrayO[Height]) = varString)
+  else if (VarIsStr(MargArrayO[Height]))
            and (System.Pos('%', MargArrayO[Height]) > 0) then
     begin
     PercentHeight := True;
@@ -2944,7 +2944,7 @@ begin
 Prop.GetVMarginArray(MargArrayO);
 EmSize := Prop.EmSize;
 ExSize := Prop.ExSize;
-PercentWidth := (VarType(MargArrayO[Width]) = VarString) and (System.Pos('%', MargArrayO[Width]) > 0);
+PercentWidth := (VarIsStr(MargArrayO[Width])) and (System.Pos('%', MargArrayO[Width]) > 0);
 ConvInlineMargArray(MargArrayO, 100, 200, EmSize, ExSize, MargArray);
 
 VSpaceT := 1;
@@ -5480,7 +5480,7 @@ if (Table.Border > 0) and (MargArrayO[BorderLeftStyle]=bssNone)
 else TableBorder := False;
 
 {need to see if width is defined in style}
-Percent := (VarType(MargArrayO[Width]) = VarString) and (Pos('%', MargArrayO[Width]) > 0);
+Percent := (VarIsStr(MargArrayO[Width])) and (Pos('%', MargArrayO[Width]) > 0);
 ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, BorderStyle, AutoCount, MargArray);
 if MargArray[Width] > 0 then
   begin
@@ -6080,7 +6080,8 @@ BitmapList := T.BitmapList;     {same list}
 InlineList := T.InlineList;     {same list}
 IsCopy := True;
 inherited CreateCopy(Self, T);
-System.Move(T.ShowImages, ShowImages, DWord(@Background)-Dword(@ShowImages)+Sizeof(integer));
+// was: System.Move(T.ShowImages, ShowImages, DWord(@Background) - DWord(@ShowImages) + Sizeof(Integer));
+ShowImages := T.ShowImages;
 BitmapName := '';
 BackgroundBitmap := Nil;
 BackgroundMask := Nil;
@@ -7051,7 +7052,7 @@ if Assigned(Prop) then
   Prop.GetVMarginArray(MargArrayO);
   EmSize := Prop.EmSize;
   ExSize := Prop.ExSize;
-  Percent := (VarType(MargArrayO[Width]) = VarString) and (Pos('%', MargArrayO[Width]) > 0);
+  Percent := (VarIsStr(MargArrayO[Width])) and (Pos('%', MargArrayO[Width]) > 0);
   ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, bssNone, AutoCount, MargArray);
   if MargArray[Width] > 0 then
     if Percent then

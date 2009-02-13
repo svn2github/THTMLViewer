@@ -103,11 +103,11 @@
   {$Warn Symbol_Platform Off}
 {$endif}
 
-{.$Define NoOldPNG} {To eliminate the older PNG image code, define "NoOldPNG" by
+{$Define NoOldPNG} {To eliminate the older PNG image code, define "NoOldPNG" by
         removing the '.'.  Only do this if you are sure the gdiplus.dll is present
         or don't care about PNG support}
 
-{.$Define NoGDIPlus} {The gdiplus.dll provides Alpha transparency support for
+{$Define NoGDIPlus} {The gdiplus.dll provides Alpha transparency support for
         PNG images.  If, for some reason the use of the gdiplus.dll is
         undesirable, define "NoGDIPlus" by removing the '.'.  Defining both
         NoGDIPlus and NoOldPNG will remove support for PNG images entirely.}
@@ -119,7 +119,7 @@
         be supported, undefining this constant will allow Metafiles to be
         displayed.}
      
-{.$Define NoTabLink}  {To eliminate tabbing between links, define "NoTabLink" by
+{$Define NoTabLink}  {To eliminate tabbing between links, define "NoTabLink" by
         removing the '.'.  For documents with hundreds of links, tabbing may not
         be desirable and also may cause delays in loading.  Even when NoTabLink
         is not defined, there is another constant, MaxTab, which eliminates

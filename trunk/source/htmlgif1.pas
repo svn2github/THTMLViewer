@@ -1,4 +1,4 @@
-{Version 9.45}
+{Version 9.47}
 
 {$i HtmlCons.inc}
 
@@ -292,7 +292,7 @@ type
 
 // procedures used to implement the PROPERTIES
 
-        function  GetSignature: string;
+        function  GetSignature: AnsiString;
         function  GetScreenDescriptor: PGifScreenDescriptor;
         function  GetImageCount: integer;
         function  GetImageDescriptor(image: integer): PGifImageDescriptor;
@@ -327,7 +327,7 @@ type
         procedure LoadFromStream(Source: TStream);
         function GetStripBitmap(var Mask: TBitmap): TBitmap;  {LDB}
 
-        property Signature:                         string                  read GetSignature;
+        property Signature:                         AnsiString              read GetSignature;
         property ScreenDescriptor:                  PGifScreenDescriptor    read GetScreenDescriptor;
         property ImageCount:                        integer                 read GetImageCount;
         property ImageDescriptor[Image: integer]:   PGifImageDescriptor     read GetImageDescriptor;
@@ -355,7 +355,7 @@ type
 implementation
 
 uses
-  HtmlUn2;
+  HtmlUn2 {$IFDEF UNICODE}, AnsiStrings{$ENDIF};
 
 const
   TransColor = $170725;
@@ -689,7 +689,7 @@ with fSignature^ do
     begin
     fIOStream.Read(rSignature, 6);
     s := rSignature;
-    s := UpperCase(s);
+    s := AnsiUpperCase(s);
     if ((s <> 'GIF87A') and (s <> 'GIF89A')) then GIF_Error(1);
     end;
 end;
@@ -1501,9 +1501,9 @@ end;
 
 { ---------------------------------------------------------------------------- }
 
-function TGif.GetSignature: string;
+function TGif.GetSignature: AnsiString;
 var
-    s:      string;
+    s:      AnsiString;
 begin
 s := fSignature^.rSignature;
 GetSignature := s;

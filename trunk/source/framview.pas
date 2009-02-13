@@ -1,4 +1,4 @@
-{Version 9.45}
+{Version 9.47}
 {*********************************************************}
 {*                     FRAMVIEW.PAS                      *}
 {*********************************************************}
@@ -643,7 +643,7 @@ Result := (Ext = '.txt');
 end;
 
 {----------------FileToString}
-function FileToString(const Name: String): string;
+function FileToString(const Name: String): AnsiString;
 var
   FS: TFileStream;
   Tmp: AnsiString;
@@ -1882,9 +1882,12 @@ procedure DrawRect(ARect: TRect);
 var
   DC: HDC;
 begin
-DC := GetDC(0);
-DrawFocusRect(DC, ARect);
-ReleaseDC(0, DC);
+  DC := GetDC(0);
+  try
+    DrawFocusRect(DC, ARect);
+  finally
+    ReleaseDC(0, DC);
+end;
 end;
 
 {----------------TSubFrameSet.FVMouseDown}
@@ -2206,6 +2209,11 @@ end;
 function TFrameSet.TriggerEvent(const Src: string; PEV: PEventRec): boolean;
 var
   AName: string;
+  {$IFDEF UNICODE}
+  BStream: TStringStream;
+  {$ELSE}
+  BStream: TMemoryStream;
+  {$ENDIF}
   Strings: TStrings;
   Stream: TStream;
   Buffer: PChar;
@@ -2236,7 +2244,24 @@ with PEV^ do
       if Result then
         begin
         LStyle := lsString;
-        AString := StreamToString(Stream);
+        {$IFDEF UNICODE}
+        BStream := TStringStream.Create('' , TEncoding.Default);
+        try
+          BStream.LoadFromStream(Stream);
+          AString := BStream.DataString;
+        finally
+          BStream.Free;
+        end;
+        {$ELSE}
+        BStream := TMemoryStream.Create;
+        try
+          BStream.LoadFromStream(Stream);
+          SetLength(AString, BStream.Size);
+          Move(BStream.Memory^, AString[1], BStream.Size);
+        finally
+          BStream.Free;
+        end;
+        {$ENDIF}
         end;
       end
     else if Assigned(FOnBufferRequest) then
@@ -2247,7 +2272,7 @@ with PEV^ do
         begin
         LStyle := lsString;
         SetLength(AString, BuffSize div SizeOf(Char));
-        Move(Buffer^, AString[1], BuffSize * SizeOf(Char));
+        Move(Buffer^, AString[1], BuffSize);  // don't use * SizeOf(Char) here
         end;
       end
     else if Assigned(FOnFileRequest) then

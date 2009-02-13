@@ -268,7 +268,7 @@ if (I <= 2) or (J > 0) then
   if K > 0 then
     begin
     Params := Copy(S, K+1, 255); {save any parameters}
-    S[0] := chr(K-1);            {truncate S}
+    S[0] := Ansichar(K-1);            {truncate S}
     end
   else Params := '';
   S := Viewer.HTMLExpandFileName(S);

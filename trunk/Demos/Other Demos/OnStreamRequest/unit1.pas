@@ -72,7 +72,8 @@ procedure TForm1.FrameViewerStreamRequest(Sender: TObject;
   const SRC: String; var Stream: TStream);
 {this is the OnStreamRequest handler}
 var
-  Name, S: string;
+  Name: string;
+  S: AnsiString;
 begin
 if Pos(':', Src) = 0 then  {don't add Base if filename already complete}
   Name := Base+Src

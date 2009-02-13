@@ -1,4 +1,4 @@
-{Version 9.45}
+{Version 9.47}
 {*********************************************************}
 {*                     FRAMBRWZ.PAS                      *}
 {*********************************************************}
@@ -345,6 +345,24 @@ type
     FormData: TFreeList;    
     destructor Destroy; override;
     end;
+
+function StreamToString(Stream: TStream): string;
+var
+  SL: TStringList;
+begin
+Result := '';
+try
+  SL := TStringList.Create;
+  try
+    SL.LoadFromStream(Stream);
+    Result := SL.Text;
+  finally
+    Stream.Position := 0;  
+    SL.Free;
+    end;
+except
+  end;
+end;
 
 {----------------SplitURL}
 procedure SplitURL(const Src: string; var FName, Dest: string);
@@ -1563,9 +1581,12 @@ procedure DrawRect(ARect: TRect);
 var
   DC: HDC;
 begin
-DC := GetDC(0);
-DrawFocusRect(DC, ARect);
-ReleaseDC(0, DC);
+  DC := GetDC(0);
+  try
+    DrawFocusRect(DC, ARect);
+  finally
+    ReleaseDC(0, DC);
+  end;
 end;
 
 {----------------TbrSubFrameSet.FVMouseDown}

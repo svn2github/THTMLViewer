@@ -1,4 +1,4 @@
-{Version 9.45}
+{Version 9.47}
 {*********************************************************}
 {*                     HTMLVIEW.PAS                      *}
 {*********************************************************}
@@ -345,7 +345,7 @@ type
               Image: TGpObject; Mask: TBitmap; BW, BH: integer; BGColor: TColor);
     procedure DoBackground1(ACanvas: TCanvas; ATop, AWidth, AHeight, FullHeight: integer);
     procedure DoBackground2(ACanvas: TCanvas; ALeft, ATop, AWidth, AHeight: integer; AColor: TColor);
-    procedure LoadString(const Source, Reference: string; ft: ThtmlFileType);
+    procedure LoadString(const Source, Reference: String; ft: ThtmlFileType);
 
   public
     { Public declarations }
@@ -365,7 +365,7 @@ type
     procedure LoadFromFile(const FileName: string);
     procedure LoadTextFromString(const S: string);
     {$ifdef ver120_plus}  {Delphi 4 and higher}
-    procedure LoadFromString(const S: string; const Reference: string = ''); overload;
+    procedure LoadFromString(const S: AnsiString; const Reference: string = ''); overload;
     {$ifdef Delphi6_Plus}
     procedure LoadFromString(const WS: WideString; const Reference: string = ''); overload;
     {$endif}
@@ -373,7 +373,7 @@ type
     procedure LoadStrings(const Strings: TStrings; const Reference: string = '');
     procedure LoadFromBuffer(Buffer: PChar; BufLenTChars: integer; const Reference: string = '');
     {$else}
-    procedure LoadFromString(const S: string; const Reference: string);
+    procedure LoadFromString(const S: String; const Reference: string);
     procedure LoadFromStream(const AStream: TStream; const Reference: string);
     procedure LoadStrings(const Strings: TStrings; const Reference: string);
     procedure LoadFromBuffer(Buffer: PChar; BufSizeTChars: integer; const Reference: string);
@@ -570,50 +570,13 @@ type
     property Cursor: TCursor read GetCursor write SetCursor default crIBeam;
     end;
 
-function StreamToString(Stream: TStream): string;
-
 implementation
 
 uses
-  Clipbrd, htmlgif2;
+  Clipbrd, htmlgif2{$IFDEF UNICODE}, AnsiStrings{$ENDIF};
 
 const
   ScrollGap = 20;
-
-function StreamToString(Stream: TStream): string;
-var
-{$IFDEF UNICODE}
-  BStream: TStringStream;
-{$ELSE}
-  BStream: TMemoryStream;
-{$ENDIF}
-begin
-  Result := '';
-  if Stream.Size > 0 then
-  try
-    {$IFDEF UNICODE}
-    BStream := TStringStream.Create('' , TEncoding.Default);
-    try
-      BStream.LoadFromStream(Stream);
-      Result := BStream.DataString;
-    finally
-      BStream.Free;
-    end;
-    {$ELSE}
-    BStream := TMemoryStream.Create;
-    try
-      BStream.LoadFromStream(Stream);
-      SetLength(Result, BStream.Size);
-      Move(BStream.Memory^, Result[1], BStream.Size);
-    finally
-      BStream.Free;
-    end;
-    {$ENDIF}
-
-    Stream.Position := 0;
-  except
-  end;
-end;
 
 type
   PositionObj = class(TObject)
@@ -975,7 +938,7 @@ LoadString(S, '', TextType);
 end;
 
 {----------------ThtmlViewer.LoadFromString}
-procedure ThtmlViewer.LoadFromString(const S: string; const Reference: string);
+procedure ThtmlViewer.LoadFromString(const S: AnsiString; const Reference: string);
 begin
 LoadString(S, Reference, HTMLType);
 if (FRefreshDelay > 0) and Assigned(FOnMetaRefresh) then
@@ -990,7 +953,7 @@ end;
 {$endif}
 
 {----------------ThtmlViewer.LoadString}
-procedure ThtmlViewer.LoadString(const Source, Reference: string; ft: ThtmlFileType);
+procedure ThtmlViewer.LoadString(const Source, Reference: String; ft: ThtmlFileType);
 var
   I: integer;
   Dest, FName, OldFile: string;
@@ -1053,7 +1016,7 @@ Stream := TMemoryStream.Create;
 try
   Stream.LoadFromStream(AStream);
   SetLength(S, Stream.Size div SizeOf(Char));
-  Move(Stream.Memory^, S[1], Stream.Size * SizeOf(Char));
+  Move(Stream.Memory^, S[1], Stream.Size); // don't use * SizeOf(Char) here
   LoadString(S, Reference, HTMLType);
   if (FRefreshDelay > 0) and Assigned(FOnMetaRefresh) then
     FOnMetaRefresh(Self, FRefreshDelay, FRefreshURL);
@@ -1086,7 +1049,8 @@ try
 
   if ft in [HTMLType, TextType] then
     begin
-    FDocumentSource := StreamToString(AStream);
+    SetLength(FDocumentSource, AStream.Size div SizeOf(Char));
+    Move(AStream.Memory^, FDocumentSource[1], AStream.Size); // don't use * SizeOf(Char) here
     end
   else FDocumentSource := '';
   if Assigned(FOnParseBegin) then
@@ -5223,9 +5187,8 @@ end;
 
 destructor PositionObj.Destroy;
 begin
-FormData.Free;
-inherited;
+  FormData.Free;
+  inherited;
 end;
 
 end.
-

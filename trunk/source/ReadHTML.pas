@@ -1,5 +1,5 @@
 
-{Version 9.45}
+{Version 9.47}
 {*********************************************************}
 {*                     READHTML.PAS                      *}
 {*                                                       *}
@@ -3208,7 +3208,7 @@ end;
 
 procedure DoStyleLink;   {handle <link> for stylesheets}
 var
-  Stream: TStringStream;
+  Stream: TMemoryStream;
   C: char;
   I: integer;
   Url, Rel, Rev: string;
@@ -3234,7 +3234,7 @@ for I := 0 to Attributes.Count-1 do
       end;
 if OK and (Url <> '') then
   begin
-  Stream := TStringStream.Create;
+  Stream := TMemoryStream.Create;
   try
     Viewer := (CallingObject as ThtmlViewer);
     Request := Viewer.OnHtStreamRequest;
@@ -3272,7 +3272,8 @@ if OK and (Url <> '') then
       end;
     if Stream.Size > 0 then
       begin
-      slS := Stream.DataString;
+      SetLength(slS, Stream.Size div SizeOf(Char));
+      Move(Stream.Memory^, slS[1], Stream.Size);  // don't use * SizeOf(Char) here
       slS := AdjustLineBreaks(slS);  {put in uniform CRLF format}
       slI := 1;
       C := slGet;

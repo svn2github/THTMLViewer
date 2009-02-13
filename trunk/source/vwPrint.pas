@@ -1,6 +1,6 @@
 {This is a modification of code found in Borland's Printers.Pas}
 
-{Version 9.45}
+{Version 9.47}
 {*******************************************************}
 {                                                       }
 {       Delphi Visual Component Library                 }

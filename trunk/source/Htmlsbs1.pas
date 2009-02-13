@@ -1,4 +1,4 @@
-{Version 9.45}
+{Version 9.47}
 {*********************************************************}
 {*                     HTMLSBS1.PAS                      *}
 {*********************************************************}
@@ -247,7 +247,7 @@ TmpColor := Prop.GetOriginalForegroundColor;
 if TmpColor <> clNone then
   Color := TmpColor;
 with Prop do
-  if (varType(Props[TextAlign]) = VarString) and Originals[TextAlign] then
+  if (VarIsStr(Props[TextAlign])) and Originals[TextAlign] then
     if Props[TextAlign] = 'left' then
       Align := Left
     else if Props[TextAlign] = 'right' then
@@ -558,12 +558,15 @@ Opt.Selected := Selected;
 Opt.Attributes := Attr;
 TheOptions.AddObject(S1, Opt);
 
-DC := GetDC(0);
-OldFont := SelectObject(DC, TheFont.Handle);
-GetTextExtentPoint32(DC, PChar(S1), Length(S1), ExtS);
-SelectObject(DC, OldFont);
-ReleaseDC(0, DC);
-Longest := IntMax(Longest, ExtS.cx);
+  DC := GetDC(0);
+  try
+    OldFont := SelectObject(DC, TheFont.Handle);
+    GetTextExtentPoint32(DC, PChar(S1), Length(S1), ExtS);
+    SelectObject(DC, OldFont);
+  finally
+    ReleaseDC(0, DC);
+  end;
+  Longest := IntMax(Longest, ExtS.cx);
 end;
 
 procedure TListBoxFormControlObj.ResetToValue;

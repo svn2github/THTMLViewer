@@ -169,6 +169,7 @@ Height := (Screen.Height * 6) div 8;
     FrameViewer.Align := alClient;
   end;
 //>
+
 FrameViewer.HistoryMaxCount := MaxHistories;  {defines size of history list}
 
 for I := 0 to MaxHistories-1 do
@@ -198,7 +199,7 @@ procedure TForm1.HotSpotTargetClick(Sender: TObject; const Target, URL: string;
 const
   snd_Async = $0001;  { play asynchronously }
 var
-  PC: array[0..255] of AnsiChar;
+  PC: array[0..255] of char;
   S, Params: string[255];
   Ext: string[5];
   I, J, K: integer;
@@ -238,7 +239,7 @@ if (I <= 2) or (J > 0) then
   if K > 0 then
     begin
     Params := Copy(S, K+1, 255); {save any parameters}
-    S[0] := AnsiChar(K-1);            {truncate S}
+    S[0] := chr(K-1);            {truncate S}
     end
   else Params := '';
   S := (Sender as TFrameViewer).HTMLExpandFileName(S);
@@ -246,7 +247,7 @@ if (I <= 2) or (J > 0) then
   if Ext = '.WAV' then
     begin
     Handled := True;
-    sndPlaySoundA(StrPCopy(PC, S), snd_ASync);
+    sndPlaySound(StrPCopy(PC, S), snd_ASync);
     end
   else if Ext = '.EXE' then
     begin
@@ -267,7 +268,7 @@ J := Pos('HTTP://', UpperCase(URL));
 if (I > 0) or (J > 0) then
   begin
   {Note: ShellExecute causes problems when run from Delphi 4 IDE}
-  ShellExecuteA(Handle, nil, StrPCopy(PC, URL), nil, nil, SW_SHOWNORMAL);
+  ShellExecute(Handle, nil, StrPCopy(PC, URL), nil, nil, SW_SHOWNORMAL);
   Handled := True;
   Exit;
   end;
@@ -529,7 +530,7 @@ procedure TForm1.WindowRequest(Sender: TObject; const Target,
 var
   S, Dest: string[255];
   I: integer;
-  PC: array[0..255] of AnsiChar;
+  PC: array[0..255] of char;
 begin
 S := URL;
 I := Pos('#', S);
@@ -751,9 +752,9 @@ end;
   
 procedure TForm1.OpenInNewWindowClick(Sender: TObject);
 var
-  PC: array[0..255] of AnsiChar;
+  PC: array[0..255] of char;
 begin
-  WinExec(StrPCopy(PC, AnsiString(ParamStr(0)+' "'+NewWindowFile+'"')), sw_Show);
+WinExec(StrPCopy(PC, ParamStr(0)+' "'+NewWindowFile+'"'), sw_Show);
 end;
 
 procedure TForm1.PrinterSetupClick(Sender: TObject);
