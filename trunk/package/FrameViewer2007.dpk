@@ -55,7 +55,7 @@ contains
   zLIbEx1 in '..\source\zlibEx1.pas',
   PngImage1 in '..\source\PngImage1.pas',
   PngLang1 in '..\source\PngLang1.pas',
-  FrameViewerReg in 'FrameViewerReg.pas',
+  FrameViewerReg in '..\source\FrameViewerReg.pas',
   GDIPL2A in '..\source\GDIPL2A.pas';
 
 end.
