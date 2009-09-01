@@ -442,12 +442,12 @@ procedure WrapTextW(Canvas: TCanvas; X1, Y1, X2, Y2: integer; S: WideString);
 procedure FinishTransparentBitmap (ahdc: HDC;
             InImage, Mask: TBitmap; xStart, yStart, W, H: integer);
 function GetImageMask(Image: TBitmap; ColorValid: boolean; AColor: TColor): TBitmap;
-function TransparentGIF(const FName: string; var Color: TColor): boolean;
-function Allocate(Size: integer): AllocRec;
-procedure DeAllocate(AR: AllocRec);
-function CopyPalette(Source: hPalette): hPalette;
+//function TransparentGIF(const FName: string; var Color: TColor): boolean;
+//function Allocate(Size: integer): AllocRec;
+//procedure DeAllocate(AR: AllocRec);
+//function CopyPalette(Source: hPalette): hPalette;
 procedure SetGlobalPalette(Value: HPalette);
-function GetImageFromFile(const Filename: String): TBitmap;
+//function GetImageFromFile(const Filename: String): TBitmap;
 function GetImageAndMaskFromStream(Stream: TMemoryStream;
         var Transparent: Transparency; var AMask: TBitmap): TgpObject;
 function KindOfImageFile(FName: String): ImageType;
@@ -462,12 +462,11 @@ procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
            Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
            W: integer);
 function EnlargeImage(Image: TGpObject; W, H: integer): TBitmap;
-procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer;
-             BMHandle: HBitmap);
-procedure PrintBitmap1(Canvas: TCanvas; X, Y, W, H, YI, HI: integer;
-             BMHandle: HBitmap);
-procedure PrintTransparentBitmap1(Canvas: TCanvas; X, Y, NewW, NewH: integer;
-             Bitmap, Mask: TBitmap; YI, HI: integer);
+procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
+//procedure PrintBitmap1(Canvas: TCanvas; X, Y, W, H, YI, HI: integer;
+//             BMHandle: HBitmap);
+//procedure PrintTransparentBitmap1(Canvas: TCanvas; X, Y, NewW, NewH: integer;
+//             Bitmap, Mask: TBitmap; YI, HI: integer);
 procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: integer;
              Bitmap, Mask: TBitmap; YI, HI: integer);
 procedure DrawGpImage(Handle: THandle; Image: TGPImage; DestX, DestY: integer); overload;
@@ -497,7 +496,8 @@ uses
   {$ifndef NoOldPng}
      PngImage1,
   {$endif}
-     htmlview, htmlsubs, HtmlGif2, StylePars, ActiveX;
+     //htmlview,
+     htmlsubs, HtmlGif2, StylePars, ActiveX;
 
 type
   EGDIPlus = class (Exception);
@@ -3537,7 +3537,7 @@ var
   HF, VF: double;
   ABitmap, AMask: TBitmap;
   BitmapCopy: boolean;
-
+  Origin: TPoint; //BG, 29.08.2009: window origin for correct mask translation
 begin
 {the following converts the black masked area in the image to white.  This may look
  better in WPTools which currently doesn't handle the masking}
@@ -3575,6 +3575,8 @@ try
      the mask and needs to be positioned on the canvas.}
     GetViewportExtEx(DC, SizeV);
     GetWindowExtEx(DC, SizeW);
+    GetWindowOrgEx(DC, Origin); //BG, 29.08.2009: get origin for correct mask translation
+
     HF := (SizeV.cx/SizeW.cx);  {Horizontal adjustment factor}
     VF := (SizeV.cy/SizeW.cy);  {Vertical adjustment factor}
 
@@ -3582,7 +3584,7 @@ try
     XForm.eM12 := 0;
     XForm.eM21 := 0;
     XForm.eM22 := VF * (NewH/HI);
-    XForm.edx := HF*X;
+    XForm.edx := HF*(X - Origin.X); //BG, 29.08.2009: subtract origin
     XForm.edy := VF*Y;
 
     {Find the region for the white area of the Mask}

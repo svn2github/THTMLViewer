@@ -308,6 +308,9 @@ type
   IndentManager = class(IndentManagerBasic)
     procedure Update(Y: integer; Img: TFloatingObj);
     procedure UpdateBlock(Y: integer; IW: integer; IH: integer; Justify: AlignmentType);
+//BG, 08.06.2008:
+    function GetNextLeftXY(var Y: Integer; X, ThisWidth, MaxWidth, MinIndex: Integer): Integer;
+//BG, 08.06.2008
     end;
 
   TFormControlObj = class;
@@ -1214,6 +1217,35 @@ type
     property StartB[I: integer]: integer read GetStartB;
     property EndB[I: integer]: integer read GetEndB;
     end;
+
+//-- BG ---------------------------------------------------------- 08.06.2008 --
+function IndentManager.GetNextLeftXY(var Y: Integer; X, ThisWidth, MaxWidth, MinIndex: Integer): Integer;
+var
+  Index: Integer;
+  Indent: IndentRec;
+  DummyCR: Integer;
+begin
+  if X < 0 then
+  begin
+    dec(X, Auto);
+    inc(MaxWidth, 2 * Auto);
+  end;
+  Index := L.Count - 1;
+  if Index >= MinIndex then
+  begin
+    Indent := IndentRec(L[Index]);
+    // set y to previous used y == y of current line
+    Y := IntMax(Y, Indent.YT);
+    Result := IntMax(X, Indent.X);
+  end
+  else
+    Result := IntMax(X, LeftIndent(Y));
+  if Result + ThisWidth > MaxWidth + X then
+  begin
+    Result := X;
+    GetClearY(Y, DummyCR);
+  end;
+end;
 
 procedure IndentManager.Update(Y: integer; Img: TFloatingObj);
 {Given a new floating image, update the edge information.  Fills  Img.Indent,
@@ -4610,6 +4642,9 @@ else
   end;
 
 if not NoMask and ((BGImage.Image is TBitmap)
+//BG, 25.08.2007:
+      or (BGImage.Image is TGifImage)
+//BG, 25.08.2007
      {$ifndef NoMetafile}
       or (BGImage.Image is ThtMetafile)
      {$endif}
@@ -4790,24 +4825,40 @@ MiscWidths := MargArray[MarginLeft]+MargArray[PaddingLeft]+MargArray[BorderLeftW
 TotalWidth := MiscWidths + NewWidth;
 
 YClear := Y+ClearAddon;
-if MargArray[MarginTop] > 0 then
-  DrawTop := YClear
-else DrawTop := YClear + MargArray[MarginTop]; {Border top}
+//BG, 08.06.2008: moved after IMgr.GetNextLeftXY()
+//if MargArray[MarginTop] > 0 then
+//  DrawTop := YClear
+//else 
+//  DrawTop := YClear + MargArray[MarginTop]; {Border top}
+//BG, 08.06.2008
 if FloatLR = ALeft then
   begin
-  Indent := IntMax(X, IMgr.LeftIndent(YClear)) + MargArray[MarginLeft]+MargArray[PaddingLeft]+MargArray[BorderLeftWidth]-X;
+//BG, 08.06.2008: line break for floating left aligned blocks
+//  Indent := IntMax(X, IMgr.LeftIndent(YClear)) + MargArray[MarginLeft]+MargArray[PaddingLeft]+MargArray[BorderLeftWidth]-X;
+  Indent := IMgr.GetNextLeftXY(YClear, X, NewWidth, AWidth, 0) + MargArray[MarginLeft]+MargArray[PaddingLeft]+MargArray[BorderLeftWidth]-X;
+
+//BG, 08.06.2008
   end
 else if FloatLR = ARight then
-  Begin
+begin
   Indent := IntMin(AWidth, IMgr.RightSide(YClear))- (MargArray[MarginRight]+MargArray[PaddingRight]+MargArray[BorderRightWidth]) - NewWidth;
   end
 else
   begin
   Indent := MargArray[MarginLeft]+MargArray[PaddingLeft]+MargArray[BorderLeftWidth];
   end;
+//BG, 08.06.2008: moved from above: IMgr.GetNextLeftXY() might change YClear 
+if MargArray[MarginTop] > 0 then
+  DrawTop := YClear
+else
+  DrawTop := YClear + MargArray[MarginTop]; {Border top}
+//BG, 08.06.2008
 
 X := X + Indent;
-ContentTop := Y+ClearAddon+MargArray[MarginTop]+MargArray[PaddingTop]+MargArray[BorderTopWidth];
+//BG, 08.06.2008: use the maybe advanced YClear instead of repeating initial calculation of YClear:
+//ContentTop := Y+ClearAddon+MargArray[MarginTop]+MargArray[PaddingTop]+MargArray[BorderTopWidth];
+ContentTop := YClear+MargArray[MarginTop]+MargArray[PaddingTop]+MargArray[BorderTopWidth];
+//BG, 08.06.2008
 
 LIndex := IMgr.SetLeftIndent(X, ContentTop);
 RIndex := IMgr.SetRightIndent(X+NewWidth, ContentTop);
@@ -4877,10 +4928,17 @@ if (FloatLR in [ALeft, ARight]) or (Positioning = posAbsolute) then
     DrawHeight := 0
   else DrawHeight := SectionHeight;
   if FloatLR = ALeft then
-    IMgr.UpdateBlock(Y, X+NewWidth + MargArray[MarginRight]+
-            MargArray[PaddingRight]+MargArray[BorderRightWidth], DrawBot-Y, FloatLR)
+//BG, 08.06.2008:
+//    IMgr.UpdateBlock(Y, X+NewWidth + MargArray[MarginRight]+
+//            MargArray[PaddingRight]+MargArray[BorderRightWidth], DrawBot-Y, FloatLR)
+    IMgr.UpdateBlock(DrawTop, X+NewWidth + MargArray[MarginRight]+
+            MargArray[PaddingRight]+MargArray[BorderRightWidth], DrawBot-DrawTop, FloatLR)
+//BG, 08.06.2008
   else if FloatLR = ARight then
-    IMgr.UpdateBlock(Y, TotalWidth, DrawBot-Y, FloatLR);
+//BG, 08.06.2008:
+//    IMgr.UpdateBlock(Y, TotalWidth, DrawBot-Y, FloatLR);
+    IMgr.UpdateBlock(DrawTop, TotalWidth, DrawBot-DrawTop, FloatLR);
+//BG, 08.06.2008
   SectionHeight := 0;
   Result := 0;
   end

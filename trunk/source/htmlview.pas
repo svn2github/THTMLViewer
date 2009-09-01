@@ -80,6 +80,11 @@ type
   ThtProgressEvent = procedure(Sender: TObject; Stage: TProgressStage;
                    PercentDone: integer) of Object;
 
+//BG, 01.12.2006: beg of modification
+  THTMLViewPrinted = TNotifyEvent;
+  THTMLViewPrinting = procedure(Sender: TObject; var StopPrinting: Boolean) of object;
+//BG, 01.12.2006: end of modification
+
   TPaintPanel = class(TCustomPanel)
   private
     FOnPaint: TNotifyEvent;
@@ -218,6 +223,12 @@ type
     FLinkText: WideString;
     FLinkStart: TPoint;
     FWidthRatio: double;
+//BG, 01.12.2006: beg of modification
+    FPrintedSize: TPoint;
+    FOnPrinted: THTMLViewPrinted;
+    FOnPrinting: THTMLViewPrinting;
+//BG, 01.12.2006: end of modification
+
     FOnObjectTag: TObjectTagEvent;
 
     function CreateHeaderFooter: ThtmlViewer;
@@ -385,7 +396,10 @@ type
     procedure Print(FromPage, ToPage: integer);
     function NumPrinterPages: integer; overload;
     function NumPrinterPages(var WidthRatio: double): integer; overload;
-    function PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: boolean = False): integer;
+//BG, 01.12.2006: beg of modification
+    procedure NumPrinterPages(MFPrinter: TMetaFilePrinter; out Width, Height: Integer); overload;
+    function PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: boolean = False): integer; virtual;
+//BG, 01.12.2006: end of modification
     function PositionTo(Dest: string): boolean;
     function Find(const S: WideString; MatchCase: boolean): boolean;
     function FindEx(const S: WideString; MatchCase, Reverse: boolean): boolean;
@@ -566,6 +580,10 @@ type
                   write FOnhtStreamRequest;
     property OnParseBegin: TParseEvent read FOnParseBegin write FOnParseBegin;
     property OnParseEnd: TNotifyEvent read FOnParseEnd write FOnParseEnd;
+//BG, 01.12.2006: beg of modification
+    property OnPrinted: THTMLViewPrinted read FOnPrinted write FOnPrinted;
+    property OnPrinting: THTMLViewPrinting read FOnPrinting write FOnPrinting;
+//BG, 01.12.2006: end of modification
     property OnObjectTag: TObjectTagEvent read FOnObjectTag write FOnObjectTag;
     property Cursor: TCursor read GetCursor write SetCursor default crIBeam;
     end;
@@ -573,6 +591,9 @@ type
 implementation
 
 uses
+//BG, 01.12.2006: beg of modification
+  Math,
+//BG, 01.12.2006: end of modification
   Clipbrd, htmlgif2{$IFDEF UNICODE}, AnsiStrings{$ENDIF};
 
 const
@@ -3135,7 +3156,7 @@ procedure ThtmlViewer.Print(FromPage, ToPage: integer);
 var
   ARect, CRect: TRect;
   PrintList: TSectionList;
-  P1, P2, P3, W, H, HTop, OldTop, Dummy: integer;
+  P1 {=XDpi}, P2 {=WDpi}, P3 {=YDpi}, W, H, HTop, OldTop, Dummy: integer;  
   Curs: integer;
   Done: boolean;
   DC : HDC;
@@ -3183,6 +3204,14 @@ var
   Canvas.Brush.Assign(SavedBrush);
   end;
 
+//BG, 01.12.2006: beg of modification
+var
+  HPages: Integer;
+  HPageIndex: Integer;
+  ScrollWidth: Integer;
+  XOrigin: Integer;
+//BG, 01.12.2006: end of modification 
+
   procedure WhiteoutArea(Canvas: TCanvas; Y: integer);
   {White out excess printing.  Y is top of the bottom area to be blanked.}
   begin
@@ -3198,7 +3227,9 @@ var
                      MLeftPrn+WPrn, TopPixelsPrn+HPrn);
     SelectClipRgn(Canvas.Handle, hrgnClip1);
     DeleteObject(hrgnClip1);
-    DoBackground2(Canvas, MLeft, TopPixels, W, H, PaintPanel.Color);
+//BG, 01.12.2006: beg of modification
+    DoBackground2(Canvas, MLeft + XOrigin, TopPixels, W, H, PaintPanel.Color);
+//BG, 01.12.2006: end of modification
     end;
   RestoreCanvasItems(Canvas);
   end;
@@ -3251,6 +3282,12 @@ begin
 Done := False;
 FootViewer := Nil;
 HeadViewer := Nil;
+//BG, 01.12.2006: beg of modification
+if assigned(FOnPrinting) then
+  FOnPrinting(self,Done);
+if Done then
+  exit;
+//BG, 01.12.2006: end of modification
 TablePartRec := Nil;
 if Assigned(FOnPageEvent) then
   FOnPageEvent(Self, 0, Done);
@@ -3359,7 +3396,9 @@ try
         H := MulDiv(HPrn, P2, P3);  {scaled pageHeight}
 
         Curs := 0;
-        VPixels := PrintList.DoLogic(Canvas, 0, W, H, 0, Dummy, Curs);
+//BG, 01.12.2006: beg of modification
+        VPixels := PrintList.DoLogic(Canvas, 0, W, H, 0, {Dummy} ScrollWidth, Curs);
+//BG, 01.12.2006: end of modification
 
         Done := False;
         HTop := 0;
@@ -3384,19 +3423,32 @@ try
         OrigH := H;
         LastPrintMarginTop := FPrintMarginTop;
 
+//BG, 01.12.2006: beg of modification
+        HPages := ceil(ScrollWidth/W);
+//BG, 01.12.2006: end of modification
         while (FPage <= ToPage) and not Done do
           begin
           PrintList.SetYOffset(HTop-TopPixels);
           SetMapMode(DC, mm_AnIsotropic);
           SetWindowExtEx(DC, P2, P2, Nil);
           SetViewPortExtEx(DC, P1,P3, Nil);
-          SetWindowOrgEx(DC, 0, 0, Nil);
+//BG, 01.12.2006: beg of modification
+          {SetWindowOrgEx(DC, 0, 0, Nil);}
+//BG, 01.12.2006: end of modification
           SelectClipRgn(DC, hrgnClip);
 
+//BG, 01.12.2006: beg of modification
+          for HPageIndex := 0 to HPages - 1 do
+          begin
+            XOrigin := HPageIndex * W;
+            SetWindowOrgEx(DC, XOrigin, 0, Nil);
+//BG, 01.12.2006: end of modification
           if FPage >= FromPage then
             begin
             if (htPrintBackground in FOptions) then
-              DoBackground2(Canvas, MLeft, TopPixels, W, H, PaintPanel.Color);
+//BG, 01.12.2006: beg of modification
+                DoBackground2(Canvas, MLeft + XOrigin, TopPixels, W, H, PaintPanel.Color);
+//BG, 01.12.2006: end of modification
             MLeftSide := MLeft;
             end
           else MLeftSide := MLeft+3*W;   {to print off page}
@@ -3466,20 +3518,25 @@ try
             Align := SetTextAlign(DC, TA_Top or TA_Left or TA_NOUPDATECP);
             if Assigned(FOnPrintHeader) then
               begin
-              SetWindowOrgEx(DC, 0, 0, Nil);
+//BG, 01.12.2006: beg of modification
+                SetWindowOrgEx(DC, XOrigin, 0, Nil);
+//BG, 01.12.2006: end of modification
               FOnPrintHeader(Self, Canvas, FPage, ScaledPgWid, TopPixels, Done);
               end;
             if Assigned(FOnPrintFooter) then
               begin
-              SetWindowOrgEx(DC, 0, -(TopPixels+H), Nil);
+//BG, 01.12.2006: beg of modification
+                SetWindowOrgEx(DC, XOrigin, -(TopPixels+H), Nil);
+//BG, 01.12.2006: end of modification
               FOnPrintFooter(Self, Canvas, FPage, ScaledPgWid,
                   ScaledPgHt-(TopPixels+H), Done);
               end;
             DoHTMLHeaderFooter(False, FOnPrintHTMLHeader, HeadViewer);
             DoHTMLHeaderFooter(True, FOnPrintHTMLFooter, FootViewer);
             SetTextAlign(DC, Align);
-            RestoreCanvasItems(Canvas);
-            end;
+
+          end;
+          RestoreCanvasItems(Canvas);
           if FPrintMarginTop <> LastPrintMarginTop then
             begin
             DeltaMarginTop := FPrintMarginTop - SavePrintMarginTop;
@@ -3495,6 +3552,11 @@ try
             LastPrintMarginTop := FPrintMarginTop;
             end;
 {.$EndRegion}
+//BG, 01.12.2006: beg of modification
+            if HPageIndex < HPages - 1 then
+              NewPage;
+          end;
+//BG, 01.12.2006: end of modification
           HTop := PrintList.PageBottom;
           Application.ProcessMessages;
           if Assigned(FOnPageEvent) then
@@ -3531,6 +3593,10 @@ finally
   FPrintMarginTop := SavePrintMarginTop;
   PrintList.Free;
   end;
+//BG, 01.12.2006: beg of modification
+if assigned(FOnPrinted) then
+  FOnPrinted(self);
+//BG, 01.12.2006: end of modification
 end;
 
 procedure ThtmlViewer.OpenPrint;
@@ -3586,11 +3652,29 @@ finally
   end;
 end;
 
+//BG, 01.12.2006: beg of modification
+procedure THTMLViewer.NumPrinterPages(MFPrinter: TMetaFilePrinter; out Width, Height: Integer);
+var
+  LOnPageEvent: TPageEvent;
+begin
+  LOnPageEvent := FOnPageEvent;
+  FOnPageEvent := Nil;
+  try
+    PrintPreview(MFPrinter, False);
+    Width := FPrintedSize.X;
+    Height := FPrintedSize.Y;
+  finally
+    FOnPageEvent := LOnPageEvent;
+  end;
+end;
+//BG, 01.12.2006: end of modification
+
+
 function ThtmlViewer.PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: boolean = False): integer;
 var
   ARect, CRect  : TRect;
   PrintList     : TSectionList;
-  P1, P2, P3    : integer;
+  P1, P2, P3    : integer; // XDpi, WDpi, YDpi
   W, H          : integer;
   HTop          : integer;
   OldTop        : integer;
@@ -3659,24 +3743,32 @@ var
   Canvas.Brush.Assign(SavedBrush);
   end;
 
+//BG, 01.12.2006: beg of modification
+var
+  HPages: Integer;
+  HPageIndex: Integer;
+  XOrigin: Integer;
+//BG, 01.12.2006: end of modification
+
   procedure WhiteoutArea(Canvas: TCanvas; Y: integer);
   {White out excess printing.  Y is top of the bottom area to be blanked.}
   begin
-  Canvas.Brush.Color := clWhite;
-  Canvas.Brush.Style := bsSolid;
-  Canvas.Pen.Style   := psSolid;
-  Canvas.Pen.Color   := clWhite;
-  Canvas.Rectangle(MLeft, 0, W + MLeft+1, TopPixels-1);
-  Canvas.Rectangle(MLeft, Y, W + MLeft+1, TopPixels+H+1);
-  if (htPrintBackground in FOptions) and (Y-TopPixels < H) then
+    Canvas.Brush.Color := clWhite;
+    Canvas.Brush.Style := bsSolid;
+    Canvas.Pen.Style   := psSolid;
+    Canvas.Pen.Color   := clWhite;
+    Canvas.Rectangle(MLeft, 0, W + MLeft+1, TopPixels-1);
+    Canvas.Rectangle(MLeft, Y, W + MLeft+1, TopPixels+H+1);
+    if (htPrintBackground in FOptions) and (Y-TopPixels < H) then
     begin   {need to reprint background in whited out area}
-    hrgnClip1 := CreateRectRgn(MLeftPrn, MulDiv(Y, P3, P2)+2,
-                     MLeftPrn+WPrn, TopPixelsPrn+HPrn);
-    SelectClipRgn(Canvas.Handle, hrgnClip1);
-    DeleteObject(hrgnClip1);
-    DoBackground2(Canvas, MLeft, TopPixels, W, H, PaintPanel.Color);
+      hrgnClip1 := CreateRectRgn(MLeftPrn, MulDiv(Y, P3, P2)+2, MLeftPrn+WPrn, TopPixelsPrn+HPrn);
+      SelectClipRgn(Canvas.Handle, hrgnClip1);
+      DeleteObject(hrgnClip1);
+//BG, 01.12.2006: beg of modification
+      DoBackground2(Canvas, MLeft + XOrigin, TopPixels, W, H, PaintPanel.Color);
+//BG, 01.12.2006: end of modification
     end;
-  RestoreCanvasItems(Canvas);
+    RestoreCanvasItems(Canvas);
   end;
 
   procedure DoHTMLHeaderFooter(Footer: boolean; Event: ThtmlPagePrinted; HFViewer: ThtmlViewer);
@@ -3725,291 +3817,328 @@ var
   end;
 
 begin
-Done := False;
-FootViewer := Nil;
-HeadViewer := Nil;
-TablePartRec := Nil;
-if Assigned(FOnPageEvent) then
-  FOnPageEvent(Self, 0, Done);
-FPage := 0;
-Result := 0;
-if FProcessing or (SectionList.Count = 0) then Exit;
-PrintList := TSectionList.CreateCopy(SectionList);
-PrintList.SetYOffset(0);
-SavePrintMarginTop := FPrintMarginTop;
-try
-  SavedPen := TPen.Create;
-  SavedFont := TFont.Create;
-  SavedBrush := TBrush.Create;
+  Done := False;
+  FootViewer := Nil;
+  HeadViewer := Nil;
+  TablePartRec := Nil;
+  if Assigned(FOnPageEvent) then
+    FOnPageEvent(Self, 0, Done);
+  FPage := 0;
+  Result := 0;
+  if FProcessing or (SectionList.Count = 0) then
+    Exit;
+  PrintList := TSectionList.CreateCopy(SectionList);
+  PrintList.SetYOffset(0);
+  SavePrintMarginTop := FPrintMarginTop;
   try
-    PrintList.Printing := True;
-    PrintList.NoOutput := NoOutput;
-    PrintList.SetBackground(clWhite);
-
-    FPage := 1;
-    hrgnClip := 0;
-    hrgnClip2 := 0;
+    SavedPen := TPen.Create;
+    SavedFont := TFont.Create;
+    SavedBrush := TBrush.Create;
     try
-      with MFPrinter do
+      PrintList.Printing := True;
+      PrintList.NoOutput := NoOutput;
+      PrintList.SetBackground(clWhite);
+
+      FPage := 1;
+      hrgnClip := 0;
+      hrgnClip2 := 0;
+      try
+        with MFPrinter do
         begin
-        if DocumentTitle <> '' then
-           Title := DocumentTitle;
+          if DocumentTitle <> '' then
+             Title := DocumentTitle;
 
-        BeginDoc;
-        DC := Canvas.Handle;
-        PrnDC := PrinterDC;
-
-        P3 := GetDeviceCaps(PrnDC, LOGPIXELSY);
-        P1 := GetDeviceCaps(PrnDC, LOGPIXELSX);
-        P2 := Round(Screen.PixelsPerInch * FPrintScale);
-        fScaleX := 100.0/P3;
-        fScaleY := 100.0/P1;
-        PrintList.ScaleX := fScaleX;
-        PrintList.ScaleY := fScaleY;
-        SetMapMode(DC, mm_AnIsotropic);
-        //P1 := GetDeviceCaps(PrnDC, LOGPIXELSX);
-        SetWindowExtEx(DC, P2, P2, nil);
-        SetViewPortExtEx(DC, P1, P3, nil);
-
-        { calculate the amount of space that is non-printable }
-
-        { get PHYSICAL page width }
-        LowerRightPagePoint.X := GetDeviceCaps(PrnDC, PhysicalWidth);
-        LowerRightPagePoint.Y := GetDeviceCaps(PrnDC, PhysicalHeight);
-
-        { now compute a complete unprintable area rectangle
-         (composed of 2*width, 2*height) in pixels...}
-        with LowerRightPagePoint do
-          begin
-          Y := Y - MFPrinter.PageHeight;
-          X := X - MFPrinter.PageWidth;
-          end;
-
-        { get upper left physical offset for the printer... ->
-          printable area <> paper size }
-        UpperLeftPagePoint.X := GetDeviceCaps(PrnDC, PhysicalOffsetX);
-        UpperLeftPagePoint.Y := GetDeviceCaps(PrnDC, PhysicalOffsetY);
-
-        { now that we know the TOP and LEFT offset we finally can
-          compute the BOTTOM and RIGHT offset: }
-        with LowerRightPagePoint do
-          begin
-          X := X - UpperLeftPagePoint.X;
-          { we don't want to have negative values}
-          if X < 0 then
-            X := 0; { assume no right printing offset }
-
-          Y := Y - UpperLeftPagePoint.Y;
-          { we don't want to have negative values}
-          if Y < 0 then
-            Y := 0; { assume no bottom printing offset }
-          end;
-
-        { which results in LowerRightPoint containing the BOTTOM
-          and RIGHT unprintable area offset; using these we modify
-          the (logical, true) borders...}
-
-        MLeftPrn := Trunc(FPrintMarginLeft/2.54 * P1);
-        MLeftPrn := MLeftPrn - UpperLeftPagePoint.X;  { subtract physical offset }
-        MLeft := MulDiv(MLeftPrn, P2, P1);
-
-        MRightPrn := Trunc(FPrintMarginRight/2.54 * P1);
-        MRightPrn := MRightPrn - LowerRightPagePoint.X;  { subtract physical offset }
-
-        WPrn := PageWidth - (MLeftPrn + MRightPrn);
-
-        W := MulDiv(WPrn, P2, P1);
-
-        MTopPrn := Trunc(FPrintMarginTop/2.54 * P3);
-        MTopPrn := MTopPrn - UpperLeftPagePoint.Y;  { subtract physical offset }
-
-        MBottomPrn := Trunc(FPrintMarginBottom/2.54 * P3);
-        MBottomPrn := MBottomPrn - LowerRightPagePoint.Y;  { subtract physical offset }
-
-        TopPixelsPrn := MTopPrn;
-        TopPixels    := MulDiv(TopPixelsPrn, P2, P3);
-
-        HPrn := PageHeight-(MTopPrn+MBottomPrn);
-        H    := MulDiv(HPrn, P2, P3);  {scaled pageHeight}
-        HTop := 0;
-        OldTop := 0;
-
-        Curs := 0;
-        VPixels := PrintList.DoLogic(Canvas, 0, W, H, 0, ScrollWidth, Curs);
-        FWidthRatio := ScrollWidth/W;
-        if FWidthRatio > 1.0 then
-          FWidthRatio := Round(P2*FWidthRatio +0.5)/P2;
-
-        ScaledPgHt  := MulDiv(PageHeight, P2, P3);
-        ScaledPgWid := MulDiv(PageWidth,  P2, P3);
-
-        {This one clips to the allowable print region so that the preview is
-         limited to that region also}
-        hrgnClip2 := CreateRectRgn(0, 0, MFPrinter.PageWidth, MFPrinter.PageHeight);
-        {This one is primarily used to clip the top and bottom margins to insure
-         nothing is output there.  It's also constrained to the print region
-         in case the margins are misadjusted.}
-        hrgnClip := CreateRectRgn(MLeftPrn, IntMax(0, TopPixelsPrn),
-               IntMin(MFPrinter.PageWidth, WPrn+MLeftPrn+2),
-               IntMin(MFPrinter.PageHeight, TopPixelsPrn+HPrn));
-        Application.ProcessMessages;
-        if Assigned(FOnPageEvent) then
-           FOnPageEvent(Self, FPage, Done);
-        ARect := Rect(MLeft, TopPixels, W + MLeft, TopPixels + H);
-
-        if Assigned(FOnPrintHTMLHeader) then
-          HeadViewer := CreateHeaderFooter;
-        if Assigned(FOnPrintHTMLFooter) then
-          FootViewer := CreateHeaderFooter;
-
-        OrigTopPixels := TopPixels;
-        OrigTopPixelsPrn := TopPixelsPrn;
-        OrigHPrn := HPrn;
-        OrigH := H;
-        LastPrintMarginTop := FPrintMarginTop;
-
-        while not Done do
-          begin
-          PrintList.SetYOffset(HTop-TopPixels);
-
-          {next line is necessary because the canvas changes with each new page }
+          BeginDoc;
           DC := Canvas.Handle;
-          SaveCanvasItems(Canvas);
+          PrnDC := PrinterDC;
 
+          P3 := GetDeviceCaps(PrnDC, LOGPIXELSY);
+          P1 := GetDeviceCaps(PrnDC, LOGPIXELSX);
+          P2 := Round(Screen.PixelsPerInch * FPrintScale);
+          fScaleX := 100.0/P3;
+          fScaleY := 100.0/P1;
+          PrintList.ScaleX := fScaleX;
+          PrintList.ScaleY := fScaleY;
           SetMapMode(DC, mm_AnIsotropic);
+          //P1 := GetDeviceCaps(PrnDC, LOGPIXELSX);
           SetWindowExtEx(DC, P2, P2, nil);
           SetViewPortExtEx(DC, P1, P3, nil);
-          SetWindowOrgEx(DC, 0, 0, nil);
-          SelectClipRgn(DC, hrgnClip);
 
-          if (htPrintBackground in FOptions) then
-            DoBackground2(Canvas, MLeft, TopPixels, W, H, PaintPanel.Color);
+          { calculate the amount of space that is non-printable }
 
-          repeat
-            if Assigned(TablePartRec) then
-              TablePart := TablePartRec.TablePart
-            else TablePart := Normal;
-            case TablePart of
-              Normal:
-                begin
-                PrintList.Draw(Canvas, ARect, W, MLeft, 0, 0,0);
-                WhiteoutArea(Canvas, PrintList.PageBottom-PrintList.YOff);
-                end;
-              DoHead:
-                begin
-                PrintList.SetYOffset(TablePartRec.PartStart-TopPixels);
-                CRect := ARect;
-                CRect.Bottom := CRect.Top+TablePartRec.PartHeight;
-                hrgnClip1 := CreateRectRgn(MLeftPrn, TopPixelsPrn, WPrn+MLeftPrn+2,
-                       MulDiv(CRect.Bottom, P3, P2));
-                SelectClipRgn(DC, hrgnClip1);
-                DeleteObject(hrgnClip1);
-                PrintList.Draw(Canvas, CRect, W, MLeft, 0, 0,0);
-                end;
-              DoBody1, DoBody3:
-                begin
-                CRect := ARect;
-                CRect.Top := PrintList.PageBottom-1-PrintList.YOff;
-                PrintList.SetYOffset(TablePartRec.PartStart-CRect.top);
-                PrintList.Draw(Canvas, CRect, W, MLeft+3*W, 0, 0,0);      {off page}
+          { get PHYSICAL page width }
+          LowerRightPagePoint.X := GetDeviceCaps(PrnDC, PhysicalWidth);
+          LowerRightPagePoint.Y := GetDeviceCaps(PrnDC, PhysicalHeight);
 
-                TablePartRec.TablePart := DoBody2;
-                CRect.Bottom := PrintList.PageBottom-PrintList.YOff+1;
-                hrgnClip1 := CreateRectRgn(MLeftPrn, MulDiv(CRect.Top, P3, P2),
-                       WPrn+MLeftPrn+2, MulDiv(CRect.Bottom, P3, P2));
-                SelectClipRgn(DC, hrgnClip1);
-                DeleteObject(hrgnClip1);
-                PrintList.Draw(Canvas, CRect, W, MLeft, 0, 0,0);      {onpage}
-                if not Assigned(TablePartRec)
-                       or not (TablePartRec.TablePart in [Normal]) then
-                  WhiteoutArea(Canvas, PrintList.PageBottom-PrintList.YOff);
-                end;
-              DoFoot:
-                begin
-                SavePageBottom := PrintList.PageBottom;
-                CRect := ARect;
-                CRect.Top := PrintList.PageBottom-PrintList.YOff;
-                CRect.Bottom := CRect.Top + TablePartRec.PartHeight;
-                hrgnClip1 := CreateRectRgn(MLeftPrn, MulDiv(CRect.Top, P3, P2),
-                       WPrn+MLeftPrn+2, MulDiv(CRect.Bottom, P3, P2));
-                SelectClipRgn(DC, hrgnClip1);
-                DeleteObject(hrgnClip1);
-                PrintList.SetYOffset(TablePartRec.PartStart-CRect.top);
-                PrintList.Draw(Canvas, CRect, W, MLeft, 0, 0,0);
-                PrintList.PageBottom := SavePageBottom;
-                end;
-              end;
-            until not Assigned(TablePartRec)
-                  or (TablePartRec.TablePart in [Normal, DoHead, DoBody3]);
-{.$Region 'HeaderFooter'}
-          SelectClipRgn(DC, 0);
-          Align := SetTextAlign(DC, TA_Top or TA_Left or TA_NOUPDATECP);
-          SelectClipRgn(DC, hrgnClip2);
+          { now compute a complete unprintable area rectangle
+           (composed of 2*width, 2*height) in pixels...}
+          with LowerRightPagePoint do
+          begin
+            Y := Y - MFPrinter.PageHeight;
+            X := X - MFPrinter.PageWidth;
+          end;
 
-          if Assigned(FOnPrintHeader) then
-            begin
-            SetWindowOrgEx(DC, 0, 0, Nil);
-            FOnPrintHeader(Self, Canvas, FPage, ScaledPgWid, TopPixels, Done);
-            end;
+          { get upper left physical offset for the printer... ->
+            printable area <> paper size }
+          UpperLeftPagePoint.X := GetDeviceCaps(PrnDC, PhysicalOffsetX);
+          UpperLeftPagePoint.Y := GetDeviceCaps(PrnDC, PhysicalOffsetY);
 
-          if Assigned(FOnPrintFooter) then
-            begin
-            SetWindowOrgEx(DC, 0, -(TopPixels+H), nil);
-            FOnPrintFooter(Self, Canvas, FPage, ScaledPgWid,
-                           ScaledPgHt-(TopPixels+H), Done);
-            end;
-          DoHTMLHeaderFooter(False, FOnPrintHTMLHeader, HeadViewer);
-          DoHTMLHeaderFooter(True, FOnPrintHTMLFooter, FootViewer);
-          SetTextAlign(DC, Align);
-          SelectClipRgn(DC, 0);
+          { now that we know the TOP and LEFT offset we finally can
+            compute the BOTTOM and RIGHT offset: }
+          with LowerRightPagePoint do
+          begin
+            X := X - UpperLeftPagePoint.X;
+            { we don't want to have negative values}
+            if X < 0 then
+              X := 0; { assume no right printing offset }
 
-          if FPrintMarginTop <> LastPrintMarginTop then
-            begin
-            DeltaMarginTop := FPrintMarginTop - SavePrintMarginTop;
-            DeltaPixelsPrn:= Trunc(DeltaMarginTop/2.54 * P3);
-            DeltaPixels := Trunc(DeltaMarginTop/2.54 * P2);
-            TopPixels := OrigTopPixels + DeltaPixels;
-            TopPixelsPrn := OrigTopPixelsPrn +DeltaPixelsPrn;
-            HPrn := OrigHprn - DeltaPixelsPrn;
-            H := OrigH - DeltaPixels;
-            ARect := Rect(MLeft, TopPixels, W + MLeft, TopPixels + H);
-            hrgnClip := CreateRectRgn(MLeftPrn, IntMax(0, TopPixelsPrn),
-                   IntMin(MFPrinter.PageWidth, WPrn+MLeftPrn+2),
-                   IntMin(MFPrinter.PageHeight, TopPixelsPrn+HPrn));
-            LastPrintMarginTop := FPrintMarginTop;
-            end;
-{.$EndRegion}
-          HTop := PrintList.PageBottom;
+            Y := Y - UpperLeftPagePoint.Y;
+            { we don't want to have negative values}
+            if Y < 0 then
+              Y := 0; { assume no bottom printing offset }
+          end;
+
+          { which results in LowerRightPoint containing the BOTTOM
+            and RIGHT unprintable area offset; using these we modify
+            the (logical, true) borders...}
+
+          MLeftPrn := Trunc(FPrintMarginLeft/2.54 * P1);
+          MLeftPrn := MLeftPrn - UpperLeftPagePoint.X;  { subtract physical offset }
+          MLeft := MulDiv(MLeftPrn, P2, P1);
+
+          MRightPrn := Trunc(FPrintMarginRight/2.54 * P1);
+          MRightPrn := MRightPrn - LowerRightPagePoint.X;  { subtract physical offset }
+
+          WPrn := PageWidth - (MLeftPrn + MRightPrn);
+
+          W := MulDiv(WPrn, P2, P1);
+
+          MTopPrn := Trunc(FPrintMarginTop/2.54 * P3);
+          MTopPrn := MTopPrn - UpperLeftPagePoint.Y;  { subtract physical offset }
+
+          MBottomPrn := Trunc(FPrintMarginBottom/2.54 * P3);
+          MBottomPrn := MBottomPrn - LowerRightPagePoint.Y;  { subtract physical offset }
+
+          TopPixelsPrn := MTopPrn;
+          TopPixels    := MulDiv(TopPixelsPrn, P2, P3);
+
+          HPrn := PageHeight-(MTopPrn+MBottomPrn);
+          H    := MulDiv(HPrn, P2, P3);  {scaled pageHeight}
+          HTop := 0;
+          OldTop := 0;
+
+          Curs := 0;
+          VPixels := PrintList.DoLogic(Canvas, 0, W, H, 0, ScrollWidth, Curs);
+//BG, 01.12.2006: beg of modification
+          FPrintedSize.X := ScrollWidth;
+          FPrintedSize.Y := VPixels;
+//BG, 01.12.2006: end of modification
+          FWidthRatio := ScrollWidth/W;
+          if FWidthRatio > 1.0 then
+            FWidthRatio := Round(P2*FWidthRatio +0.5)/P2;
+
+          ScaledPgHt  := MulDiv(PageHeight, P2, P3);
+          ScaledPgWid := MulDiv(PageWidth,  P2, P3);
+
+          {This one clips to the allowable print region so that the preview is
+           limited to that region also}
+          hrgnClip2 := CreateRectRgn(0, 0, MFPrinter.PageWidth, MFPrinter.PageHeight);
+          {This one is primarily used to clip the top and bottom margins to insure
+           nothing is output there.  It's also constrained to the print region
+           in case the margins are misadjusted.}
+          hrgnClip := CreateRectRgn(MLeftPrn, IntMax(0, TopPixelsPrn),
+                 IntMin(MFPrinter.PageWidth, WPrn+MLeftPrn+2),
+                 IntMin(MFPrinter.PageHeight, TopPixelsPrn+HPrn));
           Application.ProcessMessages;
           if Assigned(FOnPageEvent) then
-              FOnPageEvent(Self, FPage, Done);
-          if (HTop >= VPixels-MarginHeight) or (HTop <= OldTop) then  {see if done or endless loop}
-            Done := True;
-          OldTop := HTop;
-          if not Done then
-            NewPage;
-          Inc(FPage);
+             FOnPageEvent(Self, FPage, Done);
+          ARect := Rect(MLeft, TopPixels, W + MLeft, TopPixels + H);
+
+          if Assigned(FOnPrintHTMLHeader) then
+            HeadViewer := CreateHeaderFooter;
+          if Assigned(FOnPrintHTMLFooter) then
+            FootViewer := CreateHeaderFooter;
+
+          OrigTopPixels := TopPixels;
+          OrigTopPixelsPrn := TopPixelsPrn;
+          OrigHPrn := HPrn;
+          OrigH := H;
+          LastPrintMarginTop := FPrintMarginTop;
+
+//BG, 01.12.2006: beg of modification
+          //BG, 05.03.2006
+          HPages := ceil(ScrollWidth/W);
+          XOrigin := 0;
+//BG, 01.12.2006: end of modification
+          while not Done do
+          begin
+            PrintList.SetYOffset(HTop-TopPixels);
+
+//BG, 01.12.2006: beg of modification
+            for HPageIndex := 0 to HPages - 1 do
+            begin
+              XOrigin := HPageIndex * W;
+//              V_XOrigin := XOrigin;
+//BG, 01.12.2006: end of modification
+              {next line is necessary because the canvas changes with each new page }
+              DC := Canvas.Handle;
+              SaveCanvasItems(Canvas);
+
+              SetMapMode(DC, mm_AnIsotropic);
+              SetWindowExtEx(DC, P2, P2, nil);
+              SetViewPortExtEx(DC, P1, P3, nil);
+//BG, 01.12.2006: beg of modification
+              SetWindowOrgEx(DC, XOrigin, 0, nil);
+//BG, 01.12.2006: end of modification
+              SelectClipRgn(DC, hrgnClip);
+
+              if (htPrintBackground in FOptions) then
+//BG, 01.12.2006: beg of modification
+                DoBackground2(Canvas, MLeft + XOrigin, TopPixels, W, H, PaintPanel.Color);
+//BG, 01.12.2006: end of modification
+
+              repeat
+                if Assigned(TablePartRec) then
+                  TablePart := TablePartRec.TablePart
+                else
+                  TablePart := Normal;
+                case TablePart of
+                  Normal:
+                  begin
+                    PrintList.Draw(Canvas, ARect, W, MLeft, 0, 0,0);
+                    WhiteoutArea(Canvas, PrintList.PageBottom-PrintList.YOff);
+                  end;
+
+                  DoHead:
+                  begin
+                    PrintList.SetYOffset(TablePartRec.PartStart-TopPixels);
+                    CRect := ARect;
+                    CRect.Bottom := CRect.Top+TablePartRec.PartHeight;
+                    hrgnClip1 := CreateRectRgn(MLeftPrn, TopPixelsPrn, WPrn+MLeftPrn+2,
+                           MulDiv(CRect.Bottom, P3, P2));
+                    SelectClipRgn(DC, hrgnClip1);
+                    DeleteObject(hrgnClip1);
+                    PrintList.Draw(Canvas, CRect, W, MLeft, 0, 0,0);
+                  end;
+
+                  DoBody1, DoBody3:
+                  begin
+                    CRect := ARect;
+                    CRect.Top := PrintList.PageBottom-1-PrintList.YOff;
+                    PrintList.SetYOffset(TablePartRec.PartStart-CRect.top);
+                    PrintList.Draw(Canvas, CRect, W, MLeft+3*W, 0, 0,0);      {off page}
+
+                    TablePartRec.TablePart := DoBody2;
+                    CRect.Bottom := PrintList.PageBottom-PrintList.YOff+1;
+                    hrgnClip1 := CreateRectRgn(MLeftPrn, MulDiv(CRect.Top, P3, P2),
+                           WPrn+MLeftPrn+2, MulDiv(CRect.Bottom, P3, P2));
+                    SelectClipRgn(DC, hrgnClip1);
+                    DeleteObject(hrgnClip1);
+                    PrintList.Draw(Canvas, CRect, W, MLeft, 0, 0,0);      {onpage}
+                    if not Assigned(TablePartRec) or not (TablePartRec.TablePart in [Normal]) then
+                      WhiteoutArea(Canvas, PrintList.PageBottom-PrintList.YOff);
+                  end;
+
+                  DoFoot:
+                  begin
+                    SavePageBottom := PrintList.PageBottom;
+                    CRect := ARect;
+                    CRect.Top := PrintList.PageBottom-PrintList.YOff;
+                    CRect.Bottom := CRect.Top + TablePartRec.PartHeight;
+                    hrgnClip1 := CreateRectRgn(MLeftPrn, MulDiv(CRect.Top, P3, P2),
+                           WPrn+MLeftPrn+2, MulDiv(CRect.Bottom, P3, P2));
+                    SelectClipRgn(DC, hrgnClip1);
+                    DeleteObject(hrgnClip1);
+                    PrintList.SetYOffset(TablePartRec.PartStart-CRect.top);
+                    PrintList.Draw(Canvas, CRect, W, MLeft, 0, 0,0);
+                    PrintList.PageBottom := SavePageBottom;
+                  end;
+                end;
+              until not Assigned(TablePartRec) or (TablePartRec.TablePart in [Normal, DoHead, DoBody3]);
+
+{.$Region 'HeaderFooter'}
+              SelectClipRgn(DC, 0);
+              Align := SetTextAlign(DC, TA_Top or TA_Left or TA_NOUPDATECP);
+              SelectClipRgn(DC, hrgnClip2);
+
+              if Assigned(FOnPrintHeader) then
+              begin
+//BG, 01.12.2006: beg of modification
+                SetWindowOrgEx(DC, XOrigin, 0, Nil);
+//BG, 01.12.2006: end of modification
+                FOnPrintHeader(Self, Canvas, FPage, ScaledPgWid, TopPixels, Done);
+              end;
+
+              if Assigned(FOnPrintFooter) then
+              begin
+//BG, 01.12.2006: beg of modification
+                SetWindowOrgEx(DC, XOrigin, -(TopPixels+H), nil);
+//BG, 01.12.2006: end of modification
+                FOnPrintFooter(Self, Canvas, FPage, ScaledPgWid, ScaledPgHt-(TopPixels+H), Done);
+              end;
+              DoHTMLHeaderFooter(False, FOnPrintHTMLHeader, HeadViewer);
+              DoHTMLHeaderFooter(True, FOnPrintHTMLFooter, FootViewer);
+              SetTextAlign(DC, Align);
+              SelectClipRgn(DC, 0);
+
+              if FPrintMarginTop <> LastPrintMarginTop then
+              begin
+                DeltaMarginTop := FPrintMarginTop - SavePrintMarginTop;
+                DeltaPixelsPrn:= Trunc(DeltaMarginTop/2.54 * P3);
+                DeltaPixels := Trunc(DeltaMarginTop/2.54 * P2);
+                TopPixels := OrigTopPixels + DeltaPixels;
+                TopPixelsPrn := OrigTopPixelsPrn +DeltaPixelsPrn;
+                HPrn := OrigHprn - DeltaPixelsPrn;
+                H := OrigH - DeltaPixels;
+//BG, 01.12.2006: beg of modification
+                ARect := Rect(MLeft + XOrigin, TopPixels, W + MLeft + XOrigin, TopPixels + H);
+//BG, 01.12.2006: end of modification
+                hrgnClip := CreateRectRgn(MLeftPrn, IntMax(0, TopPixelsPrn),
+                       IntMin(MFPrinter.PageWidth, WPrn+MLeftPrn+2),
+                       IntMin(MFPrinter.PageHeight, TopPixelsPrn+HPrn));
+                LastPrintMarginTop := FPrintMarginTop;
+              end;
+{.$EndRegion}
+//BG, 01.12.2006: beg of modification
+              if HPageIndex < HPages - 1 then
+              begin
+                NewPage;
+                inc(FPage);
+              end;
+            end;
+//            V_XOrigin := 0;
+//BG, 01.12.2006: end of modification
+            HTop := PrintList.PageBottom;
+            Application.ProcessMessages;
+            if Assigned(FOnPageEvent) then
+                FOnPageEvent(Self, FPage, Done);
+            if (HTop >= VPixels-MarginHeight) or (HTop <= OldTop) then  {see if done or endless loop}
+              Done := True;
+            OldTop := HTop;
+            if not Done then
+              NewPage;
+            Inc(FPage);
           end;
-        EndDoc;
+          EndDoc;
         end;
+      finally
+        FreeAndNil(HeadViewer);
+        FreeAndNil(FootViewer);
+        if hRgnClip <> 0 then
+          DeleteObject(hrgnClip);
+        if hRgnClip2 <> 0 then
+          DeleteObject(hrgnClip2);
+        Dec(FPage);
+      end;
     finally
-      FreeAndNil(HeadViewer);
-      FreeAndNil(FootViewer);
-      if hRgnClip <> 0 then
-        DeleteObject(hrgnClip);
-      if hRgnClip2 <> 0 then
-        DeleteObject(hrgnClip2);
-      Dec(FPage);
+      SavedPen.Free;
+      SavedFont.Free;
+      SavedBrush.Free;
     end;
   finally
-    SavedPen.Free;
-    SavedFont.Free;
-    SavedBrush.Free;
-    end;
-finally
-  FPrintMarginTop := SavePrintMarginTop;
-  PrintList.Free;
-  Result := FPage;
+    FPrintMarginTop := SavePrintMarginTop;
+    PrintList.Free;
+    Result := FPage;
   end;
 end;
 
@@ -4910,11 +5039,13 @@ end;
 
 procedure THTMLViewer.SetPrintScale(Value: double);
 begin
-If Value > 4.0 then
-  FPrintScale := 4.0
-else if Value < 0.25 then
-  FPrintScale := 0.25
-else FPrintScale := Value;
+  //BG, 29.08.2009: changed zoom factor limits from 0.25..4 to 0.125..8
+  If Value > 8.0 then
+    FPrintScale := 8.0
+  else if Value < 0.125 then
+    FPrintScale := 0.125
+  else
+    FPrintScale := Value;
 end;
 
 procedure THTMLViewer.Reformat;

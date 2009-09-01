@@ -602,7 +602,8 @@ var
   Tmp: string;
   I, N, XY: integer;
 begin
-if (VarIsStr(Props[BackgroundPosition])) then
+//BG, 29.08.2009: thanks to SourceForge user 'bolex': 'not' was missing. 
+if (not VarIsStr(Props[BackgroundPosition])) then
   begin
   P[1].PosType := pDim;
   P[1].Value := 0;
@@ -2477,6 +2478,10 @@ var
   else Result := False;
   end;
 
+//BG, 26.08.2009: exceptions are very slow
+var
+  Int: Integer;
+//BG, 26.08.2009
 begin
 if S = '' then
   begin
@@ -2522,11 +2527,21 @@ else
     if Length(S) <= 3 then
       for I := Length(S) downto 1 do
         Insert(S[I], S, I);     {double each character}
-    Color := StrToInt('$'+S);  {but bytes are backwards!}
-    Rd := Color and $FF;
-    Bl := Color and $FF0000;
-    Color := (Color and $00FF00) + (Rd shl 16) + (Bl shr 16) or PalRelative;
-    Result := True;
+//BG, 26.08.2009: exceptions are very slow
+//    Color := StrToInt('$'+S);  {but bytes are backwards!}
+//    Rd := Color and $FF;
+//    Bl := Color and $FF0000;
+//    Color := (Color and $00FF00) + (Rd shl 16) + (Bl shr 16) or PalRelative;
+//    Result := True;
+    Result := tryStrToInt('$'+S, Int);
+    if Result then
+    begin
+      {ok, but bytes are backwards!}
+      Rd := Int and $FF;
+      Bl := Int and $FF0000;
+      Color := (Int and $00FF00) + (Rd shl 16) + (Bl shr 16) or PalRelative;    
+    end;
+//BG, 26.08.2009
   except
     Result := False;
     end;

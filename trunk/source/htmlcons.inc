@@ -107,7 +107,7 @@
         removing the '.'.  Only do this if you are sure the gdiplus.dll is present
         or don't care about PNG support}
 
-{$Define NoGDIPlus} {The gdiplus.dll provides Alpha transparency support for
+{.$Define NoGDIPlus} {The gdiplus.dll provides Alpha transparency support for
         PNG images.  If, for some reason the use of the gdiplus.dll is
         undesirable, define "NoGDIPlus" by removing the '.'.  Defining both
         NoGDIPlus and NoOldPNG will remove support for PNG images entirely.}
