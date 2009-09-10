@@ -1,4 +1,4 @@
-{Version 9.47}
+{Version 10.00}
 {*********************************************************}
 {*                     HTMLVIEW.PAS                      *}
 {*********************************************************}
@@ -35,6 +35,9 @@ interface
 uses
   SysUtils, Windows, Messages, Classes, Graphics, Controls, StdCtrls,
   vwPrint, MetafilePrinter, mmSystem,
+  //BG, 09.09.2009: remove recursive use of units:
+  //  add HtmlGlobals
+  HtmlGlobals,
   HTMLUn2, Forms, Dialogs, ExtCtrls, ReadHTML, HTMLSubs, StyleUn, Printers, Menus,
   GDIPL2A;
 

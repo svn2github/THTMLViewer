@@ -1,4 +1,4 @@
-{Version 9.45}  
+{Version 10.00}  
 
 {$ifDef ver150}  {Delphi 7}
 {$WARN Unsafe_Type off}
@@ -96,21 +96,16 @@
 {$IF compilerversion >= 19}
   {$DEFINE Delphi6_Plus}
   {$Define Delphi7_Plzs}
-  {$DEFINE NoOldPng}
 {$IFEND}
 
 {$ifdef Delphi6_Plus}
   {$Warn Symbol_Platform Off}
 {$endif}
 
-{$Define NoOldPNG} {To eliminate the older PNG image code, define "NoOldPNG" by
-        removing the '.'.  Only do this if you are sure the gdiplus.dll is present
-        or don't care about PNG support}
-
 {.$Define NoGDIPlus} {The gdiplus.dll provides Alpha transparency support for
         PNG images.  If, for some reason the use of the gdiplus.dll is
-        undesirable, define "NoGDIPlus" by removing the '.'.  Defining both
-        NoGDIPlus and NoOldPNG will remove support for PNG images entirely.}
+        undesirable, define "NoGDIPlus" by removing the '.'.
+        Defining NoGDIPlus will remove support for PNG images entirely.}
 
 {$Define NoMetaFile} {Metafiles may be displayed by undefining this constant.
         NoMetaFile is defined by default to emphasize the fact that Metafile

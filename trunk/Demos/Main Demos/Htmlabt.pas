@@ -7,7 +7,7 @@ uses
   Forms, Dialogs, StdCtrls, Buttons, Htmlview, ExtCtrls;
 
 const
-  Version = '9.45';
+  Version = '10.00';
 
 type
   TAboutBox = class(TForm)

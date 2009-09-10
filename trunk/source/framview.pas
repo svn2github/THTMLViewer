@@ -1,4 +1,4 @@
-{Version 9.47}
+{Version 10.00}
 {*********************************************************}
 {*                     FRAMVIEW.PAS                      *}
 {*********************************************************}
@@ -34,8 +34,9 @@ interface
 
 uses
   SysUtils, Windows, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, StdCtrls, ExtCtrls, Menus, htmlsubs, htmlview, htmlun2,
-  readHTML;
+  Forms, Dialogs, StdCtrls, ExtCtrls, Menus,
+  HtmlGlobals, Htmlsubs, Htmlview, HTMLUn2,
+  ReadHTML;
 
 type
   {common to TFrameViewer and TFrameBrowser}

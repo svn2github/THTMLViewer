@@ -1,5 +1,5 @@
 
-{Version 9.47}
+{Version 10.00}
 {*********************************************************}
 {*                     READHTML.PAS                      *}
 {*                                                       *}
@@ -76,8 +76,8 @@ unit Readhtml;
 
 interface
 uses
-  SysUtils, Windows, Messages, Classes, Graphics, Controls, 
-  Dialogs, StdCtrls, HTMLUn2, StyleUn;
+  SysUtils, Windows, Messages, Classes, Graphics, Controls, Dialogs, StdCtrls,
+  UrlSubs, StyleUn, htmlUN2, HtmlGlobals, StylePars;
 
 type
   LoadStyleType = (lsFile, lsString, lsInclude);
@@ -138,7 +138,7 @@ procedure PopAProp(Tag: string);
 implementation
 
 uses
-  htmlsubs, htmlsbs1, htmlview, StylePars, UrlSubs;   
+  htmlsubs, htmlsbs1, htmlview;
 
 Const
   Tab = #9;

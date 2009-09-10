@@ -1,4 +1,4 @@
-{Version 9.47}
+{Version 10.00}
 {***************************************************************}
 {*                  METAFILEPRINTER.PAS                        *}
 {*                                                             *}
@@ -15,8 +15,8 @@ unit MetaFilePrinter;
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  Printers, styleun;
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs, Printers,
+  GDIPL2A;
 
 type
   TUnits      = (unInches, unCentimeters);
@@ -87,9 +87,6 @@ type
   end;
 
 implementation
-
-uses
-  GDIPL2A;
 
 const
    INCH_TO_CM = 2.54;

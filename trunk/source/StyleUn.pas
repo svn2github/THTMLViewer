@@ -1,4 +1,4 @@
-{Version 9.47}
+{Version 10.00}
 {*********************************************************}
 {*                     STYLEUN.PAS                       *}
 {*********************************************************}
@@ -33,7 +33,8 @@ unit StyleUn;
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs;
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs, Math,
+  HtmlGlobals;
 
 const
   IntNull = -12345678;
@@ -257,7 +258,8 @@ uses
   {$ifdef Delphi6_Plus}
   Variants,
   {$endif}
-  htmlsubs, htmlun2, readhtml;
+  htmlsubs,
+  readhtml;
 
 var
   DefPointSize: double;
@@ -2470,7 +2472,7 @@ var
         end
       else
         C[K] := StrToIntDef(A[K], 0);
-      C[K] := IntMax(0, IntMin(255, C[K]));
+      C[K] := Max(0, Min(255, C[K]));
       end;
     Color := (C[Blue] shl 16) or (C[Green] shl 8) or C[Red];
     Result := True;

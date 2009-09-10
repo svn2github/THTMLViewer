@@ -1,5 +1,5 @@
 
-{Version 9.47}
+{Version 10.00}
 {*********************************************************}
 {*                     HTMLSUBS.PAS                      *}
 {*********************************************************}
@@ -62,14 +62,14 @@ unit Htmlsubs;
 interface
 uses
   SysUtils, Windows, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, StdCtrls, ExtCtrls, HTMLUn2, HTMLGif2, mmSystem,
+  Forms, Dialogs, StdCtrls, ExtCtrls, mmSystem,
   {$ifdef UseTNT}
   TntStdCtrls,
   {$endif}
   {$ifdef UseElPack}
   ElListBox, ElCombos, ElEdits, ElPopBtn,
   {$endif}
-  StyleUn;
+  HtmlGlobals, HTMLUn2, HTMLGif2, StyleUn;
 
 type
   {$ifdef UseTNT}
@@ -2017,7 +2017,7 @@ try
           begin
           AMask := TBitmap.Create;
           AMask.Assign(Tmp.Mask);
-          Transparent := TGif;
+          Transparent := TrGif;
           end;
         Tmp.Free;
         end;
@@ -2352,7 +2352,7 @@ try
       with TGifImage(ddImage) do
         begin
         ddMask := Mask;
-        if Assigned(ddMask) then Transparent := TGif;
+        if Assigned(ddMask) then Transparent := TrGif;
         ddImage := MaskedBitmap;
         TBitmap(ddImage).Palette := CopyPalette(ThePalette);
         TBitmap(ddImage).HandleType := bmDIB;
@@ -4591,6 +4591,8 @@ begin
     end;
   end;
 
+var
+ IsTiledGpImage: Boolean;
 begin
 if (BGImage.Image is TBitmap) then
   begin
@@ -4620,6 +4622,7 @@ NoMask := not Assigned(TheMask) and PRec[1].RepeatD and PRec[2].RepeatD;
 OW := GetImageWidth(BGImage.Image);
 OH := GetImageHeight(BGImage.Image);
 
+IsTiledGpImage := False;
 if (BGImage.Image is TgpImage) and not ((OW = 1) or (OH = 1)) then
   begin  {TiledImage will be a TGpBitmap unless Image needs to be enlarged}
   with TgpBitmap(TiledImage) do
@@ -4639,6 +4642,7 @@ else
   TBitmap(TiledImage).Height := IH;
   TBitmap(TiledImage).Width := IW;
   PatBlt(TBitmap(TiledImage).Canvas.Handle, 0, 0, IW, IH, Blackness);
+  IsTiledGpImage := True;
   end;
 
 if not NoMask and ((BGImage.Image is TBitmap)
@@ -4648,6 +4652,7 @@ if not NoMask and ((BGImage.Image is TBitmap)
      {$ifndef NoMetafile}
       or (BGImage.Image is ThtMetafile)
      {$endif}
+      or IsTiledGpImage
       ) then
   begin
   if not Assigned(TiledMask) then
@@ -6641,7 +6646,7 @@ if (I = -1) and (J >= 0) then
           begin
           AMask := TBitmap.Create;
           AMask.Assign(Tmp.Mask);
-          Transparent := TGif;
+          Transparent := TrGif;
           end;
         Tmp.Free;
         end;
@@ -6729,7 +6734,7 @@ var
           begin
           AMask := TBitmap.Create;
           AMask.Assign(Tmp.Mask);
-          Transparent := TGif;
+          Transparent := TrGif;
           end
         else if Transparent = LLCorner then
           AMask := GetImageMask(TBitmap(Result), False, 0);
@@ -6759,10 +6764,10 @@ if BMName <> '' then
     if Result is TBitmap then
       with  BitmapList.Objects[I] as TBitmapItem do
         begin
-        if Transp = TGif then
-          Transparent := TGif   {it's a transparent GIF}
-        else if Transp = Tpng then
-          Transparent := TPng
+        if Transp = TrGif then
+          Transparent := TrGif   {it's a transparent GIF}
+        else if Transp = TrPng then
+          Transparent := TrPng
         else if Transparent = LLCorner then
           begin
           if not Assigned (Mask) then  {1st bitmap may not have been marked transp}
@@ -6786,7 +6791,7 @@ if BMName <> '' then
         if Color <> -1 then
           begin
           AMask := GetImageMask(TBitmap(Result), True, Color);
-          Transparent := TGif;
+          Transparent := TrGif;
           end
         else if (Transparent = LLCorner) then
           AMask := GetImageMask(TBitmap(Result), False, 0);
@@ -6815,7 +6820,7 @@ if BMName <> '' then
               begin
               AMask := TBitmap.Create;
               AMask.Assign(Tmp.Mask);
-              Transparent := TGif;
+              Transparent := TrGif;
               end
             else if Transparent = LLCorner then
               AMask := GetImageMask(TBitmap(Result), False, 0);

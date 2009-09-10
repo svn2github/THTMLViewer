@@ -1,10 +1,10 @@
-{Version 9.47}
+{Version 10.00}
 unit URLSubs;
 
 interface
 
 uses
-  Windows, Messages, SysUtils, htmlun2;
+  Windows, Messages, SysUtils, Math;
 
 function GetBase(const URL: string): string;
 {Given an URL, get the base directory}
@@ -199,7 +199,7 @@ if I > 0 then N := I-1
   else N := Length(URL);
 I := Pos('#', URL);
 if (I > 0) and (I < N) then N := I-1;   
-for I := N downto IntMax(1, N-5) do
+for I := N downto Max(1, N-5) do
   if URL[I] = '.' then
     begin
     Result := Copy(URL, I+1, N-I);   

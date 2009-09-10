@@ -1,4 +1,4 @@
-{Version 9.47}
+{Version 10.00}
 {
 Copyright (c) 1995-2008 by L. David Baldwin
 
@@ -30,8 +30,8 @@ unit HTMLGif2;
 interface
 
 uses
-  Windows, SysUtils, Classes, Graphics, Controls, ExtCtrls, htmlUN2, mmSystem,
-  htmlgif1;
+  Windows, SysUtils, Classes, Graphics, Controls, ExtCtrls, mmSystem, Math,
+  HtmlGlobals, htmlgif1;
 
 type
   TRGBColor = packed Record
@@ -154,9 +154,6 @@ function CreateAGif(const Name: string; var NonAnimated: boolean): TGifImage;
 
 implementation
 
-uses
-  Styleun, htmlsubs;
-
 function CreateBitmap(Width, Height: integer): TBitmap;
 begin
 Result := TBitmap.Create;
@@ -217,7 +214,7 @@ try
         Frame.frTop := AGif.ImageTop[I];
         Frame.frWidth := AGif.ImageWidth[I];
         Frame.frHeight := AGif.ImageHeight[I];
-        Frame.frDelay := IntMax(30, AGif.ImageDelay[I] * 10);  
+        Frame.frDelay := Max(30, AGif.ImageDelay[I] * 10);
       except
         Frame.Free;
         Raise;
@@ -366,7 +363,7 @@ if (FCurrentFrame > FNumFrames) or (FCurrentFrame <= 0) then
 
 InvalidateRect(WinControl.Handle, @FStretchedRect, True);
 
-CurrentInterval := IntMax(Frames[FCurrentFrame].frDelay, 1);
+CurrentInterval := Max(Frames[FCurrentFrame].frDelay, 1);
 end;
 
 {----------------TGIFImage.SetAnimate}
@@ -377,7 +374,7 @@ begin
   FAnimate := AAnimate;
   if AAnimate and (FNumFrames > 1) then
     begin
-    CurrentInterval := IntMax(Frames[FCurrentFrame].frDelay, 1);
+    CurrentInterval := Max(Frames[FCurrentFrame].frDelay, 1);
     LastTime := timeGetTime;
     end;
 end;

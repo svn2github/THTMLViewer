@@ -1,4 +1,4 @@
-{Version 9.47}
+{Version 10.00}
 {*********************************************************}
 {*                    STYLEPARS.PAS                      *}
 {*********************************************************}
@@ -33,8 +33,8 @@ unit StylePars;
 interface
 
 uses
-  SysUtils, Windows, Messages, Classes, Controls,
-  Dialogs, StdCtrls, StyleUn;
+  SysUtils, Windows, Graphics, Messages, Classes, Controls, Dialogs, StdCtrls,
+  UrlSubs, StyleUn, htmlun2;
 
 type
   CharFunction = function: Char;
@@ -45,8 +45,6 @@ procedure ParsePropertyStr(const PropertyStr: string; var Propty: TProperties);
 function SortContextualItems(S: string): string;   
 
 implementation
-
-uses Graphics, ReadHTML, UrlSubs, htmlun2;
 
 const
   NeedPound = True;

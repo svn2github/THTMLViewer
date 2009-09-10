@@ -1,4 +1,4 @@
-{Version 9.47}
+{Version 10.00}
 {*********************************************************}
 {*                     HTMLUN2.PAS                       *}
 {*********************************************************}
@@ -33,26 +33,25 @@ unit HTMLUn2;
 interface
 uses
   Windows, SysUtils, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, StdCtrls, ExtCtrls, Clipbrd, StyleUn, GDIPL2A; 
+  Forms, Dialogs, StdCtrls, ExtCtrls, Clipbrd,
+  GDIPL2A,
+  HtmlGlobals,
+  StyleUn;
 
 const
-  VersionNo = '9.46';
-  MaxHScroll = 6000;  {max horizontal display in pixels}      
-  HandCursor = 10101;        
+  VersionNo = '10.00';
+  MaxHScroll = 6000;  {max horizontal display in pixels}
+  HandCursor = 10101;
   OldThickIBeamCursor = 2;
   UpDownCursor = 10103;
   UpOnlyCursor = 10104;
-  DownOnlyCursor = 10105;  
-  Tokenleng = 300;  
+  DownOnlyCursor = 10105;
+  Tokenleng = 300;
   TopLim = -200;   {drawing limits}
-  BotLim = 5000;   
+  BotLim = 5000;
   FmCtl = WideChar(#2);
   ImgPan = WideChar(#4);
   BrkCh = WideChar(#8);
-
-var
-  IsWin95: Boolean;
-  IsWin32Platform: boolean; {win95, 98, ME}
 
 {$IFNDEF DOTNET}
 type
@@ -87,7 +86,9 @@ type
     end;
     {$Warnings On}
 
-  Transparency = (NotTransp, LLCorner, TGif, TPng);
+  //BG, 09.09.2009: renamed TGif and TPng to TrGif and TrPng
+  //  TGif interfered with same named class.
+  Transparency = (NotTransp, LLCorner, TrGif, TrPng);
   JustifyType = (NoJustify, Left, Centered, Right, FullJustify);  
   TRowType = (THead, TBody, TFoot);
 
@@ -403,11 +404,11 @@ type
   htBorderStyleArray = packed array[0..3] of BorderStyleType;
 
 var
-  ColorBits: Byte;
-  ThePalette: HPalette;       {the rainbow palette for 256 colors}
-  PalRelative: integer;
+//  ColorBits: Byte;
+//  ThePalette: HPalette;       {the rainbow palette for 256 colors}
+//  PalRelative: integer;
   DefBitMap, ErrorBitMap, ErrorBitmapMask: TBitMap;
-  ABitmapList: TStringBitmapList; {the image cache}
+  //BG, 09.09.2009: unused: ABitmapList: TStringBitmapList; {the image cache}
   WaitStream: TMemoryStream;
 
 function InSet(W: WideChar; S: SetOfChar): boolean;
@@ -492,12 +493,13 @@ function GetImageWidth(Image: TGpObject): integer;
 implementation
 
 uses
-   jpeg, DitherUnit, {$IFDEF UNICODE} PngImage, {$ENDIF}
-  {$ifndef NoOldPng}
-     PngImage1,
-  {$endif}
-     //htmlview,
-     htmlsubs, HtmlGif2, StylePars, ActiveX;
+  jpeg, DitherUnit,
+  {$IFDEF UNICODE}
+    PngImage,
+  {$ENDIF}
+   htmlsubs,
+   HtmlGif2,
+   StylePars, ActiveX;
 
 type
   EGDIPlus = class (Exception);
@@ -506,8 +508,8 @@ type
     property Bitmap;
   end;
 
-var
-  DC: HDC;
+//var
+//  DC: HDC;
 
 {----------------StrLenW}
 function StrLenW(Str: PWideChar): Cardinal;
@@ -2023,11 +2025,11 @@ function GetBitmapAndMaskFromStream(Stream: TMemoryStream;
 var
   IT: ImageType;
   jpImage: TJpegMod;
-  {$ifndef NoOldPng}
-  PI: TPngObject;
-  Color: TColor;
-  Tmp: TBitmap;
-  {$endif}
+//  {$ifndef NoOldPng}
+//  PI: TPngObject;
+//  Color: TColor;
+//  Tmp: TBitmap;
+//  {$endif}
 begin
 Result := Nil;
 AMask := Nil;
@@ -2059,55 +2061,55 @@ try
       jpImage.Free;
       end;
     end
-  {$ifndef NoOldPng}
-  else if IT = Png then
-    begin
-    if IsTransparentPNG(Stream, Color) then  {check for transparent PNG}
-      Transparent := TPng;
-    PI := TPngObject.Create;
-    try
-     PI.LoadFromStream(Stream);
-     Result.Assign(PI);
-     if Result.Handle <> 0 then;      {force proper initiation win98/95}
-    finally
-     PI.Free;
-     end;
-    end
-  {$else}
+//  {$ifndef NoOldPng}
+//  else if IT = Png then
+//    begin
+//    if IsTransparentPNG(Stream, Color) then  {check for transparent PNG}
+//      Transparent := TPng;
+//    PI := TPngObject.Create;
+//    try
+//     PI.LoadFromStream(Stream);
+//     Result.Assign(PI);
+//     if Result.Handle <> 0 then;      {force proper initiation win98/95}
+//    finally
+//     PI.Free;
+//     end;
+//    end
+//  {$else}
   else if IT = Png then
     Result := Nil
-  {$endif}
+//  {$endif}
   else
     begin
     Result.LoadFromStream(Stream);   {Bitmap}
     end;
   if Transparent = LLCorner then
     AMask := GetImageMask(Result, False, 0)
-  {$ifdef NoOldPng}
+//  {$ifdef NoOldPng}
      ;
-  {$else}
-  else if Transparent = TPng then
-    begin
-    AMask := GetImageMask(Result, True, Color);
-    {Replace the background color with black.  This is needed if the Png is a
-     background image.}
-    Tmp := Result;
-    Result := TBitmap.Create;
-    Result.Width := Tmp.Width;
-    Result.Height := Tmp.Height;
-    Result.Palette := CopyPalette(ThePalette);
-    with Result do
-      begin
-      Canvas.Brush.Color := Color;
-      PatBlt(Canvas.Handle, 0, 0, Width, Height, PatCopy);
-      SetBkColor(Canvas.Handle, clWhite);
-      SetTextColor(Canvas.Handle, clBlack);
-      BitBlt(Canvas.Handle, 0, 0, Width, Height, AMask.Canvas.Handle, 0, 0, SrcAnd);
-      BitBlt(Canvas.Handle, 0, 0, Width, Height, Tmp.Canvas.Handle, 0, 0, SrcInvert);
-      end;
-    Tmp.Free;
-    end;
-  {$endif}
+//  {$else}
+//  else if Transparent = TPng then
+//    begin
+//    AMask := GetImageMask(Result, True, Color);
+//    {Replace the background color with black.  This is needed if the Png is a
+//     background image.}
+//    Tmp := Result;
+//    Result := TBitmap.Create;
+//    Result.Width := Tmp.Width;
+//    Result.Height := Tmp.Height;
+//    Result.Palette := CopyPalette(ThePalette);
+//    with Result do
+//      begin
+//      Canvas.Brush.Color := Color;
+//      PatBlt(Canvas.Handle, 0, 0, Width, Height, PatCopy);
+//      SetBkColor(Canvas.Handle, clWhite);
+//      SetTextColor(Canvas.Handle, clBlack);
+//      BitBlt(Canvas.Handle, 0, 0, Width, Height, AMask.Canvas.Handle, 0, 0, SrcAnd);
+//      BitBlt(Canvas.Handle, 0, 0, Width, Height, Tmp.Canvas.Handle, 0, 0, SrcInvert);
+//      end;
+//    Tmp.Free;
+//    end;
+//  {$endif}
   Result := ConvertImage(Result);
 except
   Result.Free;
@@ -2726,59 +2728,6 @@ finally
   end;
 end;
 
-procedure CalcPalette(DC: HDC);
-{calculate a rainbow palette, one with equally spaced colors}
-const
-  Values: array[0..5] of integer = (55, 115, 165, 205, 235, 255);
-var
-  LP: ^TLogPalette;
-  I, J, K, Sub: integer;
-begin
-GetMem(LP, Sizeof(TLogPalette) + 256*Sizeof(TPaletteEntry));
-try
-  with LP^ do
-    begin
-    palVersion := $300;
-    palNumEntries := 256;
-    GetSystemPaletteEntries(DC, 0, 256, palPalEntry);
-    Sub := 10;  {start at entry 10}
-    for I := 0 to 5 do
-      for J := 0 to 5 do
-        for K := 0 to 5 do
-          if not ((I=5) and (J=5) and (K=5)) then  {skip the white}
-            with palPalEntry[Sub] do
-              begin
-              peBlue := Values[I];
-              peGreen := Values[J];
-              peRed := Values[K];
-              peFlags := 0;
-              Inc(Sub);
-              end;
-    for I := 1 to 24 do
-       if not (I in [7, 15, 21]) then   {these would be duplicates}
-          with palPalEntry[Sub] do
-            begin
-            peBlue := 130 + 5*I;
-            peGreen := 130 + 5*I;
-            peRed := 130 + 5*I;
-            peFlags := 0;
-            Inc(Sub);
-            end;
-    Sub := 245;
-    with palPalEntry[Sub] do
-      begin
-      peBlue := 254;
-      peGreen := 255;
-      peRed := 255;
-      peFlags := 0;
-      end;
-    ThePalette := CreatePalette(LP^);
-    end;
-finally
-  FreeMem(LP, Sizeof(TLogPalette) + 256*Sizeof(TPaletteEntry));
-  end;
-end;
-
 const
   DefaultBitmap = 1002;
   ErrBitmap = 1001;
@@ -2788,8 +2737,6 @@ const
 
 procedure ThisExit; far;
 begin
-if ThePalette <> 0 then
-  DeleteObject(ThePalette);
 DefBitMap.Free;
 ErrorBitMap.Free;
 ErrorBitMapMask.Free;
@@ -4115,28 +4062,6 @@ else Raise(EGDIPlus.Create('Not a TBitmap, TGifImage, TMetafile, or TGpImage'));
 end;
 
 initialization
-DC := GetDC(0);
-try
-  ColorBits := GetDeviceCaps(DC, BitsPixel)*GetDeviceCaps(DC, Planes);
-
-  if ColorBits <= 4 then
-    ColorBits := 4
-  else if ColorBits <= 8 then
-    ColorBits := 8
-  else  ColorBits := 24;
-
-  ThePalette := 0;
-  if ColorBits = 8 then
-    CalcPalette(DC);
-  if ColorBits <= 8 then     {use Palette Relative bit only when Palettes used}
-    PalRelative := $2000000
-  else PalRelative := 0;
-finally
-  ReleaseDC(0, DC);
-  end;
-
-IsWin95 := (Win32Platform = VER_PLATFORM_WIN32_WINDOWS) and (Win32MinorVersion in [0..9]);
-IsWin32Platform := Win32Platform = VER_PLATFORM_WIN32_WINDOWS;
 
 {$ifdef UseElPack}
 UnicodeControls := True;

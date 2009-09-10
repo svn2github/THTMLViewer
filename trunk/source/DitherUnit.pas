@@ -119,8 +119,8 @@ uses
 {$ifdef DEBUG_DITHERPERFORMANCE}
   mmsystem, // timeGetTime()
   messages,
-{$endif}  
-  htmlun2;
+{$endif}
+  HtmlGlobals;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
