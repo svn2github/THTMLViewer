@@ -1,6 +1,6 @@
 {Version 10.00}
 
-{$i HtmlCons.inc}
+{$I HtmlCons.inc}
 
 unit HtmlGif1;
 
@@ -45,48 +45,48 @@ the full implications and legal ramifications of using the LZW compression.
 interface
 
 uses
-  {$ifdef UseCLX}
-    SysUtils, Types, Classes, QGraphics, QControls, QForms, QDialogs,
-    QStdCtrls, Math;
-  {$else}
-    Windows, Messages, SysUtils, Classes, Graphics,
-    Controls, StdCtrls, ExtCtrls, Forms, Math;
-  {$endif}
+{$IFDEF UseCLX}
+  SysUtils, Types, Classes, QGraphics, QControls, QForms, QDialogs,
+  QStdCtrls, Math;
+{$ELSE}
+  Windows, Messages, SysUtils, Classes, Graphics,
+  Controls, StdCtrls, ExtCtrls, Forms, Math;
+{$ENDIF}
 
 type
 {$IFDEF CONDITIONALEXPRESSIONS}
-   {$IF not defined(DOTNET) and not defined(FPC)}
-     {$IF declared(INT_PTR)}
-       PtrInt = INT_PTR;
-     {$ELSE}
-       {$IFDEF WIN32}
-         PtrInt = LongInt;
-       {$ENDIF}
-       {$IFDEF WIN64}
-         PtrInt = Int64;
-       {$ENDIF}
-     {$IFEND}
-     {$IF declared(UINT_PTR)}
-       PtrUInt = UINT_PTR;
-     {$ELSE}
-       {$IFDEF WIN32}
-         PtrUInt = LongWord;
-       {$ENDIF}
-       {$IFDEF WIN64}
-         PtrUInt = Int64;
-       {$ENDIF}
-     {$IFEND}
-   {$IFEND}
+{$IF not defined(DOTNET) and not defined(FPC)}
+{$IF declared(INT_PTR)}
+  PtrInt = INT_PTR;
 {$ELSE}
-   PrtInt = LongInt;
-   PtrUInt = LongWord;
+{$IFDEF WIN32}
+  PtrInt = LongInt;
+{$ENDIF}
+{$IFDEF WIN64}
+  PtrInt = Int64;
+{$ENDIF}
+{$IFEND}
+{$IF declared(UINT_PTR)}
+  PtrUInt = UINT_PTR;
+{$ELSE}
+{$IFDEF WIN32}
+  PtrUInt = LongWord;
+{$ENDIF}
+{$IFDEF WIN64}
+  PtrUInt = Int64;
+{$ENDIF}
+{$IFEND}
+{$IFEND}
+{$ELSE}
+  PrtInt = LongInt;
+  PtrUInt = LongWord;
 {$ENDIF}
 
 
 // LZW encode table sizes
 
 const
-    kGifCodeTableSize = 4096;
+  kGifCodeTableSize = 4096;
 
 
 // the parts of a GIF file
@@ -95,262 +95,262 @@ const
 // easier to read, especially when the definitions may be broken
 // across the printed page.  if you don't like it, take them out.
 
-type                         {LDB}
+type {LDB}
   TRGBQUAD = packed record
     rgbBlue: Byte;
     rgbGreen: Byte;
     rgbRed: Byte;
     rgbReserved: Byte;
-    end;
+  end;
 type
-    PGifDataBlock           = ^TGifDataBlock;
-    TGifDataBlock           = record            // generic data clump
-        rSize:              integer;            // NOTE: array starts at "1"
-        rData:              packed array[1..255] of byte;
-        end;
+  PGifDataBlock = ^TGifDataBlock;
+  TGifDataBlock = record // generic data clump
+    rSize: integer; // NOTE: array starts at "1"
+    rData: packed array[1..255] of byte;
+  end;
 
 type
-    PGifSignature           = ^TgifSignature;
-    TGifSignature           = record            // GIF87A or GIF89A
-        rSignature:         packed array[1..6] of Ansichar;
-        end;
+  PGifSignature = ^TgifSignature;
+  TGifSignature = record // GIF87A or GIF89A
+    rSignature: packed array[1..6] of Ansichar;
+  end;
 
 type
-    PGifExtensionGraphic    = ^TgifExtensionGraphic;
-    TGifExtensionGraphic    = record            // graphic control extension
-        rBlockSize:         integer;            // must always be 4
-        rDisposal:          integer;            // disposal method when drawing
-        rUserInputValid:    boolean;            // wait for user input?
-        rTransparentValid:  boolean;            // transparent color given?
-        rDelayTime:         integer;            // delay between display images
-        rTransparentIndex:  integer;            // into color table
-        end;
+  PGifExtensionGraphic = ^TgifExtensionGraphic;
+  TGifExtensionGraphic = record // graphic control extension
+    rBlockSize: integer; // must always be 4
+    rDisposal: integer; // disposal method when drawing
+    rUserInputValid: boolean; // wait for user input?
+    rTransparentValid: boolean; // transparent color given?
+    rDelayTime: integer; // delay between display images
+    rTransparentIndex: integer; // into color table
+  end;
 
 type
-    PGifExtensionComment    = ^TgifExtensionComment;
-    TGifExtensionComment    = record            // comment extension
-        rDataBlockList:     TList;               // data blocks
-        end;
+  PGifExtensionComment = ^TgifExtensionComment;
+  TGifExtensionComment = record // comment extension
+    rDataBlockList: TList; // data blocks
+  end;
 
 type
-    PGifExtensionText       = ^TGifExtensionText;
-    TGifExtensionText       = record            // plain text extension
-        rBlockSize:         integer;            // must always be 12
-        rGridLeft:          integer;            // text grid position
-        rGridTop:           integer;
-        rGridWidth:         integer;            // text grid size
-        rGridHeight:        integer;
-        rCellWidth:         integer;            // size of a character cell
-        rCellHeight:        integer;
-        rForegroundIndex:   integer;            // text foreground color
-        rBackgroundIndex:   integer;            // text background color
-        rDataBlockList:     TList;              // data blocks
-        end;
+  PGifExtensionText = ^TGifExtensionText;
+  TGifExtensionText = record // plain text extension
+    rBlockSize: integer; // must always be 12
+    rGridLeft: integer; // text grid position
+    rGridTop: integer;
+    rGridWidth: integer; // text grid size
+    rGridHeight: integer;
+    rCellWidth: integer; // size of a character cell
+    rCellHeight: integer;
+    rForegroundIndex: integer; // text foreground color
+    rBackgroundIndex: integer; // text background color
+    rDataBlockList: TList; // data blocks
+  end;
 
 type
-    PGifExtensionApplication    = ^TgifExtensionApplication;
-    TGifExtensionApplication    = record        // application extension
-        rBlockSize:         integer;            // must always be 11
-        rIdentifier:        packed array[1..8] of Ansichar;
-        rAuthentication:    packed array[1..3] of Ansichar;
-        rDataBlockList:     TList;              // data blocks
-        end;
+  PGifExtensionApplication = ^TgifExtensionApplication;
+  TGifExtensionApplication = record // application extension
+    rBlockSize: integer; // must always be 11
+    rIdentifier: packed array[1..8] of Ansichar;
+    rAuthentication: packed array[1..3] of Ansichar;
+    rDataBlockList: TList; // data blocks
+  end;
 
 type
-    PGifExtension           = ^TGifExtension;
-    TGifExtension           = record            // for any extension type
-        case rLabel: byte of                    // cannot use CONST names
-            $f9:        (rGraphic:  TGifExtensionGraphic);
-            $fe:        (rComment:  TGifExtensionComment);
-            $01:        (rText:     TGifExtensionText);
-            $ff:        (rApp:      TGifExtensionApplication);
-            $00:        (rDummy:    longint);
-        end;
+  PGifExtension = ^TGifExtension;
+  TGifExtension = record // for any extension type
+    case rLabel: byte of // cannot use CONST names
+      $F9: (rGraphic: TGifExtensionGraphic);
+      $FE: (rComment: TGifExtensionComment);
+      $01: (rText: TGifExtensionText);
+      $FF: (rApp: TGifExtensionApplication);
+      $00: (rDummy: longint);
+  end;
 
 type
-    PGifScreenDescriptor    = ^TGifScreenDescriptor;
-    TGifScreenDescriptor    = record
-        rWidth:             integer;            // size of logical screen
-        rHeight:            integer;            // size of logical screen
-        rGlobalColorValid:  boolean;            // global color table found in file?
-        rColorResolution:   integer;            // bits per color
-        rSorted:            boolean;            // global colors are sorted?
-        rGlobalColorSize:   integer;            // size of global color table
-        rBackgroundIndex:   integer;            // background color index
-        rAspectRatio:       integer;            // pixel aspect ratio
-        rGlobalColorTable:  integer;            // default color table for all images
-        end;
+  PGifScreenDescriptor = ^TGifScreenDescriptor;
+  TGifScreenDescriptor = record
+    rWidth: integer; // size of logical screen
+    rHeight: integer; // size of logical screen
+    rGlobalColorValid: boolean; // global color table found in file?
+    rColorResolution: integer; // bits per color
+    rSorted: boolean; // global colors are sorted?
+    rGlobalColorSize: integer; // size of global color table
+    rBackgroundIndex: integer; // background color index
+    rAspectRatio: integer; // pixel aspect ratio
+    rGlobalColorTable: integer; // default color table for all images
+  end;
 
 type
-    PGifColorTable          = ^TGifColorTable;  // pointer to a color table
-    TGifColorTable          = record
-        rSize:              integer;            // number of valid entries
-        rColors:            array[0..255] of TColor;    // the colors
-        end;
+  PGifColorTable = ^TGifColorTable; // pointer to a color table
+  TGifColorTable = record
+    rSize: integer; // number of valid entries
+    rColors: array[0..255] of TColor; // the colors
+  end;
 
 type
-    PGifImageDescriptor     = ^TGifImageDescriptor;
-    TGifImageDescriptor     = record
-        rIndex:             integer;            // which image is this?
-        rLeft:              integer;            // position of image
-        rTop:               integer;            // position of image
-        rWidth:             integer;            // size of image
-        rHeight:            integer;            // size of image
-        rLocalColorValid:   boolean;            // color table used?
-        rInterlaced:        boolean;            // interlaced lines?
-        rSorted:            boolean;            // color table sorted?
-        rLocalColorSize:    integer;            // number entries in local color table
-        rLocalColorTable:   integer;            // index into master list
-        rLZWSize:           integer;            // LZW minimum code size
-        rExtensionList:     TList;              // extensions read before this image
-        rPixelList:         PByte;              // decoded pixel indices
-        rPixelCount:        longint;            // number of pixels
-        rBitmap:            TBitmap;            // the actual image
-        end;
+  PGifImageDescriptor = ^TGifImageDescriptor;
+  TGifImageDescriptor = record
+    rIndex: integer; // which image is this?
+    rLeft: integer; // position of image
+    rTop: integer; // position of image
+    rWidth: integer; // size of image
+    rHeight: integer; // size of image
+    rLocalColorValid: boolean; // color table used?
+    rInterlaced: boolean; // interlaced lines?
+    rSorted: boolean; // color table sorted?
+    rLocalColorSize: integer; // number entries in local color table
+    rLocalColorTable: integer; // index into master list
+    rLZWSize: integer; // LZW minimum code size
+    rExtensionList: TList; // extensions read before this image
+    rPixelList: PByte; // decoded pixel indices
+    rPixelCount: longint; // number of pixels
+    rBitmap: TBitmap; // the actual image
+  end;
 
 
 type
-    PGifZip                 = ^TGifZip;
-    TGifZip                 = record
-        rID:                PGifImageDescriptor;    // image parameters to decode
-        rCT:                PGifColorTable;         // color table for this image
-        rPrefix:            array[0..kGifCodeTableSize-1] of integer;   // string prefixes
-        rSuffix:            array[0..kGifCodeTableSize-1] of integer;   // string suffixes
-        rCodeStack:         array[0..kGifCodeTableSize-1] of byte;      // decode/encoded pixels
-        rSP:                integer;                // pointer into CodeStack
-        rClearCode:         integer;                // reset decode params
-        rEndCode:           integer;                // last code in input stream
-        rHighCode:          integer;                // highest LZW code possible
-        rCurSize:           integer;                // current code size
-        rBitString:         integer;                // steady stream of bits to be decoded
-        rBits:              integer;                // number of valid bits in BitString
-        rCurSlot:           integer;                // next stack index to store a code
-        rTopSlot:           integer;                // highest slot used so far
-        rMaxVal:            boolean;                // max code value found?
-        rCurX:              integer;                // position of next pixel
-        rCurY:              integer;                // position of next pixel
-        rCurPass:           integer;                // pixel line pass 1..4
-        rFirstSlot:         integer;                // for encoding an image
-        rNextSlot:          integer;                // for encoding
-        rCount:             integer;                // number of bytes read/written
-        rLast:              integer;                // last byte read in
-        rUnget:             boolean;                // read a new byte, or use zLast?
-    end;
+  PGifZip = ^TGifZip;
+  TGifZip = record
+    rID: PGifImageDescriptor; // image parameters to decode
+    rCT: PGifColorTable; // color table for this image
+    rPrefix: array[0..kGifCodeTableSize - 1] of integer; // string prefixes
+    rSuffix: array[0..kGifCodeTableSize - 1] of integer; // string suffixes
+    rCodeStack: array[0..kGifCodeTableSize - 1] of byte; // decode/encoded pixels
+    rSP: integer; // pointer into CodeStack
+    rClearCode: integer; // reset decode params
+    rEndCode: integer; // last code in input stream
+    rHighCode: integer; // highest LZW code possible
+    rCurSize: integer; // current code size
+    rBitString: integer; // steady stream of bits to be decoded
+    rBits: integer; // number of valid bits in BitString
+    rCurSlot: integer; // next stack index to store a code
+    rTopSlot: integer; // highest slot used so far
+    rMaxVal: boolean; // max code value found?
+    rCurX: integer; // position of next pixel
+    rCurY: integer; // position of next pixel
+    rCurPass: integer; // pixel line pass 1..4
+    rFirstSlot: integer; // for encoding an image
+    rNextSlot: integer; // for encoding
+    rCount: integer; // number of bytes read/written
+    rLast: integer; // last byte read in
+    rUnget: boolean; // read a new byte, or use zLast?
+  end;
 
 { ---------------------------------------------------------------------------- }
 
 // define a GIF
 
 type
-    TGif = class(TObject)
-    private
-        fIOStream:              TMemoryStream;      // read or write the image
-        fDataStream:            TMemoryStream;      // temp storage for LZW
-        fExtension:             TList;              // latest extensions read/written
+  TGif = class(TObject)
+  private
+    fIOStream: TMemoryStream; // read or write the image
+    fDataStream: TMemoryStream; // temp storage for LZW
+    fExtension: TList; // latest extensions read/written
 
-        fSignature:             PGifSignature;      // version of GIF
-        fScreenDescriptor:      PGifScreenDescriptor;   // logical screen descriptor
-        fImageDescriptorList:   TList;              // list of all images
-        fColorTableList:        TList;              // list of all color tables
-        fPaletteList:           TList;              // list of palettes from color tables
-        fZipData:               PGifZip;            // for encode/decode image
-        FLoopCount:             integer;            // number of animated iterations
+    fSignature: PGifSignature; // version of GIF
+    fScreenDescriptor: PGifScreenDescriptor; // logical screen descriptor
+    fImageDescriptorList: TList; // list of all images
+    fColorTableList: TList; // list of all color tables
+    fPaletteList: TList; // list of palettes from color tables
+    fZipData: PGifZip; // for encode/decode image
+    FLoopCount: integer; // number of animated iterations
 
 
 // functions that override TGraphic items
 
-    protected
-        function  GetHeight: integer;
-        function  GetWidth: integer;
-        function  GetTransparent: boolean;
+  protected
+    function GetHeight: integer;
+    function GetWidth: integer;
+    function GetTransparent: boolean;
 
 // procedures to read a bitmap
 
-   private
-        procedure ReadSignature;
-        procedure ReadScreenDescriptor;
-        procedure ReadColorTable(Size: integer; var Table: integer);
-        procedure ReadImageDescriptor;
-        procedure ReadDataBlockList(List: TList);
-        procedure ReadExtension(var Done: boolean);
-        procedure ReadSourceInteger(size: integer; var value: integer);
+  private
+    procedure ReadSignature;
+    procedure ReadScreenDescriptor;
+    procedure ReadColorTable(Size: integer; var Table: integer);
+    procedure ReadImageDescriptor;
+    procedure ReadDataBlockList(List: TList);
+    procedure ReadExtension(var Done: boolean);
+    procedure ReadSourceInteger(size: integer; var value: integer);
 
 // LZW encode and decode
 
-        procedure LZWDecode(pID: PGifImageDescriptor);
-        procedure LZWInit(pID: PGifImageDescriptor);
-        procedure LZWFinit;
-        procedure LZWReset;
-        function  LZWGetCode: integer;
-        procedure LZWSaveCode(Code: integer);
-        procedure LZWDecodeCode(var Code: integer);
-        procedure LZWSaveSlot(Prefix, Suffix: integer);
-        procedure LZWIncrPosition;
-        procedure LZWCheckSlot;
-        procedure LZWWriteBitmap;
-        function  LZWReadBitmap: integer;
+    procedure LZWDecode(pID: PGifImageDescriptor);
+    procedure LZWInit(pID: PGifImageDescriptor);
+    procedure LZWFinit;
+    procedure LZWReset;
+    function LZWGetCode: integer;
+    procedure LZWSaveCode(Code: integer);
+    procedure LZWDecodeCode(var Code: integer);
+    procedure LZWSaveSlot(Prefix, Suffix: integer);
+    procedure LZWIncrPosition;
+    procedure LZWCheckSlot;
+    procedure LZWWriteBitmap;
+    function LZWReadBitmap: integer;
 
 // procedures used to implement the PROPERTIES
 
-        function  GetSignature: AnsiString;
-        function  GetScreenDescriptor: PGifScreenDescriptor;
-        function  GetImageCount: integer;
-        function  GetImageDescriptor(image: integer): PGifImageDescriptor;
-        function  GetBitmap(image: integer): TBitmap;
-        function  GetColorTableCount: integer;
-        function  GetColorTable(table: integer): PGifColorTable;
-        function  GetImageDelay(Image: integer): integer;  {LDB}
-        function  GetImageDisposal(Image: integer): integer; {LDB}
-        function  GetColorIndex(image, x, y: integer): integer;
-        function  GetTransparentIndex(image: integer): integer;
-        function  GetTransparentColor: TColor;
-        function  GetImageLeft(image: integer): integer;
-        function  GetImageTop(image: integer): integer;
-        function  GetImageWidth(image: integer): integer;
-        function  GetImageHeight(image: integer): integer;
-        function  GetImageDepth(image: integer): integer;
+    function GetSignature: AnsiString;
+    function GetScreenDescriptor: PGifScreenDescriptor;
+    function GetImageCount: integer;
+    function GetImageDescriptor(image: integer): PGifImageDescriptor;
+    function GetBitmap(image: integer): TBitmap;
+    function GetColorTableCount: integer;
+    function GetColorTable(table: integer): PGifColorTable;
+    function GetImageDelay(Image: integer): integer; {LDB}
+    function GetImageDisposal(Image: integer): integer; {LDB}
+    function GetColorIndex(image, x, y: integer): integer;
+    function GetTransparentIndex(image: integer): integer;
+    function GetTransparentColor: TColor;
+    function GetImageLeft(image: integer): integer;
+    function GetImageTop(image: integer): integer;
+    function GetImageWidth(image: integer): integer;
+    function GetImageHeight(image: integer): integer;
+    function GetImageDepth(image: integer): integer;
 
 // generally usefull routines
 
-        procedure FreeDataBlockList(var list: TList);
-        procedure FreeExtensionList(var list: TList);
-        procedure MakeBitmaps;
-        function  FindGraphicExtension(image: integer): PGifExtensionGraphic;
-        function  FindColorIndex(c: TColor; ct: PGifColorTable): integer;
-        procedure ExtractLoopCount(List: TList);
+    procedure FreeDataBlockList(var list: TList);
+    procedure FreeExtensionList(var list: TList);
+    procedure MakeBitmaps;
+    function FindGraphicExtension(image: integer): PGifExtensionGraphic;
+    function FindColorIndex(c: TColor; ct: PGifColorTable): integer;
+    procedure ExtractLoopCount(List: TList);
 
-    public
-        constructor Create;
-        destructor Destroy; override;
-        procedure FreeImage;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure FreeImage;
 
-        procedure LoadFromStream(Source: TStream);
-        function GetStripBitmap(var Mask: TBitmap): TBitmap;  {LDB}
+    procedure LoadFromStream(Source: TStream);
+    function GetStripBitmap(var Mask: TBitmap): TBitmap; {LDB}
 
-        property Signature:                         AnsiString              read GetSignature;
-        property ScreenDescriptor:                  PGifScreenDescriptor    read GetScreenDescriptor;
-        property ImageCount:                        integer                 read GetImageCount;
-        property ImageDescriptor[Image: integer]:   PGifImageDescriptor     read GetImageDescriptor;
-        property Bitmap[Image: integer]:            TBitmap                 read GetBitmap;
-        property ColorTableCount:                   integer                 read GetColorTableCount;
-        property ColorTable[Table: integer]:        PGifColorTable          read GetColorTable;
-        property Height:                            integer                 read GetHeight;
-        property Width:                             integer                 read GetWidth ;
+    property Signature: AnsiString read GetSignature;
+    property ScreenDescriptor: PGifScreenDescriptor read GetScreenDescriptor;
+    property ImageCount: integer read GetImageCount;
+    property ImageDescriptor[Image: integer]: PGifImageDescriptor read GetImageDescriptor;
+    property Bitmap[Image: integer]: TBitmap read GetBitmap;
+    property ColorTableCount: integer read GetColorTableCount;
+    property ColorTable[Table: integer]: PGifColorTable read GetColorTable;
+    property Height: integer read GetHeight;
+    property Width: integer read GetWidth;
 
-        property ImageDelay[Image: integer]:        integer                 read GetImageDelay;
-        property ImageDisposal[Image: integer]:     integer                 read GetImageDisposal;
+    property ImageDelay[Image: integer]: integer read GetImageDelay;
+    property ImageDisposal[Image: integer]: integer read GetImageDisposal;
 
-        property Transparent:                       boolean                 read GetTransparent;
-        property TransparentIndex[Image: integer]:  integer                 read GetTransparentIndex;
-        property TransparentColor:                  TColor                  read GetTransparentColor;
-        property ImageLeft[Image: integer]:         integer                 read GetImageLeft;
-        property ImageTop[Image: integer]:          integer                 read GetImageTop;
-        property ImageWidth[Image: integer]:        integer                 read GetImageWidth;
-        property ImageHeight[Image: integer]:       integer                 read GetImageHeight;
-        property ImageDepth[Image: integer]:        integer                 read GetImageDepth;
-        property LoopCount:                         integer                 read FLoopCount;
+    property Transparent: boolean read GetTransparent;
+    property TransparentIndex[Image: integer]: integer read GetTransparentIndex;
+    property TransparentColor: TColor read GetTransparentColor;
+    property ImageLeft[Image: integer]: integer read GetImageLeft;
+    property ImageTop[Image: integer]: integer read GetImageTop;
+    property ImageWidth[Image: integer]: integer read GetImageWidth;
+    property ImageHeight[Image: integer]: integer read GetImageHeight;
+    property ImageDepth[Image: integer]: integer read GetImageDepth;
+    property LoopCount: integer read FLoopCount;
 
-    end;
+  end;
 
 implementation
 
@@ -365,86 +365,88 @@ const
   // GIF record separators
 
 const
-    kGifImageSeparator:     byte = $2c;
-    kGifExtensionSeparator: byte = $21;
-    kGifTerminator:         byte = $3b;
-    kGifLabelGraphic:       byte = $f9;
-    kGifLabelComment:       byte = $fe;
-    kGifLabelText:          byte = $01;
-    kGifLabelApplication:   byte = $ff;
+  kGifImageSeparator: byte = $2C;
+  kGifExtensionSeparator: byte = $21;
+  kGifTerminator: byte = $3B;
+  kGifLabelGraphic: byte = $F9;
+  kGifLabelComment: byte = $FE;
+  kGifLabelText: byte = $01;
+  kGifLabelApplication: byte = $FF;
 
 // define a set of error messages
 
 const
-    kGifErrorMessages:      array[0..27] of string = (
-        'no error',                                                 // 0
-        'Invalid GIF Signature Code',                               // 1
-        'No Local or Global Color Table for Image',                 // 2
-        'Unknown Graphics Extension Type',                          // 3
-        'Unknown Graphics Operation Code',                          // 4
-        'Invalid Extension Block Size',                             // 5
-        '[special message]',                                        // 6
-        'Invalid Extension Block Terminator',                       // 7
-        'Invalid Integer Size',                                     // 8
-        'No GIF Terminator Found',                                  // 9
-        'Extension Block Out-Of-Order With Image Data',             // 10
-        'Invalid Image Descriptor Index',                           // 11
-        'Invalid LZW Code Size',                                    // 12
-        'Invalid LZW Data Format',                                  // 13
-        'LZW Code Overflow',                                        // 14
-        'Value Out Of Range',                                       // 15
-        'NIL Pointer assigned',                                     // 16
-        'Invalid Color Table Size',                                 // 17
-        'No Image Description',                                     // 18
-        'Invalid Bitmap Image',                                     // 19
-        'Invalid Color Table Index',                                // 20
-        'Invalid Interlace Pass',                                   // 21
-        'Invalid Bitmap',                                           // 22
-        'Too Many Colors In Bitmap',                                // 23
-        'Unexpected end of file',                                   // 24   {LDB}
-        'Animated GIF too large',                                   // 25   {LDB}
-        'Zero width or height',                                     // 26   {LDB}
-        'next message'                                              //
+  kGifErrorMessages: array[0..27] of string = (
+    'no error', // 0
+    'Invalid GIF Signature Code', // 1
+    'No Local or Global Color Table for Image', // 2
+    'Unknown Graphics Extension Type', // 3
+    'Unknown Graphics Operation Code', // 4
+    'Invalid Extension Block Size', // 5
+    '[special message]', // 6
+    'Invalid Extension Block Terminator', // 7
+    'Invalid Integer Size', // 8
+    'No GIF Terminator Found', // 9
+    'Extension Block Out-Of-Order With Image Data', // 10
+    'Invalid Image Descriptor Index', // 11
+    'Invalid LZW Code Size', // 12
+    'Invalid LZW Data Format', // 13
+    'LZW Code Overflow', // 14
+    'Value Out Of Range', // 15
+    'NIL Pointer assigned', // 16
+    'Invalid Color Table Size', // 17
+    'No Image Description', // 18
+    'Invalid Bitmap Image', // 19
+    'Invalid Color Table Index', // 20
+    'Invalid Interlace Pass', // 21
+    'Invalid Bitmap', // 22
+    'Too Many Colors In Bitmap', // 23
+    'Unexpected end of file', // 24   {LDB}
+    'Animated GIF too large', // 25   {LDB}
+    'Zero width or height', // 26   {LDB}
+    'next message' //
     );
 
 var
-    GIF_ErrorCode:      integer;                    // last error
-    GIF_ErrorString:    string;                     // last error
+  GIF_ErrorCode: integer; // last error
+  GIF_ErrorString: string; // last error
 
-procedure GIF_Error(n: integer);  forward;
-procedure GIF_ErrorMessage(m: string);  forward;
+procedure GIF_Error(n: integer); forward;
+procedure GIF_ErrorMessage(m: string); forward;
 
 
 constructor TGif.Create;
 begin
-inherited Create;
+  inherited Create;
 
 // nothing defined yet
 
-fIOStream            := nil;
-fDataStream          := nil;
-fExtension           := nil;
-fSignature           := nil;
-fScreenDescriptor    := nil;
-fImageDescriptorList := nil;
-fColorTableList      := nil;
-fPaletteList         := nil;
-fZipData             := nil;
-FLoopCount := -1;    // -1 is no loop count entered
+  fIOStream := nil;
+  fDataStream := nil;
+  fExtension := nil;
+  fSignature := nil;
+  fScreenDescriptor := nil;
+  fImageDescriptorList := nil;
+  fColorTableList := nil;
+  fPaletteList := nil;
+  fZipData := nil;
+  FLoopCount := -1; // -1 is no loop count entered
 
 // some things, though, will always be needed
 
-new(fSignature);
-if (fSignature = nil) then OutOfMemoryError;
-fSignature^.rSignature := AnsiString('------');
+  new(fSignature);
+  if (fSignature = nil) then
+    OutOfMemoryError;
+  fSignature^.rSignature := AnsiString('------');
 
-new(fScreenDescriptor);
-if (fScreenDescriptor = nil) then OutOfMemoryError;
-fillchar(fScreenDescriptor^, sizeof(TGifScreenDescriptor), 0);
+  new(fScreenDescriptor);
+  if (fScreenDescriptor = nil) then
+    OutOfMemoryError;
+  fillchar(fScreenDescriptor^, sizeof(TGifScreenDescriptor), 0);
 
-fImageDescriptorList := TList.Create;
-fColorTableList      := TList.Create;
-fPaletteList         := TList.Create;
+  fImageDescriptorList := TList.Create;
+  fColorTableList := TList.Create;
+  fPaletteList := TList.Create;
 
 end;
 
@@ -454,20 +456,20 @@ begin
 
 // clean up most of the data
 
-FreeImage;
+  FreeImage;
 
 // and then the left-overs
 
-dispose(fSignature);
-dispose(fScreenDescriptor);
+  dispose(fSignature);
+  dispose(fScreenDescriptor);
 
-fImageDescriptorList.Free;
-fColorTableList.Free;
-fPaletteList.Free;
+  fImageDescriptorList.Free;
+  fColorTableList.Free;
+  fPaletteList.Free;
 
 // and the ancestor
 
-inherited;
+  inherited;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -475,72 +477,85 @@ end;
 
 procedure TGif.FreeImage;
 var
-    i:    integer;
-    id:     PGifImageDescriptor;
-    ct:     PGifColorTable;
+  i: integer;
+  id: PGifImageDescriptor;
+  ct: PGifColorTable;
 begin
 
 // temp input/output stream
 
-if (fIOStream <> nil) then fIOStream.Free;
-fIOStream := nil;
+  if (fIOStream <> nil) then
+    fIOStream.Free;
+  fIOStream := nil;
 
 // temp encoded data
 
-if (fDataStream <> nil) then fDataStream.Free;
-fDataStream:= nil;
+  if (fDataStream <> nil) then
+    fDataStream.Free;
+  fDataStream := nil;
 
 // temp list of image extensions
 
-if (fExtension <> nil) then FreeExtensionList(fExtension);
-fExtension := nil;
+  if (fExtension <> nil) then
+    FreeExtensionList(fExtension);
+  fExtension := nil;
 
 // signature record stays, but is cleared
 
-if (fSignature = nil) then new(fSignature);
-fSignature^.rSignature := AnsiString('------');
+  if (fSignature = nil) then
+    new(fSignature);
+  fSignature^.rSignature := AnsiString('------');
 
 // ditto the screen descriptor
 
-if (fScreenDescriptor = nil) then new(fScreenDescriptor);
-fillchar(fScreenDescriptor^, sizeof(TGifScreenDescriptor), 0);
+  if (fScreenDescriptor = nil) then
+    new(fScreenDescriptor);
+  fillchar(fScreenDescriptor^, sizeof(TGifScreenDescriptor), 0);
 
 // delete all items from image list, but leave the list
 
-if (fImageDescriptorList = nil) then fImageDescriptorList := TList.Create;
-for i := 0 to (fImageDescriptorList.Count - 1) do
-    begin
+  if (fImageDescriptorList = nil) then
+    fImageDescriptorList := TList.Create;
+  for i := 0 to (fImageDescriptorList.Count - 1) do
+  begin
     id := fImageDescriptorList.Items[i];
     if (id <> nil) then
-        begin
-        if (id^.rExtensionList <> nil) then FreeExtensionList(id^.rExtensionList);
-        if (id^.rPixelList     <> nil) then freemem(id^.rPixelList);
-        if (id^.rBitmap        <> nil) then id^.rBitmap.Free;
+    begin
+      if (id^.rExtensionList <> nil) then
+        FreeExtensionList(id^.rExtensionList);
+      if (id^.rPixelList <> nil) then
+        freemem(id^.rPixelList);
+      if (id^.rBitmap <> nil) then
+        id^.rBitmap.Free;
 
-        dispose(id);
-        end;
+      dispose(id);
     end;
-fImageDescriptorList.Clear;
+  end;
+  fImageDescriptorList.Clear;
 
 // release color tables, but keep the list
 
-if (fColorTableList = nil) then fColorTableList := TList.Create;
-for i := 0 to (fColorTableList.Count - 1) do
-    begin
+  if (fColorTableList = nil) then
+    fColorTableList := TList.Create;
+  for i := 0 to (fColorTableList.Count - 1) do
+  begin
     ct := fColorTableList.Items[i];
-    if (ct <> nil) then dispose(ct);
-    end;
-fColorTableList.Clear;
+    if (ct <> nil) then
+      dispose(ct);
+  end;
+  fColorTableList.Clear;
 
 // once again, keep the palette list object, but not the data
 
-if (fPaletteList = nil) then fPaletteList := TList.Create;
-fPaletteList.Clear;
+  if (fPaletteList = nil) then
+    fPaletteList := TList.Create;
+  fPaletteList.Clear;
 
 // don't need the zip/unzip data block
 
-if (fZipData <> nil) then dispose(fZipData);
-fZipData := nil;
+  if (fZipData <> nil) then
+    dispose(fZipData);
+  fZipData := nil;
 end;
 
 
@@ -552,103 +567,105 @@ end;
 
 procedure TGif.LoadFromStream(Source: TStream);
 var
-    done:   boolean;
-    b:      byte;
+  done: boolean;
+  b: byte;
 begin
 
 // release old image that may be here ...
 
-FreeImage;
+  FreeImage;
 
 // no error yet
 
-GIF_ErrorCode := 0;
-GIF_ErrorString := '';
+  GIF_ErrorCode := 0;
+  GIF_ErrorString := '';
 
 // make a local copy of the source data
 // memory streams are faster and easier to manipulate than file streams
 
-fIOStream := TMemoryStream.Create;
-Source.Position := 0;
-fIOStream.LoadFromStream(Source);
+  fIOStream := TMemoryStream.Create;
+  Source.Position := 0;
+  fIOStream.LoadFromStream(Source);
 
 // local temp vars
 
-fDataStream := TMemoryStream.Create;        // data to be un-zipped
-fExtension  := nil;                         // extensions to an image
+  fDataStream := TMemoryStream.Create; // data to be un-zipped
+  fExtension := nil; // extensions to an image
 
 
 // read the signature GIF87A or GIF89A
 
-ReadSignature;
+  ReadSignature;
 
 // read the logical screen descriptor
 
-ReadScreenDescriptor;
+  ReadScreenDescriptor;
 
 // read extensions and image data until end of file
 
-done := false;
-while (not done) do
-  try  {LDB}
+  done := false;
+  while (not done) do
+  try {LDB}
     if (fIOStream.Position >= fIOStream.Size) then
       //GIF_Error(9);    {LDB}
-      b := 0             {LDB}
+      b := 0 {LDB}
 
-    else fIOStream.Read(b, 1);    {LDB}         // image separator
-
-    if (b = 0) then                             // just skip this?
-        begin
-        b := 0;
-        Done := True;   {LDB}
-        end
-    else if (b = kGifTerminator) then           // got it all
-        begin
-        done := true;
-        end
-    else if (b = kGifImageSeparator) then       // next bitmap
-        begin
-        ReadImageDescriptor;
-        end
-    else if (b = kGifExtensionSeparator) then   // special operations
-        begin
-        ReadExtension(Done);
-        end
-    else                                        // unknown
-        begin
-        GIF_Error(4);
-        end;
-  except  {LDB}
-    if GetImageCount > 0 then
-      Done := True     {use what images we have}
     else
-      Raise;
+      fIOStream.Read(b, 1); {LDB} // image separator
+
+    if (b = 0) then // just skip this?
+    begin
+      b := 0;
+      Done := True; {LDB}
+    end
+    else if (b = kGifTerminator) then // got it all
+    begin
+      done := true;
+    end
+    else if (b = kGifImageSeparator) then // next bitmap
+    begin
+      ReadImageDescriptor;
+    end
+    else if (b = kGifExtensionSeparator) then // special operations
+    begin
+      ReadExtension(Done);
+    end
+    else // unknown
+    begin
+      GIF_Error(4);
     end;
+  except {LDB}
+    if GetImageCount > 0 then
+      Done := True {use what images we have}
+    else
+      raise;
+  end;
 
 // must have an image
 
-if (fImageDescriptorList.Count = 0) then GIF_Error(18);
+  if (fImageDescriptorList.Count = 0) then
+    GIF_Error(18);
 
 // no longer need the source data in memory
 
-fIOStream.Free;
-fDataStream.Free;
-FreeExtensionList(fExtension);
+  fIOStream.Free;
+  fDataStream.Free;
+  FreeExtensionList(fExtension);
 
-fIOStream   := nil;
-fDataStream := nil;
-fExtension  := nil;
+  fIOStream := nil;
+  fDataStream := nil;
+  fExtension := nil;
 end;
 
 
 function TGif.GetHeight: integer;
 begin
-GetHeight := fScreenDescriptor^.rHeight;
+  GetHeight := fScreenDescriptor^.rHeight;
 end;
 
 function TGif.GetWidth: integer;
 begin
-GetWidth := fScreenDescriptor^.rWidth;
+  GetWidth := fScreenDescriptor^.rWidth;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -658,21 +675,22 @@ end;
 { this can be changed with TransparentColor after this call }
 
 {LDB  changed so that if any images are transparent, Transparent returns True}
+
 function TGif.GetTransparent: boolean;
 var
-    b:      boolean;
-    gx:     PGifExtensionGraphic;
-    i:      integer;
+  b: boolean;
+  gx: PGifExtensionGraphic;
+  i: integer;
 begin
-b := false;
-for I := 0 to (fImageDescriptorList.Count - 1) do
+  b := false;
+  for I := 0 to (fImageDescriptorList.Count - 1) do
   begin
-  gx := FindGraphicExtension(I);
-  if (gx <> nil) then
-    b := gx^.rTransparentValid or b;
+    gx := FindGraphicExtension(I);
+    if (gx <> nil) then
+      b := gx^.rTransparentValid or b;
   end;
 
-GetTransparent := b;
+  GetTransparent := b;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -685,15 +703,16 @@ end;
 
 procedure TGif.ReadSignature;
 var
-    s:      AnsiString;
+  s: AnsiString;
 begin
-with fSignature^ do
-    begin
+  with fSignature^ do
+  begin
     fIOStream.Read(rSignature, 6);
     s := rSignature;
     s := AnsiUpperCase(s);
-    if ((s <> 'GIF87A') and (s <> 'GIF89A')) then GIF_Error(1);
-    end;
+    if ((s <> 'GIF87A') and (s <> 'GIF89A')) then
+      GIF_Error(1);
+  end;
 end;
 
 
@@ -704,32 +723,41 @@ end;
 
 procedure TGif.ReadScreenDescriptor;
 var
-    i,n:    integer;
+  i, n: integer;
 begin
-with fScreenDescriptor^ do
-    begin
-    ReadSourceInteger(2, rWidth);                   // logical screen width
-    ReadSourceInteger(2, rHeight);                  // logical screen height
+  with fScreenDescriptor^ do
+  begin
+    ReadSourceInteger(2, rWidth); // logical screen width
+    ReadSourceInteger(2, rHeight); // logical screen height
 
-    ReadSourceInteger(1, n);                        // packed bit fields
+    ReadSourceInteger(1, n); // packed bit fields
     rGlobalColorValid := ((n and $80) <> 0);
-    rColorResolution  := ((n shr 4) and $07) + 1;
-    rSorted           := ((n and $08) <> 0);
+    rColorResolution := ((n shr 4) and $07) + 1;
+    rSorted := ((n and $08) <> 0);
 
     i := (n and $07);
-    if      (i = 0) then rGlobalColorSize := 2
-    else if (i = 1) then rGlobalColorSize := 4
-    else if (i = 2) then rGlobalColorSize := 8
-    else if (i = 3) then rGlobalColorSize := 16
-    else if (i = 4) then rGlobalColorSize := 32
-    else if (i = 5) then rGlobalColorSize := 64
-    else if (i = 6) then rGlobalColorSize := 128
-    else if (i = 7) then rGlobalColorSize := 256
-    else                 rGlobalColorSize := 256;
+    if (i = 0) then
+      rGlobalColorSize := 2
+    else if (i = 1) then
+      rGlobalColorSize := 4
+    else if (i = 2) then
+      rGlobalColorSize := 8
+    else if (i = 3) then
+      rGlobalColorSize := 16
+    else if (i = 4) then
+      rGlobalColorSize := 32
+    else if (i = 5) then
+      rGlobalColorSize := 64
+    else if (i = 6) then
+      rGlobalColorSize := 128
+    else if (i = 7) then
+      rGlobalColorSize := 256
+    else
+      rGlobalColorSize := 256;
 
 
-    ReadSourceInteger(1, rBackgroundIndex);         // background color
-    ReadSourceInteger(1, rAspectRatio);             // pixel aspect ratio
+    ReadSourceInteger(1, rBackgroundIndex); // background color
+    ReadSourceInteger(1, rAspectRatio); // pixel aspect ratio
 
 // read the global color table from the source stream
 // this assumes the memory stream position is correct
@@ -738,9 +766,9 @@ with fScreenDescriptor^ do
 // immediately follow the logical screen descriptor
 
     rGlobalColorTable := -1;
-    if (rGlobalColorValid) then                     // a global color table?
-        ReadColorTable(rGlobalColorSize, rGlobalColorTable)
-    end;
+    if (rGlobalColorValid) then // a global color table?
+      ReadColorTable(rGlobalColorSize, rGlobalColorTable)
+  end;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -751,34 +779,36 @@ end;
 
 procedure TGif.ReadColorTable(Size: integer; var Table: integer);
 var
-    i,n:        integer;
-    r,g,b:      byte;
-    ct:         PGifColorTable;
+  i, n: integer;
+  r, g, b: byte;
+  ct: PGifColorTable;
 begin
-Table := -1;                            // assume no table
-if (Size > 0) then                      // OK, a table does exist
-    begin
-    new(ct);                            // make a anew color table
-    if (ct = nil) then OutOfMemoryError;
-    n := fColorTableList.Add(ct);       // save it in master list
-    Table := n;                         // save index for a valid table
+  Table := -1; // assume no table
+  if (Size > 0) then // OK, a table does exist
+  begin
+    new(ct); // make a anew color table
+    if (ct = nil) then
+      OutOfMemoryError;
+    n := fColorTableList.Add(ct); // save it in master list
+    Table := n; // save index for a valid table
 
     ct^.rSize := Size;
 
-    for i := 0 to (ct^.rSize-1) do      // read a triplet for each TColor
-        begin
-        fIOStream.Read(r, 1);             // red
-        fIOStream.Read(g, 1);             // green
-        fIOStream.Read(b, 1);             // blue
+    for i := 0 to (ct^.rSize - 1) do // read a triplet for each TColor
+    begin
+      fIOStream.Read(r, 1); // red
+      fIOStream.Read(g, 1); // green
+      fIOStream.Read(b, 1); // blue
 
-        ct^.rColors[i] := r or (g shl 8) or (b shl 16);
-        end;
+      ct^.rColors[i] := r or (g shl 8) or (b shl 16);
+    end;
 
 // make sure we store palette handle in same index slot as the color table
 
-    while (fPaletteList.Count < fColorTableList.Count) do fPaletteList.Add(nil);
-    fPaletteList.Items[Table] := Nil;
-    end;
+    while (fPaletteList.Count < fColorTableList.Count) do
+      fPaletteList.Add(nil);
+    fPaletteList.Items[Table] := nil;
+  end;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -793,79 +823,93 @@ end;
 
 procedure TGif.ReadImageDescriptor;
 var
-    i,n:    integer;
-    ix:     integer;
-    id:     PGifImageDescriptor;
-    db:     TGifDataBlock;
+  i, n: integer;
+  ix: integer;
+  id: PGifImageDescriptor;
+  db: TGifDataBlock;
 begin
 
 // make a new image desctiptor record and add this record to main list
 
-new(id);
-if (id = nil) then OutOfMemoryError;
-if (fImageDescriptorList = nil) then fImageDescriptorList := TList.Create;
-ix := fImageDescriptorList.Add(id);
-id^.rIndex := ix;
+  new(id);
+  if (id = nil) then
+    OutOfMemoryError;
+  if (fImageDescriptorList = nil) then
+    fImageDescriptorList := TList.Create;
+  ix := fImageDescriptorList.Add(id);
+  id^.rIndex := ix;
 
 // initialize data
 
-fillchar(id^, sizeof(TGifImageDescriptor), 0);
+  fillchar(id^, sizeof(TGifImageDescriptor), 0);
 
 // init the sotrage for compressed data
 
-fDataStream.Clear;
+  fDataStream.Clear;
 
 // if extensions were read in earlier, save that list
 // for this image descriptor
 // if no extensions were read in, then we don't need this list at all
 
-if (fExtension <> nil) then
-    begin
+  if (fExtension <> nil) then
+  begin
     id^.rExtensionList := fExtension;
     fExtension := nil;
-    end;
+  end;
 
 // shortcut to the record fields
 
-with id^ do
-    begin
+  with id^ do
+  begin
 
 // read the basic descriptor record
 
-    ReadSourceInteger(2, rLeft);            // left position
-    ReadSourceInteger(2, rTop);             // top position
-    ReadSourceInteger(2, rWidth);           // size of image
-    ReadSourceInteger(2, rHeight);          // size of image
+    ReadSourceInteger(2, rLeft); // left position
+    ReadSourceInteger(2, rTop); // top position
+    ReadSourceInteger(2, rWidth); // size of image
+    ReadSourceInteger(2, rHeight); // size of image
 
-    if rHeight > Height then   {LDB make sure bad values don't overflow elsewhere}
+    if rHeight > Height then {LDB make sure bad values don't overflow elsewhere}
       rHeight := Height;
 
-    ReadSourceInteger(1, n);                // packed bit field
+    ReadSourceInteger(1, n); // packed bit field
     rLocalColorValid := ((n and $80) <> 0);
-    rInterlaced      := ((n and $40) <> 0);
-    rSorted          := ((n and $20) <> 0);
+    rInterlaced := ((n and $40) <> 0);
+    rSorted := ((n and $20) <> 0);
 
     i := (n and $07);
-    if      (i = 0) then rLocalColorSize :=   2
-    else if (i = 1) then rLocalColorSize :=   4
-    else if (i = 2) then rLocalColorSize :=   8
-    else if (i = 3) then rLocalColorSize :=  16
-    else if (i = 4) then rLocalColorSize :=  32
-    else if (i = 5) then rLocalColorSize :=  64
-    else if (i = 6) then rLocalColorSize := 128
-    else if (i = 7) then rLocalColorSize := 256
-    else                 rLocalColorSize := 256;
+    if (i = 0) then
+      rLocalColorSize := 2
+    else if (i = 1) then
+      rLocalColorSize := 4
+    else if (i = 2) then
+      rLocalColorSize := 8
+    else if (i = 3) then
+      rLocalColorSize := 16
+    else if (i = 4) then
+      rLocalColorSize := 32
+    else if (i = 5) then
+      rLocalColorSize := 64
+    else if (i = 6) then
+      rLocalColorSize := 128
+    else if (i = 7) then
+      rLocalColorSize := 256
+    else
+      rLocalColorSize := 256;
 
 
 // if a local color table is defined, read it
 // otherwise, use the global color table
 
-    if (rLocalColorValid) then ReadColorTable(rLocalColorSize, rLocalColorTable)
-    else                       rLocalColorTable := fScreenDescriptor^.rGlobalColorTable;
+    if (rLocalColorValid) then
+      ReadColorTable(rLocalColorSize, rLocalColorTable)
+    else
+      rLocalColorTable := fScreenDescriptor^.rGlobalColorTable;
 
 // _something_ must have defined by now ...
 
-    if (rLocalColorTable < 0) then GIF_Error(2);
+    if (rLocalColorTable < 0) then
+      GIF_Error(2);
 
 // the LZW minimum code size
 
@@ -875,17 +919,17 @@ with id^ do
 
     ReadSourceInteger(1, db.rSize);
     while (db.rSize > 0) do
-        begin
-        if fIOStream.Read(db.rData, db.rSize) < db.rSize then
-          Gif_Error(24);             {LDB}
-        fDataStream.Write(db.rData, db.rSize);
-        ReadSourceInteger(1, db.rSize);
-        end;
+    begin
+      if fIOStream.Read(db.rData, db.rSize) < db.rSize then
+        Gif_Error(24); {LDB}
+      fDataStream.Write(db.rData, db.rSize);
+      ReadSourceInteger(1, db.rSize);
+    end;
 
 // save the pixel list
 
     rPixelCount := rWidth * rHeight;
-    if rPixelCount = 0 then    {LDB}
+    if rPixelCount = 0 then {LDB}
       Gif_Error(26);
     rPixelList := allocmem(rPixelCount);
     if (rPixelList = nil) then
@@ -894,7 +938,7 @@ with id^ do
 // uncompress the data and write the bitmap
 
     LZWDecode(id);
-    end; // with id^
+  end; // with id^
 end;
 
 
@@ -904,25 +948,25 @@ end;
 
 procedure TGif.ReadDataBlockList(List: TList);
 var
-    b:      byte;
-    db:     PGifDataBlock;
-    BytesRead: integer;
+  b: byte;
+  db: PGifDataBlock;
+  BytesRead: integer;
 begin
 
 // read data blocks until the end of the list
 
-fIOStream.Read(b, 1);                       // size of next block
-while (b > 0) do                            // more blocks to get?
-    begin
-    new(db);                                // new data block record
+  fIOStream.Read(b, 1); // size of next block
+  while (b > 0) do // more blocks to get?
+  begin
+    new(db); // new data block record
     db^.rSize := b;
-    BytesRead := fIOStream.Read(db^.rData, db^.rSize);   // read the data
-    List.Add(db);                           // save in given list
+    BytesRead := fIOStream.Read(db^.rData, db^.rSize); // read the data
+    List.Add(db); // save in given list
 
     if BytesRead < db^.rSize then
-      Gif_Error(24);                       {LDB}
-    fIOStream.Read(b, 1);                   // size of next block
-    end;
+      Gif_Error(24); {LDB}
+    fIOStream.Read(b, 1); // size of next block
+  end;
 end;
 
 
@@ -939,105 +983,110 @@ end;
 
 procedure TGif.ReadExtension(var Done: boolean);
 var
-    n:    integer;
-    b:      byte;
-    eb:     PGifExtension;
+  n: integer;
+  b: byte;
+  eb: PGifExtension;
 begin
 
 // make a list exists
 
-if (fExtension = nil) then fExtension := TList.Create;
+  if (fExtension = nil) then
+    fExtension := TList.Create;
 
 // make a new extension record and add it to temp holding list
 
-new(eb);
-if (eb = nil) then OutOfMemoryError;
-fillchar(eb^, sizeof(TGifExtension), 0);
-fExtension.Add(eb);
+  new(eb);
+  if (eb = nil) then
+    OutOfMemoryError;
+  fillchar(eb^, sizeof(TGifExtension), 0);
+  fExtension.Add(eb);
 
 // get the type of extension
 
-fIOStream.Read(b, 1);
-eb^.rLabel := b;
+  fIOStream.Read(b, 1);
+  eb^.rLabel := b;
 
 // "with eb^" gives us access to rGraphic, rText, rComment, and rApp
 
-with eb^ do
-    begin
+  with eb^ do
+  begin
 
 // a graphic extension
 
     if (rLabel = kGifLabelGraphic) then
-        begin
-        ReadSourceInteger(1, rGraphic.rBlockSize);      // block size
-        if (rGraphic.rBlockSize <> 4) then GIF_Error(5);
+    begin
+      ReadSourceInteger(1, rGraphic.rBlockSize); // block size
+      if (rGraphic.rBlockSize <> 4) then
+        GIF_Error(5);
 
-        ReadSourceInteger(1, n);                        // packed bit field
-        rGraphic.rDisposal         := ((n shr 2) and $07);
-        rGraphic.rUserInputValid   := ((n and $02) <> 0);
-        rGraphic.rTransparentValid := ((n and $01) <> 0);
+      ReadSourceInteger(1, n); // packed bit field
+      rGraphic.rDisposal := ((n shr 2) and $07);
+      rGraphic.rUserInputValid := ((n and $02) <> 0);
+      rGraphic.rTransparentValid := ((n and $01) <> 0);
 
-        ReadSourceInteger(2, rGraphic.rDelayTime);      // delay time
-        ReadSourceInteger(1, rGraphic.rTransparentIndex);   // transparent color
-        ReadSourceInteger(1, n);                        // block terminator
-        if (n <> 0) then GIF_Error(7);
-        end
+      ReadSourceInteger(2, rGraphic.rDelayTime); // delay time
+      ReadSourceInteger(1, rGraphic.rTransparentIndex); // transparent color
+      ReadSourceInteger(1, n); // block terminator
+      if (n <> 0) then
+        GIF_Error(7);
+    end
 
 // a comment extension
 
     else if (rLabel = kGifLabelComment) then
-        begin
-        rComment.rDataBlockList := TList.Create;
-          ReadDataBlockList(rComment.rDataBlockList);
-        end
+    begin
+      rComment.rDataBlockList := TList.Create;
+      ReadDataBlockList(rComment.rDataBlockList);
+    end
 
 // a plain text extension
 
     else if (rLabel = kGifLabelText) then
-        begin
-        ReadSourceInteger(1, rText.rBlockSize);         // block size
-        if (rText.rBlockSize <> 12) then GIF_Error(5);
-        ReadSourceInteger(2, rText.rGridLeft);          // grid position
-        ReadSourceInteger(2, rText.rGridTop);           // grid position
-        ReadSourceInteger(2, rText.rGridWidth);         // grid size
-        ReadSourceInteger(2, rText.rGridHeight);        // grid size
-        ReadSourceInteger(1, rText.rCellWidth);         // character cell size    {LDB}{was 2 bytes}
-        ReadSourceInteger(1, rText.rCellHeight);        // character cell size
-        ReadSourceInteger(1, rText.rForegroundIndex);   // foreground color
-        ReadSourceInteger(1, rText.rBackgroundIndex);   // background color
-        rText.rDataBlockList := TList.Create;           // list of text data blocks
-        ReadDataBlockList(rText.rDataBlockList);
-        end
+    begin
+      ReadSourceInteger(1, rText.rBlockSize); // block size
+      if (rText.rBlockSize <> 12) then
+        GIF_Error(5);
+      ReadSourceInteger(2, rText.rGridLeft); // grid position
+      ReadSourceInteger(2, rText.rGridTop); // grid position
+      ReadSourceInteger(2, rText.rGridWidth); // grid size
+      ReadSourceInteger(2, rText.rGridHeight); // grid size
+      ReadSourceInteger(1, rText.rCellWidth); // character cell size    {LDB}{was 2 bytes}
+      ReadSourceInteger(1, rText.rCellHeight); // character cell size
+      ReadSourceInteger(1, rText.rForegroundIndex); // foreground color
+      ReadSourceInteger(1, rText.rBackgroundIndex); // background color
+      rText.rDataBlockList := TList.Create; // list of text data blocks
+      ReadDataBlockList(rText.rDataBlockList);
+    end
 
 // an application extension
 
     else if (rLabel = kGifLabelApplication) then
-        begin
-        ReadSourceInteger(1, rApp.rBlockSize);          // block size
-        if (rApp.rBlockSize <> 11) then //GIF_Error(5);       {LDB} allow other  blocksizes
-          begin
-          fIOStream.Position := fIOStream.Position+rApp.rBlockSize;
-          rApp.rDataBlockList := TList.Create;
-          ReadDataBlockList(rApp.rDataBlockList);
-          end
-        else
-          begin
-        fIOStream.Read(rApp.rIdentifier, 8);            // application identifier
-        fIOStream.Read(rApp.rAuthentication, 3);        // authentication code
+    begin
+      ReadSourceInteger(1, rApp.rBlockSize); // block size
+      if (rApp.rBlockSize <> 11) then //GIF_Error(5);       {LDB} allow other  blocksizes
+      begin
+        fIOStream.Position := fIOStream.Position + rApp.rBlockSize;
+        rApp.rDataBlockList := TList.Create;
+        ReadDataBlockList(rApp.rDataBlockList);
+      end
+      else
+      begin
+        fIOStream.Read(rApp.rIdentifier, 8); // application identifier
+        fIOStream.Read(rApp.rAuthentication, 3); // authentication code
         rApp.rDataBlockList := TList.Create;
         ReadDataBlockList(rApp.rDataBlockList);
         if rApp.rIdentifier = 'NETSCAPE' then
           ExtractLoopCount(rApp.rDataBlockList);
-          end;
-        end
+      end;
+    end
 
 // unknown type
 
     else
-        begin
-        GIF_ErrorMessage('unknown extension: ' + IntToHex(rLabel, 4));
-        end;
-    end; // with eb^
+    begin
+      GIF_ErrorMessage('unknown extension: ' + IntToHex(rLabel, 4));
+    end;
+  end; // with eb^
 end;
 
 
@@ -1046,23 +1095,23 @@ end;
 
 procedure TGif.ReadSourceInteger(size: integer; var value: integer);
 var
-    b:  byte;
-    w:  word;
+  b: byte;
+  w: word;
 begin
-if (size = 1) then
-    begin
+  if (size = 1) then
+  begin
     fIOStream.Read(b, 1);
     value := b;
-    end
-else if (size = 2) then
-    begin
+  end
+  else if (size = 2) then
+  begin
     fIOStream.Read(w, 2);
     value := w;
-    end
-else
-    begin
+  end
+  else
+  begin
     GIF_Error(8);
-    end;
+  end;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -1070,22 +1119,22 @@ end;
 
 procedure TGif.LZWDecode(pID: PGifImageDescriptor);
 var
-    pc:         integer;            // next compressed code parsed from input
-    cc:         integer;            // current code to translate
-    oc:         integer;            // old code translated
-    tt:         integer;            // temp storage for OldCode
-    Done:       boolean;
+  pc: integer; // next compressed code parsed from input
+  cc: integer; // current code to translate
+  oc: integer; // old code translated
+  tt: integer; // temp storage for OldCode
+  Done: boolean;
 begin
 
 // init local data
 
-LZWInit(pID);
-LZWReset;
+  LZWInit(pID);
+  LZWReset;
 
 // do everything within the ZIP record
 
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
 
 // parse next code from BitString
 
@@ -1093,68 +1142,74 @@ with fZipData^ do
     oc := pc;
     Done := False;
     while (pc <> rEndCode) and not Done do
-        begin
+    begin
 
 // reset decode parameters and save first code
 
-        if (pc = rClearCode) then
-            begin
-            rCurSize := rID^.rLZWSize + 1;
-            rCurSlot := rEndCode + 1;
-            rTopSlot := (1 shl rCurSize);
-            while (pc = rClearCode) do pc := LZWGetCode;
-            if (pc = rEndCode) then
-              GIF_Error(13);
-            if (pc >= rCurSlot) then pc := 0;
-            oc := pc;
-            LZWSaveCode(pc);
-            end
+      if (pc = rClearCode) then
+      begin
+        rCurSize := rID^.rLZWSize + 1;
+        rCurSlot := rEndCode + 1;
+        rTopSlot := (1 shl rCurSize);
+        while (pc = rClearCode) do
+          pc := LZWGetCode;
+        if (pc = rEndCode) then
+          GIF_Error(13);
+        if (pc >= rCurSlot) then
+          pc := 0;
+        oc := pc;
+        LZWSaveCode(pc);
+      end
 
 // find a code in the table and write out translation
 
-        else
-            begin
-            cc := pc;
-            if (cc < rCurSlot) then
-                begin
-                LZWDecodeCode(cc);
-                if (rCurSlot <= rTopSlot) then
-                    begin
-                    LZWSaveSlot(oc, cc);
-                    oc := pc;
-                    end;
-                LZWCheckSlot;
-                end
+      else
+      begin
+        cc := pc;
+        if (cc < rCurSlot) then
+        begin
+          LZWDecodeCode(cc);
+          if (rCurSlot <= rTopSlot) then
+          begin
+            LZWSaveSlot(oc, cc);
+            oc := pc;
+          end;
+          LZWCheckSlot;
+        end
 
 // add a new code to the decode table
 
-            else
-                begin
-                if (cc <> rCurSlot) then GIF_Error(13);
-                tt := oc;
-                while (oc > rHighCode) do oc := rPrefix[oc];
-                if (rCurSlot <= rTopSlot) then LZWSaveSlot(tt, oc);
-                LZWCheckSlot;
-                LZWDecodeCode(cc);
-                oc := pc;
-                end;
-            end;
+        else
+        begin
+          if (cc <> rCurSlot) then
+            GIF_Error(13);
+          tt := oc;
+          while (oc > rHighCode) do
+            oc := rPrefix[oc];
+          if (rCurSlot <= rTopSlot) then
+            LZWSaveSlot(tt, oc);
+          LZWCheckSlot;
+          LZWDecodeCode(cc);
+          oc := pc;
+        end;
+      end;
 
 // write out translated bytes to the image storage
 
-            LZWWriteBitmap;
-            if fDataStream.Position < fDataStream.Size then
-              pc := LZWGetCode
-            else Done := True;
-            rMaxVal := false;
+      LZWWriteBitmap;
+      if fDataStream.Position < fDataStream.Size then
+        pc := LZWGetCode
+      else
+        Done := True;
+      rMaxVal := false;
 
-        end; // while not EOI
+    end; // while not EOI
 
-    end;    // with
+  end; // with
 
 // done with stack space
 
-LZWFinit;
+  LZWFinit;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -1164,7 +1219,8 @@ begin
 
 // get a valid record?
 
-if (pID = nil) then GIF_Error(11);
+  if (pID = nil) then
+    GIF_Error(11);
 
 // make sure we can actually decode this turkey
 
@@ -1172,50 +1228,52 @@ if (pID = nil) then GIF_Error(11);
 
 // allocate stack space
 
-new(fZipData);
-if (fZipData = nil) then OutOfMemoryError;
+  new(fZipData);
+  if (fZipData = nil) then
+    OutOfMemoryError;
 
 // init data block
 
-fillchar(fZipData^, sizeof(TGifZip), 0);
-fZipData^.rID := pID;
-fZipData^.rCT := fColorTableList.Items[pID^.rLocalColorTable];
+  fillchar(fZipData^, sizeof(TGifZip), 0);
+  fZipData^.rID := pID;
+  fZipData^.rCT := fColorTableList.Items[pID^.rLocalColorTable];
 
 // reset data stream
 
-fDataStream.Position := 0;
+  fDataStream.Position := 0;
 end;
 
 { ---------------------------------------------------------------------------- }
 
 procedure TGif.LZWFinit;
 begin
-if (fZipData <> nil) then dispose(fZipData);
-fZipData := nil;
+  if (fZipData <> nil) then
+    dispose(fZipData);
+  fZipData := nil;
 end;
 
 { ---------------------------------------------------------------------------- }
 
 procedure TGif.LZWReset;
 var
-    i:    integer;
+  i: integer;
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
     for i := 0 to (kGifCodeTableSize - 1) do
-        begin
-        rPrefix[i] := 0;
-        rSuffix[i] := 0;
-        end;
+    begin
+      rPrefix[i] := 0;
+      rSuffix[i] := 0;
+    end;
 
-    rCurSize   := rID^.rLZWSize + 1;
+    rCurSize := rID^.rLZWSize + 1;
     rClearCode := (1 shl rID^.rLZWSize);
-    rEndCode   := rClearCode + 1;
-    rHighCode  := rClearCode - 1;
+    rEndCode := rClearCode + 1;
+    rHighCode := rClearCode - 1;
     rFirstSlot := (1 shl (rCurSize - 1)) + 2;
-    rNextSlot  := rFirstSlot;
-    rMaxVal    := false;
-    end;    // with
+    rNextSlot := rFirstSlot;
+    rMaxVal := false;
+  end; // with
 end;
 
 
@@ -1225,60 +1283,60 @@ end;
 
 function TGif.LZWGetCode: integer;
 var
-    n:    integer;
-    cc:     integer;
-    mask:   integer;
-    b:      byte;
+  n: integer;
+  cc: integer;
+  mask: integer;
+  b: byte;
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
 
 // make sure we have enough bits
 
     while (rCurSize > rBits) do
-        begin
-        if (fDataStream.Position >= fDataStream.Size) then
-          b := 0
-        else
-          fDataStream.Read(b, 1);
-        n := b;
-        n := (n shl rBits);                 // scoot bits over to avoid previous data
-        rBitString := (rBitString or n);    // put bits in the BitString
-        rBits := rBits + 8;                 // number of bits in a byte
-        end;
+    begin
+      if (fDataStream.Position >= fDataStream.Size) then
+        b := 0
+      else
+        fDataStream.Read(b, 1);
+      n := b;
+      n := (n shl rBits); // scoot bits over to avoid previous data
+      rBitString := (rBitString or n); // put bits in the BitString
+      rBits := rBits + 8; // number of bits in a byte
+    end;
 
 
 // get the code, then dump the bits we used from the BitString
 
     case rCurSize of
-         0:     mask := 0;
-         1:     mask := $0001;
-         2:     mask := $0003;
-         3:     mask := $0007;
-         4:     mask := $000f;
-         5:     mask := $001f;
-         6:     mask := $003f;
-         7:     mask := $007f;
-         8:     mask := $00ff;
-         9:     mask := $01ff;
-        10:     mask := $03ff;
-        11:     mask := $07ff;
-        12:     mask := $0fff;
-        else
-          begin
-          GIF_Error(12);
-          Mask := 0;    //stop warning
-          end;
-        end;
+      0: mask := 0;
+      1: mask := $0001;
+      2: mask := $0003;
+      3: mask := $0007;
+      4: mask := $000F;
+      5: mask := $001F;
+      6: mask := $003F;
+      7: mask := $007F;
+      8: mask := $00FF;
+      9: mask := $01FF;
+      10: mask := $03FF;
+      11: mask := $07FF;
+      12: mask := $0FFF;
+    else
+      begin
+        GIF_Error(12);
+        Mask := 0; //stop warning
+      end;
+    end;
 
-    cc := (rBitString and mask);                // mask off bits wanted
-    rBitString := (rBitString shr rCurSize);    // delete bits we just took
-    rBits  := rBits - rCurSize;                 // number of bits left in BitString
-    end;    // with
+    cc := (rBitString and mask); // mask off bits wanted
+    rBitString := (rBitString shr rCurSize); // delete bits we just took
+    rBits := rBits - rCurSize; // number of bits left in BitString
+  end; // with
 
 // done
 
-LZWGetCode := cc;
+  LZWGetCode := cc;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -1286,11 +1344,11 @@ end;
 
 procedure TGif.LZWSaveCode(Code: integer);
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
     rCodeStack[rSP] := Code;
     rSP := rSP + 1;
-    end;
+  end;
 end;
 
 
@@ -1301,15 +1359,15 @@ end;
 
 procedure TGif.LZWDecodeCode(var Code: integer);
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
     while (Code > rHighCode) do
-        begin
-        LZWSaveCode(rSuffix[Code]);
-        Code := rPrefix[Code];
-        end;
-    LZWSaveCode(Code);
+    begin
+      LZWSaveCode(rSuffix[Code]);
+      Code := rPrefix[Code];
     end;
+    LZWSaveCode(Code);
+  end;
 end;
 
 
@@ -1318,12 +1376,12 @@ end;
 
 procedure TGif.LZWSaveSlot(Prefix, Suffix: integer);
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
     rPrefix[rCurSlot] := Prefix;
     rSuffix[rCurSlot] := Suffix;
     rCurSlot := rCurSlot + 1;
-    end;
+  end;
 end;
 
 
@@ -1336,14 +1394,15 @@ end;
 
 procedure TGif.LZWIncrPosition;
 var
-    n:    integer;
+  n: integer;
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
 
 // if first pass, make sure CurPass was initialized
 
-    if (rCurPass = 0) then rCurPass := 1;
+    if (rCurPass = 0) then
+      rCurPass := 1;
 
 // incr X position
 
@@ -1352,53 +1411,55 @@ with fZipData^ do
 // bumping Y ?
 
     if (rCurX >= rID^.rWidth) then
-        begin
-        rCurX := 0;
+    begin
+      rCurX := 0;
 
 // if not interlaced image, then just move down the page
 
-        if (not  rID^.rInterlaced) then
-            begin
-            rCurY := rCurY + 1;
-            end
+      if (not rID^.rInterlaced) then
+      begin
+        rCurY := rCurY + 1;
+      end
 
 // interlaced images select the next line by some archane black-magical sheme
 
+      else
+      begin
+        case rCurPass of // delta to next row on this pass
+          1: n := 8;
+          2: n := 8;
+          3: n := 4;
+          4: n := 2;
         else
-            begin
-            case rCurPass of                // delta to next row on this pass
-                1:      n := 8;
-                2:      n := 8;
-                3:      n := 4;
-                4:      n := 2;
-                else
-                  begin
-                  GIF_Error(21);
-                  n := 0;  //prevent warning
-                  end;
-                end;
+          begin
+            GIF_Error(21);
+            n := 0; //prevent warning
+          end;
+        end;
 
-            rCurY := rCurY + n;
+        rCurY := rCurY + n;
 
 // if past the end of the bitmap, start next pass
 
-            if (rCurY >= rID^.rHeight) then
-                begin
-                rCurPass := rCurPass + 1;
-                if (rCurPass = 5) then rCurPass := 1;
-                case rCurPass of            // first line for given pass
-                    1:      n := 0;
-                    2:      n := 4;
-                    3:      n := 2;
-                    4:      n := 1;
-                    else    GIF_Error(21);
-                    end;
+        if (rCurY >= rID^.rHeight) then
+        begin
+          rCurPass := rCurPass + 1;
+          if (rCurPass = 5) then
+            rCurPass := 1;
+          case rCurPass of // first line for given pass
+            1: n := 0;
+            2: n := 4;
+            3: n := 2;
+            4: n := 1;
+          else
+            GIF_Error(21);
+          end;
 
-                rCurY := n;
-                end;
-            end;
+          rCurY := n;
         end;
-    end;    // with
+      end;
+    end;
+  end; // with
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -1406,21 +1467,21 @@ end;
 
 procedure TGif.LZWCheckSlot;
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
     if (rCurSlot >= rTopSlot) then
-        begin
-        if (rCurSize < 12) then
-            begin
-            rTopSlot := (rTopSlot shl 1);
-            rCurSize := rCurSize + 1;
-            end
-        else
-            begin
-            rMaxVal := true;
-            end;
-        end;
+    begin
+      if (rCurSize < 12) then
+      begin
+        rTopSlot := (rTopSlot shl 1);
+        rCurSize := rCurSize + 1;
+      end
+      else
+      begin
+        rMaxVal := true;
+      end;
     end;
+  end;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -1428,34 +1489,34 @@ end;
 
 procedure TGif.LZWWriteBitmap;
 var
-    i,n:    integer;
-    j:      longint;
-    p:      PByte;
+  i, n: integer;
+  j: longint;
+  p: PByte;
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
     for n := (rSP - 1) downto 0 do
-        begin
-        rCount := rCount + 1;
+    begin
+      rCount := rCount + 1;
 
 // get next code from the stack, and index into PixelList
 
-        i := rCodeStack[n];
-        j := (rCurY * rID^.rWidth) + rCurX;
-        if ((0 <= j) and (j < rID^.rPixelCount)) then
-            begin
+      i := rCodeStack[n];
+      j := (rCurY * rID^.rWidth) + rCurX;
+      if ((0 <= j) and (j < rID^.rPixelCount)) then
+      begin
 
 // store the pixel index into PixelList
 
-            p := PByte(PtrInt(rID^.rPixelList) + j);
-            p^ := Byte(i);
-            end;
+        p := PByte(PtrInt(rID^.rPixelList) + j);
+        p^ := Byte(i);
+      end;
 
-        LZWIncrPosition;
-        end;
+      LZWIncrPosition;
+    end;
 
     rSP := 0;
-    end;    // with
+  end; // with
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -1464,38 +1525,38 @@ end;
 
 function TGif.LZWReadBitmap: integer;
 var
-    n:    integer;
-    j:      longint;
-    p:      PByte;
+  n: integer;
+  j: longint;
+  p: PByte;
 begin
-with fZipData^ do
-    begin
+  with fZipData^ do
+  begin
     if (rUnget) then
-        begin
-        n := rLast;
-        rUnget := false;
-        end
+    begin
+      n := rLast;
+      rUnget := false;
+    end
     else
-        begin
-        rCount := rCount + 1;
-        j := (rCurY * rID^.rWidth) + rCurX;
-        if ((0 <= j) and (j < rID^.rPixelCount)) then
-            begin
-            p := PByte(PtrInt(rID^.rPixelList) + j);
-            n := ord(p^);
-            end
-        else
-            begin
-            n := 0;
-            end;
+    begin
+      rCount := rCount + 1;
+      j := (rCurY * rID^.rWidth) + rCurX;
+      if ((0 <= j) and (j < rID^.rPixelCount)) then
+      begin
+        p := PByte(PtrInt(rID^.rPixelList) + j);
+        n := ord(p^);
+      end
+      else
+      begin
+        n := 0;
+      end;
 
-        LZWIncrPosition;
-        end;
+      LZWIncrPosition;
+    end;
 
     rLast := n;
-    end;    // with
+  end; // with
 
-LZWReadBitmap := n;
+  LZWReadBitmap := n;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -1505,10 +1566,10 @@ end;
 
 function TGif.GetSignature: AnsiString;
 var
-    s:      AnsiString;
+  s: AnsiString;
 begin
-s := fSignature^.rSignature;
-GetSignature := s;
+  s := fSignature^.rSignature;
+  GetSignature := s;
 end;
 
 
@@ -1517,7 +1578,7 @@ end;
 
 function TGif.GetScreenDescriptor: PGifScreenDescriptor;
 begin
-GetScreenDescriptor := fScreenDescriptor;
+  GetScreenDescriptor := fScreenDescriptor;
 end;
 
 
@@ -1525,14 +1586,15 @@ end;
 
 function TGif.GetImageCount: integer;
 begin
-GetImageCount := fImageDescriptorList.Count;
+  GetImageCount := fImageDescriptorList.Count;
 end;
 
 
 function TGif.GetImageDescriptor(image: integer): PGifImageDescriptor;
 begin
-if ((image < 0) or (image >= fImageDescriptorList.Count)) then GIF_Error(15);
-GetImageDescriptor := fImageDescriptorList.Items[image];
+  if ((image < 0) or (image >= fImageDescriptorList.Count)) then
+    GIF_Error(15);
+  GetImageDescriptor := fImageDescriptorList.Items[image];
 end;
 
 
@@ -1540,66 +1602,73 @@ end;
 
 function TGif.GetBitmap(image: integer): TBitmap;
 var
-    p:      PGifImageDescriptor;
-    b:      TBitmap;
+  p: PGifImageDescriptor;
+  b: TBitmap;
 begin
-p := GetImageDescriptor(image);
-if (p^.rBitmap = nil) then MakeBitmaps;
-b := p^.rBitmap;
+  p := GetImageDescriptor(image);
+  if (p^.rBitmap = nil) then
+    MakeBitmaps;
+  b := p^.rBitmap;
 
-GetBitmap := b;
+  GetBitmap := b;
 end;
 
 { ---------------------------------------------------------------------------- }
 
 function TGif.GetColorTableCount: integer;
 begin
-GetColorTableCount := fColorTableList.Count;
+  GetColorTableCount := fColorTableList.Count;
 end;
 
 
 function TGif.GetColorTable(table: integer): PGifColorTable;
 begin
-if ((table < 0) or (table >= fColorTableList.Count)) then GIF_Error(15);
-GetColorTable := fColorTableList.Items[table];
+  if ((table < 0) or (table >= fColorTableList.Count)) then
+    GIF_Error(15);
+  GetColorTable := fColorTableList.Items[table];
 end;
 
 function TGif.GetImageDelay(Image: integer): integer;
 var
-    gx:     PGifExtensionGraphic;
+  gx: PGifExtensionGraphic;
 begin
-gx := FindGraphicExtension(Image);
-if (gx <> nil) then
+  gx := FindGraphicExtension(Image);
+  if (gx <> nil) then
   begin
-  Result := gx^.rDelayTime;
-  if Result < 1 then
-    Result := 1;
+    Result := gx^.rDelayTime;
+    if Result < 1 then
+      Result := 1;
   end
-else Result := 1;
+  else
+    Result := 1;
 end;
 
 function TGif.GetImageDisposal(Image: integer): integer;
 var
-    gx:     PGifExtensionGraphic;
+  gx: PGifExtensionGraphic;
 begin
-gx := FindGraphicExtension(Image);
-if (gx <> nil) then
-  Result := gx^.rDisposal and 3
-else Result := 0;
+  gx := FindGraphicExtension(Image);
+  if (gx <> nil) then
+    Result := gx^.rDisposal and 3
+  else
+    Result := 0;
 end;
 
 { ---------------------------------------------------------------------------- }
 
 function TGif.GetColorIndex(image, x, y: integer): integer;
 var
-    i,n:    integer;
-    id:     PGifImageDescriptor;
-    p:      PByte;
+  i, n: integer;
+  id: PGifImageDescriptor;
+  p: PByte;
 begin
-  if ((image < 0) or (image >= fImageDescriptorList.Count)) then GIF_Error(15);
+  if ((image < 0) or (image >= fImageDescriptorList.Count)) then
+    GIF_Error(15);
   id := fImageDescriptorList.Items[image];
-  if ((x < 0) or (x >= id^.rWidth))  then GIF_Error(15);
-  if ((y < 0) or (y >= id^.rHeight)) then GIF_Error(15);
+  if ((x < 0) or (x >= id^.rWidth)) then
+    GIF_Error(15);
+  if ((y < 0) or (y >= id^.rHeight)) then
+    GIF_Error(15);
 
   n := (y * id^.rWidth) + x;
   p := PByte(PtrInt(id^.rPixelList) + n);
@@ -1614,15 +1683,15 @@ end;
 
 function TGif.GetTransparentIndex(image: integer): integer;
 var
-    i:    integer;
-    gx:     PGifExtensionGraphic;
+  i: integer;
+  gx: PGifExtensionGraphic;
 begin
-i := -1;
-gx := FindGraphicExtension(image);
-if (gx <> nil) and (gx^.rTransparentValid) then   {LDB}
-  i := gx^.rTransparentIndex;
+  i := -1;
+  gx := FindGraphicExtension(image);
+  if (gx <> nil) and (gx^.rTransparentValid) then {LDB}
+    i := gx^.rTransparentIndex;
 
-GetTransparentIndex := i;
+  GetTransparentIndex := i;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -1631,59 +1700,59 @@ end;
 
 function TGif.GetTransparentColor: TColor;
 begin
-GetTransparentColor := TransColor;
+  GetTransparentColor := TransColor;
 end;
 
 procedure TGif.ExtractLoopCount(List: TList);
 begin
-if List.Count > 0 then
-  with PGifDataBlock(List[0])^ do
-    if rSize = 3 then
-      FLoopCount := rData[2] + rData[3]*256;
+  if List.Count > 0 then
+    with PGifDataBlock(List[0])^ do
+      if rSize = 3 then
+        FLoopCount := rData[2] + rData[3] * 256;
 end;
 
 { ---------------------------------------------------------------------------- }
 
 function TGif.GetImageLeft(image: integer): integer;
 var
-    id:     PGifImageDescriptor;
+  id: PGifImageDescriptor;
 begin
-id := GetImageDescriptor(image);
-GetImageLeft := id^.rLeft;
+  id := GetImageDescriptor(image);
+  GetImageLeft := id^.rLeft;
 end;
 
 function TGif.GetImageTop(image: integer): integer;
 var
-    id:     PGifImageDescriptor;
+  id: PGifImageDescriptor;
 begin
-id := GetImageDescriptor(image);
-GetImageTop := id^.rTop;
+  id := GetImageDescriptor(image);
+  GetImageTop := id^.rTop;
 end;
 
 function TGif.GetImageWidth(image: integer): integer;
 var
-    id:     PGifImageDescriptor;
+  id: PGifImageDescriptor;
 begin
-id := GetImageDescriptor(image);
-GetImageWidth := id^.rWidth;
+  id := GetImageDescriptor(image);
+  GetImageWidth := id^.rWidth;
 end;
 
 function TGif.GetImageHeight(image: integer): integer;
 var
-    id:     PGifImageDescriptor;
+  id: PGifImageDescriptor;
 begin
-id := GetImageDescriptor(image);
-GetImageHeight := id^.rHeight;
+  id := GetImageDescriptor(image);
+  GetImageHeight := id^.rHeight;
 end;
 
 function TGif.GetImageDepth(image: integer): integer;
 var
-    id:     PGifImageDescriptor;
-    ct:     PGifColorTable;
+  id: PGifImageDescriptor;
+  ct: PGifColorTable;
 begin
-id := GetImageDescriptor(image);
-ct := fColorTableList.Items[id^.rLocalColorTable];
-GetImageDepth := ct^.rSize;
+  id := GetImageDescriptor(image);
+  ct := fColorTableList.Items[id^.rLocalColorTable];
+  GetImageDepth := ct^.rSize;
 end;
 
 
@@ -1694,49 +1763,53 @@ end;
 
 procedure TGif.FreeDataBlockList(var list: TList);
 var
-    i:    integer;
-    db:     PGifDataBlock;
+  i: integer;
+  db: PGifDataBlock;
 begin
-if (list <> nil) then
-    begin
+  if (list <> nil) then
+  begin
     for i := 0 to (list.Count - 1) do
-        begin
-        db := list.Items[i];
-        if (db <> nil) then dispose(db);
-        end;
-
-    list.Free;
+    begin
+      db := list.Items[i];
+      if (db <> nil) then
+        dispose(db);
     end;
 
-list := nil;
+    list.Free;
+  end;
+
+  list := nil;
 end;
 
 { ---------------------------------------------------------------------------- }
 
 procedure TGif.FreeExtensionList(var list: TList);
 var
-    i:    integer;
-    ex:     PGifExtension;
+  i: integer;
+  ex: PGifExtension;
 begin
-if (list <> nil) then
-    begin
+  if (list <> nil) then
+  begin
     for i := 0 to (list.Count - 1) do
-        begin
-        ex := list.Items[i];
-        if (ex <> nil) then
-            begin
-            if      (ex^.rLabel = kGifLabelComment)     then FreeDataBlockList(ex^.rComment.rDataBlockList)
-            else if (ex^.rLabel = kGifLabelText)        then FreeDataBlockList(ex^.rText.rDataBlockList)
-            else if (ex^.rLabel = kGifLabelApplication) then FreeDataBlockList(ex^.rApp.rDataBlockList);
+    begin
+      ex := list.Items[i];
+      if (ex <> nil) then
+      begin
+        if (ex^.rLabel = kGifLabelComment) then
+          FreeDataBlockList(ex^.rComment.rDataBlockList)
+        else if (ex^.rLabel = kGifLabelText) then
+          FreeDataBlockList(ex^.rText.rDataBlockList)
+        else if (ex^.rLabel = kGifLabelApplication) then
+          FreeDataBlockList(ex^.rApp.rDataBlockList);
 
-            dispose(ex);
-            end;
-        end;
-
-    list.Free;
+        dispose(ex);
+      end;
     end;
 
-list := nil;
+    list.Free;
+  end;
+
+  list := nil;
 end;
 
 
@@ -1744,16 +1817,17 @@ end;
 { after an image has been LZW decoded, write a bitmap from the string of pixels }
 
 {----------------TGif.MakeBitmaps}
+
 procedure TGif.MakeBitmaps;
 type
-  LayoutType = Packed Record
+  LayoutType = packed record
     BFH: TBitmapFileHeader;
     BIH: TBitmapInfoHeader;
-    end;
+  end;
   PLayoutType = ^LayoutType;
 var
-  id:     PGifImageDescriptor;
-  ct:     PGifColorTable;
+  id: PGifImageDescriptor;
+  ct: PGifColorTable;
   FullWidth, PixelSize, FileSize: integer;
   Stream: TMemoryStream;
   PL: PLayoutType;
@@ -1763,17 +1837,17 @@ var
   I, X, Y, N: integer;
   TrIndex: integer;
 begin
-for i := 0 to (fImageDescriptorList.Count - 1) do
-    begin
+  for i := 0 to (fImageDescriptorList.Count - 1) do
+  begin
     id := fImageDescriptorList.Items[i];
-    if ((id <> nil) and (id^.rBitmap = nil)) then      // don't do it again
+    if ((id <> nil) and (id^.rBitmap = nil)) then // don't do it again
       with id^ do
-        begin
+      begin
         FullWidth := rWidth * 3;
         if FullWidth and $3 <> 0 then
           FullWidth := (FullWidth and $FFFFFFFC) + $4;
         PixelSize := FullWidth * rHeight;
-        FileSize := Sizeof(LayoutType)+PixelSize;
+        FileSize := Sizeof(LayoutType) + PixelSize;
         Stream := TMemoryStream.Create;
         try
           Stream.Size := FileSize;
@@ -1781,15 +1855,15 @@ for i := 0 to (fImageDescriptorList.Count - 1) do
           FillChar(PL^, FileSize, 0);
 
           with PL^.BFH do
-            begin
+          begin
             bfType := 19778;
             bfSize := FileSize;
             bfReserved1 := 0;
             bfReserved2 := 0;
             bfOffBits := Sizeof(LayoutType);
-            end;
+          end;
           with PL^.BIH do
-            begin
+          begin
             biSize := Sizeof(TBitmapInfoHeader);
             biWidth := rWidth;
             biHeight := rHeight;
@@ -1801,7 +1875,7 @@ for i := 0 to (fImageDescriptorList.Count - 1) do
             biYPelsPerMeter := 0;
             biClrUsed := 0;
             biClrImportant := 0;
-            end;
+          end;
 
           ct := fColorTableList.Items[rLocalColorTable];
           TrIndex := GetTransparentIndex(i);
@@ -1811,11 +1885,11 @@ for i := 0 to (fImageDescriptorList.Count - 1) do
 
           N := 0;
           Pix := PByte(PtrInt(PL) + Sizeof(LayoutType));
-          for Y := rHeight-1 downto 0 do
-            begin
+          for Y := rHeight - 1 downto 0 do
+          begin
             P := PByte(PtrInt(Pix) + (Y * FullWidth));
-            for X := 0 to rWidth-1 do
-              begin
+            for X := 0 to rWidth - 1 do
+            begin
               Index := PtrInt(PByte(PtrInt(rPixelList) + N)^);
               Color := ct^.rColors[Index];
               P^ := Byte((Color shr 16) and $FF);
@@ -1825,43 +1899,44 @@ for i := 0 to (fImageDescriptorList.Count - 1) do
               P^ := Byte(Color and $FF);
               Inc(P);
               Inc(N);
-              end;
             end;
+          end;
           rBitmap := TBitmap.Create;
-          {$ifndef UseCLX}
-          rBitmap.HandleType  := bmDIB;
-          {$endif}
+{$IFNDEF UseCLX}
+          rBitmap.HandleType := bmDIB;
+{$ENDIF}
           rBitmap.LoadFromStream(Stream);
         finally
           Stream.Free;
-          end;
+        end;
 
 // is bitmap transparent?
 
         if ((0 <= TrIndex) and (TrIndex < ct^.rSize)) then
-            begin
-            rBitmap.Transparent      := true;
-            rBitmap.TransparentMode  := tmFixed;
-            rBitmap.TransparentColor := ct^.rColors[TrIndex];
-            end;
+        begin
+          rBitmap.Transparent := true;
+          rBitmap.TransparentMode := tmFixed;
+          rBitmap.TransparentColor := ct^.rColors[TrIndex];
         end;
-    end;
+      end;
+  end;
 end;
 
 {----------------TGif.GetStripBitmap}
-function TGif.GetStripBitmap(var Mask: TBitmap): TBitmap;   {LDB}
+
+function TGif.GetStripBitmap(var Mask: TBitmap): TBitmap; {LDB}
 {This is a single bitmap containing all the frames.  A mask is also provided
  if the GIF is transparent.  Each Frame is set up so that it can be transparently
  blted to a background.}
 type
-  LayoutType = Packed Record
+  LayoutType = packed record
     BFH: TBitmapFileHeader;
     BIH: TBitmapInfoHeader;
-    end;
+  end;
   PLayoutType = ^LayoutType;
 var
-  id:     PGifImageDescriptor;
-  ct:     PGifColorTable;
+  id: PGifImageDescriptor;
+  ct: PGifColorTable;
   FullWidth, PixelSize, FileSize: integer;
   Stream, MStream: TMemoryStream;
   PL, MPL: PLayoutType;
@@ -1873,176 +1948,179 @@ var
   C: Byte;
   IsTransparent: boolean;
 begin
-MStream := Nil;
-Result := Nil;
-Mask := Nil;
-MP := Nil;
-MPix := Nil;
+  MStream := nil;
+  Result := nil;
+  Mask := nil;
+  MP := nil;
+  MPix := nil;
 {find size needed for strip bitmap}
-FullWidth := Width * 3 * ImageCount;  {3 bytes per pixel}
-if FullWidth and $3 <> 0 then         {make sure it is DWord boundary}
-  FullWidth := (FullWidth and $FFFFFFFC) + $4;
-PixelSize := FullWidth * Height;
-FileSize := Sizeof(LayoutType)+PixelSize;
-if (FileSize > 200000000) or Transparent and (FileSize > 100000000) then
-  GIF_Error(25);
-Stream := TMemoryStream.Create;
-try
-  Stream.Size := FileSize;
-  PL := Stream.Memory;
-  FillChar(PL^, FileSize, 0);
+  FullWidth := Width * 3 * ImageCount; {3 bytes per pixel}
+  if FullWidth and $3 <> 0 then {make sure it is DWord boundary}
+    FullWidth := (FullWidth and $FFFFFFFC) + $4;
+  PixelSize := FullWidth * Height;
+  FileSize := Sizeof(LayoutType) + PixelSize;
+  if (FileSize > 200000000) or Transparent and (FileSize > 100000000) then
+    GIF_Error(25);
+  Stream := TMemoryStream.Create;
+  try
+    Stream.Size := FileSize;
+    PL := Stream.Memory;
+    FillChar(PL^, FileSize, 0);
 
-  with PL^.BFH do
-    begin          {set up the bitmap file header}
-    bfType := 19778;
-    bfSize := FileSize;
-    bfReserved1 := 0;
-    bfReserved2 := 0;
-    bfOffBits := Sizeof(LayoutType);
+    with PL^.BFH do
+    begin {set up the bitmap file header}
+      bfType := 19778;
+      bfSize := FileSize;
+      bfReserved1 := 0;
+      bfReserved2 := 0;
+      bfOffBits := Sizeof(LayoutType);
     end;
-  with PL^.BIH do
-    begin           {and the bitmap info header}
-    biSize := Sizeof(TBitmapInfoHeader);
-    biWidth := Width * ImageCount;
-    biHeight := Height;
-    biPlanes := 1;
-    biBitCount := 24;   {will use 24 bit pixel}
-    biCompression := 0;
-    biSizeImage := 0;
-    biXPelsPerMeter := 0;
-    biYPelsPerMeter := 0;
-    biClrUsed := 0;
-    biClrImportant := 0;
-    end;
-
-  Pix := PByte(PtrInt(PL) + Sizeof(LayoutType));  {where pixels start}
-
-  IsTransparent := Transparent;
-  if IsTransparent then
-    begin           {set up a mask similarly}
-    MStream := TMemoryStream.Create;
-    MStream.Size := FileSize;
-    MPL := MStream.Memory;
-    Move(PL^, MPL^, FileSize);   {for now, this is a direct copy}
-    MPix := PByte(PtrInt(MPL) + Sizeof(LayoutType));   {where mask pixels start}
-    FillChar(MPix^, PixelSize, $FF);   {Need to make first frame totally transparent}
+    with PL^.BIH do
+    begin {and the bitmap info header}
+      biSize := Sizeof(TBitmapInfoHeader);
+      biWidth := Width * ImageCount;
+      biHeight := Height;
+      biPlanes := 1;
+      biBitCount := 24; {will use 24 bit pixel}
+      biCompression := 0;
+      biSizeImage := 0;
+      biXPelsPerMeter := 0;
+      biYPelsPerMeter := 0;
+      biClrUsed := 0;
+      biClrImportant := 0;
     end;
 
-  for i := 0 to (fImageDescriptorList.Count - 1) do  {for all the frames}
+    Pix := PByte(PtrInt(PL) + Sizeof(LayoutType)); {where pixels start}
+
+    IsTransparent := Transparent;
+    if IsTransparent then
+    begin {set up a mask similarly}
+      MStream := TMemoryStream.Create;
+      MStream.Size := FileSize;
+      MPL := MStream.Memory;
+      Move(PL^, MPL^, FileSize); {for now, this is a direct copy}
+      MPix := PByte(PtrInt(MPL) + Sizeof(LayoutType)); {where mask pixels start}
+      FillChar(MPix^, PixelSize, $FF); {Need to make first frame totally transparent}
+    end;
+
+    for i := 0 to (fImageDescriptorList.Count - 1) do {for all the frames}
     begin
-    id := fImageDescriptorList.Items[i];
-    if (id <> nil) then
-      with id^ do
+      id := fImageDescriptorList.Items[i];
+      if (id <> nil) then
+        with id^ do
         begin
-        ct := fColorTableList.Items[rLocalColorTable];
-        TrIndex := GetTransparentIndex(i);
+          ct := fColorTableList.Items[rLocalColorTable];
+          TrIndex := GetTransparentIndex(i);
 
-        N := 0;   {pixel index in rPixelList, the frame source pixels}
-        for Y := Height-1 downto Math.Max(Height-rHeight, ImageTop[I]) do
+          N := 0; {pixel index in rPixelList, the frame source pixels}
+          for Y := Height - 1 downto Math.Max(Height - rHeight, ImageTop[I]) do
           begin
           {find the start of each frame row in destination.  Note that the source
            frame may be smaller than the destination and positioned according to
            imagetop and imageleft}
-          P := PByte(PtrInt(Pix) + ((Y-ImageTop[i]) * FullWidth) + i*Width*3 +ImageLeft[i]*3);
-          PRight := PByte(PtrInt(P) + Width*3);
-          if IsTransparent then  {same for mask}
-            MP := PByte(PtrInt(MPix) + ((Y-ImageTop[i]) * FullWidth) + i*Width*3 +ImageLeft[i]*3);
-          for X := 0 to rWidth-1 do
+            P := PByte(PtrInt(Pix) + ((Y - ImageTop[i]) * FullWidth) + i * Width * 3 + ImageLeft[i] * 3);
+            PRight := PByte(PtrInt(P) + Width * 3);
+            if IsTransparent then {same for mask}
+              MP := PByte(PtrInt(MPix) + ((Y - ImageTop[i]) * FullWidth) + i * Width * 3 + ImageLeft[i] * 3);
+            for X := 0 to rWidth - 1 do
             begin
-            if PtrInt(P) < PtrInt(PRight) then   {prevent write beyond proper right side in case rwidth to wide}
+              if PtrInt(P) < PtrInt(PRight) then {prevent write beyond proper right side in case rwidth to wide}
               begin
-              Index := PtrInt(PByte(PtrInt(rPixelList) + N)^);  {Source pixel index in colortable}
-              Color := ct^.rColors[Index];          {its color}
+                Index := PtrInt(PByte(PtrInt(rPixelList) + N)^); {Source pixel index in colortable}
+                Color := ct^.rColors[Index]; {its color}
               {for frames after the 0th, only the non transparent pixels are written
                as writing transparent ones might cover results copied from the previous frame}
-              if (Index <> trIndex) then
+                if (Index <> trIndex) then
                 begin
-                P^ := Byte((Color shr 16) and $FF);
-                Inc(P);
-                P^ := Byte((Color shr 8) and $FF);
-                Inc(P);
-                P^ := Byte(Color and $FF);
-                Inc(P);
+                  P^ := Byte((Color shr 16) and $FF);
+                  Inc(P);
+                  P^ := Byte((Color shr 8) and $FF);
+                  Inc(P);
+                  P^ := Byte(Color and $FF);
+                  Inc(P);
                 end
-              else if i = 0 then
-                begin     {transparent pixel, first frame, write black}
-                P^ := 0;
-                Inc(P);
-                P^ := 0;
-                Inc(P);
-                P^ := 0;
-                Inc(P);
+                else if i = 0 then
+                begin {transparent pixel, first frame, write black}
+                  P^ := 0;
+                  Inc(P);
+                  P^ := 0;
+                  Inc(P);
+                  P^ := 0;
+                  Inc(P);
                 end
-              else Inc(P, 3);   {ignore transparent pixel}
-              if IsTransparent then   {also do the mask}
+                else
+                  Inc(P, 3); {ignore transparent pixel}
+                if IsTransparent then {also do the mask}
                 begin
-                if Index = trIndex then
-                  C := $FF  {transparent part is white}
-                else C := 0;  {non transparent is black}
+                  if Index = trIndex then
+                    C := $FF {transparent part is white}
+                  else
+                    C := 0; {non transparent is black}
                 {again for frames after the 0th, only non-transparent pixels are written}
-                if (i = 0) or (C = 0) then
+                  if (i = 0) or (C = 0) then
                   begin
-                  MP^ := C;
-                  Inc(MP);
-                  MP^ := C;
-                  Inc(MP);
-                  MP^ := C;
-                  Inc(MP);
+                    MP^ := C;
+                    Inc(MP);
+                    MP^ := C;
+                    Inc(MP);
+                    MP^ := C;
+                    Inc(MP);
                   end
-                else Inc(MP, 3);
+                  else
+                    Inc(MP, 3);
                 end;
               end;
-            Inc(N);    {bump source pixel index}
+              Inc(N); {bump source pixel index}
             end;
           end;
         end;
     {Now copy this frame to the next (unless it the last one).  This serves as a
      background for the next image.  This is all that's needed for the dtDoNothing
      disposal method but will be fixed up for dtBackground below}
-    if (i < fImageDescriptorList.Count-1) then
+      if (i < fImageDescriptorList.Count - 1) then
       begin
-      for Y := Height-1 downto 0 do
-        begin  {copy line by line}
-        P := PByte(PtrInt(Pix) + (Y * FullWidth) + i*Width*3);
-        if IsTransparent then
-          MP := PByte(PtrInt(MPix) + (Y * FullWidth) + i*Width*3);
-        Move(P^, PByte(PtrInt(P)+Width*3)^, Width*3);
-        if IsTransparent then
-          Move(MP^, PByte(PtrInt(MP)+Width*3)^, Width*3);
+        for Y := Height - 1 downto 0 do
+        begin {copy line by line}
+          P := PByte(PtrInt(Pix) + (Y * FullWidth) + i * Width * 3);
+          if IsTransparent then
+            MP := PByte(PtrInt(MPix) + (Y * FullWidth) + i * Width * 3);
+          Move(P^, PByte(PtrInt(P) + Width * 3)^, Width * 3);
+          if IsTransparent then
+            Move(MP^, PByte(PtrInt(MP) + Width * 3)^, Width * 3);
         end;
       {for dtBackground, fill the mask area occupied by the current copied image with
        white. This makes it transparent so the original background will appear here
        (although the next image will no doubt write on part of this area.}
-      if IsTransparent and (ImageDisposal[i] in [2,3]) then   {dtToPrevious run as dtBackground as it seems other browsers do this}
-        with id^ do
-          for Y := Height-1 downto Math.Max(Height-rHeight, ImageTop[I]) do
+        if IsTransparent and (ImageDisposal[i] in [2, 3]) then {dtToPrevious run as dtBackground as it seems other browsers do this}
+          with id^ do
+            for Y := Height - 1 downto Math.Max(Height - rHeight, ImageTop[I]) do
             begin
-            MP := PByte(PtrInt(MPix) + ((Y-ImageTop[i]) * FullWidth) + (i+1)*Width*3 +ImageLeft[i]*3);
-            FillChar(MP^, rWidth*3, $FF);
+              MP := PByte(PtrInt(MPix) + ((Y - ImageTop[i]) * FullWidth) + (i + 1) * Width * 3 + ImageLeft[i] * 3);
+              FillChar(MP^, rWidth * 3, $FF);
             end;
       end;
     end;
 
-  Result := TBitmap.Create;
-  {$ifndef UseCLX}
-  Result.HandleType  := bmDIB;
-  {$endif}
-  Result.LoadFromStream(Stream); {turn the stream just formed into a TBitmap}
-  if IsTransparent then
+    Result := TBitmap.Create;
+{$IFNDEF UseCLX}
+    Result.HandleType := bmDIB;
+{$ENDIF}
+    Result.LoadFromStream(Stream); {turn the stream just formed into a TBitmap}
+    if IsTransparent then
     begin
-    Mask := TBitmap.Create;
-    Mask.HandleType := bmDIB;
-    Mask.LoadFromStream(MStream);
-    Mask.Monochrome := True;      {crunch mask into a monochrome TBitmap}
+      Mask := TBitmap.Create;
+      Mask.HandleType := bmDIB;
+      Mask.LoadFromStream(MStream);
+      Mask.Monochrome := True; {crunch mask into a monochrome TBitmap}
     end;
-  Stream.Free;
-  MStream.Free;
-except
-  Stream.Free;
-  MStream.Free;
-  Mask.Free;
-  Result.Free;
-  Raise;
+    Stream.Free;
+    MStream.Free;
+  except
+    Stream.Free;
+    MStream.Free;
+    Mask.Free;
+    Result.Free;
+    raise;
   end;
 end;
 
@@ -2051,26 +2129,26 @@ end;
 
 function TGif.FindGraphicExtension(image: integer): PGifExtensionGraphic;
 var
-    n:  integer;
-    id:     PGifImageDescriptor;
-    ex:     PGifExtension;
-    gx:     PGifExtensionGraphic;
+  n: integer;
+  id: PGifImageDescriptor;
+  ex: PGifExtension;
+  gx: PGifExtensionGraphic;
 begin
-gx := nil;
-id := fImageDescriptorList.Items[image];
-if (id^.rExtensionList <> nil) then
-    begin
+  gx := nil;
+  id := fImageDescriptorList.Items[image];
+  if (id^.rExtensionList <> nil) then
+  begin
     for n := 0 to (id^.rExtensionList.Count - 1) do
-        begin
-        ex := id^.rExtensionList.Items[n];
-        if ((ex^.rLabel = kGifLabelGraphic) and (gx = nil)) then
-            begin
-            gx := @(ex^.rGraphic);
-            end;
-        end;
+    begin
+      ex := id^.rExtensionList.Items[n];
+      if ((ex^.rLabel = kGifLabelGraphic) and (gx = nil)) then
+      begin
+        gx := @(ex^.rGraphic);
+      end;
     end;
+  end;
 
-FindGraphicExtension := gx;
+  FindGraphicExtension := gx;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -2079,15 +2157,16 @@ end;
 
 function TGif.FindColorIndex(c: TColor; ct: PGifColorTable): integer;
 var
-    i,n:    integer;
+  i, n: integer;
 begin
-n := -1;
-for i := 0 to (ct^.rSize - 1) do
-    begin
-    if ((n < 0) and (ct^.rColors[i] = c)) then n := i;
-    end;
+  n := -1;
+  for i := 0 to (ct^.rSize - 1) do
+  begin
+    if ((n < 0) and (ct^.rColors[i] = c)) then
+      n := i;
+  end;
 
-FindColorIndex := n;
+  FindColorIndex := n;
 end;
 
 { ---------------------------------------------------------------------------- }
@@ -2095,17 +2174,17 @@ end;
 
 procedure GIF_Error(n: integer);
 begin
-GIF_ErrorCode   := n;
-GIF_ErrorString := kGifErrorMessages[n];
-raise EInvalidGraphicOperation.CreateFmt('TGif: %s', [GIF_ErrorString]);
+  GIF_ErrorCode := n;
+  GIF_ErrorString := kGifErrorMessages[n];
+  raise EInvalidGraphicOperation.CreateFmt('TGif: %s', [GIF_ErrorString]);
 end;
 
 
 procedure GIF_ErrorMessage(m: string);
 begin
-GIF_ErrorCode := 6;
-GIF_ErrorString := m;
-raise EInvalidGraphicOperation.CreateFmt('TGif: %s', [GIF_ErrorString]);
+  GIF_ErrorCode := 6;
+  GIF_ErrorString := m;
+  raise EInvalidGraphicOperation.CreateFmt('TGif: %s', [GIF_ErrorString]);
 end;
 
 end.

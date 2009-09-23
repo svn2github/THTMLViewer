@@ -9,7 +9,7 @@
 {                                                       }
 {*******************************************************}
 
-{$i htmlcons.inc}
+{$I htmlcons.inc}
 
 unit vwPrint;
 
@@ -70,18 +70,20 @@ uses Consts;
 
 var
   FPrinter: TvwPrinter;
-  
-{$ifdef ver100_plus}    {Delphi 3, 4 or C++Builder 3, 4}
+
+{$IFDEF ver100_plus} {Delphi 3, 4 or C++Builder 3, 4}
+
 procedure RaiseError(const Msg: string);
 begin
   raise EPrinter.Create(Msg);
 end;
-{$else}
+{$ELSE}
+
 procedure RaiseError(MsgID: Integer);
 begin
   raise EPrinter.CreateRes(MsgID);
 end;
-{$endif}
+{$ENDIF}
 
 function AbortProc(Prn: HDC; Error: Integer): Bool; stdcall;
 begin
@@ -108,7 +110,7 @@ end;
 procedure TPrinterCanvas.CreateHandle;
 begin
   vwPrinter.SetState(psHandleIC);
-  Handle:= vwPrinter.DC;
+  Handle := vwPrinter.DC;
 end;
 
 procedure TPrinterCanvas.Changing;
@@ -126,7 +128,8 @@ end;
 
 destructor TvwPrinter.Destroy;
 begin
-  if Printing then EndDoc;
+  if Printing then
+    EndDoc;
   SetState(psNoHandle);
   FCanvas.Free;
   inherited Destroy;
@@ -142,26 +145,28 @@ begin
     Size := GlobalSize(Handle);
     Result := GlobalAlloc(GHND, Size);
     if Result <> 0 then
-      try
-        Src := GlobalLock(Handle);
-        Dest := GlobalLock(Result);
-        if (Src <> nil) and (Dest <> nil) then Move(Src^, Dest^, Size);
-      finally
-        GlobalUnlock(Handle);
-        GlobalUnlock(Result);
-      end
+    try
+      Src := GlobalLock(Handle);
+      Dest := GlobalLock(Result);
+      if (Src <> nil) and (Dest <> nil) then
+        Move(Src^, Dest^, Size);
+    finally
+      GlobalUnlock(Handle);
+      GlobalUnlock(Result);
+    end
   end
-  else Result := 0;
+  else
+    Result := 0;
 end;
 
 procedure TvwPrinter.SetState(Value: TPrinterState);
 type
-  TCreateHandleFunc = function (DriverName, DeviceName, Output: PChar;
+  TCreateHandleFunc = function(DriverName, DeviceName, Output: PChar;
     InitData: PDeviceMode): HDC stdcall;
 var
   CreateHandleFunc: TCreateHandleFunc;
   Driver, Device, Port: array[0..100] of char;
-  TmpDeviceMode: THandle;   
+  TmpDeviceMode: THandle;
 begin
   if Value <> State then
   begin
@@ -170,40 +175,47 @@ begin
       psNoHandle:
         begin
           CheckPrinting(False);
-          if Assigned(FCanvas) then FCanvas.Handle := 0;
+          if Assigned(FCanvas) then
+            FCanvas.Handle := 0;
           DeleteDC(DC);
           DC := 0;
         end;
       psHandleIC:
-        if State <> psHandleDC then CreateHandleFunc := CreateIC
-        else Exit;
+        if State <> psHandleDC then
+          CreateHandleFunc := CreateIC
+        else
+          Exit;
       psHandleDC:
         begin
-          if FCanvas <> nil then FCanvas.Handle := 0;
-          if DC <> 0 then DeleteDC(DC);
+          if FCanvas <> nil then
+            FCanvas.Handle := 0;
+          if DC <> 0 then
+            DeleteDC(DC);
           CreateHandleFunc := CreateDC;
         end;
     end;
     if Assigned(CreateHandleFunc) then
+    begin
+      Printers.Printer.GetPrinter(Device, Driver, Port, TmpDeviceMode);
+      if DeviceMode <> 0 then
       begin
-        Printers.Printer.GetPrinter(Device, Driver, Port, TmpDeviceMode);
-        if DeviceMode <> 0 then
-          begin
-          GlobalUnlock(DeviceMode);
-          GlobalFree(DeviceMode);
-          end;
-        DevMode := Nil;
-        if TmpDeviceMode <> 0 then
-          begin
-          DeviceMode := CopyData(TmpDeviceMode);
-          if DeviceMode <> 0 then
-            DevMode := GlobalLock(DeviceMode);
-          end;
-
-        DC := CreateHandleFunc(Driver, Device, Port, DevMode);
-        if DC = 0 then RaiseError(SInvalidPrinter);
-        if FCanvas <> nil then FCanvas.Handle := DC;
+        GlobalUnlock(DeviceMode);
+        GlobalFree(DeviceMode);
       end;
+      DevMode := nil;
+      if TmpDeviceMode <> 0 then
+      begin
+        DeviceMode := CopyData(TmpDeviceMode);
+        if DeviceMode <> 0 then
+          DevMode := GlobalLock(DeviceMode);
+      end;
+
+      DC := CreateHandleFunc(Driver, Device, Port, DevMode);
+      if DC = 0 then
+        RaiseError(SInvalidPrinter);
+      if FCanvas <> nil then
+        FCanvas.Handle := DC;
+    end;
     State := Value;
   end;
 end;
@@ -211,8 +223,10 @@ end;
 procedure TvwPrinter.CheckPrinting(Value: Boolean);
 begin
   if Printing <> Value then
-    if Value then RaiseError(SNotPrinting)
-    else RaiseError(SPrinting);
+    if Value then
+      RaiseError(SNotPrinting)
+    else
+      RaiseError(SPrinting);
 end;
 
 procedure TvwPrinter.Abort;
@@ -251,15 +265,16 @@ procedure TvwPrinter.EndDoc;
 begin
   CheckPrinting(True);
   EndPage(DC);
-  if not Aborted then Windows.EndDoc(DC);
+  if not Aborted then
+    Windows.EndDoc(DC);
   FPrinting := False;
   FAborted := False;
   FPageNumber := 0;
   if DeviceMode <> 0 then
-    begin
+  begin
     GlobalUnlock(DeviceMode);
     GlobalFree(DeviceMode);
-    end;
+  end;
 end;
 
 procedure TvwPrinter.NewPage;
@@ -273,7 +288,8 @@ end;
 
 function TvwPrinter.GetCanvas: TCanvas;
 begin
-  if FCanvas = nil then FCanvas := TPrinterCanvas.Create(Self);
+  if FCanvas = nil then
+    FCanvas := TPrinterCanvas.Create(Self);
   Result := FCanvas;
 end;
 
@@ -298,7 +314,8 @@ end;
 
 function vwPrinter: TvwPrinter;
 begin
-  if FPrinter = nil then FPrinter := TvwPrinter.Create;
+  if FPrinter = nil then
+    FPrinter := TvwPrinter.Create;
   Result := FPrinter;
 end;
 
@@ -313,11 +330,3 @@ initialization
 finalization
   FPrinter.Free;
 end.
-
-
-
-
-
-
-
-

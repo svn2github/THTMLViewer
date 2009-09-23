@@ -26,7 +26,7 @@ Note that the source modules, HTMLGIF1.PAS, PNGZLIB1.PAS, DITHERUNIT.PAS, and
 URLCON.PAS are covered by separate copyright notices located in those modules.
 }
 
-{$i htmlcons.inc}
+{$I htmlcons.inc}
 
 unit HTMLUn2;
 
@@ -40,14 +40,14 @@ uses
 
 const
   VersionNo = '10.00';
-  MaxHScroll = 6000;  {max horizontal display in pixels}
+  MaxHScroll = 6000; {max horizontal display in pixels}
   HandCursor = 10101;
   OldThickIBeamCursor = 2;
   UpDownCursor = 10103;
   UpOnlyCursor = 10104;
   DownOnlyCursor = 10105;
   Tokenleng = 300;
-  TopLim = -200;   {drawing limits}
+  TopLim = -200; {drawing limits}
   BotLim = 5000;
   FmCtl = WideChar(#2);
   ImgPan = WideChar(#4);
@@ -55,41 +55,41 @@ const
 
 {$IFNDEF DOTNET}
 type
-  {$IFNDEF FPC}
+{$IFNDEF FPC}
     //needed so that in FreePascal, we can use pointers of different sizes
-    {$IFDEF WIN32}
- PtrInt  = LongInt;
- PtrUInt = LongWord;
-    {$ENDIF}
-    {$IFDEF WIN64}
- PtrInt  = Int64;
- PtrUInt = Int64;
-    {$ENDIF}
+{$IFDEF WIN32}
+  PtrInt = LongInt;
+  PtrUInt = LongWord;
+{$ENDIF}
+{$IFDEF WIN64}
+  PtrInt = Int64;
+  PtrUInt = Int64;
+{$ENDIF}
 //NOTE:  The code below asumes a 32bit Linux architecture (such as target i386-linux)
-    {$IFDEF KYLIX}
- PtrInt  = LongInt;
- PtrUInt = LongWord;
-    {$ENDIF}
-   {$ENDIF}
+{$IFDEF KYLIX}
+  PtrInt = LongInt;
+  PtrUInt = LongWord;
+{$ENDIF}
+{$ENDIF}
 {$ENDIF}
 
 type
   TgpObject = TObject;
-  TScriptEvent = procedure(Sender: TObject; const Name, Language,    
-       Script: string) of Object;
+  TScriptEvent = procedure(Sender: TObject; const Name, Language,
+    Script: string) of object;
 
   TFreeList = class(TList)
   {like a TList but frees it's items.  Use only descendents of TObject}
     destructor Destroy; override;
-    {$Warnings Off}
-    procedure Clear;       {do not override}
-    end;
-    {$Warnings On}
+{$WARNINGS Off}
+    procedure Clear; {do not override}
+  end;
+{$WARNINGS On}
 
   //BG, 09.09.2009: renamed TGif and TPng to TrGif and TrPng
   //  TGif interfered with same named class.
   Transparency = (NotTransp, LLCorner, TrGif, TrPng);
-  JustifyType = (NoJustify, Left, Centered, Right, FullJustify);  
+  JustifyType = (NoJustify, Left, Centered, Right, FullJustify);
   TRowType = (THead, TBody, TFoot);
 
   Symb = (
@@ -98,7 +98,7 @@ type
     EmSy, EmEndSy, StrongSy, StrongEndSy, USy, UEndSy, HRSy,
     CiteSy, VarSy, CiteEndSy, VarEndSy, BaseSy,
        {Keep order}
-    TTSy, CodeSy, KbdSy, SampSy,  TTEndSy, CodeEndSy, KbdEndSy, SampEndSy,
+    TTSy, CodeSy, KbdSy, SampSy, TTEndSy, CodeEndSy, KbdEndSy, SampEndSy,
        {end order}
     OLSy, OLEndSy, LISy, ULSy, ULEndSy, DirSy, DirEndSy, MenuSy, MenuEndSy,
     DLSy, DLEndSy, DDSy, DTSy, AddressSy, AddressEndSy, BlockQuoteSy, BlockQuoteEndSy,
@@ -116,7 +116,7 @@ type
     BigSy, BigEndSy, SmallSy, SmallEndSy, BorderColorSy, MapSy, MapEndSy,
     AreaSy, ShapeSy, CoordsSy, NoHrefSy, UseMapSy, HeightSy, PlainSy,
     FrameSetSy, FrameSetEndSy, FrameSy, TargetSy, NoFramesSy, NoFramesEndSy,
-    NoResizeSy, ScrollingSy, PageSy, HSpaceSy, VSpaceSy, ScriptSy, ScriptEndSy,  
+    NoResizeSy, ScrollingSy, PageSy, HSpaceSy, VSpaceSy, ScriptSy, ScriptEndSy,
     LanguageSy, DivSy, DivEndSy, SSy, SEndSy, StrikeSy, StrikeEndSy,
     FrameBorderSy, MarginWidthSy, MarginHeightSy, BgSoundSy, LoopSy,
     OnClickSy, WrapSy, NoShadeSy, MetaSy, HttpEqSy, ContentSy, EncTypeSy,
@@ -126,48 +126,48 @@ type
     CharSetSy, RatioSy, OnFocusSy, OnBlurSy, OnChangeSy, ColSy, ColGroupSy,
     ColGroupEndSy, TabIndexSy, BGPropertiesSy, DisabledSy,
     TopMarginSy, LeftMarginSy, LabelSy, LabelEndSy, THeadSy, TBodySy, TFootSy,
-    THeadEndSy, TBodyEndSy, TFootEndSy, ObjectSy, ObjectEndSy, ParamSy, 
-    ReadonlySy, EolSy);   
+    THeadEndSy, TBodyEndSy, TFootEndSy, ObjectSy, ObjectEndSy, ParamSy,
+    ReadonlySy, EolSy);
 
-  TAttribute = class(TObject)  {holds a tag attribute}
+  TAttribute = class(TObject) {holds a tag attribute}
   public
-    Which: Symb;     {symbol of attribute such as HrefSy}
+    Which: Symb; {symbol of attribute such as HrefSy}
     WhichName: string;
-    Value: integer;  {numeric value if appropriate}
-    Percent: boolean;{if value is in percent}
-    Name: string;   {String (mixed case), value after '=' sign}
+    Value: integer; {numeric value if appropriate}
+    Percent: boolean; {if value is in percent}
+    Name: string; {String (mixed case), value after '=' sign}
     CodePage: integer;
     constructor Create(ASym: Symb; AValue: integer;
-           Const NameStr, ValueStr: string; ACodePage: integer);  
+      const NameStr, ValueStr: string; ACodePage: integer);
     destructor Destroy; override;
   end;
 
-  TAttributeList = class(TFreeList)  {a list of tag attributes,(TAttributes)}
-    private
-      Prop: TProperties;
-      SaveID: string;
-      function GetClass: string;
-      function GetID: string;
-      function GetTitle: string;  
-      function GetStyle: TProperties;
-    public
-      destructor Destroy; override;
-      procedure Clear;
-      function Find(Sy: Symb; var T: TAttribute): boolean;
-      function CreateStringList: TStringList;   
-      property TheClass: string read GetClass;
-      property TheID: string read GetID;
-      property TheTitle: string read GetTitle;    
-      property TheStyle: TProperties read GetStyle;
-    end;
+  TAttributeList = class(TFreeList) {a list of tag attributes,(TAttributes)}
+  private
+    Prop: TProperties;
+    SaveID: string;
+    function GetClass: string;
+    function GetID: string;
+    function GetTitle: string;
+    function GetStyle: TProperties;
+  public
+    destructor Destroy; override;
+    procedure Clear;
+    function Find(Sy: Symb; var T: TAttribute): boolean;
+    function CreateStringList: TStringList;
+    property TheClass: string read GetClass;
+    property TheID: string read GetID;
+    property TheTitle: string read GetTitle;
+    property TheStyle: TProperties read GetStyle;
+  end;
 
   TBitmapItem = class(TObject)
   public
     AccessCount: integer;
-    UsageCount: integer;     {how many in use}
-    Transp: Transparency;    {identifies what the mask is for}
-    MImage: TgpObject;     {main image, bitmap or animated GIF}
-    Mask: TBitmap;  {its mask}
+    UsageCount: integer; {how many in use}
+    Transp: Transparency; {identifies what the mask is for}
+    MImage: TgpObject; {main image, bitmap or animated GIF}
+    Mask: TBitmap; {its mask}
     constructor Create(AImage: TgpObject; AMask: TBitmap; Tr: Transparency);
     destructor Destroy; override;
   end;
@@ -197,14 +197,14 @@ type
     procedure AddText(P: PWideChar; Size: integer); virtual;
     procedure AddTextCR(P: PWideChar; Size: integer);
     function Terminate: integer; virtual;
-    end;
+  end;
 
   SelTextBuf = class(SelTextCount)
   public
     constructor Create(ABuffer: PWideChar; Size: integer);
     procedure AddText(P: PWideChar; Size: integer); override;
     function Terminate: integer; override;
-    end;
+  end;
 
   ClipBuffer = class(SelTextBuf)
   private
@@ -213,76 +213,76 @@ type
     constructor Create(Leng: integer);
     destructor Destroy; override;
     function Terminate: integer; override;
-    end;
+  end;
 
-  TutText = class   {holds start and end point of URL text} 
+  TutText = class {holds start and end point of URL text}
     Start: integer;
     Last: integer;
-    end;
+  end;
 
-  TUrlTarget = Class(TObject)
-    private
-      function GetStart: integer;  
-      function GetLast: integer;
-    public
-      URL,
+  TUrlTarget = class(TObject)
+  private
+    function GetStart: integer;
+    function GetLast: integer;
+  public
+    URL,
       Target: string;
-      ID: integer;
-      Attr: string;   
-      utText: TutText; 
-      TabIndex: integer;
-      constructor Create;
-      procedure Copy(UT: TUrlTarget);
-      destructor Destroy; override;
-      procedure Assign(AnUrl, ATarget: String; L: TAttributeList; AStart: integer);   
-      procedure Clear;
-      procedure SetLast(List: TList; ALast: integer);
-      property Start: integer read GetStart;
-      property Last: integer read GetLast;
-      end;
+    ID: integer;
+    Attr: string;
+    utText: TutText;
+    TabIndex: integer;
+    constructor Create;
+    procedure Copy(UT: TUrlTarget);
+    destructor Destroy; override;
+    procedure Assign(AnUrl, ATarget: string; L: TAttributeList; AStart: integer);
+    procedure Clear;
+    procedure SetLast(List: TList; ALast: integer);
+    property Start: integer read GetStart;
+    property Last: integer read GetLast;
+  end;
 
-  TMapItem = class(TObject)   {holds a client map info}
-    MapName: String;
-    Areas: TStringList;       {holds the URL and region handle}
+  TMapItem = class(TObject) {holds a client map info}
+    MapName: string;
+    Areas: TStringList; {holds the URL and region handle}
     AreaTargets: TStringList; {holds the target window}
-    AreaTitles: TStringList;  {the Title strings}   
+    AreaTitles: TStringList; {the Title strings}
     constructor Create;
     destructor Destroy; override;
-    function GetURL(X, Y: integer; var URLTarg: TURLTarget; var ATitle: string): boolean;  
+    function GetURL(X, Y: integer; var URLTarg: TURLTarget; var ATitle: string): boolean;
     procedure AddArea(Attrib: TAttributeList);
-    end;
+  end;
 
   TDib = class(TObject)
-    private
-      Info  : PBitmapInfoHeader;
-      InfoSize: integer;
-      Image: Pointer;
-      ImageSize : integer;
-      FHandle: THandle;
-      procedure InitializeBitmapInfoHeader(Bitmap: HBITMAP);
-      procedure GetDIBX(DC: HDC; Bitmap: HBITMAP; Palette: HPALETTE);
-      procedure Allocate(Size: integer);
-      procedure DeAllocate;
-    public
-      constructor CreateDIB(DC: HDC; Bitmap: TBitmap);
-      destructor Destroy; override;
-      function CreateDIBmp: hBitmap;
-      procedure DrawDIB(DC: HDC; X: Integer; Y: integer; W, H: integer;
-                ROP: DWord);
-    end;
+  private
+    Info: PBitmapInfoHeader;
+    InfoSize: integer;
+    Image: Pointer;
+    ImageSize: integer;
+    FHandle: THandle;
+    procedure InitializeBitmapInfoHeader(Bitmap: HBITMAP);
+    procedure GetDIBX(DC: HDC; Bitmap: HBITMAP; Palette: HPALETTE);
+    procedure Allocate(Size: integer);
+    procedure DeAllocate;
+  public
+    constructor CreateDIB(DC: HDC; Bitmap: TBitmap);
+    destructor Destroy; override;
+    function CreateDIBmp: hBitmap;
+    procedure DrawDIB(DC: HDC; X: Integer; Y: integer; W, H: integer;
+      ROP: DWord);
+  end;
 
-  IndentRec = Class(TObject)
-    X: integer;       {indent for this record}
-    YT, YB: integer;  {top and bottom Y values for this record}
-    ID: TObject;      {level inicator for this record, 0 for not applicable}
-    Float: boolean;   {set if Floating block boundary}
-    end;
+  IndentRec = class(TObject)
+    X: integer; {indent for this record}
+    YT, YB: integer; {top and bottom Y values for this record}
+    ID: TObject; {level inicator for this record, 0 for not applicable}
+    Float: boolean; {set if Floating block boundary}
+  end;
 
   IndentManagerBasic = class(TObject)
     Width, ClipWidth: Integer;
-    L, R: TFreeList;  {holds info (IndentRec's) on left and right indents}
-    CurrentID: TObject;       {the current level (a TBlock pointer)}
-    LfEdge, RtEdge: integer;     {current extreme edges}
+    L, R: TFreeList; {holds info (IndentRec's) on left and right indents}
+    CurrentID: TObject; {the current level (a TBlock pointer)}
+    LfEdge, RtEdge: integer; {current extreme edges}
 
     constructor Create;
     destructor Destroy; override;
@@ -296,19 +296,19 @@ type
     function GetNextWiderY(Y: integer): integer;
     function SetLeftIndent(XLeft, Y: integer): integer;
     function SetRightIndent(XRight, Y: integer): integer;
-    procedure FreeLeftIndentRec(I: integer);   
-    procedure FreeRightIndentRec(I: integer);   
-    end;
+    procedure FreeLeftIndentRec(I: integer);
+    procedure FreeRightIndentRec(I: integer);
+  end;
 
-  AllocRec = Class(TObject)
+  AllocRec = class(TObject)
     Ptr: Pointer;
     ASize: integer;
     AHandle: THandle;
-    end;
+  end;
 
   IndexArray = array[1..TokenLeng] of integer;
   PIndexArray = ^IndexArray;
-  ChrArray = array[1..TokenLeng] of WideChar;     
+  ChrArray = array[1..TokenLeng] of WideChar;
 
   {Simplified variant of TokenObj, to temporarily keep a string of ANSI
    characters along with their original indices.}
@@ -332,7 +332,7 @@ type
     property Size: Integer read GetSize;
   end;
 
-  TokenObj= class
+  TokenObj = class
   private
     St: WideString;
     StringOK: boolean;
@@ -351,7 +351,7 @@ type
     procedure Replace(N: integer; Ch: WideChar);
 
     property S: WideString read GetString;
-    end;
+  end;
 
   TIDObject = class(TObject)
   protected
@@ -359,15 +359,15 @@ type
   public
     property YPosition: integer read GetYPosition;
     destructor Destroy; override;
-    end;
+  end;
 
-  TChPosObj = class (TIDObject)
+  TChPosObj = class(TIDObject)
   private
     ChPos: integer;
     List: TList;
   protected
     function GetYPosition: integer; override;
-    end;
+  end;
 
   TIDNameList = class(TStringList)
   private
@@ -378,9 +378,9 @@ type
     procedure Clear; override;
     function AddObject(const S: string; AObject: TObject): Integer; override;
     procedure AddChPosObject(const S: string; Pos: integer);
-    end;
+  end;
 
-{$ifndef NoMetafile}
+{$IFNDEF NoMetafile}
   ThtMetaFile = class(TMetaFile)
   private
     FBitmap, FMask: TBitmap;
@@ -393,12 +393,12 @@ type
     destructor Destroy; override;
     property Bitmap: TBitmap read GetBitmap;
     property Mask: TBitmap read GetMask;
-    property WhiteBGBitmap: TBitmap read GetWhiteBGBitmap;   
-    end;
-{$endif}
+    property WhiteBGBitmap: TBitmap read GetWhiteBGBitmap;
+  end;
+{$ENDIF}
 
   ImageType = (NoImage, Bmp, Gif, Gif89, Png, Jpg);
-  SetOfChar = Set of AnsiChar;
+  SetOfChar = set of AnsiChar;
 
   htColorArray = packed array[0..3] of TColor;
   htBorderStyleArray = packed array[0..3] of BorderStyleType;
@@ -419,7 +419,7 @@ function StrScanW(const Str: PWideChar; Chr: WideChar): PWideChar;
 function StrRScanW(const Str: PWideChar; Chr: WideChar): PWideChar;
 function FitText(DC: HDC; S: PWideChar; Max, Width: Integer; var Extent: integer): Integer;
 function WidePos(SubStr, S: WideString): Integer;
-function WideTrim(const S : WideString) : WideString;
+function WideTrim(const S: WideString): WideString;
 function WideUpperCase1(const S: WideString): WideString;
 function WideLowerCase1(const S: WideString): WideString;
 function WideSameText1(const S1, S2: WideString): boolean;
@@ -430,18 +430,18 @@ function PosX(const SubStr, S: string; Offset: integer = 1): Integer;
 function IntMin(A, B: Integer): Integer;
 function IntMax(A, B: Integer): Integer;
 procedure GetClippingRgn(Canvas: TCanvas; ARect: TRect; Printing: boolean;
-          var Rgn, SaveRgn: HRgn);
+  var Rgn, SaveRgn: HRgn);
 
 function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
-                            var Mask: TBitmap): TgpObject;
+  var Mask: TBitmap): TgpObject;
 function HTMLToDos(FName: string): string;
   {convert an HTML style filename to one for Dos}
 function HTMLServerToDos(FName, Root: string): string;
 
 procedure WrapTextW(Canvas: TCanvas; X1, Y1, X2, Y2: integer; S: WideString);
 
-procedure FinishTransparentBitmap (ahdc: HDC;
-            InImage, Mask: TBitmap; xStart, yStart, W, H: integer);
+procedure FinishTransparentBitmap(ahdc: HDC;
+  InImage, Mask: TBitmap; xStart, yStart, W, H: integer);
 function GetImageMask(Image: TBitmap; ColorValid: boolean; AColor: TColor): TBitmap;
 //function TransparentGIF(const FName: string; var Color: TColor): boolean;
 //function Allocate(Size: integer): AllocRec;
@@ -450,18 +450,18 @@ function GetImageMask(Image: TBitmap; ColorValid: boolean; AColor: TColor): TBit
 procedure SetGlobalPalette(Value: HPalette);
 //function GetImageFromFile(const Filename: String): TBitmap;
 function GetImageAndMaskFromStream(Stream: TMemoryStream;
-        var Transparent: Transparency; var AMask: TBitmap): TgpObject;
-function KindOfImageFile(FName: String): ImageType;
+  var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+function KindOfImageFile(FName: string): ImageType;
 function KindOfImage(Start: Pointer): ImageType;
 procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: integer; Color: TColor);
 procedure FormControlRect(Canvas: TCanvas; X1: integer;
-           Y1: integer; X2: integer; Y2: integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
+  Y1: integer; X2: integer; Y2: integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
 function GetXExtent(DC: HDC; P: PWideChar; N: integer): integer;
 procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-           Y1: integer; X2: integer; Y2: integer; Raised: boolean; W: integer);
+  Y1: integer; X2: integer; Y2: integer; Raised: boolean; W: integer);
 procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-           Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
-           W: integer);
+  Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
+  W: integer);
 function EnlargeImage(Image: TGpObject; W, H: integer): TBitmap;
 procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
 //procedure PrintBitmap1(Canvas: TCanvas; X, Y, W, H, YI, HI: integer;
@@ -469,22 +469,22 @@ procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
 //procedure PrintTransparentBitmap1(Canvas: TCanvas; X, Y, NewW, NewH: integer;
 //             Bitmap, Mask: TBitmap; YI, HI: integer);
 procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: integer;
-             Bitmap, Mask: TBitmap; YI, HI: integer);
+  Bitmap, Mask: TBitmap; YI, HI: integer);
 procedure DrawGpImage(Handle: THandle; Image: TGPImage; DestX, DestY: integer); overload;
 procedure DrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY,
-            SrcX, SrcY, SrcW, SrcH: integer); overload;
+  SrcX, SrcY, SrcW, SrcH: integer); overload;
 procedure StretchDrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY, DestW, DestH: integer);
 procedure PrintGpImageDirect(Handle: THandle; Image: TGpImage; DestX, DestY: integer;
-              ScaleX, ScaleY: single);
+  ScaleX, ScaleY: single);
 procedure StretchPrintGpImageDirect(Handle: THandle; Image: TGpImage;
-              DestX, DestY, DestW, DestH: integer;
-              ScaleX, ScaleY: single);
+  DestX, DestY, DestW, DestH: integer;
+  ScaleX, ScaleY: single);
 procedure StretchPrintGpImageOnColor(Canvas: TCanvas; Image: TGpImage;
-              DestX, DestY, DestW, DestH: integer; Color: TColor = clWhite);
+  DestX, DestY, DestW, DestH: integer; Color: TColor = clWhite);
 function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
 function htColors(C0, C1, C2, C3: TColor): htColorArray;
 procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; C: htColorArray;
-            S: htBorderStyleArray; BGround: TColor; Print: boolean);
+  S: htBorderStyleArray; BGround: TColor; Print: boolean);
 function MultibyteToWideString(CodePage: integer; const S: Ansistring): WideString;
 function WideStringToMultibyte(CodePage: integer; W: WideString): Ansistring;
 function GetImageHeight(Image: TGpObject): integer;
@@ -494,15 +494,15 @@ implementation
 
 uses
   jpeg, DitherUnit,
-  {$IFDEF UNICODE}
-    PngImage,
-  {$ENDIF}
-   htmlsubs,
-   HtmlGif2,
-   StylePars, ActiveX;
+{$IFDEF UNICODE}
+  PngImage,
+{$ENDIF}
+  htmlsubs,
+  HtmlGif2,
+  StylePars, ActiveX;
 
 type
-  EGDIPlus = class (Exception);
+  EGDIPlus = class(Exception);
   TJpegMod = class(TJpegImage)
   public
     property Bitmap;
@@ -512,6 +512,7 @@ type
 //  DC: HDC;
 
 {----------------StrLenW}
+
 function StrLenW(Str: PWideChar): Cardinal;
 {returns number of characters in a string excluding the null terminator}
 
@@ -528,6 +529,7 @@ asm
 end;
 
 {----------------StrPosW}
+
 function StrPosW(Str, SubStr: PWideChar): PWideChar;
 // returns a pointer to the first occurance of SubStr in Str
 asm
@@ -579,6 +581,7 @@ asm
 end;
 
 {----------------StrRScanW}
+
 function StrRScanW(const Str: PWideChar; Chr: WideChar): PWideChar; assembler;
 asm
         PUSH    EDI
@@ -602,6 +605,7 @@ asm
 end;
 
 {----------------StrScanW}
+
 function StrScanW(const Str: PWideChar; Chr: WideChar): PWideChar; assembler;
 asm
         PUSH    EDI
@@ -623,6 +627,7 @@ asm
 end;
 
 {----------------FitText}
+
 function FitText(DC: HDC; S: PWideChar; Max, Width: Integer; var Extent: integer): Integer;
   {return count <= Max which fits in Width.  Return X, the extent of chars that fit}
 
@@ -634,48 +639,51 @@ var
   L, H, I: integer;
 
 begin
-Extent := 0;
-Result := 0;
-if (Width <= 0) or (Max = 0) then
-  Exit;
+  Extent := 0;
+  Result := 0;
+  if (Width <= 0) or (Max = 0) then
+    Exit;
 
-if not IsWin32Platform then
+  if not IsWin32Platform then
   begin
-  GetMem(Ints, Sizeof(Integer)* Max);
-  try
-    {$ifdef ver120_plus}
-    if GetTextExtentExPointW(DC, S, Max, Width, @Result, @Ints^, ExtS) then
-    {$else}
-    if GetTextExtentExPointW(DC, S, Max, Width, Result, Integer(Ints^), ExtS) then
-    {$endif}
-    if Result > 0 then
-      Extent := Ints^[Result]
-    else Extent := 0;
-  finally
-    FreeMem(Ints);
+    GetMem(Ints, Sizeof(Integer) * Max);
+    try
+{$IFDEF ver120_plus}
+      if GetTextExtentExPointW(DC, S, Max, Width, @Result, @Ints^, ExtS) then
+{$ELSE}
+      if GetTextExtentExPointW(DC, S, Max, Width, Result, Integer(Ints^), ExtS) then
+{$ENDIF}
+        if Result > 0 then
+          Extent := Ints^[Result]
+        else
+          Extent := 0;
+    finally
+      FreeMem(Ints);
     end;
   end
-else       {GetTextExtentExPointW not available in win98, 95}
-  begin          {optimize this by looking for Max to fit first -- it usually does}
-  L := 0;
-  H := Max;
-  I := H;
-  while L <= H do
+  else {GetTextExtentExPointW not available in win98, 95}
+  begin {optimize this by looking for Max to fit first -- it usually does}
+    L := 0;
+    H := Max;
+    I := H;
+    while L <= H do
     begin
-    GetTextExtentPoint32W(DC, S, I, ExtS);
-    if ExtS.cx < Width then
-      L := I+1
-    else H := I-1;
-    if ExtS.cx = Width then
-      Break;
-    I := (L+H) shr 1;
+      GetTextExtentPoint32W(DC, S, I, ExtS);
+      if ExtS.cx < Width then
+        L := I + 1
+      else
+        H := I - 1;
+      if ExtS.cx = Width then
+        Break;
+      I := (L + H) shr 1;
     end;
-  Result := I;
-  Extent := ExtS.cx;
+    Result := I;
+    Extent := ExtS.cx;
   end;
 end;
 
 {----------------WidePos}
+
 function WidePos(SubStr, S: WideString): Integer;
 // Unicode equivalent for Pos() function.
 var
@@ -689,6 +697,7 @@ begin
 end;
 
 {----------------WideUpperCase1}
+
 function WideUpperCase1(const S: WideString): WideString;
 {$IFNDEF UNICODE}
 var
@@ -696,63 +705,65 @@ var
   Tmp: string;
 {$ENDIF}
 begin
-  {$IFDEF UNICODE}
+{$IFDEF UNICODE}
   Result := WideUpperCase(S);
-  {$ELSE}
-Len := Length(S);
-if not IsWin32Platform then
+{$ELSE}
+  Len := Length(S);
+  if not IsWin32Platform then
   begin
-  SetString(Result, PWideChar(S), Len);
-  if Len > 0 then CharUpperBuffW(Pointer(Result), Len);
+    SetString(Result, PWideChar(S), Len);
+    if Len > 0 then
+      CharUpperBuffW(Pointer(Result), Len);
   end
-else
-  begin   {win95,98,ME}
-  SetLength(Tmp, 2*Len);
-  NewLen := WideCharToMultiByte(CP_ACP, 0, PWideChar(S), Len, PChar(Tmp), 2*Len, Nil, Nil);
-  SetLength(Tmp, NewLen);
-  Tmp := AnsiUppercase(Tmp);
-  SetLength(Result, Len);
-  MultibyteToWideChar(CP_ACP, 0, PChar(Tmp), NewLen, PWideChar(Result), Len);
+  else
+  begin {win95,98,ME}
+    SetLength(Tmp, 2 * Len);
+    NewLen := WideCharToMultiByte(CP_ACP, 0, PWideChar(S), Len, PChar(Tmp), 2 * Len, nil, nil);
+    SetLength(Tmp, NewLen);
+    Tmp := AnsiUppercase(Tmp);
+    SetLength(Result, Len);
+    MultibyteToWideChar(CP_ACP, 0, PChar(Tmp), NewLen, PWideChar(Result), Len);
   end;
-  {$ENDIF}
+{$ENDIF}
 end;
 
-function WideLowerCase1(const S: WideString): WideString;    
+function WideLowerCase1(const S: WideString): WideString;
 {$IFNDEF UNICODE}
 var
   Len, NewLen: Integer;
   Tmp: string;
 {$ENDIF}
 begin
-  {$IFDEF UNICODE}
+{$IFDEF UNICODE}
   Result := WideLowerCase(S);
-  {$ELSE}
-Len := Length(S);
-if not IsWin32Platform then
+{$ELSE}
+  Len := Length(S);
+  if not IsWin32Platform then
   begin
-  SetString(Result, PWideChar(S), Len);
-  if Len > 0 then CharLowerBuffW(Pointer(Result), Len);
+    SetString(Result, PWideChar(S), Len);
+    if Len > 0 then
+      CharLowerBuffW(Pointer(Result), Len);
   end
-else
-  begin   {win95,98,ME}
-  SetLength(Tmp, 2*Len);
-  NewLen := WideCharToMultiByte(CP_ACP, 0, PWideChar(S), Len, PChar(Tmp), 2*Len, Nil, Nil);
-  SetLength(Tmp, NewLen);
-  Tmp := AnsiLowercase(Tmp);
-  SetLength(Result, Len);
-  MultibyteToWideChar(CP_ACP, 0, PChar(Tmp), NewLen, PWideChar(Result), Len);
+  else
+  begin {win95,98,ME}
+    SetLength(Tmp, 2 * Len);
+    NewLen := WideCharToMultiByte(CP_ACP, 0, PWideChar(S), Len, PChar(Tmp), 2 * Len, nil, nil);
+    SetLength(Tmp, NewLen);
+    Tmp := AnsiLowercase(Tmp);
+    SetLength(Result, Len);
+    MultibyteToWideChar(CP_ACP, 0, PChar(Tmp), NewLen, PWideChar(Result), Len);
   end;
-  {$ENDIF}
+{$ENDIF}
 end;
 
 function WideSameText1(const S1, S2: WideString): boolean;
 begin
-Result := WideUpperCase1(S1) = WideUpperCase1(S2);
+  Result := WideUpperCase1(S1) = WideUpperCase1(S2);
 end;
 
 function WideSameStr1(const S1, S2: WideString): boolean;
 begin
-Result := S1 = S2;
+  Result := S1 = S2;
 end;
 
 function PosX(const SubStr, S: string; Offset: integer = 1): Integer;
@@ -761,15 +772,16 @@ var
   S1: string;
   I: integer;
 begin
-if Offset <= 1 then
-  Result := Pos(SubStr, S)
-else
+  if Offset <= 1 then
+    Result := Pos(SubStr, S)
+  else
   begin
-  S1 := Copy(S, Offset, Length(S)-Offset+1);
-  I := Pos(SubStr, S1);
-  if I > 0 then
-    Result := I+Offset-1
-  else Result := 0;
+    S1 := Copy(S, Offset, Length(S) - Offset + 1);
+    I := Pos(SubStr, S1);
+    if I > 0 then
+      Result := I + Offset - 1
+    else
+      Result := 0;
   end;
 end;
 
@@ -781,7 +793,7 @@ asm
 @1:
 end;
 
-Function IntMax(A, B : Integer) : Integer;
+function IntMax(A, B: Integer): Integer;
 asm
   cmp edx, eax
   jl @1
@@ -799,43 +811,43 @@ begin
 {find a clipregion to prevent overflow.  First check to see if there is
  already a clip region.  Return the old region, SaveRgn, (or 0) so it can be
  restroed later.}
-SaveRgn := CreateRectRgn(0, 0, 1, 1);
-Rslt := GetClipRgn(Canvas.Handle, SaveRgn);  {Rslt = 1 for existing region, 0 for none}
-if Rslt = 0 then
+  SaveRgn := CreateRectRgn(0, 0, 1, 1);
+  Rslt := GetClipRgn(Canvas.Handle, SaveRgn); {Rslt = 1 for existing region, 0 for none}
+  if Rslt = 0 then
   begin
-  DeleteObject(SaveRgn);
-  SaveRgn := 0;
+    DeleteObject(SaveRgn);
+    SaveRgn := 0;
   end;
 {Form the region}
-GetWindowOrgEx(Canvas.Handle, Point); {when scrolling or animated Gifs, canvas may not start at X=0, Y=0}
-with ARect do
-  if not Printing then
-    Rgn := CreateRectRgn(Left-Point.X, Top-Point.Y, Right-Point.X, Bottom-Point.Y)
-  else
+  GetWindowOrgEx(Canvas.Handle, Point); {when scrolling or animated Gifs, canvas may not start at X=0, Y=0}
+  with ARect do
+    if not Printing then
+      Rgn := CreateRectRgn(Left - Point.X, Top - Point.Y, Right - Point.X, Bottom - Point.Y)
+    else
     begin
-    GetViewportExtEx(Canvas.Handle, SizeV);
-    GetWindowExtEx(Canvas.Handle, SizeW);
-    HF := (SizeV.cx/SizeW.cx);  {Horizontal adjustment factor}
-    VF := (SizeV.cy/SizeW.cy);  {Vertical adjustment factor}
-    Rgn := CreateRectRgn(Round(HF*(Left-Point.X)), Round(VF*(Top-Point.Y)), Round(HF*(Right-Point.X)), Round(VF*(Bottom-Point.Y)));
+      GetViewportExtEx(Canvas.Handle, SizeV);
+      GetWindowExtEx(Canvas.Handle, SizeW);
+      HF := (SizeV.cx / SizeW.cx); {Horizontal adjustment factor}
+      VF := (SizeV.cy / SizeW.cy); {Vertical adjustment factor}
+      Rgn := CreateRectRgn(Round(HF * (Left - Point.X)), Round(VF * (Top - Point.Y)), Round(HF * (Right - Point.X)), Round(VF * (Bottom - Point.Y)));
     end;
-if Rslt = 1 then {if there was a region, use the intersection with this region}
-  CombineRgn(Rgn, Rgn, SaveRgn, Rgn_And);
-SelectClipRgn(Canvas.Handle, Rgn);
+  if Rslt = 1 then {if there was a region, use the intersection with this region}
+    CombineRgn(Rgn, Rgn, SaveRgn, Rgn_And);
+  SelectClipRgn(Canvas.Handle, Rgn);
 end;
 
 function HTMLServerToDos(FName, Root: string): string;
 {Add Prefix Root only if first character is '\' but not '\\'}
 begin
-Result := Trim(HTMLToDos(FName));
-if (Result <> '') and (Root <> '') then
+  Result := Trim(HTMLToDos(FName));
+  if (Result <> '') and (Root <> '') then
   begin
-  if Pos('\\', Result) = 1 then
-    Exit;
-  if Pos(':', Result) = 2 then
-    Exit;
-  if Result[1] = '\' then
-    Result := Root+Result;
+    if Pos('\\', Result) = 1 then
+      Exit;
+    if Pos(':', Result) = 2 then
+      Exit;
+    if Result[1] = '\' then
+      Result := Root + Result;
   end;
 end;
 
@@ -848,11 +860,11 @@ var
   var
     I: integer;
   begin
-  I := Pos(Old, FName);
-  while I > 0 do
-    begin
-    FName[I] := New;
     I := Pos(Old, FName);
+    while I > 0 do
+    begin
+      FName[I] := New;
+      I := Pos(Old, FName);
     end;
   end;
 
@@ -861,44 +873,44 @@ var
     S: string;
     I: integer;
   begin
-  I := Pos('%', FName);
-  while (I > 1) and (I <= Length(FName)-2) do
-    begin
-    S := '$'+FName[I+1]+FName[I+2];
-    try
-      FName[I] := chr(StrToInt(S));
-      Delete(FName, I+1, 2);
-    except   {ignore exception}
-      Exit;
-      end;
     I := Pos('%', FName);
+    while (I > 1) and (I <= Length(FName) - 2) do
+    begin
+      S := '$' + FName[I + 1] + FName[I + 2];
+      try
+        FName[I] := chr(StrToInt(S));
+        Delete(FName, I + 1, 2);
+      except {ignore exception}
+        Exit;
+      end;
+      I := Pos('%', FName);
     end;
   end;
 
 begin
-ReplaceEscapeChars;
-I := pos('/', FName);
-if I <> 0 then
+  ReplaceEscapeChars;
+  I := pos('/', FName);
+  if I <> 0 then
   begin
-  I := Pos('file:///', Lowercase(FName));
-  if I > 0 then
-    System.Delete(FName, I, 8)
-  else
-    begin
-    I := Pos('file://', Lowercase(FName));
+    I := Pos('file:///', Lowercase(FName));
     if I > 0 then
-      System.Delete(FName, I, 7)
+      System.Delete(FName, I, 8)
     else
-      begin
-      I := Pos('file:/', Lowercase(FName));
+    begin
+      I := Pos('file://', Lowercase(FName));
       if I > 0 then
-        System.Delete(FName, I, 6);
+        System.Delete(FName, I, 7)
+      else
+      begin
+        I := Pos('file:/', Lowercase(FName));
+        if I > 0 then
+          System.Delete(FName, I, 6);
       end;
     end;
-  Replace('|', ':');
-  Replace('/', '\');
+    Replace('|', ':');
+    Replace('/', '\');
   end;
-Result := FName;
+  Result := FName;
 end;
 
 function WideTrim(const S: WideString): WideString;
@@ -907,12 +919,14 @@ var
 begin
   L := Length(S);
   I := 1;
-  while (I <= L) and (S[I] <= ' ') do Inc(I);
+  while (I <= L) and (S[I] <= ' ') do
+    Inc(I);
   if I > L then
     Result := ''
   else
   begin
-    while S[L] <= ' ' do Dec(L);
+    while S[L] <= ' ' do
+      Dec(L);
     Result := Copy(S, I, L - I + 1);
   end;
 end;
@@ -923,41 +937,41 @@ var
   ARect: TRect;
   TAlign: integer;
 begin
-TAlign := SetTextAlign(Canvas.Handle, TA_Top or TA_Left);
-ARect := Rect(X1, Y1, X2, Y2);
-DrawTextW(Canvas.Handle, PWideChar(S), Length(S), ARect, DT_Wordbreak);
-SetTextAlign(Canvas.Handle, TAlign);
+  TAlign := SetTextAlign(Canvas.Handle, TA_Top or TA_Left);
+  ARect := Rect(X1, Y1, X2, Y2);
+  DrawTextW(Canvas.Handle, PWideChar(S), Length(S), ARect, DT_Wordbreak);
+  SetTextAlign(Canvas.Handle, TAlign);
 end;
 
 function Allocate(Size: integer): AllocRec;
 begin
-Result := AllocRec.Create;
-with Result do
+  Result := AllocRec.Create;
+  with Result do
   begin
-  ASize := Size;
-  if Size < $FF00 then
-    GetMem(Ptr, Size)
-  else
-     begin
-     AHandle := GlobalAlloc(HeapAllocFlags, Size);
-     if AHandle = 0 then
-         ABort;
-     Ptr := GlobalLock(AHandle);
-     end;
+    ASize := Size;
+    if Size < $FF00 then
+      GetMem(Ptr, Size)
+    else
+    begin
+      AHandle := GlobalAlloc(HeapAllocFlags, Size);
+      if AHandle = 0 then
+        ABort;
+      Ptr := GlobalLock(AHandle);
+    end;
   end;
 end;
 
 procedure DeAllocate(AR: AllocRec);
 begin
-with AR do
-  if ASize < $FF00 then
-    Freemem(Ptr, ASize)
-  else
+  with AR do
+    if ASize < $FF00 then
+      Freemem(Ptr, ASize)
+    else
     begin
-    GlobalUnlock(AHandle);
-    GlobalFree(AHandle);
+      GlobalUnlock(AHandle);
+      GlobalFree(AHandle);
     end;
-AR.Free;
+  AR.Free;
 end;
 
 function GetXExtent(DC: HDC; P: PWideChar; N: integer): integer;
@@ -966,11 +980,11 @@ var
   Dummy: integer;
 
 begin
-if not IsWin32Platform then
-  GetTextExtentExPointW(DC, P, N, 0, @Dummy, Nil, ExtS)
-else
-  GetTextExtentPoint32W(DC, P, N, ExtS);  {win95, 98 ME}
-Result := ExtS.cx;
+  if not IsWin32Platform then
+    GetTextExtentExPointW(DC, P, N, 0, @Dummy, nil, ExtS)
+  else
+    GetTextExtentPoint32W(DC, P, N, ExtS); {win95, 98 ME}
+  Result := ExtS.cx;
 end;
 
 procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: integer; Color: TColor);
@@ -978,20 +992,20 @@ var
   OldBrushStyle: TBrushStyle;
   OldBrushColor: TColor;
 begin
-with Canvas do
+  with Canvas do
   begin
-  OldBrushStyle := Brush.Style;   {save style first}
-  OldBrushColor := Brush.Color;
-  Brush.Color := Color;
-  Brush.Style := bsSolid;
-  FillRect(Rect(X1, Y1, X2, Y2));
-  Brush.Color := OldBrushColor;
-  Brush.Style := OldBrushStyle;    {style after color as color changes style}
+    OldBrushStyle := Brush.Style; {save style first}
+    OldBrushColor := Brush.Color;
+    Brush.Color := Color;
+    Brush.Style := bsSolid;
+    FillRect(Rect(X1, Y1, X2, Y2));
+    Brush.Color := OldBrushColor;
+    Brush.Style := OldBrushStyle; {style after color as color changes style}
   end;
 end;
 
 procedure FormControlRect(Canvas: TCanvas; X1: integer;
-           Y1: integer; X2: integer; Y2: integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
+  Y1: integer; X2: integer; Y2: integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
 {Draws lowered rectangles for form control printing}
 var
   OldStyle: TPenStyle;
@@ -1000,194 +1014,204 @@ var
   OldBrushColor: TColor;
   MonoBlack: boolean;
 begin
-with Canvas do
+  with Canvas do
   begin
-  MonoBlack := PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
-          (GetDeviceCaps(Handle, PLANES) = 1);
-  Dec(X2);  Dec(Y2);
-  OldWid := Pen.Width;
-  OldStyle := Pen.Style;
-  OldBrushStyle := Brush.Style;   {save style first}
-  OldBrushColor := Brush.Color;
-  if not MonoBlack and Disabled then
-    Brush.Color := clBtnFace
-  else Brush.Color := color;
-  Brush.Style := bsSolid;
-  FillRect(Rect(X1, Y1, X2, Y2));
-  Brush.Color := OldBrushColor;
-  Brush.Style := OldBrushStyle;    {style after color as color changes style}
+    MonoBlack := PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
+      (GetDeviceCaps(Handle, PLANES) = 1);
+    Dec(X2); Dec(Y2);
+    OldWid := Pen.Width;
+    OldStyle := Pen.Style;
+    OldBrushStyle := Brush.Style; {save style first}
+    OldBrushColor := Brush.Color;
+    if not MonoBlack and Disabled then
+      Brush.Color := clBtnFace
+    else
+      Brush.Color := color;
+    Brush.Style := bsSolid;
+    FillRect(Rect(X1, Y1, X2, Y2));
+    Brush.Color := OldBrushColor;
+    Brush.Style := OldBrushStyle; {style after color as color changes style}
 
-  Pen.Style := psInsideFrame;
-  if MonoBlack then
+    Pen.Style := psInsideFrame;
+    if MonoBlack then
     begin
-    Pen.Width := 1;
-    Pen.Color := clBlack;
+      Pen.Width := 1;
+      Pen.Color := clBlack;
     end
-  else
+    else
     begin
-    Pen.Width := 2;
-    if Raised then Pen.Color := clSilver
-      else Pen.Color := clBtnShadow;
+      Pen.Width := 2;
+      if Raised then
+        Pen.Color := clSilver
+      else
+        Pen.Color := clBtnShadow;
     end;
-  MoveTo(X1, Y2);
-  LineTo(X1, Y1);
-  LineTo(X2, Y1);
-  if not MonoBlack then
-    if Raised then Pen.Color := clBtnShadow
-      else Pen.Color := clSilver;
-  LineTo(X2, Y2);
-  LineTo(X1, Y2);
-  Pen.Style := OldStyle;
-  Pen.Width := OldWid;
+    MoveTo(X1, Y2);
+    LineTo(X1, Y1);
+    LineTo(X2, Y1);
+    if not MonoBlack then
+      if Raised then
+        Pen.Color := clBtnShadow
+      else
+        Pen.Color := clSilver;
+    LineTo(X2, Y2);
+    LineTo(X1, Y2);
+    Pen.Style := OldStyle;
+    Pen.Width := OldWid;
   end;
 end;
 
 procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-           Y1: integer; X2: integer; Y2: integer; Raised: boolean; W: integer);
+  Y1: integer; X2: integer; Y2: integer; Raised: boolean; W: integer);
 {Draws raised or lowered rectangles for table borders}
 var
   White, BlackBorder: boolean;
   Light, Dark: TColor;
 begin
-with SectionList as TSectionList, Canvas do
+  with SectionList as TSectionList, Canvas do
   begin
-  White := Printing or ((Background and $FFFFFF = clWhite) or
+    White := Printing or ((Background and $FFFFFF = clWhite) or
       ((Background = clWindow) and (GetSysColor(Color_Window) = $FFFFFF)));
-  BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
+    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
       (GetDeviceCaps(Handle, PLANES) = 1);
   end;
-if BlackBorder then
+  if BlackBorder then
   begin
-  Light := clBlack;
-  Dark := clBlack;
+    Light := clBlack;
+    Dark := clBlack;
   end
-else
+  else
   begin
-  Dark := clBtnShadow;
-  if White then
-    Light := clSilver
-   else Light := clBtnHighLight;
+    Dark := clBtnShadow;
+    if White then
+      Light := clSilver
+    else
+      Light := clBtnHighLight;
   end;
-RaisedRectColor(SectionList, Canvas, X1, Y1, X2, Y2, Light, Dark, Raised, W);
+  RaisedRectColor(SectionList, Canvas, X1, Y1, X2, Y2, Light, Dark, Raised, W);
 end;
 
 procedure RaisedRectColor1(Canvas: TCanvas; X1: integer;
-           Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean);
+  Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean);
 {Draws single line colored raised or lowered rectangles for table borders}
 begin
-Y1 := IntMax(Y1, TopLim);
-Y2 := IntMin(Y2, BotLim);
-with Canvas do
+  Y1 := IntMax(Y1, TopLim);
+  Y2 := IntMin(Y2, BotLim);
+  with Canvas do
   begin
-  if Raised then
-    Pen.Color := Light
-  else Pen.Color := Dark;
+    if Raised then
+      Pen.Color := Light
+    else
+      Pen.Color := Dark;
 
-  MoveTo(X1, Y2);
-  LineTo(X1, Y1);
-  LineTo(X2, Y1);
-  if not Raised then
-    Pen.Color := Light
-  else Pen.Color := Dark;
-  LineTo(X2, Y2);
-  LineTo(X1, Y2);
+    MoveTo(X1, Y2);
+    LineTo(X1, Y1);
+    LineTo(X2, Y1);
+    if not Raised then
+      Pen.Color := Light
+    else
+      Pen.Color := Dark;
+    LineTo(X2, Y2);
+    LineTo(X1, Y2);
   end;
 end;
 
 procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-           Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
-           W: integer);
+  Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
+  W: integer);
 {Draws colored raised or lowered rectangles for table borders}
 var
   Colors: htColorArray;
 begin
-if W = 1 then  {this looks better in Print Preview}
-  RaisedRectColor1(Canvas, X1, Y1, X2, Y2, Light, Dark, Raised)
-else
+  if W = 1 then {this looks better in Print Preview}
+    RaisedRectColor1(Canvas, X1, Y1, X2, Y2, Light, Dark, Raised)
+  else
   begin
-  if Raised then
-    Colors := htColors(Light, Light, Dark, Dark)
-  else Colors := htColors(Dark, Dark, Light, Light);
-  DrawBorder(Canvas, Rect(X1-W+1, Y1-W+1, X2+W, Y2+W), Rect(X1+1, Y1+1, X2, Y2), Colors,
-              htStyles(bssSolid, bssSolid, bssSolid, bssSolid), clNone, False);
+    if Raised then
+      Colors := htColors(Light, Light, Dark, Dark)
+    else
+      Colors := htColors(Dark, Dark, Light, Light);
+    DrawBorder(Canvas, Rect(X1 - W + 1, Y1 - W + 1, X2 + W, Y2 + W), Rect(X1 + 1, Y1 + 1, X2, Y2), Colors,
+      htStyles(bssSolid, bssSolid, bssSolid, bssSolid), clNone, False);
   end;
 end;
 
-{$ifdef Ver90}
+{$IFDEF Ver90}
+
 procedure Assert(B: boolean; const S: string);
-begin   {dummy Assert for Delphi 2}
+begin {dummy Assert for Delphi 2}
 end;
-{$endif}
+{$ENDIF}
 
 destructor TFreeList.Destroy;
 var
   I: integer;
 begin
-for I := 0 to Count-1 do
-  TObject(Items[I]).Free;
-inherited Destroy;
+  for I := 0 to Count - 1 do
+    TObject(Items[I]).Free;
+  inherited Destroy;
 end;
 
 procedure TFreeList.Clear;
 var
   I: integer;
 begin
-for I := 0 to Count-1 do
-  TObject(Items[I]).Free;
-inherited Clear;
+  for I := 0 to Count - 1 do
+    TObject(Items[I]).Free;
+  inherited Clear;
 end;
 
-constructor TBitmapItem.Create(AImage:TgpObject; AMask: TBitmap; Tr: Transparency);
+constructor TBitmapItem.Create(AImage: TgpObject; AMask: TBitmap; Tr: Transparency);
 begin
-inherited Create;
-MImage := AImage;
-Mask := AMask;
-AccessCount := 0;
-Transp := Tr;
+  inherited Create;
+  MImage := AImage;
+  Mask := AMask;
+  AccessCount := 0;
+  Transp := Tr;
 end;
 
 destructor TBitmapItem.Destroy;
 begin
-Assert(UsageCount = 0, 'Freeing Image still in use');
-MImage.Free;
-Mask.Free;
-inherited Destroy;
+  Assert(UsageCount = 0, 'Freeing Image still in use');
+  MImage.Free;
+  Mask.Free;
+  inherited Destroy;
 end;
 
 constructor TStringBitmapList.Create;
 begin
-inherited Create;
-MaxCache := 4;
-CheckInitGDIPlus;
+  inherited Create;
+  MaxCache := 4;
+  CheckInitGDIPlus;
 end;
 
 destructor TStringBitmapList.Destroy;
 var
   I: integer;
 begin
-for I := 0 to Count-1 do
-  (Objects[I] as TBitmapItem).Free;
-CheckExitGDIPlus;
-inherited Destroy;
+  for I := 0 to Count - 1 do
+    (Objects[I] as TBitmapItem).Free;
+  CheckExitGDIPlus;
+  inherited Destroy;
 end;
 
 function TStringBitmapList.AddObject(const S: string; AObject: TObject): Integer;
 begin
-Result := inherited AddObject(S, AObject);
-if AObject is TBitmapItem then
-  Inc(TBitmapItem(AObject).UsageCount);
+  Result := inherited AddObject(S, AObject);
+  if AObject is TBitmapItem then
+    Inc(TBitmapItem(AObject).UsageCount);
 end;
 
 procedure TStringBitmapList.DecUsage(const S: string);
 var
   I: integer;
 begin
-I := IndexOf(S);
-if I >= 0 then
-  with Objects[I] as TBitmapItem do
+  I := IndexOf(S);
+  if I >= 0 then
+    with Objects[I] as TBitmapItem do
     begin
-    Dec(UsageCount);
-    Assert(UsageCount >= 0, 'Cache image usage count < 0');
+      Dec(UsageCount);
+      Assert(UsageCount >= 0, 'Cache image usage count < 0');
     end;
 end;
 
@@ -1195,35 +1219,35 @@ procedure TStringBitmapList.IncUsage(const S: string);
 var
   I: integer;
 begin
-I := IndexOf(S);
-if I >= 0 then
-  with Objects[I] as TBitmapItem do
-    Inc(UsageCount);
+  I := IndexOf(S);
+  if I >= 0 then
+    with Objects[I] as TBitmapItem do
+      Inc(UsageCount);
 end;
 
 procedure TStringBitmapList.SetCacheCount(N: integer);
 var
   I: integer;
 begin
-for I := Count-1 downto 0 do
-  with (Objects[I] as TBitmapItem)do
+  for I := Count - 1 downto 0 do
+    with (Objects[I] as TBitmapItem) do
     begin
-    if (AccessCount > N) and (UsageCount <= 0) then
+      if (AccessCount > N) and (UsageCount <= 0) then
       begin
-      Delete(I);
-      Free;
+        Delete(I);
+        Free;
       end;
     end;
-MaxCache := N;
+  MaxCache := N;
 end;
 
 function TStringBitmapList.GetImage(I: integer): TgpObject;
 begin
-with Objects[I] as TBitmapItem do
+  with Objects[I] as TBitmapItem do
   begin
-  Result := MImage;
-  AccessCount := 0;
-  Inc(UsageCount);
+    Result := MImage;
+    AccessCount := 0;
+    Inc(UsageCount);
   end;
 end;
 
@@ -1232,19 +1256,19 @@ var
   I: integer;
   Tmp: TBitmapItem;
 begin
-  for I := Count-1 downto 0 do
-    begin
+  for I := Count - 1 downto 0 do
+  begin
     Tmp := (Objects[I] as TBitmapItem);
     with Tmp do
-      begin
+    begin
       Inc(AccessCount);
       if (AccessCount > MaxCache) and (UsageCount <= 0) then
-        begin
+      begin
         Delete(I);
-        Free;          {the TBitmapItem}
-        end;
+        Free; {the TBitmapItem}
       end;
     end;
+  end;
 end;
 
 procedure TStringBitmapList.PurgeCache;
@@ -1252,15 +1276,15 @@ var
   I: integer;
   Tmp: TBitmapItem;
 begin
-for I := Count-1 downto 0 do
+  for I := Count - 1 downto 0 do
   begin
-  Tmp := (Objects[I] as TBitmapItem);
-  with Tmp do
+    Tmp := (Objects[I] as TBitmapItem);
+    with Tmp do
     begin
-    if (UsageCount <= 0) then
+      if (UsageCount <= 0) then
       begin
-      Delete(I);
-      Free;          {the TBitmapItem}
+        Delete(I);
+        Free; {the TBitmapItem}
       end;
     end;
   end;
@@ -1270,62 +1294,63 @@ procedure TStringBitmapList.Clear;
 var
   I: integer;
 begin
-for I := 0 to Count-1 do
-  (Objects[I] as TBitmapItem).Free;
-inherited Clear;
+  for I := 0 to Count - 1 do
+    (Objects[I] as TBitmapItem).Free;
+  inherited Clear;
 end;
 
 constructor TAttribute.Create(ASym: Symb; AValue: integer;
-           Const NameStr, ValueStr: string; ACodePage: integer);
+  const NameStr, ValueStr: string; ACodePage: integer);
 begin
-inherited Create;
-Which := ASym;
-Value := AValue;
-WhichName := NameStr;
-Name := ValueStr;
-CodePage := ACodePage;
+  inherited Create;
+  Which := ASym;
+  Value := AValue;
+  WhichName := NameStr;
+  Name := ValueStr;
+  CodePage := ACodePage;
 end;
 
 destructor TAttribute.Destroy;
 begin
-inherited Destroy;
+  inherited Destroy;
 end;
 
 {----------------TAttributeList}
+
 destructor TAttributeList.Destroy;
 begin
-Prop.Free;
-inherited;
+  Prop.Free;
+  inherited;
 end;
 
 procedure TAttributeList.Clear;
 begin
-SaveID := '';
-inherited Clear;
+  SaveID := '';
+  inherited Clear;
 end;
 
 function TAttributeList.Find(Sy: Symb; var T: TAttribute): boolean;
 var
   I: integer;
 begin
-for I := 0 to Count-1 do
-  if TAttribute(Items[I]).which = Sy then
+  for I := 0 to Count - 1 do
+    if TAttribute(Items[I]).which = Sy then
     begin
-    Result := True;
-    T := Items[I];
-    Exit;
+      Result := True;
+      T := Items[I];
+      Exit;
     end;
-Result := False;
+  Result := False;
 end;
 
 function TAttributeList.CreateStringList: TStringList;
 var
   I: integer;
 begin
-Result := TStringList.Create;
-for I := 0 to Count-1 do
-  with TAttribute(Items[I]) do
-    Result.Add(WhichName+'='+Name);
+  Result := TStringList.Create;
+  for I := 0 to Count - 1 do
+    with TAttribute(Items[I]) do
+      Result.Add(WhichName + '=' + Name);
 end;
 
 function TAttributeList.GetClass: string;
@@ -1334,24 +1359,24 @@ var
   S: string;
   I: integer;
 begin
-Result := '';
-if Find(ClassSy, T) then
+  Result := '';
+  if Find(ClassSy, T) then
   begin
-  S := Lowercase(Trim(T.Name));
-  I := Pos(' ', S);
-  if I <= 0 then   {a single class name}
-    Result := S
-  else
-    begin  {multiple class names.  Format as "class1.class2.class3"}
-    repeat
-      Result := Result + '.' + System.Copy(S, 1, I-1);
-      System.Delete(S, 1, I);
-      S := Trim(S);
-      I := Pos(' ', S);
-    until I <= 0;
-    Result := Result+'.'+S;
-    Result := SortContextualItems(Result);   {put in standard multiple order}
-    System.Delete(Result, 1, 1);   {remove initial '.'}
+    S := Lowercase(Trim(T.Name));
+    I := Pos(' ', S);
+    if I <= 0 then {a single class name}
+      Result := S
+    else
+    begin {multiple class names.  Format as "class1.class2.class3"}
+      repeat
+        Result := Result + '.' + System.Copy(S, 1, I - 1);
+        System.Delete(S, 1, I);
+        S := Trim(S);
+        I := Pos(' ', S);
+      until I <= 0;
+      Result := Result + '.' + S;
+      Result := SortContextualItems(Result); {put in standard multiple order}
+      System.Delete(Result, 1, 1); {remove initial '.'}
     end;
   end;
 end;
@@ -1360,11 +1385,11 @@ function TAttributeList.GetID: string;
 var
   T: TAttribute;
 begin
-Result := SaveID;
-if (Result = '') and Find(IDSy, T) then
+  Result := SaveID;
+  if (Result = '') and Find(IDSy, T) then
   begin
-  Result := Lowercase(T.Name);
-  SaveID := Result;
+    Result := Lowercase(T.Name);
+    SaveID := Result;
   end;
 end;
 
@@ -1372,166 +1397,174 @@ function TAttributeList.GetTitle: string;
 var
   T: TAttribute;
 begin
-if Find(TitleSy, T) then
-  Result := T.Name
-else Result := '';
+  if Find(TitleSy, T) then
+    Result := T.Name
+  else
+    Result := '';
 end;
 
 function TAttributeList.GetStyle: TProperties;
 var
   T: TAttribute;
 begin
-if Find(StyleSy, T) then
+  if Find(StyleSy, T) then
   begin
-  Prop.Free;
-  Prop := TProperties.Create;
-  Result := Prop;
-  ParsePropertyStr(T.Name, Result);
+    Prop.Free;
+    Prop := TProperties.Create;
+    Result := Prop;
+    ParsePropertyStr(T.Name, Result);
   end
-else Result := Nil;
+  else
+    Result := nil;
 end;
 
 {----------------TUrlTarget.Create}
+
 constructor TUrlTarget.Create;
 begin
-inherited Create;
-utText := TutText.Create;
-utText.Start := -1;
-utText.Last := -1;
+  inherited Create;
+  utText := TutText.Create;
+  utText.Start := -1;
+  utText.Last := -1;
 end;
 
 destructor TUrlTarget.Destroy;
 begin
-FreeAndNil(utText);
-inherited Destroy;
+  FreeAndNil(utText);
+  inherited Destroy;
 end;
 
 var
   Sequence: integer = 10;
 
-procedure TUrlTarget.Assign(AnUrl, ATarget: String; L: TAttributeList; AStart: integer);
+procedure TUrlTarget.Assign(AnUrl, ATarget: string; L: TAttributeList; AStart: integer);
 var
   SL: TStringList;
 begin
-Url := AnUrl;
-Target := ATarget;
-ID := Sequence;
-Inc(Sequence);
-utText.Start := AStart;
-SL := L.CreateStringList;
-try
-  Attr := SL.Text;
-finally
-  SL.Free;
+  Url := AnUrl;
+  Target := ATarget;
+  ID := Sequence;
+  Inc(Sequence);
+  utText.Start := AStart;
+  SL := L.CreateStringList;
+  try
+    Attr := SL.Text;
+  finally
+    SL.Free;
   end;
 end;
 
 procedure TUrlTarget.Copy(UT: TUrlTarget);
 begin
-Url := UT.Url;
-Target := UT.Target;
-ID := UT.ID;
-TabIndex := UT.TabIndex;
-Attr := UT.Attr;
-utText.Start := UT.utText.Start;
-utText.Last := UT.utText.Last;
+  Url := UT.Url;
+  Target := UT.Target;
+  ID := UT.ID;
+  TabIndex := UT.TabIndex;
+  Attr := UT.Attr;
+  utText.Start := UT.utText.Start;
+  utText.Last := UT.utText.Last;
 end;
 
 procedure TUrlTarget.Clear;
 begin
-Url := '';
-Target := '';
-ID := 0;
-TabIndex := 0;
-Attr := '';
-utText.Start := -1;
-utText.Last := -1;
+  Url := '';
+  Target := '';
+  ID := 0;
+  TabIndex := 0;
+  Attr := '';
+  utText.Start := -1;
+  utText.Last := -1;
 end;
 
 function TUrlTarget.GetStart: integer;
 begin
-Result := utText.Start
+  Result := utText.Start
 end;
 
 function TUrlTarget.GetLast: integer;
 begin
-Result := utText.Last
+  Result := utText.Last
 end;
 
 procedure TUrlTarget.SetLast(List: TList; ALast: integer);
 var
   I: integer;
 begin
-utText.Last := ALast;
-if (List.Count > 0) then
-  for I := List.Count-1 downto 0 do
-    if (ID = TFontObj(List[I]).UrlTarget.ID) then
-      TFontObj(List[I]).UrlTarget.utText.Last := ALast
-    else Break;
+  utText.Last := ALast;
+  if (List.Count > 0) then
+    for I := List.Count - 1 downto 0 do
+      if (ID = TFontObj(List[I]).UrlTarget.ID) then
+        TFontObj(List[I]).UrlTarget.utText.Last := ALast
+      else
+        Break;
 end;
 
 {----------------SelTextCount}
+
 procedure SelTextCount.AddText(P: PWideChar; Size: integer);
 var
   I: integer;
 begin
-for I := 0 to Size-1 do
-  if not (P[I] in [FmCtl, ImgPan]) then {ImgPan and FmCtl used to mark images, form controls}
-    Inc(Leng);
+  for I := 0 to Size - 1 do
+    if not (P[I] in [FmCtl, ImgPan]) then {ImgPan and FmCtl used to mark images, form controls}
+      Inc(Leng);
 end;
 
 procedure SelTextCount.AddTextCR(P: PWideChar; Size: integer);
 begin
-AddText(P, Size);
-AddText(#13#10, 2);
+  AddText(P, Size);
+  AddText(#13#10, 2);
 end;
 
 function SelTextCount.Terminate: integer;
 begin
-Result := Leng;
+  Result := Leng;
 end;
 
 {----------------SelTextBuf.Create}
+
 constructor SelTextBuf.Create(ABuffer: PWideChar; Size: integer);
 begin
-inherited Create;
-Buffer := ABuffer;
-BufferLeng := Size;
+  inherited Create;
+  Buffer := ABuffer;
+  BufferLeng := Size;
 end;
 
 procedure SelTextBuf.AddText(P: PWideChar; Size: integer);
 var
-  SizeM1 : integer;
+  SizeM1: integer;
   I: integer;
 begin
-SizeM1 := BufferLeng-1;
-for I := 0 to Size-1 do
-  if not (P[I] in [FmCtl, ImgPan, BrkCh]) then {ImgPan and FmCtl used to mark images, form controls}
-    if Leng < SizeM1 then
+  SizeM1 := BufferLeng - 1;
+  for I := 0 to Size - 1 do
+    if not (P[I] in [FmCtl, ImgPan, BrkCh]) then {ImgPan and FmCtl used to mark images, form controls}
+      if Leng < SizeM1 then
       begin
-      Buffer[Leng] := P[I];
-      Inc(Leng);
+        Buffer[Leng] := P[I];
+        Inc(Leng);
       end;
 end;
 
 function SelTextBuf.Terminate: integer;
 begin
-Buffer[Leng] := #0;
-Result := Leng+1;
+  Buffer[Leng] := #0;
+  Result := Leng + 1;
 end;
 
 {----------------ClipBuffer.Create}
+
 constructor ClipBuffer.Create(Leng: integer);
 begin
-inherited Create(Nil, 0);
-BufferLeng := Leng;
-Getmem(Buffer, BufferLeng*2);
+  inherited Create(nil, 0);
+  BufferLeng := Leng;
+  Getmem(Buffer, BufferLeng * 2);
 end;
 
 destructor ClipBuffer.Destroy;
 begin
-if Assigned(Buffer) then FreeMem(Buffer);
-inherited Destroy;
+  if Assigned(Buffer) then
+    FreeMem(Buffer);
+  inherited Destroy;
 end;
 
 procedure ClipBuffer.CopyToClipboard;
@@ -1557,58 +1590,59 @@ end;
 
 function ClipBuffer.Terminate: integer;
 begin
-Buffer[Leng] := #0;
-Result := Leng+1;
-if IsWin32Platform then
-  Clipboard.AsText := Buffer
-else
-  CopyToClipboard;
+  Buffer[Leng] := #0;
+  Result := Leng + 1;
+  if IsWin32Platform then
+    Clipboard.AsText := Buffer
+  else
+    CopyToClipboard;
 end;
 
 {----------------TMapItem.Create}
+
 constructor TMapItem.Create;
 begin
-inherited Create;
-Areas := TStringList.Create;
-AreaTargets := TStringList.Create;
-AreaTitles := TStringList.Create;
+  inherited Create;
+  Areas := TStringList.Create;
+  AreaTargets := TStringList.Create;
+  AreaTitles := TStringList.Create;
 end;
 
 destructor TMapItem.Destroy;
 var
   I: integer;
 begin
-for I := 0 to Areas.Count-1 do
-  DeleteObject(THandle(Areas.Objects[I]));
-Areas.Free;
-AreaTargets.Free;
-AreaTitles.Free;
-inherited Destroy;
+  for I := 0 to Areas.Count - 1 do
+    DeleteObject(THandle(Areas.Objects[I]));
+  Areas.Free;
+  AreaTargets.Free;
+  AreaTitles.Free;
+  inherited Destroy;
 end;
 
 function TMapItem.GetURL(X, Y: integer; var URLTarg: TUrlTarget; var ATitle: string): boolean;
 var
   I: integer;
 begin
-Result := False;
-with Areas do
-  for I := 0 to Count-1 do
-    if PtInRegion(THandle(Objects[I]), X, Y) then
+  Result := False;
+  with Areas do
+    for I := 0 to Count - 1 do
+      if PtInRegion(THandle(Objects[I]), X, Y) then
       begin
-      if Strings[I] <> '' then  {could be NoHRef}
+        if Strings[I] <> '' then {could be NoHRef}
         begin
-        URLTarg := TUrlTarget.Create;
-        URLTarg.URL := Strings[I];
-        URLTarg.Target := AreaTargets[I];
-        ATitle := AreaTitles[I];
-        Result := True;
+          URLTarg := TUrlTarget.Create;
+          URLTarg.URL := Strings[I];
+          URLTarg.Target := AreaTargets[I];
+          ATitle := AreaTitles[I];
+          Result := True;
         end;
-      Exit;
+        Exit;
       end;
 end;
 
 procedure TMapItem.AddArea(Attrib: TAttributeList);
-Const
+const
   MAXCNT = 300;
 var
   I, Cnt, Rad: integer;
@@ -1621,110 +1655,115 @@ var
 
   procedure GetSubStr;
   var
-    J,K: integer;
+    J, K: integer;
   begin
-  J := Pos(',', S);
-  K := Pos(' ', S);   {for non comma situations (bad syntax)}
-  if (J > 0) and ((K = 0) or (K > J)) then
+    J := Pos(',', S);
+    K := Pos(' ', S); {for non comma situations (bad syntax)}
+    if (J > 0) and ((K = 0) or (K > J)) then
     begin
-    S1 := copy(S, 1, J-1);
-    Delete(S, 1, J);
+      S1 := copy(S, 1, J - 1);
+      Delete(S, 1, J);
     end
-  else if K > 0 then
+    else if K > 0 then
     begin
-    S1 := copy(S, 1, K-1);
-    Delete(S, 1, K);
+      S1 := copy(S, 1, K - 1);
+      Delete(S, 1, K);
     end
-  else
+    else
     begin
-    S1 := Trim(S);
-    S := '';
+      S1 := Trim(S);
+      S := '';
     end;
-  while (Length(S) > 0) and ((S[1]=',') or (S[1]=' ')) do
-    Delete(S, 1, 1);
+    while (Length(S) > 0) and ((S[1] = ',') or (S[1] = ' ')) do
+      Delete(S, 1, 1);
   end;
 
 begin
-if Areas.Count >= 1000 then
-  Exit;
-HRef := '';
-Target := '';
-Title := '';
-Shape := Rec;
-Cnt := 0;
-Handle := 0;
-for I := 0 to Attrib.Count-1 do
-  with TAttribute(Attrib[I]) do
-    case Which of
-      HRefSy:  HRef := Name;
-      TargetSy:  Target := Name;
-      TitleSy:  Title := Name;
-      NoHrefSy: HRef := '';
-      CoordsSy:
-        begin
-        S := Trim(Name);
-        Cnt := 0;
-        GetSubStr;
-        while (S1 <> '') and (Cnt <= MAXCNT) do
+  if Areas.Count >= 1000 then
+    Exit;
+  HRef := '';
+  Target := '';
+  Title := '';
+  Shape := Rec;
+  Cnt := 0;
+  Handle := 0;
+  for I := 0 to Attrib.Count - 1 do
+    with TAttribute(Attrib[I]) do
+      case Which of
+        HRefSy: HRef := Name;
+        TargetSy: Target := Name;
+        TitleSy: Title := Name;
+        NoHrefSy: HRef := '';
+        CoordsSy:
           begin
-          Coords[Cnt] := StrToIntDef(S1, 0);
-          GetSubStr;
-          Inc(Cnt);
+            S := Trim(Name);
+            Cnt := 0;
+            GetSubStr;
+            while (S1 <> '') and (Cnt <= MAXCNT) do
+            begin
+              Coords[Cnt] := StrToIntDef(S1, 0);
+              GetSubStr;
+              Inc(Cnt);
+            end;
           end;
-        end;
-      ShapeSy:
-        begin
-        Nm := copy(Lowercase(Name),1, 4);
-        if Nm = 'circ' then Shape := Circle
-        else if (Nm = 'poly') then Shape := Poly;
-        end;
+        ShapeSy:
+          begin
+            Nm := copy(Lowercase(Name), 1, 4);
+            if Nm = 'circ' then
+              Shape := Circle
+            else if (Nm = 'poly') then
+              Shape := Poly;
+          end;
       end;
-case Shape of
-  Rec:
-    begin
-    if Cnt < 4 then Exit;
-    Inc(Coords[2]);
-    Inc(Coords[3]);
-    Handle := CreateRectRgnIndirect(Rect);
-    end;
-  Circle:
-    begin
-    if Cnt < 3 then Exit;
-    Rad := Coords[2];
-    Dec(Coords[0],Rad);
-    Dec(Coords[1],Rad);
-    Coords[2] := Coords[0] + 2*Rad +1;
-    Coords[3] := Coords[1] + 2*Rad +1;
-    Handle := CreateEllipticRgnIndirect(Rect);
-    end;
-  Poly:
-    begin
-    if Cnt < 6 then Exit;
-    Handle := CreatePolygonRgn(Coords, Cnt div 2, Winding);
-    end;
+  case Shape of
+    Rec:
+      begin
+        if Cnt < 4 then
+          Exit;
+        Inc(Coords[2]);
+        Inc(Coords[3]);
+        Handle := CreateRectRgnIndirect(Rect);
+      end;
+    Circle:
+      begin
+        if Cnt < 3 then
+          Exit;
+        Rad := Coords[2];
+        Dec(Coords[0], Rad);
+        Dec(Coords[1], Rad);
+        Coords[2] := Coords[0] + 2 * Rad + 1;
+        Coords[3] := Coords[1] + 2 * Rad + 1;
+        Handle := CreateEllipticRgnIndirect(Rect);
+      end;
+    Poly:
+      begin
+        if Cnt < 6 then
+          Exit;
+        Handle := CreatePolygonRgn(Coords, Cnt div 2, Winding);
+      end;
   end;
-if Handle <> 0 then
+  if Handle <> 0 then
   begin
-  Areas.AddObject(HRef, TObject(Handle));
-  AreaTargets.Add(Target);
-  AreaTitles.Add(Title);
+    Areas.AddObject(HRef, TObject(Handle));
+    AreaTargets.Add(Target);
+    AreaTitles.Add(Title);
   end;
 end;
 
-function KindOfImageFile(FName: String): ImageType;
+function KindOfImageFile(FName: string): ImageType;
 var
   Mem: TMemoryStream;
 begin
-Result := NoImage;
-if FileExists(FName) then
+  Result := NoImage;
+  if FileExists(FName) then
   begin
-  Mem := TMemoryStream.Create;
-  try
-    Mem.LoadFromFile(FName);
-    if Mem.Size >=10 then
-      Result := KindOfImage(Mem.Memory);
-  finally
-    Mem.Free;
+    Mem := TMemoryStream.Create;
+    try
+      Mem.LoadFromFile(FName);
+      if Mem.Size >= 10 then
+        Result := KindOfImage(Mem.Memory);
+    finally
+      Mem.Free;
     end;
   end;
 end;
@@ -1737,15 +1776,21 @@ var
   PW: ^Word absolute Start;
   PL: ^DWord absolute Start;
 begin
-if PL^ = $38464947 then
+  if PL^ = $38464947 then
   begin
-  if PB^[4] = Ord('9') then Result := Gif89
-  else Result := Gif;
+    if PB^[4] = Ord('9') then
+      Result := Gif89
+    else
+      Result := Gif;
   end
-else if PW^ = $4D42 then Result := Bmp
-else if PL^ = $474E5089 then Result := Png
-else if PW^ = $D8FF then Result := Jpg
-else Result := NoImage;
+  else if PW^ = $4D42 then
+    Result := Bmp
+  else if PL^ = $474E5089 then
+    Result := Png
+  else if PW^ = $D8FF then
+    Result := Jpg
+  else
+    Result := NoImage;
 end;
 
 {$A-} {record field alignment off for this routine}
@@ -1753,10 +1798,10 @@ end;
 function IsTransparent(Stream: TStream; var Color: TColor): boolean;
 {Makes some simplifying assumptions that seem to be generally true for single
  images.}
-Type
+type
   RGB = record
     Red, Green, Blue: byte;
-    end;
+  end;
 
   GifHeader = record
     GIF: array[0..2] of Ansichar;
@@ -1765,40 +1810,44 @@ Type
     Field: Byte;
     BackGroundColorIndex: byte;
     AspectRatio: byte;
-    end;
+  end;
   ColorArray = array[0..255] of RGB;
 
 var
   Header: ^GifHeader;
   X: integer;
   Colors: ^ColorArray;
-  Buff: array[0..Sizeof(GifHeader)+Sizeof(ColorArray)+8] of byte;
+  Buff: array[0..Sizeof(GifHeader) + Sizeof(ColorArray) + 8] of byte;
   P: PByte;
   OldPosition: integer;
 
 begin
-Result := False;
-Fillchar(Buff, Sizeof(Buff), 0);  {in case read comes short}
-OldPosition := Stream.Position;
-Stream.Position := 0;
-Stream.Read(Buff, Sizeof(Buff));
-Stream.Position := OldPosition;
+  Result := False;
+  Fillchar(Buff, Sizeof(Buff), 0); {in case read comes short}
+  OldPosition := Stream.Position;
+  Stream.Position := 0;
+  Stream.Read(Buff, Sizeof(Buff));
+  Stream.Position := OldPosition;
 
-Header := @Buff;
-if KindOfImage(Header) <> Gif89 then Exit;
-Colors := @Buff[Sizeof(GifHeader)];
-with Header^ do
+  Header := @Buff;
+  if KindOfImage(Header) <> Gif89 then
+    Exit;
+  Colors := @Buff[Sizeof(GifHeader)];
+  with Header^ do
   begin
-  X := 1 shl ((Field and 7) +1) - 1;  {X is last item in color table}
-  if X = 0 then Exit;   {no main color table}
+    X := 1 shl ((Field and 7) + 1) - 1; {X is last item in color table}
+    if X = 0 then
+      Exit; {no main color table}
   end;
-P := PByte(PtrInt(Colors)+(X+1)*Sizeof(RGB));
-if (P^ <> $21) or (PByte(PtrInt(P)+1)^ <> $F9) then Exit;  {extension block not found}
-if (ord(PByteArray(P)[3]) and 1 <> 1) then Exit;     {no transparent color specified}
+  P := PByte(PtrInt(Colors) + (X + 1) * Sizeof(RGB));
+  if (P^ <> $21) or (PByte(PtrInt(P) + 1)^ <> $F9) then
+    Exit; {extension block not found}
+  if (ord(PByteArray(P)[3]) and 1 <> 1) then
+    Exit; {no transparent color specified}
 
-with Colors^[Ord(PByteArray(P)[6])] do
-  Color := integer(Blue) shl 16 or integer(Green) shl 8 or integer(Red);
-Result := True;
+  with Colors^[Ord(PByteArray(P)[6])] do
+    Color := integer(Blue) shl 16 or integer(Green) shl 8 or integer(Red);
+  Result := True;
 end;
 
 {$A+}
@@ -1808,67 +1857,67 @@ end;
 
 
 function IsTransparentPng(Stream: TStream; var Color: TColor): boolean;
-Type
+type
   RGB = record
     Red, Green, Blue: byte;
-    end;
+  end;
 
   PngHeader = record
-    width       : integer;
-    height      : integer;
-    bitDepth    : byte;
-    colorType   : byte;
-    compression : byte;
-    filter      : byte;
-    interlace   : byte;
-    end;
+    width: integer;
+    height: integer;
+    bitDepth: byte;
+    colorType: byte;
+    compression: byte;
+    filter: byte;
+    interlace: byte;
+  end;
 var
   Header: PngHeader;
   CRC: integer;
   OldPosition: integer;
   pngPalette: array[0..255] of RGB;
-  dataSize : integer;
+  dataSize: integer;
   chunkType: array[0..4] of AnsiChar;
   chunkTypeStr: string;
-  done : Boolean;
-  Ar: Array[0..10] of byte;
+  done: Boolean;
+  Ar: array[0..10] of byte;
   Alpha: array[0..255] of byte;
   I: integer;
 
   function IntSwap(data: integer): integer;
   var
-     byte0 : integer;
-     byte1 : integer;
-     byte2 : integer;
-     byte3 : integer;
+    byte0: integer;
+    byte1: integer;
+    byte2: integer;
+    byte3: integer;
   begin
-     byte0 := data and $FF;
-     byte1 := (data shr 8) and $FF;
-     byte2 := (data shr 16) and $FF;
-     byte3 := (data shr 24) and $FF;
+    byte0 := data and $FF;
+    byte1 := (data shr 8) and $FF;
+    byte2 := (data shr 16) and $FF;
+    byte3 := (data shr 24) and $FF;
 
-     result := (byte0 shl 24) or (byte1 shl 16) or (byte2 shl 8) or byte3;
+    result := (byte0 shl 24) or (byte1 shl 16) or (byte2 shl 8) or byte3;
   end;
 
 begin
-result := false;
-OldPosition := Stream.Position;
+  result := false;
+  OldPosition := Stream.Position;
 
-try
-   Stream.Position := 0;
-   Stream.Read(Ar, 8);
+  try
+    Stream.Position := 0;
+    Stream.Read(Ar, 8);
 
-   if KindOfImage(@Ar) <> Png then
-     begin
-     Stream.Position := OldPosition;
-     Exit;
-     end;
+    if KindOfImage(@Ar) <> Png then
+    begin
+      Stream.Position := OldPosition;
+      Exit;
+    end;
 
-   Stream.Position := 8; {past the PNG Signature}
-   done := False;
+    Stream.Position := 8; {past the PNG Signature}
+    done := False;
 
 {Read Chunks}
-   repeat
+    repeat
       Stream.Read(dataSize, 4);
       dataSize := IntSwap(dataSize);
       Stream.Read(chunkType, 4);
@@ -1876,50 +1925,50 @@ try
       chunkTypeStr := StrPas(chunkType);
       if chunkTypeStr = 'IHDR' then
       begin
-         Stream.Read(Header, DataSize);
-         Header.width := IntSwap(Header.width);
-         Header.height := IntSwap(Header.height);
-         Stream.Read(CRC, 4); {read it in case we need to read more}
-         if (Header.colorType < 2) or (Header.colorType > 3) then
-            done := True; {only type 2 and 3 use tRNS}
+        Stream.Read(Header, DataSize);
+        Header.width := IntSwap(Header.width);
+        Header.height := IntSwap(Header.height);
+        Stream.Read(CRC, 4); {read it in case we need to read more}
+        if (Header.colorType < 2) or (Header.colorType > 3) then
+          done := True; {only type 2 and 3 use tRNS}
       end
       else if chunkTypeStr = 'PLTE' then
       begin
-         Stream.Read(pngPalette, DataSize);
-         Stream.Read(CRC, 4); {read it in case we need to read more}
+        Stream.Read(pngPalette, DataSize);
+        Stream.Read(CRC, 4); {read it in case we need to read more}
       end
-      else if chunkTypeStr =  'tRNS' then
-        begin
+      else if chunkTypeStr = 'tRNS' then
+      begin
         if Header.colorType = 3 then
-          begin
+        begin
           {there can be DataSize transparent or partial transparent colors.  We only accept one fully transparent color}
           Stream.Read(Alpha, DataSize);
-          for I := 0 to DataSize -1 do
-            if Alpha[I] = 0 then  {0 means full transparency}
-              begin
+          for I := 0 to DataSize - 1 do
+            if Alpha[I] = 0 then {0 means full transparency}
+            begin
               with pngPalette[I] do
                 Color := integer(Blue) shl 16 or integer(Green) shl 8 or integer(Red);
               Result := True;
               break;
-              end;
-          end
-        else  {has to have been 2}
-          begin
-            {for now I am ignoring this since I can't make one}
-          end;
-        done := true; {got everything we need at this point}
+            end;
         end
+        else {has to have been 2}
+        begin
+            {for now I am ignoring this since I can't make one}
+        end;
+        done := true; {got everything we need at this point}
+      end
       else if chunkTypeStr = 'IDAT' then
-         done := True {if this chunk is hit there is no tRNS}
+        done := True {if this chunk is hit there is no tRNS}
       else
-         Stream.Position := Stream.Position + dataSize + 4; {additional 4 for the CRC}
+        Stream.Position := Stream.Position + dataSize + 4; {additional 4 for the CRC}
       if Stream.Position >= Stream.Size then
-         Done := True;
-   until done = True;
-except
-   end;
+        Done := True;
+    until done = True;
+  except
+  end;
 
-Stream.Position := OldPosition;
+  Stream.Position := OldPosition;
 end;
 
 {$A+}
@@ -1930,20 +1979,21 @@ function TransparentGIF(const FName: string; var Color: TColor): boolean;
 var
   Stream: TFileStream;
 begin
-Result := False;
-try
-  Stream := TFileStream.Create(FName, fmShareDenyWrite or FmOpenRead);
+  Result := False;
   try
-    Result := IsTransparent(Stream, Color);
-  finally
-    Stream.Free;
-  end;
-except
+    Stream := TFileStream.Create(FName, fmShareDenyWrite or FmOpenRead);
+    try
+      Result := IsTransparent(Stream, Color);
+    finally
+      Stream.Free;
+    end;
+  except
   end;
 end;
 
 function ConvertImage(Bitmap: TBitmap): TBitmap;
 {convert bitmap into a form for BitBlt later}
+
   function DIBConvert: TBitmap;
   var
     DC: HDC;
@@ -1952,76 +2002,79 @@ function ConvertImage(Bitmap: TBitmap): TBitmap;
     OldPal: HPalette;
     Hnd: HBitmap;
   begin
-  DC := CreateCompatibleDC(0);
-  OldBmp := SelectObject(DC, Bitmap.Handle);
-  OldPal := SelectPalette(DC, ThePalette, False);
-  RealizePalette(DC);
-  DIB := TDib.CreateDIB(DC, Bitmap);
-  Hnd := DIB.CreateDIBmp;
-  DIB.Free;
-  SelectPalette(DC, OldPal, False);
-  SelectObject(DC, OldBmp);
-  DeleteDC(DC);
-  Bitmap.Free;
-  Result := TBitmap.Create;
-  Result.Handle := Hnd;
-  if (ColorBits = 8) and (Result.Palette = 0) then
-    Result.Palette := CopyPalette(ThePalette);
+    DC := CreateCompatibleDC(0);
+    OldBmp := SelectObject(DC, Bitmap.Handle);
+    OldPal := SelectPalette(DC, ThePalette, False);
+    RealizePalette(DC);
+    DIB := TDib.CreateDIB(DC, Bitmap);
+    Hnd := DIB.CreateDIBmp;
+    DIB.Free;
+    SelectPalette(DC, OldPal, False);
+    SelectObject(DC, OldBmp);
+    DeleteDC(DC);
+    Bitmap.Free;
+    Result := TBitmap.Create;
+    Result.Handle := Hnd;
+    if (ColorBits = 8) and (Result.Palette = 0) then
+      Result.Palette := CopyPalette(ThePalette);
   end;
 
 begin
-if not Assigned(Bitmap) then
+  if not Assigned(Bitmap) then
   begin
-  Result := Nil;
-  Exit;
+    Result := nil;
+    Exit;
   end;
 
-if ColorBits > 8 then
+  if ColorBits > 8 then
   begin
-  if Bitmap.PixelFormat <= pf8bit then
-    Result := DIBConvert
-  else
-    Result := Bitmap;
-  Exit;
+    if Bitmap.PixelFormat <= pf8bit then
+      Result := DIBConvert
+    else
+      Result := Bitmap;
+    Exit;
   end;
 
-if Bitmap.HandleType = bmDIB then
+  if Bitmap.HandleType = bmDIB then
   begin
-  Result := GetBitmap(Bitmap);
-  Bitmap.Free;
-  Exit;
+    Result := GetBitmap(Bitmap);
+    Bitmap.Free;
+    Exit;
   end;
-Result := DIBConvert;
+  Result := DIBConvert;
 end;
 
 {----------------GetImageAndMaskFromFile}
-function GetImageAndMaskFromFile(const Filename: String; var Transparent: Transparency;
-                            var Mask: TBitmap): TgpObject;
+
+function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
+  var Mask: TBitmap): TgpObject;
 var
   Stream: TMemoryStream;
 begin
-Result := Nil;
-Mask := Nil;
-if not FileExists(Filename) then Exit;
-if GDIPlusActive and (KindOfImageFile(Filename) = Png) then
+  Result := nil;
+  Mask := nil;
+  if not FileExists(Filename) then
+    Exit;
+  if GDIPlusActive and (KindOfImageFile(Filename) = Png) then
   begin
-  Result := TObject(TGPBitmap.Create(Filename));
+    Result := TObject(TGPBitmap.Create(Filename));
   end
-else
+  else
   begin
-  Stream := TMemoryStream.Create;
-  Stream.LoadFromFile(Filename);
-  try
-    Result := GetImageAndMaskFromStream(Stream, Transparent, Mask);
-  finally
-    Stream.Free;
+    Stream := TMemoryStream.Create;
+    Stream.LoadFromFile(Filename);
+    try
+      Result := GetImageAndMaskFromStream(Stream, Transparent, Mask);
+    finally
+      Stream.Free;
     end;
   end;
 end;
 
 {----------------GetBitmapAndMaskFromStream}
+
 function GetBitmapAndMaskFromStream(Stream: TMemoryStream;
-        var Transparent: Transparency; var AMask: TBitmap): TBitmap;
+  var Transparent: Transparency; var AMask: TBitmap): TBitmap;
 var
   IT: ImageType;
   jpImage: TJpegMod;
@@ -2031,34 +2084,35 @@ var
 //  Tmp: TBitmap;
 //  {$endif}
 begin
-Result := Nil;
-AMask := Nil;
-if not Assigned(Stream) or (Stream.Memory = Nil) or (Stream.Size < 20) then
-  Exit;
-Stream.Position := 0;
-IT := KindOfImage(Stream.Memory);
+  Result := nil;
+  AMask := nil;
+  if not Assigned(Stream) or (Stream.Memory = nil) or (Stream.Size < 20) then
+    Exit;
+  Stream.Position := 0;
+  IT := KindOfImage(Stream.Memory);
 
-if not (IT in [Bmp, Jpg, Png]) then
-  Exit;
+  if not (IT in [Bmp, Jpg, Png]) then
+    Exit;
 
-Result := TBitmap.Create;
-try
-  if IT = Jpg then
+  Result := TBitmap.Create;
+  try
+    if IT = Jpg then
     begin
-    Transparent := NotTransp;
-    jpImage := TJpegMod.Create;
-    try
-      jpImage.LoadFromStream(Stream);
-      if ColorBits <= 8 then
+      Transparent := NotTransp;
+      jpImage := TJpegMod.Create;
+      try
+        jpImage.LoadFromStream(Stream);
+        if ColorBits <= 8 then
         begin
-        jpImage.PixelFormat := jf8bit;
-        if not jpImage.GrayScale and (ColorBits = 8) then
-          jpImage.Palette := CopyPalette(ThePalette);
+          jpImage.PixelFormat := jf8bit;
+          if not jpImage.GrayScale and (ColorBits = 8) then
+            jpImage.Palette := CopyPalette(ThePalette);
         end
-      else jpImage.PixelFormat := jf24bit;
-      Result.Assign(jpImage.Bitmap);
-    finally
-      jpImage.Free;
+        else
+          jpImage.PixelFormat := jf24bit;
+        Result.Assign(jpImage.Bitmap);
+      finally
+        jpImage.Free;
       end;
     end
 //  {$ifndef NoOldPng}
@@ -2076,17 +2130,17 @@ try
 //     end;
 //    end
 //  {$else}
-  else if IT = Png then
-    Result := Nil
+    else if IT = Png then
+      Result := nil
 //  {$endif}
-  else
+    else
     begin
-    Result.LoadFromStream(Stream);   {Bitmap}
+      Result.LoadFromStream(Stream); {Bitmap}
     end;
-  if Transparent = LLCorner then
-    AMask := GetImageMask(Result, False, 0)
+    if Transparent = LLCorner then
+      AMask := GetImageMask(Result, False, 0)
 //  {$ifdef NoOldPng}
-     ;
+      ;
 //  {$else}
 //  else if Transparent = TPng then
 //    begin
@@ -2110,10 +2164,10 @@ try
 //    Tmp.Free;
 //    end;
 //  {$endif}
-  Result := ConvertImage(Result);
-except
-  Result.Free;
-  Result := Nil;
+    Result := ConvertImage(Result);
+  except
+    Result.Free;
+    Result := nil;
   end;
 end;
 
@@ -2121,77 +2175,78 @@ var
   Unique: integer = 183902;
 
 {----------------GetImageAndMaskFromStream}
+
 function GetImageAndMaskFromStream(Stream: TMemoryStream;
-        var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+  var Transparent: Transparency; var AMask: TBitmap): TgpObject;
 var
   Filename: string;
   Path: array[0..Max_Path] of Ansichar;
-  F: File;
+  F: file;
   I: integer;
 begin
-Result := Nil;
-AMask := Nil;
-if not Assigned(Stream) or (Stream.Memory = Nil) or (Stream.Size < 20) then
-  Exit;
-Stream.Position := 0;
-if GDIPlusActive and (KindOfImage(Stream.Memory) = png) then
+  Result := nil;
+  AMask := nil;
+  if not Assigned(Stream) or (Stream.Memory = nil) or (Stream.Size < 20) then
+    Exit;
+  Stream.Position := 0;
+  if GDIPlusActive and (KindOfImage(Stream.Memory) = png) then
   begin
-  try
-    GetTempPath(Max_Path, @Path);
-    SetLength(Filename, Max_Path+1);
-    GetTempFilename(@Path, 'png', Unique, PChar(Filename));
-    Inc(Unique);
-    I := Pos(#0, Filename);
-    SetLength(Filename, I-1);
-    AssignFile(F, Filename);
-    ReWrite(F, 1);
-    BlockWrite(F, Stream.Memory^, Stream.Size);
-    CloseFile(F);
-    Result := TgpImage.Create(Filename, True);  {True because it's a temporary file}
-    Transparent :=  NotTransp;
-  except
+    try
+      GetTempPath(Max_Path, @Path);
+      SetLength(Filename, Max_Path + 1);
+      GetTempFilename(@Path, 'png', Unique, PChar(Filename));
+      Inc(Unique);
+      I := Pos(#0, Filename);
+      SetLength(Filename, I - 1);
+      AssignFile(F, Filename);
+      ReWrite(F, 1);
+      BlockWrite(F, Stream.Memory^, Stream.Size);
+      CloseFile(F);
+      Result := TgpImage.Create(Filename, True); {True because it's a temporary file}
+      Transparent := NotTransp;
+    except
     end;
-  Exit;
+    Exit;
   end;
 
-Result := GetBitmapAndMaskFromStream(Stream, Transparent, AMask);
-{$ifndef NoMetafile}
-if not Assigned(Result) then
+  Result := GetBitmapAndMaskFromStream(Stream, Transparent, AMask);
+{$IFNDEF NoMetafile}
+  if not Assigned(Result) then
   begin
-  Result := ThtMetafile.Create;
-  try
-    AMask := Nil;
-    Transparent := NotTransp;
-    ThtMetaFile(Result).LoadFromStream(Stream);
-  except
-    FreeAndNil(Result);
+    Result := ThtMetafile.Create;
+    try
+      AMask := nil;
+      Transparent := NotTransp;
+      ThtMetaFile(Result).LoadFromStream(Stream);
+    except
+      FreeAndNil(Result);
     end;
   end;
-{$endif}
+{$ENDIF}
 end;
 
 function GetImageMask(Image: TBitmap; ColorValid: boolean; AColor: TColor): TBitmap;
 begin
-try
-  if ColorValid then
-    Image.TransparentColor := AColor;  {color has already been selected}
+  try
+    if ColorValid then
+      Image.TransparentColor := AColor; {color has already been selected}
   {else the transparent color is the lower left pixel of the bitmap}
 
-  Image.Transparent := True;
+    Image.Transparent := True;
 
-  Result := TBitmap.Create;
-  try
-    Result.Handle := Image.ReleaseMaskHandle;
-    Image.Transparent := False;
-  except
-    FreeAndNil(Result);
+    Result := TBitmap.Create;
+    try
+      Result.Handle := Image.ReleaseMaskHandle;
+      Image.Transparent := False;
+    except
+      FreeAndNil(Result);
     end;
-except
-  Result := Nil;
+  except
+    Result := nil;
   end;
 end;
 
-function GetImageFromFile(const Filename: String): TBitmap;
+function GetImageFromFile(const Filename: string): TBitmap;
 {used only externally in OnBitmapRequest handler}
 var
   IT: ImageType;
@@ -2205,208 +2260,210 @@ var
     TmpGif: TGifImage;
     NonAnimated: boolean;
   begin
-  Result := Nil;
-  TmpGif := CreateAGifFromStream(NonAnimated, Stream);
-  if Assigned(TmpGif) then
+    Result := nil;
+    TmpGif := CreateAGifFromStream(NonAnimated, Stream);
+    if Assigned(TmpGif) then
     begin
-    Result := TBitmap.Create;
-    try
-      Result.Assign(TmpGif.Bitmap);
-    except
-      Result.Free;
-      Result := Nil;
+      Result := TBitmap.Create;
+      try
+        Result.Assign(TmpGif.Bitmap);
+      except
+        Result.Free;
+        Result := nil;
       end;
-    TmpGif.Free;
+      TmpGif.Free;
     end
   end;
 
 begin
-Result := Nil;
-try
-  Stream := TMemoryStream.Create;
+  Result := nil;
   try
-    Stream.LoadFromFile(Filename);
-    IT := KindOfImage(Stream.Memory);
-    if IT in [Gif, Gif89] then
-      Result := GetGif
-    else
+    Stream := TMemoryStream.Create;
+    try
+      Stream.LoadFromFile(Filename);
+      IT := KindOfImage(Stream.Memory);
+      if IT in [Gif, Gif89] then
+        Result := GetGif
+      else
       begin
-      GpObj := GetImageAndMaskFromStream(Stream, Transparent, Mask);
-      Mask.Free;
-      if GpObj is TBitmap then
-        Result := TBitmap(GpObj)
-{$ifndef NoMetafile}
-      else if GpObj is ThtMetafile then
+        GpObj := GetImageAndMaskFromStream(Stream, Transparent, Mask);
+        Mask.Free;
+        if GpObj is TBitmap then
+          Result := TBitmap(GpObj)
+{$IFNDEF NoMetafile}
+        else if GpObj is ThtMetafile then
         begin
-        Result := TBitmap.Create;
-        Result.Assign(ThtMetafile(GpObj).WhiteBGBitmap);
-        GpObj.Free;
+          Result := TBitmap.Create;
+          Result.Assign(ThtMetafile(GpObj).WhiteBGBitmap);
+          GpObj.Free;
         end
-{$endif}
-      else if GpObj is TGpImage then
+{$ENDIF}
+        else if GpObj is TGpImage then
         begin
-        Result := TBitmap.Create;
-        Result.Assign(TGpImage(GpObj).GetTBitmap);
-        GpObj.Free;
+          Result := TBitmap.Create;
+          Result.Assign(TGpImage(GpObj).GetTBitmap);
+          GpObj.Free;
         end;
       end;
-  finally
-    Stream.Free;
+    finally
+      Stream.Free;
     end;
-except
-  Result := Nil;
+  except
+    Result := nil;
   end;
 end;
 
 {----------------FinishTransparentBitmap }
-procedure FinishTransparentBitmap (ahdc: HDC;
-              InImage, Mask: TBitmap; xStart, yStart, W, H: integer);
+
+procedure FinishTransparentBitmap(ahdc: HDC;
+  InImage, Mask: TBitmap; xStart, yStart, W, H: integer);
 var
   bmAndBack,
-  bmSave,
-  bmBackOld,
-  bmObjectOld : HBitmap;
+    bmSave,
+    bmBackOld,
+    bmObjectOld: HBitmap;
   hdcInvMask,
-  hdcMask,
-  hdcImage: HDC;
-  DestSize, SrcSize : TPoint;
+    hdcMask,
+    hdcImage: HDC;
+  DestSize, SrcSize: TPoint;
   OldBack, OldFore: TColor;
   BM: Windows.TBitmap;
   Image: TBitmap;
 
 begin
-Image := TBitmap.Create;  {protect original image}
-try
-  Image.Assign(InImage);
+  Image := TBitmap.Create; {protect original image}
+  try
+    Image.Assign(InImage);
 
-  hdcImage := CreateCompatibleDC (ahdc);
-  SelectObject (hdcImage, Image.Handle); { select the bitmap }
+    hdcImage := CreateCompatibleDC(ahdc);
+    SelectObject(hdcImage, Image.Handle); { select the bitmap }
 
   { convert bitmap dimensions from device to logical points}
-  SrcSize.x := Image.Width;
-  SrcSize.y := Image.Height;
-  DPtoLP(hdcImage, SrcSize, 1);
+    SrcSize.x := Image.Width;
+    SrcSize.y := Image.Height;
+    DPtoLP(hdcImage, SrcSize, 1);
 
-  DestSize.x := W;
-  DestSize.y := H;
-  DPtoLP (hdcImage, DestSize, 1);
+    DestSize.x := W;
+    DestSize.y := H;
+    DPtoLP(hdcImage, DestSize, 1);
 
   { create a bitmap for each DC}
   { monochrome DC}
-  bmAndBack := CreateBitmap (SrcSize.x, SrcSize.y, 1, 1, nil);
+    bmAndBack := CreateBitmap(SrcSize.x, SrcSize.y, 1, 1, nil);
 
-  bmSave := CreateCompatibleBitmap (ahdc, DestSize.x, DestSize.y);
-  GetObject(bmSave, SizeOf(BM), @BM);
-  if (BM.bmBitsPixel > 1) or (BM.bmPlanes > 1) then
+    bmSave := CreateCompatibleBitmap(ahdc, DestSize.x, DestSize.y);
+    GetObject(bmSave, SizeOf(BM), @BM);
+    if (BM.bmBitsPixel > 1) or (BM.bmPlanes > 1) then
     begin
     { create some DCs to hold temporary data}
-    hdcInvMask   := CreateCompatibleDC(ahdc);
-    hdcMask := CreateCompatibleDC(ahdc);
+      hdcInvMask := CreateCompatibleDC(ahdc);
+      hdcMask := CreateCompatibleDC(ahdc);
 
     { each DC must select a bitmap object to store pixel data}
-    bmBackOld   := SelectObject (hdcInvMask, bmAndBack);
+      bmBackOld := SelectObject(hdcInvMask, bmAndBack);
 
     { set proper mapping mode}
-    SetMapMode (hdcImage, GetMapMode (ahdc));
+      SetMapMode(hdcImage, GetMapMode(ahdc));
 
-    bmObjectOld := SelectObject(hdcMask, Mask.Handle);
+      bmObjectOld := SelectObject(hdcMask, Mask.Handle);
 
     { create the inverse of the object mask}
-    BitBlt (hdcInvMask, 0, 0, SrcSize.x, SrcSize.y, hdcMask, 0, 0, NOTSRCCOPY);
+      BitBlt(hdcInvMask, 0, 0, SrcSize.x, SrcSize.y, hdcMask, 0, 0, NOTSRCCOPY);
 
     {set the background color of the source DC to the color contained in the
      parts of the bitmap that should be transparent, the foreground to the parts that
      will show}
-    OldBack := SetBkColor(ahDC, clWhite);
-    OldFore := SetTextColor(ahDC, clBlack);
+      OldBack := SetBkColor(ahDC, clWhite);
+      OldFore := SetTextColor(ahDC, clBlack);
 
     { Punch out a black hole in the background where the image will go}
-    SetStretchBltMode(ahDC, WhiteOnBlack);
-    StretchBlt (ahDC, XStart, YStart, DestSize.x, DestSize.y, hdcMask, 0, 0, SrcSize.x, SrcSize.y, SRCAND);
+      SetStretchBltMode(ahDC, WhiteOnBlack);
+      StretchBlt(ahDC, XStart, YStart, DestSize.x, DestSize.y, hdcMask, 0, 0, SrcSize.x, SrcSize.y, SRCAND);
 
     { mask out the transparent colored pixels on the bitmap}
-    BitBlt (hdcImage, 0, 0, SrcSize.x, SrcSize.y, hdcInvMask, 0, 0, SRCAND);
+      BitBlt(hdcImage, 0, 0, SrcSize.x, SrcSize.y, hdcInvMask, 0, 0, SRCAND);
 
     { XOR the bitmap with the background on the destination DC}
-    SetStretchBltMode(ahDC, ColorOnColor);
-    StretchBlt(ahDC, XStart, YStart, W, H, hdcImage, 0, 0, Image.Width, Image.Height, SRCPAINT);
+      SetStretchBltMode(ahDC, ColorOnColor);
+      StretchBlt(ahDC, XStart, YStart, W, H, hdcImage, 0, 0, Image.Width, Image.Height, SRCPAINT);
 
-    SetBkColor(ahDC, OldBack);
-    SetTextColor(ahDC, OldFore);
+      SetBkColor(ahDC, OldBack);
+      SetTextColor(ahDC, OldFore);
 
     { delete the memory bitmaps}
-    DeleteObject (SelectObject (hdcInvMask, bmBackOld));
-    SelectObject (hdcMask, bmObjectOld);
+      DeleteObject(SelectObject(hdcInvMask, bmBackOld));
+      SelectObject(hdcMask, bmObjectOld);
 
     { delete the memory DCs}
-    DeleteDC (hdcInvMask);
-    DeleteDC (hdcMask);
+      DeleteDC(hdcInvMask);
+      DeleteDC(hdcMask);
     end
-  else
+    else
     begin
-    DeleteObject(bmAndBack);
+      DeleteObject(bmAndBack);
     end;
-  DeleteObject(bmSave);
-  DeleteDC (hdcImage);
-finally
-  Image.Free;
+    DeleteObject(bmSave);
+    DeleteDC(hdcImage);
+  finally
+    Image.Free;
   end;
 end;
 
 {----------------TDib.CreateDIB}
+
 constructor TDib.CreateDIB(DC: HDC; Bitmap: TBitmap);
 {given a TBitmap, construct a device independent bitmap}
 var
   ImgSize: DWord;
 begin
-InitializeBitmapInfoHeader(Bitmap.Handle);
-ImgSize := Info^.biSizeImage;
-Allocate(ImgSize);
-try
-  GetDIBX(DC, Bitmap.Handle, Bitmap.Palette);
-except
-  DeAllocate;
-  Raise;
+  InitializeBitmapInfoHeader(Bitmap.Handle);
+  ImgSize := Info^.biSizeImage;
+  Allocate(ImgSize);
+  try
+    GetDIBX(DC, Bitmap.Handle, Bitmap.Palette);
+  except
+    DeAllocate;
+    raise;
   end;
 end;
 
 destructor TDib.Destroy;
 begin
-DeAllocate;
-inherited Destroy;
+  DeAllocate;
+  inherited Destroy;
 end;
 
 procedure TDib.Allocate(Size: integer);
 begin
-ImageSize := Size;
-if Size < $FF00 then
-  GetMem(Image, Size)
-else
-   begin
-   FHandle := GlobalAlloc(HeapAllocFlags, Size);
-   if FHandle = 0 then
-       ABort;
-   Image := GlobalLock(FHandle);
-   end;
+  ImageSize := Size;
+  if Size < $FF00 then
+    GetMem(Image, Size)
+  else
+  begin
+    FHandle := GlobalAlloc(HeapAllocFlags, Size);
+    if FHandle = 0 then
+      ABort;
+    Image := GlobalLock(FHandle);
+  end;
 end;
 
 procedure TDib.DeAllocate;
 begin
-if ImageSize > 0 then
+  if ImageSize > 0 then
   begin
-  if ImageSize < $FF00 then
-    Freemem(Image, ImageSize)
-  else
+    if ImageSize < $FF00 then
+      Freemem(Image, ImageSize)
+    else
     begin
-    GlobalUnlock(FHandle);
-    GlobalFree(FHandle);
+      GlobalUnlock(FHandle);
+      GlobalFree(FHandle);
     end;
-  ImageSize := 0;
+    ImageSize := 0;
   end;
-if InfoSize > 0 then
+  if InfoSize > 0 then
   begin
-  FreeMem(Info, InfoSize);
-  InfoSize := 0;
+    FreeMem(Info, InfoSize);
+    InfoSize := 0;
   end;
 end;
 
@@ -2415,35 +2472,35 @@ var
   BM: Windows.TBitmap;
   BitCount: integer;
 
-   function WidthBytes(I: integer): integer;
-   begin
-     Result := ((I + 31) div 32) * 4;
-   end;
+  function WidthBytes(I: integer): integer;
+  begin
+    Result := ((I + 31) div 32) * 4;
+  end;
 
 begin
-GetObject(Bitmap, SizeOf(BM), @BM);
-BitCount := BM.bmBitsPixel * BM.bmPlanes;
-if BitCount > 8 then
-  InfoSize := SizeOf(TBitmapInfoHeader)
-else
-  InfoSize := SizeOf(TBitmapInfoHeader) + SizeOf(TRGBQuad) * (1 shl BitCount);
-GetMem(Info, InfoSize);
+  GetObject(Bitmap, SizeOf(BM), @BM);
+  BitCount := BM.bmBitsPixel * BM.bmPlanes;
+  if BitCount > 8 then
+    InfoSize := SizeOf(TBitmapInfoHeader)
+  else
+    InfoSize := SizeOf(TBitmapInfoHeader) + SizeOf(TRGBQuad) * (1 shl BitCount);
+  GetMem(Info, InfoSize);
 
-with Info^ do
+  with Info^ do
   begin
-  biSize := SizeOf(TBitmapInfoHeader);
-  biWidth := BM.bmWidth;
-  biHeight := BM.bmHeight;
-  biBitCount := BM.bmBitsPixel * BM.bmPlanes;
-  biPlanes := 1;
-  biXPelsPerMeter := 0;
-  biYPelsPerMeter := 0;
-  biClrUsed := 0;
-  biClrImportant := 0;
-  biCompression := BI_RGB;
-  if biBitCount in [16, 32] then
-    biBitCount := 24;
-  biSizeImage := WidthBytes(biWidth * biBitCount) * biHeight;
+    biSize := SizeOf(TBitmapInfoHeader);
+    biWidth := BM.bmWidth;
+    biHeight := BM.bmHeight;
+    biBitCount := BM.bmBitsPixel * BM.bmPlanes;
+    biPlanes := 1;
+    biXPelsPerMeter := 0;
+    biYPelsPerMeter := 0;
+    biClrUsed := 0;
+    biClrImportant := 0;
+    biCompression := BI_RGB;
+    if biBitCount in [16, 32] then
+      biBitCount := 24;
+    biSizeImage := WidthBytes(biWidth * biBitCount) * biHeight;
   end;
 end;
 
@@ -2455,28 +2512,28 @@ var
 begin
   OldPal := 0;
   if Palette <> 0 then
-    begin
+  begin
     OldPal := SelectPalette(DC, Palette, False);
     RealizePalette(DC);
-    end;
+  end;
   bmInfo := PBitmapInfo(Info);
   Rslt := GetDIBits(DC, Bitmap, 0, Info^.biHeight, Image, bmInfo^, DIB_RGB_COLORS);
   if OldPal <> 0 then
     SelectPalette(DC, OldPal, False);
   if Rslt = 0 then
-    begin
+  begin
     OutofMemoryError;
-    end;
+  end;
 end;
 
 procedure TDib.DrawDIB(DC: HDC; X: Integer; Y: integer; W, H: integer;
-          ROP: DWord);
+  ROP: DWord);
 var
   bmInfo: PBitmapInfo;
 begin
-bmInfo := PBitmapInfo(Info);
-with Info^ do
-  StretchDIBits(DC, X, Y, W, H, 0, 0, biWidth, biHeight, Image,
+  bmInfo := PBitmapInfo(Info);
+  with Info^ do
+    StretchDIBits(DC, X, Y, W, H, 0, 0, biWidth, biHeight, Image,
       bmInfo^, DIB_RGB_COLORS, ROP);
 end;
 
@@ -2486,76 +2543,78 @@ var
   DC: HDC;
   OldPal: HPalette;
 begin
-bmInfo := PBitmapInfo(Info);
-DC := GetDC(0);
-OldPal := SelectPalette(DC, ThePalette, False);
-RealizePalette(DC);
-try
-  Result := CreateDIBitmap(DC, bmInfo^.bmiHeader, CBM_INIT, Image,
-            bmInfo^, DIB_RGB_COLORS);
-finally
-  SelectPalette(DC, OldPal, False);
-  ReleaseDC(0, DC);
+  bmInfo := PBitmapInfo(Info);
+  DC := GetDC(0);
+  OldPal := SelectPalette(DC, ThePalette, False);
+  RealizePalette(DC);
+  try
+    Result := CreateDIBitmap(DC, bmInfo^.bmiHeader, CBM_INIT, Image,
+      bmInfo^, DIB_RGB_COLORS);
+  finally
+    SelectPalette(DC, OldPal, False);
+    ReleaseDC(0, DC);
   end;
 end;
 
 {----------------IndentManagerBasic.Create}
+
 constructor IndentManagerBasic.Create;
 begin
-inherited Create;
-R := TFreeList.Create;
-L := TFreeList.Create;
+  inherited Create;
+  R := TFreeList.Create;
+  L := TFreeList.Create;
 end;
 
 destructor IndentManagerBasic.Destroy;
 begin
-R.Free;
-L.Free;
-inherited Destroy;
+  R.Free;
+  L.Free;
+  inherited Destroy;
 end;
 
 procedure IndentManagerBasic.Clear;
 begin
-R.Clear;
-L.Clear;
-CurrentID := Nil;
+  R.Clear;
+  L.Clear;
+  CurrentID := nil;
 end;
 
 {----------------IndentManagerBasic.Reset}
+
 procedure IndentManagerBasic.Reset(Lf, Rt: integer);
 begin
-LfEdge := Lf;
-RtEdge := Rt;
-CurrentID := Nil;
+  LfEdge := Lf;
+  RtEdge := Rt;
+  CurrentID := nil;
 end;
 
 procedure IndentManagerBasic.UpdateTable(Y: integer; IW: integer; IH: integer;
-                           Justify: JustifyType);
+  Justify: JustifyType);
 {Given a floating table, update the edge information. }
 var
   IR: IndentRec;
 begin
   IR := IndentRec.Create;
   if (Justify = Left) then
-    begin
+  begin
     with IR do
-      begin
+    begin
       X := -LfEdge + IW;
       YT := Y;
       YB := Y + IH;
       L.Add(IR);
-      end;
-    end
+    end;
+  end
   else if (Justify = Right) then
-    begin
+  begin
     with IR do
-      begin
+    begin
       X := RightSide(Y) - IW;
       YT := Y;
       YB := Y + IH;
       R.Add(IR);
-      end;
     end;
+  end;
 end;
 
 const
@@ -2565,17 +2624,17 @@ function IndentManagerBasic.LeftIndent(Y: integer): integer;
 var
   I: integer;
 begin
-Result := -99999;
-for I := 0 to L.Count-1 do
-  with IndentRec(L.Items[I]) do
+  Result := -99999;
+  for I := 0 to L.Count - 1 do
+    with IndentRec(L.Items[I]) do
     begin
-    if (Y >= YT) and (Y < YB) and (Result < X) then
-      if not Assigned(ID) or (ID = CurrentID) then
-        Result := X;
+      if (Y >= YT) and (Y < YB) and (Result < X) then
+        if not Assigned(ID) or (ID = CurrentID) then
+          Result := X;
     end;
-if Result = -99999 then
-  Result := 0;
-Inc(Result, LfEdge);
+  if Result = -99999 then
+    Result := 0;
+  Inc(Result, LfEdge);
 end;
 
 function IndentManagerBasic.RightSide(Y: integer): integer;
@@ -2585,18 +2644,19 @@ var
   I: integer;
   IR: IndentRec;
 begin
-Result := 99999;
-for I := 0 to R.Count-1 do
+  Result := 99999;
+  for I := 0 to R.Count - 1 do
   begin
-  IR := IndentRec(R.Items[I]);
-  with IR do
-    if (Y >= YT) and (Y < YB) and (Result > X) then
-      if not Assigned(ID) or (ID = CurrentID) then
-        Result := X;
+    IR := IndentRec(R.Items[I]);
+    with IR do
+      if (Y >= YT) and (Y < YB) and (Result > X) then
+        if not Assigned(ID) or (ID = CurrentID) then
+          Result := X;
   end;
-if Result = 99999 then
-  Result := RtEdge
-else Inc(Result, LfEdge);
+  if Result = 99999 then
+    Result := RtEdge
+  else
+    Inc(Result, LfEdge);
 end;
 
 function IndentManagerBasic.ImageBottom: integer;
@@ -2604,15 +2664,15 @@ function IndentManagerBasic.ImageBottom: integer;
 var
   I: integer;
 begin
-Result := 0;
-for I := 0 to L.Count-1 do
-  with IndentRec(L.Items[I]) do
-    if not Assigned(ID) and (YB > Result) then
-      Result := YB;
-for I := 0 to R.Count-1 do
-  with IndentRec(R.Items[I]) do
-    if not Assigned(ID) and (YB > Result) then
-      Result := YB;
+  Result := 0;
+  for I := 0 to L.Count - 1 do
+    with IndentRec(L.Items[I]) do
+      if not Assigned(ID) and (YB > Result) then
+        Result := YB;
+  for I := 0 to R.Count - 1 do
+    with IndentRec(R.Items[I]) do
+      if not Assigned(ID) and (YB > Result) then
+        Result := YB;
 end;
 
 procedure IndentManagerBasic.GetClearY(var CL, CR: integer);
@@ -2620,18 +2680,18 @@ procedure IndentManagerBasic.GetClearY(var CL, CR: integer);
 var
   I: integer;
 begin
-CL := -1;
-for I := 0 to L.Count-1 do
-  with IndentRec(L.Items[I]) do
-    if not Assigned(ID)and (YB > CL) then
-      CL := YB;
-CR := -1;
-for I := 0 to R.Count-1 do
-  with IndentRec(R.Items[I]) do
-    if not Assigned(ID)and (YB > CR) then
-      CR := YB;
-Inc(CL);
-Inc(CR);
+  CL := -1;
+  for I := 0 to L.Count - 1 do
+    with IndentRec(L.Items[I]) do
+      if not Assigned(ID) and (YB > CL) then
+        CL := YB;
+  CR := -1;
+  for I := 0 to R.Count - 1 do
+    with IndentRec(R.Items[I]) do
+      if not Assigned(ID) and (YB > CR) then
+        CR := YB;
+  Inc(CL);
+  Inc(CR);
 end;
 
 function IndentManagerBasic.GetNextWiderY(Y: integer): integer;
@@ -2639,63 +2699,64 @@ function IndentManagerBasic.GetNextWiderY(Y: integer): integer;
 var
   I, CL, CR: integer;
 begin
-CL := Y;
-for I := 0 to L.Count-1 do
-  with IndentRec(L.Items[I]) do
-    if not Assigned(ID)and (YB > Y) and ((YB < CL) or (CL = Y)) then
-      CL := YB;
-CR := Y;
-for I := 0 to R.Count-1 do
-  with IndentRec(R.Items[I]) do
-    if not Assigned(ID)and (YB > Y) and ((YB < CR) or (CR = Y)) then
-      CR := YB;
-if CL = Y then
-  Result := CR
-else if CR = Y then
-  Result := CL
-else Result := IntMin(CL, CR);
+  CL := Y;
+  for I := 0 to L.Count - 1 do
+    with IndentRec(L.Items[I]) do
+      if not Assigned(ID) and (YB > Y) and ((YB < CL) or (CL = Y)) then
+        CL := YB;
+  CR := Y;
+  for I := 0 to R.Count - 1 do
+    with IndentRec(R.Items[I]) do
+      if not Assigned(ID) and (YB > Y) and ((YB < CR) or (CR = Y)) then
+        CR := YB;
+  if CL = Y then
+    Result := CR
+  else if CR = Y then
+    Result := CL
+  else
+    Result := IntMin(CL, CR);
 end;
 
 function IndentManagerBasic.SetLeftIndent(XLeft, Y: integer): integer;
 var
   IR: IndentRec;
 begin
-IR := IndentRec.Create;
-with IR do
+  IR := IndentRec.Create;
+  with IR do
   begin
-  YT := Y;
-  YB := BigY;
-  X := XLeft;
-  ID := CurrentID;
+    YT := Y;
+    YB := BigY;
+    X := XLeft;
+    ID := CurrentID;
   end;
-Result := L.Add(IR);
+  Result := L.Add(IR);
 end;
 
 function IndentManagerBasic.SetRightIndent(XRight, Y: integer): integer;
 var
   IR: IndentRec;
 begin
-IR := IndentRec.Create;
-with IR do
+  IR := IndentRec.Create;
+  with IR do
   begin
-  YT := Y;
-  YB := BigY;
-  X := XRight;
-  ID := CurrentID;
+    YT := Y;
+    YB := BigY;
+    X := XRight;
+    ID := CurrentID;
   end;
-Result := R.Add(IR);
+  Result := R.Add(IR);
 end;
 
 procedure IndentManagerBasic.FreeLeftIndentRec(I: integer);
 begin
-IndentRec(L.Items[I]).Free;
-L.Delete(I);
+  IndentRec(L.Items[I]).Free;
+  L.Delete(I);
 end;
 
 procedure IndentManagerBasic.FreeRightIndentRec(I: integer);
 begin
-IndentRec(R.Items[I]).Free;
-R.Delete(I);
+  IndentRec(R.Items[I]).Free;
+  R.Delete(I);
 end;
 
 procedure SetGlobalPalette(Value: HPalette);
@@ -2707,24 +2768,24 @@ var
   LP: ^TLogPalette;
   NumEntries: integer;
 begin
-Result := 0;
-if ColorBits > 8 then
-  Exit;
-GetMem(LP, Sizeof(TLogPalette) + 256*Sizeof(TPaletteEntry));
-try
-  with LP^ do
+  Result := 0;
+  if ColorBits > 8 then
+    Exit;
+  GetMem(LP, Sizeof(TLogPalette) + 256 * Sizeof(TPaletteEntry));
+  try
+    with LP^ do
     begin
-    palVersion := $300;
-    palNumEntries := 256;
-    NumEntries := GetPaletteEntries(Source, 0, 256, palPalEntry);
-    if NumEntries > 0 then
+      palVersion := $300;
+      palNumEntries := 256;
+      NumEntries := GetPaletteEntries(Source, 0, 256, palPalEntry);
+      if NumEntries > 0 then
       begin
-      palNumEntries := NumEntries;
-      Result := CreatePalette(LP^);
+        palNumEntries := NumEntries;
+        Result := CreatePalette(LP^);
       end;
     end;
-finally
-  FreeMem(LP, Sizeof(TLogPalette) + 256*Sizeof(TPaletteEntry));
+  finally
+    FreeMem(LP, Sizeof(TLogPalette) + 256 * Sizeof(TPaletteEntry));
   end;
 end;
 
@@ -2737,170 +2798,175 @@ const
 
 procedure ThisExit; far;
 begin
-DefBitMap.Free;
-ErrorBitMap.Free;
-ErrorBitMapMask.Free;
-WaitStream.Free;
+  DefBitMap.Free;
+  ErrorBitMap.Free;
+  ErrorBitMapMask.Free;
+  WaitStream.Free;
 end;
 
 {----------------TIDNameList}
+
 constructor TIDNameList.Create(List: TList);
 begin
-inherited Create;
-Sorted := True;
-OwnerList := List;
+  inherited Create;
+  Sorted := True;
+  OwnerList := List;
 end;
 
 destructor TIDNameList.Destroy;
 begin
-Clear;
-inherited
+  Clear;
+  inherited
 end;
 
 procedure TIDNameList.Clear;
 var
   I: integer;
 begin
-for I := 0 to Count-1 do
+  for I := 0 to Count - 1 do
   try
     if Objects[I] is TChPosObj then
       Objects[I].Free;
   except
-    end;
-inherited Clear;
+  end;
+  inherited Clear;
 end;
 
 function TIDNameList.AddObject(const S: string; AObject: TObject): Integer;
 var
   I: integer;
 begin
-if Find(S, I) then
+  if Find(S, I) then
   begin
-  try
-    if Objects[I] is TChPosObj then
-      Objects[I].Free;
-  except
+    try
+      if Objects[I] is TChPosObj then
+        Objects[I].Free;
+    except
     end;
-  Delete(I);
+    Delete(I);
   end;
-Result := inherited AddObject(S, AObject);
+  Result := inherited AddObject(S, AObject);
 end;
 
 procedure TIDNameList.AddChPosObject(const S: string; Pos: integer);
 var
   ChPosObj: TChPosObj;
 begin
-ChPosObj := TChPosObj.Create;
-ChPosObj.List := OwnerList;
-ChPosObj.ChPos := Pos;
-AddObject(S, ChPosObj);
+  ChPosObj := TChPosObj.Create;
+  ChPosObj.List := OwnerList;
+  ChPosObj.ChPos := Pos;
+  AddObject(S, ChPosObj);
 end;
 
 destructor TIDObject.Destroy;
 begin
-inherited;
+  inherited;
 end;
 
 {----------------TChPosObj.GetYPosition:}
+
 function TChPosObj.GetYPosition: integer;
 var
   Pos, X, Y: integer;
 begin
-with List as TSectionList do
+  with List as TSectionList do
   begin
-  Pos := FindDocPos(ChPos, False);
-  if CursorToXY(Nil, Pos, X, Y) then
+    Pos := FindDocPos(ChPos, False);
+    if CursorToXY(nil, Pos, X, Y) then
       Result := Y
-  else Result := 0;
+    else
+      Result := 0;
   end;
 end;
 
-{$ifndef NoMetafile}
+{$IFNDEF NoMetafile}
+
 procedure ThtMetaFile.Construct;
 var
   Tmp: TBitmap;
   pe: TPaletteEntry;
   Color: TColor;
 begin
-if not Assigned(FBitmap) then
+  if not Assigned(FBitmap) then
   begin
-  FBitmap := TBitmap.Create;
-  try
-    FBitmap.Width := Width;
-    FBitmap.Height := Height;
-    PatBlt(FBitmap.Canvas.Handle, 0, 0, Width, Height, Blackness);
-    FBitmap.Canvas.Draw(0, 0, Self);
-
-    Tmp := TBitmap.Create;
+    FBitmap := TBitmap.Create;
     try
-      Tmp.Width := Width;
-      Tmp.Height := Height;
-      Tmp.PixelFormat := pf8Bit;
+      FBitmap.Width := Width;
+      FBitmap.Height := Height;
+      PatBlt(FBitmap.Canvas.Handle, 0, 0, Width, Height, Blackness);
+      FBitmap.Canvas.Draw(0, 0, Self);
+
+      Tmp := TBitmap.Create;
+      try
+        Tmp.Width := Width;
+        Tmp.Height := Height;
+        Tmp.PixelFormat := pf8Bit;
       {pick an odd color from the palette to represent the background color,
        one not likely in the metafile}
-      GetPaletteEntries(Tmp.Palette, 115, 1, pe);
-      Color := pe.peBlue shl 16 or pe.peGreen shl 8 or pe.peRed;
-      Tmp.Canvas.Brush.Color := Color;
-      Tmp.Canvas.FillRect(Rect(0, 0, Width, Height));
-      Tmp.Canvas.Draw(0, 0, Self);
+        GetPaletteEntries(Tmp.Palette, 115, 1, pe);
+        Color := pe.peBlue shl 16 or pe.peGreen shl 8 or pe.peRed;
+        Tmp.Canvas.Brush.Color := Color;
+        Tmp.Canvas.FillRect(Rect(0, 0, Width, Height));
+        Tmp.Canvas.Draw(0, 0, Self);
 
-      FMask := GetImageMask(Tmp, False, Color);
-    finally
-      Tmp.Free;
+        FMask := GetImageMask(Tmp, False, Color);
+      finally
+        Tmp.Free;
       end;
-  except
-    FreeAndNil(FBitmap);
+    except
+      FreeAndNil(FBitmap);
     end;
   end;
 end;
 
 function ThtMetaFile.GetBitmap: TBitmap;
 begin
-Construct;
-Result := FBitmap;
+  Construct;
+  Result := FBitmap;
 end;
 
 function ThtMetaFile.GetMask: TBitmap;
 begin
-Construct;
-Result := FMask;
+  Construct;
+  Result := FMask;
 end;
 
 function ThtMetaFile.GetWhiteBGBitmap: TBitmap;
 begin
-if not Assigned(FWhiteBGBitmap) then
+  if not Assigned(FWhiteBGBitmap) then
   begin
-  FWhiteBGBitmap := TBitmap.Create;
-  try
-    FWhiteBGBitmap.Width := Width;
-    FWhiteBGBitmap.Height := Height;
-    PatBlt(FWhiteBGBitmap.Canvas.Handle, 0, 0, Width, Height, Whiteness);
-    FWhiteBGBitmap.Canvas.Draw(0, 0, Self);
-  except
-    FreeAndNil(FWhiteBGBitmap);
+    FWhiteBGBitmap := TBitmap.Create;
+    try
+      FWhiteBGBitmap.Width := Width;
+      FWhiteBGBitmap.Height := Height;
+      PatBlt(FWhiteBGBitmap.Canvas.Handle, 0, 0, Width, Height, Whiteness);
+      FWhiteBGBitmap.Canvas.Draw(0, 0, Self);
+    except
+      FreeAndNil(FWhiteBGBitmap);
     end;
   end;
-Result := FWhiteBGBitmap;
+  Result := FWhiteBGBitmap;
 end;
 
 destructor ThtMetaFile.Destroy;
 begin
-FreeAndNil(FBitmap);
-FreeAndNil(FMask);
-FreeAndNil(FWhiteBGBitmap);
-inherited;
+  FreeAndNil(FBitmap);
+  FreeAndNil(FMask);
+  FreeAndNil(FWhiteBGBitmap);
+  inherited;
 end;
-{$endif}
+{$ENDIF}
 
 function InSet(W: WideChar; S: SetOfChar): boolean;
 begin
-if Ord(W) > 255 then
-  Result := False
-else
-  Result := Char(W) in S;
+  if Ord(W) > 255 then
+    Result := False
+  else
+    Result := Char(W) in S;
 end;
 
 {----------------TCharCollection.GetAsString:}
+
 function TCharCollection.GetAsString: string;
 begin
   Result := Copy(FChars, 1, FCurrentIndex);
@@ -2914,16 +2980,16 @@ end;
 
 constructor TCharCollection.Create;
 begin
-inherited;
-SetLength(FChars, TokenLeng);
-GetMem(FIndices, TokenLeng*Sizeof(integer));
-FCurrentIndex := 0;
+  inherited;
+  SetLength(FChars, TokenLeng);
+  GetMem(FIndices, TokenLeng * Sizeof(integer));
+  FCurrentIndex := 0;
 end;
 
 destructor TCharCollection.Destroy;
 begin
-FreeMem(FIndices);
-inherited;
+  FreeMem(FIndices);
+  inherited;
 end;
 
 procedure TCharCollection.Add(C: Char; Index: Integer);
@@ -2931,7 +2997,7 @@ begin
   if FCurrentIndex = Length(FChars) then
   begin
     SetLength(FChars, FCurrentIndex + 50);
-    ReallocMem(FIndices, (FCurrentIndex+50)*Sizeof(integer));
+    ReallocMem(FIndices, (FCurrentIndex + 50) * Sizeof(integer));
   end;
   Inc(FCurrentIndex);
   FIndices^[FCurrentIndex] := Index;
@@ -2952,51 +3018,52 @@ begin
   if K >= Length(FChars) then
   begin
     SetLength(FChars, K + 50);
-    ReallocMem(FIndices, (K+50)*Sizeof(integer));
+    ReallocMem(FIndices, (K + 50) * Sizeof(integer));
   end;
   Move(PChar(T.FChars)^, FChars[FCurrentIndex + 1], T.FCurrentIndex * SizeOf(Char)); //@@@ Tiburon: todo test
   Move(T.FIndices^[1], FIndices^[FCurrentIndex + 1], T.FCurrentIndex * Sizeof(Integer));
   FCurrentIndex := K;
 end;
 {----------------TokenObj.Create}
-constructor TokenObj.Create;    
+
+constructor TokenObj.Create;
 begin
-inherited;
-GetMem(C, TokenLeng * Sizeof(WideChar));
-GetMem(I, TokenLeng*Sizeof(integer));
-MaxIndex := TokenLeng;
-Leng := 0;
-St := '';
-StringOK := True;
+  inherited;
+  GetMem(C, TokenLeng * Sizeof(WideChar));
+  GetMem(I, TokenLeng * Sizeof(integer));
+  MaxIndex := TokenLeng;
+  Leng := 0;
+  St := '';
+  StringOK := True;
 end;
 
 destructor TokenObj.Destroy;
 begin
-FreeMem(I);
-FreeMem(C);
-inherited;
+  FreeMem(I);
+  FreeMem(C);
+  inherited;
 end;
 
 procedure TokenObj.AddUnicodeChar(Ch: WideChar; Ind: integer);
 {Ch must be Unicode in this method}
 begin
-if Leng >= MaxIndex then
+  if Leng >= MaxIndex then
   begin
-  ReallocMem(C, (MaxIndex + 50) * Sizeof(WideChar));
-  ReallocMem(I, (MaxIndex+50)*Sizeof(integer));
-  Inc(MaxIndex, 50);
+    ReallocMem(C, (MaxIndex + 50) * Sizeof(WideChar));
+    ReallocMem(I, (MaxIndex + 50) * Sizeof(integer));
+    Inc(MaxIndex, 50);
   end;
-Inc(Leng);
-C^[Leng] := Ch;
-I^[Leng] := Ind;
-StringOK := False;
+  Inc(Leng);
+  C^[Leng] := Ch;
+  I^[Leng] := Ind;
+  StringOK := False;
 end;
 
 procedure TokenObj.Clear;
 begin
-Leng := 0;
-St := '';
-StringOK := True;
+  Leng := 0;
+  St := '';
+  StringOK := True;
 end;
 
 function MultibyteToWideString(CodePage: integer; const S: Ansistring): WideString;
@@ -3005,30 +3072,30 @@ var
   NewLen, Len: integer;
 {$ENDIF}
 begin
-  {$IFDEF UNICODE}
-  Result := S; 
-  {$ELSE}
-Len := Length(S);
-{$ifdef Delphi6_Plus}
-if IsWin95 and (CodePage = CP_UTF8) then
+{$IFDEF UNICODE}
+  Result := S;
+{$ELSE}
+  Len := Length(S);
+{$IFDEF Delphi6_Plus}
+  if IsWin95 and (CodePage = CP_UTF8) then
   begin
   {Provide initial space. The resulting string will never be longer than the
    UTF-8 encoded string.}
-  SetLength(Result, Len+1);  {add 1 for #0 terminator}
-  NewLen := UTF8ToUnicode(PWideChar(Result), Len+1, PAnsiChar(S), Len) - 1;  {subtr 1 as don't want to count null terminator}
+    SetLength(Result, Len + 1); {add 1 for #0 terminator}
+    NewLen := UTF8ToUnicode(PWideChar(Result), Len + 1, PAnsiChar(S), Len) - 1; {subtr 1 as don't want to count null terminator}
   end
-else
-{$endif}
+  else
+{$ENDIF}
   begin
   {Provide initial space. The resulting string will never be longer than the
    UTF-8 or multibyte encoded string.}
-  SetLength(Result, 2 * Len);
-  NewLen := MultiByteToWideChar(CodePage, 0, PAnsiChar(S), Len, PWideChar(Result), Len);
-  if NewLen = 0 then
+    SetLength(Result, 2 * Len);
+    NewLen := MultiByteToWideChar(CodePage, 0, PAnsiChar(S), Len, PWideChar(Result), Len);
+    if NewLen = 0 then
     { Invalid code page. Try default.}
-    NewLen := MultiByteToWideChar(CP_ACP, 0, PAnsiChar(S), Len, PWideChar(Result), Len);
+      NewLen := MultiByteToWideChar(CP_ACP, 0, PAnsiChar(S), Len, PWideChar(Result), Len);
   end;
-SetLength(Result, NewLen);
+  SetLength(Result, NewLen);
 {$ENDIF}
 end;
 
@@ -3036,19 +3103,19 @@ function WideStringToMultibyte(CodePage: integer; W: WideString): Ansistring;
 var
   NewLen, Len: integer;
 begin
-{$ifdef Delphi6_Plus}
-if CodePage = CP_UTF8 then  {UTF-8 encoded string.}
-  Result := UTF8Encode(W)
-else
-{$endif}
+{$IFDEF Delphi6_Plus}
+  if CodePage = CP_UTF8 then {UTF-8 encoded string.}
+    Result := UTF8Encode(W)
+  else
+{$ENDIF}
   begin
-  Len := Length(W);
-  SetLength(Result, 3*Len);
-  NewLen := WideCharToMultiByte(CodePage, 0, PWideChar(W), Len, PAnsiChar(Result), 3*Len, Nil, Nil);
-  if NewLen = 0 then
+    Len := Length(W);
+    SetLength(Result, 3 * Len);
+    NewLen := WideCharToMultiByte(CodePage, 0, PWideChar(W), Len, PAnsiChar(Result), 3 * Len, nil, nil);
+    if NewLen = 0 then
     { Invalid code page. Try default.}
-    NewLen := WideCharToMultiByte(CP_ACP, 0, PWideChar(W), Len, PAnsiChar(Result), 3*Len, Nil, Nil);
-  SetLength(Result, NewLen);
+      NewLen := WideCharToMultiByte(CP_ACP, 0, PWideChar(W), Len, PAnsiChar(Result), 3 * Len, nil, nil);
+    SetLength(Result, NewLen);
   end;
 end;
 
@@ -3056,22 +3123,24 @@ function ByteNum(CodePage: integer; P: PAnsiChar): integer;
 var
   P1: PAnsiChar;
 begin
-if CodePage <> CP_UTF8 then
+  if CodePage <> CP_UTF8 then
   begin
-  P1 := CharNextExA(CodePage, P, 0);
-  if Assigned(P1) then
-    Result := P1 - P
-  else Result := 0;
+    P1 := CharNextExA(CodePage, P, 0);
+    if Assigned(P1) then
+      Result := P1 - P
+    else
+      Result := 0;
   end
-else
-  case ord(P^) of  {UTF-8}
-    0:        Result := 0;
-    1..127:   Result := 1;
-    192..223: Result := 2;
-    224..239: Result := 3;
-    240..247: Result := 4;
-  else Result := 1;   {error}
-  end;
+  else
+    case ord(P^) of {UTF-8}
+      0: Result := 0;
+      1..127: Result := 1;
+      192..223: Result := 2;
+      224..239: Result := 3;
+      240..247: Result := 4;
+    else
+      Result := 1; {error}
+    end;
 end;
 
 procedure TokenObj.AddString(S: TCharCollection; CodePage: Integer);
@@ -3084,20 +3153,20 @@ procedure TokenObj.AddString(S: TCharCollection; CodePage: Integer);
 var
   WS: WideString;
   I, J, N,
-  Len, NewLen: Integer;
+    Len, NewLen: Integer;
 
 begin
   Len := S.FCurrentIndex;
-{$ifdef Delphi6_Plus}
+{$IFDEF Delphi6_Plus}
   if IsWin95 and (CodePage = CP_UTF8) then
   begin
     {Provide initial space. The resulting string will never be longer than the
      UTF-8 encoded string.}
-    SetLength(WS, Len+1);  {add 1 for #0 terminator}
-    NewLen := UTF8ToUnicode(PWideChar(WS), Len+1, PAnsiChar(AnsiString(S.FChars)), Len) - 1;  {subtr 1 as don't want to count null terminator}
+    SetLength(WS, Len + 1); {add 1 for #0 terminator}
+    NewLen := UTF8ToUnicode(PWideChar(WS), Len + 1, PAnsiChar(AnsiString(S.FChars)), Len) - 1; {subtr 1 as don't want to count null terminator}
   end
   else
-{$endif}
+{$ENDIF}
   begin
     {Provide initial space. The resulting string will never be longer than the
      UTF-8 or multibyte encoded string.}
@@ -3109,14 +3178,14 @@ begin
   end;
 
   {Store the wide string and character indices.}
-  if Len = NewLen then    {single byte character set or at least no multibyte conversion}
+  if Len = NewLen then {single byte character set or at least no multibyte conversion}
     for I := 1 to NewLen do
       AddUnicodeChar(WS[I], S.FIndices[I])
   else
-    begin     {multibyte character set}
+  begin {multibyte character set}
     J := 1;
     for I := 1 to NewLen do
-      begin
+    begin
       AddUnicodeChar(WS[I], S.FIndices[J]);
       {find index for start of next character}
       N := ByteNum(CodePage, @S.FChars[J]);
@@ -3124,61 +3193,62 @@ begin
         J := J + N
       else
         Break;
-      end;
     end;
+  end;
 end;
 
 procedure TokenObj.Concat(T: TokenObj);
 var
   K: integer;
 begin
-K := Leng + T.Leng;
-if K > MaxIndex then
+  K := Leng + T.Leng;
+  if K > MaxIndex then
   begin
-  ReallocMem(C, (K + 50) * Sizeof(WideChar));
-  ReallocMem(I, (K+50)*Sizeof(integer));
-  MaxIndex := K+50;
+    ReallocMem(C, (K + 50) * Sizeof(WideChar));
+    ReallocMem(I, (K + 50) * Sizeof(integer));
+    MaxIndex := K + 50;
   end;
-Move(T.C^, C^[Leng + 1], T.Leng * Sizeof(WideChar));
-Move(T.I^, I^[Leng+1], T.Leng*Sizeof(integer));
-Leng := K;
-StringOK := False;
+  Move(T.C^, C^[Leng + 1], T.Leng * Sizeof(WideChar));
+  Move(T.I^, I^[Leng + 1], T.Leng * Sizeof(integer));
+  Leng := K;
+  StringOK := False;
 end;
 
 procedure TokenObj.Remove(N: integer);
-begin    {remove a single character}
-if N <= Leng then
+begin {remove a single character}
+  if N <= Leng then
   begin
-  Move(C^[N + 1], C^[N], (Leng - N) * Sizeof(WideChar));
-  Move(I^[N+1], I^[N], (Leng-N)*Sizeof(integer));
-  if StringOK then
-    Delete(St, N, 1);
-  Dec(Leng);
+    Move(C^[N + 1], C^[N], (Leng - N) * Sizeof(WideChar));
+    Move(I^[N + 1], I^[N], (Leng - N) * Sizeof(integer));
+    if StringOK then
+      Delete(St, N, 1);
+    Dec(Leng);
   end;
 end;
 
 procedure TokenObj.Replace(N: integer; Ch: WideChar);
-begin    {replace a single character}
-if N <= Leng then
+begin {replace a single character}
+  if N <= Leng then
   begin
-  C^[N] := Ch;
-  if StringOK then
-    St[N] := Ch;
+    C^[N] := Ch;
+    if StringOK then
+      St[N] := Ch;
   end;
 end;
 
 function TokenObj.GetString: WideString;
 begin
-if not StringOK then
+  if not StringOK then
   begin
-  SetLength(St, Leng);
-  Move(C^, St[1], SizeOf(WideChar) * Leng);
-  StringOK := True;
+    SetLength(St, Leng);
+    Move(C^, St[1], SizeOf(WideChar) * Leng);
+    StringOK := True;
   end;
-Result := St;
+  Result := St;
 end;
 
 {----------------BitmapToRegion}
+
 function BitmapToRegion(ABmp: TBitmap; XForm: PXForm; TransparentColor: TColor): HRGN;
 {Find a Region corresponding to the non-transparent area of a bitmap.
 
@@ -3188,17 +3258,17 @@ const
   AllocUnit = 100;
 type
   PRectArray = ^TRectArray;
-  TRectArray = Array[0..(MaxInt div SizeOf(TRect))-1] of TRect;
+  TRectArray = array[0..(MaxInt div SizeOf(TRect)) - 1] of TRect;
 var
-  pr: PRectArray;    // used to access the rects array of RgnData by index
-  h: HRGN;           // Handles to regions
+  pr: PRectArray; // used to access the rects array of RgnData by index
+  h: HRGN; // Handles to regions
   RgnData: PRgnData; // Pointer to structure RGNDATA used to create regions
   lr, lg, lb: Byte; // values for lowest and hightest trans. colors
-  x,y, x0: Integer;  // coordinates of current rect of visible pixels
-  b: PByteArray;     // used to easy the task of testing the byte pixels (R,G,B)
+  x, y, x0: Integer; // coordinates of current rect of visible pixels
+  b: PByteArray; // used to easy the task of testing the byte pixels (R,G,B)
   ScanLinePtr: Pointer; // Pointer to current ScanLine being scanned
   ScanLineInc: Integer; // Offset to next bitmap scanline (can be negative)
-  maxRects: Cardinal;   // Number of rects to realloc memory by chunks of AllocUnit
+  maxRects: Cardinal; // Number of rects to realloc memory by chunks of AllocUnit
   bmp: TBitmap;
 begin
   Result := 0;
@@ -3212,7 +3282,7 @@ begin
     bmp.PixelFormat := pf32bit;
     { alloc initial region data }
     maxRects := AllocUnit;
-    GetMem(RgnData,SizeOf(TRgnDataHeader) + (SizeOf(TRect) * maxRects));
+    GetMem(RgnData, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * maxRects));
     FillChar(RgnData^, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * maxRects), 0);
     try
       with RgnData^.rdh do
@@ -3227,7 +3297,8 @@ begin
       ScanLinePtr := bmp.ScanLine[0];
       if bmp.Height > 1 then
         ScanLineInc := Integer(bmp.ScanLine[1]) - Integer(ScanLinePtr)
-      else ScanLineInc := 0;
+      else
+        ScanLineInc := 0;
       for y := 0 to bmp.Height - 1 do
       begin
         x := 0;
@@ -3236,11 +3307,11 @@ begin
           x0 := x;
           while x < bmp.Width do
           begin
-            b := @PByteArray(ScanLinePtr)[x*SizeOf(TRGBQuad)];
+            b := @PByteArray(ScanLinePtr)[x * SizeOf(TRGBQuad)];
             // BGR-RGB: Windows 32bpp BMPs are made of BGRa quads (not RGBa)
             if (b[2] = lr) and
-               (b[1] = lg) and
-               (b[0] = lb) then
+              (b[1] = lg) and
+              (b[0] = lb) then
               Break; // pixel is transparent
             Inc(x);
           end;
@@ -3250,21 +3321,25 @@ begin
             { increase RgnData by AllocUnit rects if we exceeds maxRects }
             if RgnData^.rdh.nCount >= maxRects then
             begin
-              Inc(maxRects,AllocUnit);
-              ReallocMem(RgnData,SizeOf(TRgnDataHeader) + (SizeOf(TRect) * MaxRects));
+              Inc(maxRects, AllocUnit);
+              ReallocMem(RgnData, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * MaxRects));
               pr := @RgnData^.Buffer;
-              FillChar(pr^[maxRects-AllocUnit], AllocUnit*SizeOf(TRect), 0);
+              FillChar(pr^[maxRects - AllocUnit], AllocUnit * SizeOf(TRect), 0);
             end;
             { Add the rect (x0, y)-(x, y+1) as a new visible area in the region }
             pr := @RgnData^.Buffer; // Buffer is an array of rects
             with RgnData^.rdh do
             begin
-              SetRect(pr[nCount], x0, y, x, y+1);
+              SetRect(pr[nCount], x0, y, x, y + 1);
               { adjust the bound rectangle of the region if we are "out-of-bounds" }
-              if x0 < rcBound.Left then rcBound.Left := x0;
-              if y < rcBound.Top then rcBound.Top := y;
-              if x > rcBound.Right then rcBound.Right := x;
-              if y+1 > rcBound.Bottom then rcBound.Bottom := y+1;
+              if x0 < rcBound.Left then
+                rcBound.Left := x0;
+              if y < rcBound.Top then
+                rcBound.Top := y;
+              if x > rcBound.Right then
+                rcBound.Right := x;
+              if y + 1 > rcBound.Bottom then
+                rcBound.Bottom := y + 1;
               Inc(nCount);
             end;
           end; // if x > x0
@@ -3278,7 +3353,7 @@ begin
               CombineRgn(Result, Result, h, RGN_OR);
               DeleteObject(h);
             end
-            else  // First region, assign it to Result
+            else // First region, assign it to Result
               Result := h;
             RgnData^.rdh.nCount := 0;
             SetRect(RgnData^.rdh.rcBound, MAXLONG, MAXLONG, 0, 0);
@@ -3289,9 +3364,10 @@ begin
       end;
       { need to call ExCreateRegion one more time because we could have left    }
       { a RgnData with less than 2000 rects, so it wasn't yet created/combined  }
-      if RgnData^.rdh.nCount > 0 then  {LDB  0 Count causes exception and abort in Win98}
+      if RgnData^.rdh.nCount > 0 then {LDB  0 Count causes exception and abort in Win98}
         h := ExtCreateRegion(XForm, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * MaxRects), RgnData^)
-      else h := 0;
+      else
+        h := 0;
       if Result > 0 then
       begin
         CombineRgn(Result, Result, h, RGN_OR);
@@ -3300,41 +3376,43 @@ begin
       else
         Result := h;
     finally
-      FreeMem(RgnData,SizeOf(TRgnDataHeader) + (SizeOf(TRect) * MaxRects));
+      FreeMem(RgnData, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * MaxRects));
     end;
   finally
     bmp.Free;
-    end;
+  end;
 end;
 
 {----------------EnlargeImage}
+
 function EnlargeImage(Image: TGpObject; W, H: integer): TBitmap;
 {enlarge 1 pixel images for tiling.  Returns a TBitmap regardless of Image type}
 var
   NewBitmap: TBitmap;
 begin
-Result := TBitmap.Create;
-if Image is TGpImage then
-  NewBitmap := TGpImage(Image).GetTBitmap
-else
-  NewBitmap := Image as TBitmap;
-Result.Assign(NewBitmap);
-if NewBitmap.Width = 1 then
-  Result.Width := IntMin(100, W)
-else
-  Result.Width := NewBitmap.Width;
-if NewBitmap.Height = 1 then
-  Result.Height := IntMin(100, H)
-else
-  Result.Height := NewBitmap.Height;
-Result.Canvas.StretchDraw(Rect(0,0,Result.Width, Result.Height), NewBitmap);
-if Image is TGpImage then
-  NewBitmap.Free;
+  Result := TBitmap.Create;
+  if Image is TGpImage then
+    NewBitmap := TGpImage(Image).GetTBitmap
+  else
+    NewBitmap := Image as TBitmap;
+  Result.Assign(NewBitmap);
+  if NewBitmap.Width = 1 then
+    Result.Width := IntMin(100, W)
+  else
+    Result.Width := NewBitmap.Width;
+  if NewBitmap.Height = 1 then
+    Result.Height := IntMin(100, H)
+  else
+    Result.Height := NewBitmap.Height;
+  Result.Canvas.StretchDraw(Rect(0, 0, Result.Width, Result.Height), NewBitmap);
+  if Image is TGpImage then
+    NewBitmap.Free;
 end;
 
 {----------------PrintBitmap}
+
 procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer;
-             BMHandle: HBitmap);
+  BMHandle: HBitmap);
 {Y relative to top of display here}
 var
   OldPal: HPalette;
@@ -3344,35 +3422,36 @@ var
   ImageSize: DWord;
   InfoSize: DWord;
 begin
-if BMHandle = 0 then
-  Exit;
-DC := Canvas.Handle;
-try
-  GetDIBSizes(BMHandle, InfoSize, ImageSize);
-  GetMem(Info, InfoSize);
+  if BMHandle = 0 then
+    Exit;
+  DC := Canvas.Handle;
   try
-    Image := Allocate(ImageSize);
-    OldPal := SelectPalette(DC, ThePalette, False);
+    GetDIBSizes(BMHandle, InfoSize, ImageSize);
+    GetMem(Info, InfoSize);
     try
-      GetDIB(BMHandle, ThePalette, Info^, Image.Ptr^);
-      RealizePalette(DC);
-      with Info^.bmiHeader do
-        StretchDIBits(DC, X, Y, W, H,
-           0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+      Image := Allocate(ImageSize);
+      OldPal := SelectPalette(DC, ThePalette, False);
+      try
+        GetDIB(BMHandle, ThePalette, Info^, Image.Ptr^);
+        RealizePalette(DC);
+        with Info^.bmiHeader do
+          StretchDIBits(DC, X, Y, W, H,
+            0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+      finally
+        DeAllocate(Image);
+        SelectPalette(DC, OldPal, False);
+      end;
     finally
-      DeAllocate(Image);
-      SelectPalette(DC, OldPal, False);
-     end;
-  finally
-   FreeMem(Info, InfoSize);
-   end;
-except
+      FreeMem(Info, InfoSize);
+    end;
+  except
   end;
 end;
 
 {----------------PrintBitmap1}
+
 procedure PrintBitmap1(Canvas: TCanvas; X, Y, W, H, YI, HI: integer;
-             BMHandle: HBitmap);
+  BMHandle: HBitmap);
 {Y relative to top of display here}
 var
   OldPal: HPalette;
@@ -3382,35 +3461,36 @@ var
   ImageSize: DWord;
   InfoSize: DWord;
 begin
-if BMHandle = 0 then
-  Exit;
-DC := Canvas.Handle;
-try
-  GetDIBSizes(BMHandle, InfoSize, ImageSize);
-  GetMem(Info, InfoSize);
+  if BMHandle = 0 then
+    Exit;
+  DC := Canvas.Handle;
   try
-    Image := Allocate(ImageSize);
-    OldPal := SelectPalette(DC, ThePalette, False);
+    GetDIBSizes(BMHandle, InfoSize, ImageSize);
+    GetMem(Info, InfoSize);
     try
-      GetDIB(BMHandle, ThePalette, Info^, Image.Ptr^);
-      RealizePalette(DC);
-      with Info^.bmiHeader do
-        StretchDIBits(DC, X, Y, biWidth, HI,
-           0, YI, biWidth, HI, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+      Image := Allocate(ImageSize);
+      OldPal := SelectPalette(DC, ThePalette, False);
+      try
+        GetDIB(BMHandle, ThePalette, Info^, Image.Ptr^);
+        RealizePalette(DC);
+        with Info^.bmiHeader do
+          StretchDIBits(DC, X, Y, biWidth, HI,
+            0, YI, biWidth, HI, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+      finally
+        DeAllocate(Image);
+        SelectPalette(DC, OldPal, False);
+      end;
     finally
-      DeAllocate(Image);
-      SelectPalette(DC, OldPal, False);
-     end;
-  finally
-   FreeMem(Info, InfoSize);
-   end;
-except
+      FreeMem(Info, InfoSize);
+    end;
+  except
   end;
 end;
 
 {----------------PrintTransparentBitmap1}
+
 procedure PrintTransparentBitmap1(Canvas: TCanvas; X, Y, NewW, NewH: integer;
-             Bitmap, Mask: TBitmap; YI, HI: integer);
+  Bitmap, Mask: TBitmap; YI, HI: integer);
 {Y relative to top of display here}
 {This routine prints transparently but only on a white background}
 {X, Y are point where upper left corner will be printed.
@@ -3428,41 +3508,42 @@ var
   Abitmap: TBitmap;
 
 begin
-ABitmap := TBitmap.Create;
-try
-  Abitmap.Assign(Bitmap);
-  ABitmap.Height := HI;
-  SetBkColor(ABitmap.Canvas.Handle, clWhite);
-  SetTextColor(ABitmap.Canvas.Handle, clBlack);
-  BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, Bitmap.Canvas.Handle, 0, YI, SrcCopy);
-  BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, Mask.Canvas.Handle, 0, YI, SRCPAINT);
-  DC := Canvas.Handle;
-  GetDIBSizes(ABitmap.Handle, InfoSize, ImageSize);
-  GetMem(Info, InfoSize);
+  ABitmap := TBitmap.Create;
   try
-    Image := Allocate(ImageSize);
-    OldPal := SelectPalette(DC, ThePalette, False);
+    Abitmap.Assign(Bitmap);
+    ABitmap.Height := HI;
+    SetBkColor(ABitmap.Canvas.Handle, clWhite);
+    SetTextColor(ABitmap.Canvas.Handle, clBlack);
+    BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, Bitmap.Canvas.Handle, 0, YI, SrcCopy);
+    BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, Mask.Canvas.Handle, 0, YI, SRCPAINT);
+    DC := Canvas.Handle;
+    GetDIBSizes(ABitmap.Handle, InfoSize, ImageSize);
+    GetMem(Info, InfoSize);
     try
-      GetDIB(ABitmap.Handle, ThePalette, Info^, Image.Ptr^);
-      RealizePalette(DC);
-      with Info^.bmiHeader do
-        StretchDIBits(DC, X, Y, NewW, NewH,
-           0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+      Image := Allocate(ImageSize);
+      OldPal := SelectPalette(DC, ThePalette, False);
+      try
+        GetDIB(ABitmap.Handle, ThePalette, Info^, Image.Ptr^);
+        RealizePalette(DC);
+        with Info^.bmiHeader do
+          StretchDIBits(DC, X, Y, NewW, NewH,
+            0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+      finally
+        DeAllocate(Image);
+        SelectPalette(DC, OldPal, False);
+      end;
     finally
-      DeAllocate(Image);
-      SelectPalette(DC, OldPal, False);
-     end;
+      FreeMem(Info, InfoSize);
+    end;
   finally
-   FreeMem(Info, InfoSize);
-   end;
-finally
-  ABitmap.Free;
+    ABitmap.Free;
   end;
 end;
 
 {----------------PrintTransparentBitmap3}
+
 procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: integer;
-             Bitmap, Mask: TBitmap; YI, HI: integer);
+  Bitmap, Mask: TBitmap; YI, HI: integer);
 {Y relative to top of display here}
 {This routine prints transparently on complex background by printing through a clip region}
 {X, Y are point where upper left corner will be printed.
@@ -3488,96 +3569,97 @@ var
 begin
 {the following converts the black masked area in the image to white.  This may look
  better in WPTools which currently doesn't handle the masking}
-if (Bitmap.Handle = 0) or (HI <= 0) or (Bitmap.Width <= 0) then
-  Exit;
-BitmapCopy := Bitmap.Height <> HI;
-try
-  if BitmapCopy then
-    begin
-    ABitmap := TBitmap.Create;
-    AMask := TBitmap.Create;
-    end
-  else
-    begin
-    ABitmap := Bitmap;
-    AMask := Mask;
-    end;
+  if (Bitmap.Handle = 0) or (HI <= 0) or (Bitmap.Width <= 0) then
+    Exit;
+  BitmapCopy := Bitmap.Height <> HI;
   try
     if BitmapCopy then
+    begin
+      ABitmap := TBitmap.Create;
+      AMask := TBitmap.Create;
+    end
+    else
+    begin
+      ABitmap := Bitmap;
+      AMask := Mask;
+    end;
+    try
+      if BitmapCopy then
       begin
-      Abitmap.Assign(Bitmap);
-      ABitmap.Height := HI;
-      BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, Bitmap.Canvas.Handle, 0, YI, SrcCopy);
-      AMask.Assign(Mask);
-      AMask.Height := HI;
-      BitBlt(AMask.Canvas.Handle, 0, 0, AMask.Width, HI, Mask.Canvas.Handle, 0, YI, SrcCopy);
+        Abitmap.Assign(Bitmap);
+        ABitmap.Height := HI;
+        BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, Bitmap.Canvas.Handle, 0, YI, SrcCopy);
+        AMask.Assign(Mask);
+        AMask.Height := HI;
+        BitBlt(AMask.Canvas.Handle, 0, 0, AMask.Width, HI, Mask.Canvas.Handle, 0, YI, SrcCopy);
       end;
 
-    SetBkColor(ABitmap.Canvas.Handle, clWhite);
-    SetTextColor(ABitmap.Canvas.Handle, clBlack);
-    BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, AMask.Canvas.Handle, 0, 0, SRCPAINT);
+      SetBkColor(ABitmap.Canvas.Handle, clWhite);
+      SetTextColor(ABitmap.Canvas.Handle, clBlack);
+      BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, AMask.Canvas.Handle, 0, 0, SRCPAINT);
 
-    DC := Canvas.Handle;
+      DC := Canvas.Handle;
     {calculate a transform for the clip region as it may be a different size than
      the mask and needs to be positioned on the canvas.}
-    GetViewportExtEx(DC, SizeV);
-    GetWindowExtEx(DC, SizeW);
-    GetWindowOrgEx(DC, Origin); //BG, 29.08.2009: get origin for correct mask translation
+      GetViewportExtEx(DC, SizeV);
+      GetWindowExtEx(DC, SizeW);
+      GetWindowOrgEx(DC, Origin); //BG, 29.08.2009: get origin for correct mask translation
 
-    HF := (SizeV.cx/SizeW.cx);  {Horizontal adjustment factor}
-    VF := (SizeV.cy/SizeW.cy);  {Vertical adjustment factor}
+      HF := (SizeV.cx / SizeW.cx); {Horizontal adjustment factor}
+      VF := (SizeV.cy / SizeW.cy); {Vertical adjustment factor}
 
-    XForm.eM11 := HF * (NewW/Bitmap.Width);
-    XForm.eM12 := 0;
-    XForm.eM21 := 0;
-    XForm.eM22 := VF * (NewH/HI);
-    XForm.edx := HF*(X - Origin.X); //BG, 29.08.2009: subtract origin
-    XForm.edy := VF*Y;
+      XForm.eM11 := HF * (NewW / Bitmap.Width);
+      XForm.eM12 := 0;
+      XForm.eM21 := 0;
+      XForm.eM22 := VF * (NewH / HI);
+      XForm.edx := HF * (X - Origin.X); //BG, 29.08.2009: subtract origin
+      XForm.edy := VF * Y;
 
     {Find the region for the white area of the Mask}
-    hRgn := BitmapToRegion(AMask, @XForm, $FFFFFF);
-    if hRgn <> 0 then  {else nothing to output--this would be unusual}
+      hRgn := BitmapToRegion(AMask, @XForm, $FFFFFF);
+      if hRgn <> 0 then {else nothing to output--this would be unusual}
       begin
-      OldRgn := CreateRectRgn(0,0,1,1);  {a valid region is needed for the next call}
-      Rslt := GetClipRgn(DC, OldRgn);    {save the Old clip region}
-      try
-        if Rslt = 1 then
-          CombineRgn(hRgn, hRgn, OldRgn, RGN_AND);
-        SelectClipRgn(DC, hRgn);
-        GetDIBSizes(ABitmap.Handle, InfoSize, ImageSize);
-        GetMem(Info, InfoSize);
+        OldRgn := CreateRectRgn(0, 0, 1, 1); {a valid region is needed for the next call}
+        Rslt := GetClipRgn(DC, OldRgn); {save the Old clip region}
         try
-          Image := Allocate(ImageSize);
-          OldPal := SelectPalette(DC, ThePalette, True);
+          if Rslt = 1 then
+            CombineRgn(hRgn, hRgn, OldRgn, RGN_AND);
+          SelectClipRgn(DC, hRgn);
+          GetDIBSizes(ABitmap.Handle, InfoSize, ImageSize);
+          GetMem(Info, InfoSize);
           try
-            GetDIB(ABitmap.Handle, ThePalette, Info^, Image.Ptr^);
-            RealizePalette(DC);
-            with Info^.bmiHeader do
-              StretchDIBits(DC, X, Y, NewW, NewH,
-                 0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+            Image := Allocate(ImageSize);
+            OldPal := SelectPalette(DC, ThePalette, True);
+            try
+              GetDIB(ABitmap.Handle, ThePalette, Info^, Image.Ptr^);
+              RealizePalette(DC);
+              with Info^.bmiHeader do
+                StretchDIBits(DC, X, Y, NewW, NewH,
+                  0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+            finally
+              DeAllocate(Image);
+              SelectPalette(DC, OldPal, False);
+            end;
           finally
-            DeAllocate(Image);
-            SelectPalette(DC, OldPal, False);
-           end;
+            FreeMem(Info, InfoSize);
+          end;
         finally
-         FreeMem(Info, InfoSize);
-         end;
-      finally
-        if Rslt = 1 then
-          SelectClipRgn(DC, OldRgn)
-        else SelectClipRgn(DC, 0);
-        DeleteObject(hRgn);
-        DeleteObject(OldRgn);
+          if Rslt = 1 then
+            SelectClipRgn(DC, OldRgn)
+          else
+            SelectClipRgn(DC, 0);
+          DeleteObject(hRgn);
+          DeleteObject(OldRgn);
         end;
       end;
-  finally
-    if BitmapCopy then
+    finally
+      if BitmapCopy then
       begin
-      ABitmap.Free;
-      AMask.Free;
+        ABitmap.Free;
+        AMask.Free;
       end;
     end;
-except
+  except
   end;
 end;
 
@@ -3586,10 +3668,10 @@ type
 
 function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
 begin
-Result[0] := P0;
-Result[1] := P1;
-Result[2] := P2;
-Result[3] := P3;
+  Result[0] := P0;
+  Result[1] := P1;
+  Result[2] := P2;
+  Result[3] := P3;
 end;
 
 procedure DrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY: integer);
@@ -3597,123 +3679,123 @@ procedure DrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY: integer);
 var
   g: TGpGraphics;
 begin
-g := TGPGraphics.Create(Handle);
-try
-  g.DrawImage(Image, DestX, DestY, Image.Width, Image.Height);
-except
+  g := TGPGraphics.Create(Handle);
+  try
+    g.DrawImage(Image, DestX, DestY, Image.Width, Image.Height);
+  except
   end;
-g.Free;
+  g.Free;
 end;
 
 procedure DrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY,
-            SrcX, SrcY, SrcW, SrcH: integer);
+  SrcX, SrcY, SrcW, SrcH: integer);
 {Draw a portion of the image at DestX, DestY.  No stretching}
 var
   g: TGpGraphics;
 begin
-g := TGPGraphics.Create(Handle);
-try
-  g.DrawImage(Image, DestX, DestY, SrcX, SrcY, SrcW, SrcH);
-except
+  g := TGPGraphics.Create(Handle);
+  try
+    g.DrawImage(Image, DestX, DestY, SrcX, SrcY, SrcW, SrcH);
+  except
   end;
-g.Free;
+  g.Free;
 end;
 
 procedure StretchDrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY,
-             DestW, DestH: integer);
+  DestW, DestH: integer);
 {Draws the entire image in the rectangle specified}
 var
   g: TGpGraphics;
 begin
-g := TGPGraphics.Create(Handle);
-try
-  g.DrawImage(Image, DestX, DestY, DestW, DestH);
-except
+  g := TGPGraphics.Create(Handle);
+  try
+    g.DrawImage(Image, DestX, DestY, DestW, DestH);
+  except
   end;
-g.Free;
+  g.Free;
 end;
 
 procedure StretchPrintGpImageDirect(Handle: THandle; Image: TGpImage;
-              DestX, DestY, DestW, DestH: integer;
-              ScaleX, ScaleY: single);
+  DestX, DestY, DestW, DestH: integer;
+  ScaleX, ScaleY: single);
 {Prints the entire image at the point specified with the height and width specified}
 var
   g: TGpGraphics;
 begin
-g := TGPGraphics.Create(Handle);
-try
-  g.ScaleTransform(ScaleX, ScaleY);
-  g.DrawImage(Image, DestX, DestY, DestW, DestH);
-except
+  g := TGPGraphics.Create(Handle);
+  try
+    g.ScaleTransform(ScaleX, ScaleY);
+    g.DrawImage(Image, DestX, DestY, DestW, DestH);
+  except
   end;
-g.Free;
+  g.Free;
 end;
 
 procedure StretchPrintGpImageOnColor(Canvas: TCanvas; Image: TGpImage;
-              DestX, DestY, DestW, DestH: integer; Color: TColor = clWhite);
+  DestX, DestY, DestW, DestH: integer; Color: TColor = clWhite);
 var
   g: TGpGraphics;
   bg: TBitmap;
-begin   {Draw image on white background first, then print}
-bg := TBitmap.Create;
-bg.Width := TGPImage(Image).Width;
-bg.Height := TGPImage(Image).Height;
-bg.Canvas.Brush.Color := Color;
-bg.Canvas.FillRect(Rect(0, 0, bg.Width, bg.Height));
-g := TGPGraphics.Create(bg.Canvas.Handle);
-g.DrawImage(TGPImage(Image),0,0, bg.Width, bg.Height);
-g.Free;
-Canvas.StretchDraw(Rect(DestX, DestY, DestX+DestW, DestY+DestH), bg);
-bg.Free;
+begin {Draw image on white background first, then print}
+  bg := TBitmap.Create;
+  bg.Width := TGPImage(Image).Width;
+  bg.Height := TGPImage(Image).Height;
+  bg.Canvas.Brush.Color := Color;
+  bg.Canvas.FillRect(Rect(0, 0, bg.Width, bg.Height));
+  g := TGPGraphics.Create(bg.Canvas.Handle);
+  g.DrawImage(TGPImage(Image), 0, 0, bg.Width, bg.Height);
+  g.Free;
+  Canvas.StretchDraw(Rect(DestX, DestY, DestX + DestW, DestY + DestH), bg);
+  bg.Free;
 end;
 
 procedure PrintGpImageDirect(Handle: THandle; Image: TGpImage; DestX, DestY: integer;
-              ScaleX, ScaleY: single);
+  ScaleX, ScaleY: single);
 {Prints the entire image as specified at the point specified}
 var
   g: TGpGraphics;
 begin
-g := TGPGraphics.Create(Handle);
-try
-  g.ScaleTransform(ScaleX, ScaleY);
-  g.DrawImage(Image, DestX, DestY, Image.Width, Image.Height);
-except
+  g := TGPGraphics.Create(Handle);
+  try
+    g.ScaleTransform(ScaleX, ScaleY);
+    g.DrawImage(Image, DestX, DestY, Image.Width, Image.Height);
+  except
   end;
-g.Free;
+  g.Free;
 end;
 
 function Points(P0, P1, P2, P3: TPoint): BorderPointArray;
 begin
-Result[0] := P0;
-Result[1] := P1;
-Result[2] := P2;
-Result[3] := P3;
+  Result[0] := P0;
+  Result[1] := P1;
+  Result[2] := P2;
+  Result[3] := P3;
 end;
 
 function htColors(C0, C1, C2, C3: TColor): htColorArray;
 begin
-Result[0] := C0;
-Result[1] := C1;
-Result[2] := C2;
-Result[3] := C3;
+  Result[0] := C0;
+  Result[1] := C1;
+  Result[2] := C2;
+  Result[3] := C3;
 end;
 
 procedure DrawOnePolygon(Canvas: TCanvas; P: BorderPointArray; Color: TColor;
-             Side: integer; Printing: boolean);
+  Side: integer; Printing: boolean);
 {Here we draw a 4 sided polygon (by filling a region).  This represents one
  side (or part of a side) of a border.
  For single pixel thickness, drawing is done by lines for better printing}
 type SideArray = array[0..3, 1..4] of integer;
 
 const
-  AD: SideArray = ((0,1,0,3),
-                   (0,1,1,1),
-                   (2,0,2,1),
-                   (1,3,3,3));
-  AP: SideArray = ((0,1,0,3),
-                   (0,1,2,1),
-                   (2,0,2,2),
-                   (1,3,3,3));
+  AD: SideArray = ((0, 1, 0, 3),
+    (0, 1, 1, 1),
+    (2, 0, 2, 1),
+    (1, 3, 3, 3));
+  AP: SideArray = ((0, 1, 0, 3),
+    (0, 1, 2, 1),
+    (2, 0, 2, 2),
+    (1, 3, 3, 3));
 var
   R: HRgn;
   OldWidth: integer;
@@ -3723,50 +3805,53 @@ var
   P1, P2: TPoint;
   I: SideArray;
 begin
-if Side in [0,2] then
-  Thickness := Abs(P[2].X - P[1].X)
-else Thickness := Abs(P[1].Y - P[2].Y);
-if Thickness = 1 then
+  if Side in [0, 2] then
+    Thickness := Abs(P[2].X - P[1].X)
+  else
+    Thickness := Abs(P[1].Y - P[2].Y);
+  if Thickness = 1 then
   begin
-  with Canvas do
+    with Canvas do
     begin
-    OldColor := Pen.Color;
-    OldStyle := Pen.Style;
-    OldWidth := Pen.Width;
-    Pen.Color := Color;
-    Pen.Style := psSolid;
-    Pen.Width := 1;
-    if Printing then
-      I := AP
-    else I := AD;
-    P1 := Point(P[I[Side,1]].X, P[I[Side,2]].Y);
-    P2 := Point(P[I[Side,3]].X, P[I[Side,4]].Y);
-    MoveTo(P1.X, P1.Y);
-    LineTo(P2.X, P2.Y);
-    Pen.Width := OldWidth;
-    Pen.Style := OldStyle;
-    Pen.Color := OldColor;
+      OldColor := Pen.Color;
+      OldStyle := Pen.Style;
+      OldWidth := Pen.Width;
+      Pen.Color := Color;
+      Pen.Style := psSolid;
+      Pen.Width := 1;
+      if Printing then
+        I := AP
+      else
+        I := AD;
+      P1 := Point(P[I[Side, 1]].X, P[I[Side, 2]].Y);
+      P2 := Point(P[I[Side, 3]].X, P[I[Side, 4]].Y);
+      MoveTo(P1.X, P1.Y);
+      LineTo(P2.X, P2.Y);
+      Pen.Width := OldWidth;
+      Pen.Style := OldStyle;
+      Pen.Color := OldColor;
     end;
   end
-else
+  else
   begin
-  R := CreatePolygonRgn(P, 4, Alternate);
-  try
-    with Canvas do
+    R := CreatePolygonRgn(P, 4, Alternate);
+    try
+      with Canvas do
       begin
-      Brush.Style := bsSolid;
-      Brush.Color := Color;
-      FillRgn(Handle, R, Brush.Handle);
+        Brush.Style := bsSolid;
+        Brush.Color := Color;
+        FillRgn(Handle, R, Brush.Handle);
       end;
-  finally
-    DeleteObject(R);
+    finally
+      DeleteObject(R);
     end;
   end;
 end;
 
 {----------------DrawBorder}
+
 procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; C: htColorArray;
-            S: htBorderStyleArray; BGround: TColor; Print: boolean);
+  S: htBorderStyleArray; BGround: TColor; Print: boolean);
 {Draw the 4 sides of a border.  The sides may be of different styles or colors.
  The side indices, 0,1,2,3, represent left, top, right, bottom.
  ORect is the outside rectangle of the border, IRect the inside Rectangle.
@@ -3792,239 +3877,241 @@ var
   var
     Red, Green, Blue: Byte;
   begin
-  if Color and $80000000 = $80000000 then
-    Color := GetSysColor(Color and $FFFFFF)
-  else Color := Color and $FFFFFF;
-  Red := Color and $FF;
-  Green := (Color and $FF00) shr 8;
-  Blue := (Color and $FF0000) shr 16;
-  Result := RGB(Round(F*Red), Round(F*Green), Round(F*Blue));
+    if Color and $80000000 = $80000000 then
+      Color := GetSysColor(Color and $FFFFFF)
+    else
+      Color := Color and $FFFFFF;
+    Red := Color and $FF;
+    Green := (Color and $FF00) shr 8;
+    Blue := (Color and $FF0000) shr 16;
+    Result := RGB(Round(F * Red), Round(F * Green), Round(F * Blue));
   end;
 
 begin
 {Limit the borders to somewhat more than the screen size}
-ORect.Bottom := IntMin(ORect.Bottom, BotLim);
-ORect.Top := IntMax(ORect.Top, TopLim);
-IRect.Bottom := IntMin(IRect.Bottom, BotLim);
-IRect.Top := IntMax(IRect.Top, TopLim);
+  ORect.Bottom := IntMin(ORect.Bottom, BotLim);
+  ORect.Top := IntMax(ORect.Top, TopLim);
+  IRect.Bottom := IntMin(IRect.Bottom, BotLim);
+  IRect.Top := IntMax(IRect.Top, TopLim);
 
 {Find out what style types are represented in this border}
-StyleSet := [];
-for I := 0 to 3 do
-  Include(StyleSet, S[I]);
+  StyleSet := [];
+  for I := 0 to 3 do
+    Include(StyleSet, S[I]);
 
 {find the outside and inside corner points for the border segments}
-with ORect do
+  with ORect do
   begin
-  PO[0] := Point(Left, Bottom);
-  PO[1] := TopLeft;
-  PO[2] := Point(Right, Top);
-  PO[3] := BottomRight;
+    PO[0] := Point(Left, Bottom);
+    PO[1] := TopLeft;
+    PO[2] := Point(Right, Top);
+    PO[3] := BottomRight;
   end;
-with IRect do
+  with IRect do
   begin
-  PI[0] := Point(Left, Bottom);
-  PI[1] := TopLeft;
-  PI[2] := Point(Right, Top);
-  PI[3] := BottomRight;
+    PI[0] := Point(Left, Bottom);
+    PI[1] := TopLeft;
+    PI[2] := Point(Right, Top);
+    PI[3] := BottomRight;
   end;
 
 {Points midway between the outer and inner rectangle are needed for
  ridge, groove, dashed, dotted styles}
-if [bssRidge, bssGroove, bssDotted, bssDashed] * StyleSet <> [] then
+  if [bssRidge, bssGroove, bssDotted, bssDashed] * StyleSet <> [] then
   begin
-  MRect := Rect((ORect.Left+IRect.Left) div 2, (ORect.Top+IRect.Top) div 2,
-                (ORect.Right+IRect.Right) div 2, (ORect.Bottom+IRect.Bottom) div 2);
-  with MRect do
+    MRect := Rect((ORect.Left + IRect.Left) div 2, (ORect.Top + IRect.Top) div 2,
+      (ORect.Right + IRect.Right) div 2, (ORect.Bottom + IRect.Bottom) div 2);
+    with MRect do
     begin
-    PM[0] := Point(Left, Bottom);
-    PM[1] := TopLeft;
-    PM[2] := Point(Right, Top);
-    PM[3] := BottomRight;
+      PM[0] := Point(Left, Bottom);
+      PM[1] := TopLeft;
+      PM[2] := Point(Right, Top);
+      PM[3] := BottomRight;
     end;
   end;
 
 {Widths are needed for Dashed, Dotted, and Double}
-W[0] := IRect.Left-Orect.Left;
-W[1] := IRect.Top-Orect.Top;
-W[2] := ORect.Right-IRect.Right;
-W[3] := ORect.Bottom-IRect.Bottom;
+  W[0] := IRect.Left - Orect.Left;
+  W[1] := IRect.Top - Orect.Top;
+  W[2] := ORect.Right - IRect.Right;
+  W[3] := ORect.Bottom - IRect.Bottom;
 
 {the Double style needs the space between inner and outer rectangles divided
  into three parts}
-if bssDouble in StyleSet then
+  if bssDouble in StyleSet then
   begin
-  for I := 0 to 3 do
+    for I := 0 to 3 do
     begin
-    D[I] := W[I] div 3;
-    if W[I] mod 3 = 2 then
-      Inc(D[I]);
+      D[I] := W[I] div 3;
+      if W[I] mod 3 = 2 then
+        Inc(D[I]);
     end;
 
-  with ORect do
-    MRect := Rect(Left+D[0], Top+D[1], Right-D[2], Bottom-D[3]);
+    with ORect do
+      MRect := Rect(Left + D[0], Top + D[1], Right - D[2], Bottom - D[3]);
 
-  with MRect do
+    with MRect do
     begin
-    P1[0] := Point(Left, Bottom);
-    P1[1] := TopLeft;
-    P1[2] := Point(Right, Top);
-    P1[3] := BottomRight;
+      P1[0] := Point(Left, Bottom);
+      P1[1] := TopLeft;
+      P1[2] := Point(Right, Top);
+      P1[3] := BottomRight;
     end;
 
-  with IRect do
-    MRect := Rect(Left-D[0], Top-D[1], Right+D[2], Bottom+D[3]);
+    with IRect do
+      MRect := Rect(Left - D[0], Top - D[1], Right + D[2], Bottom + D[3]);
 
-  with MRect do
+    with MRect do
     begin
-    P2[0] := Point(Left, Bottom);
-    P2[1] := TopLeft;
-    P2[2] := Point(Right, Top);
-    P2[3] := BottomRight;
+      P2[0] := Point(Left, Bottom);
+      P2[1] := TopLeft;
+      P2[2] := Point(Right, Top);
+      P2[3] := BottomRight;
     end;
   end;
 
 {double, dotted, dashed styles need a background fill}
-if (BGround <> clNone) and ([bssDouble, bssDotted, bssDashed] * StyleSet <> []) then
+  if (BGround <> clNone) and ([bssDouble, bssDotted, bssDashed] * StyleSet <> []) then
   begin
-  with ORect do
-    OuterRegion := CreateRectRgn(Left, Top, Right, Bottom);
-  with IRect do
-    InnerRegion := CreateRectRgn(Left, Top, Right, Bottom);
-  CombineRgn(OuterRegion, OuterRegion, InnerRegion, RGN_DIFF);
-  Brush := TBrush.Create;
-  try
-    Brush.Color := BGround or PalRelative;
-    Brush.Style := bsSolid;
-    FillRgn(Canvas.Handle, OuterRegion, Brush.Handle);
-  finally
-    Brush.Free;
-    DeleteObject(OuterRegion);
-    DeleteObject(InnerRegion);
+    with ORect do
+      OuterRegion := CreateRectRgn(Left, Top, Right, Bottom);
+    with IRect do
+      InnerRegion := CreateRectRgn(Left, Top, Right, Bottom);
+    CombineRgn(OuterRegion, OuterRegion, InnerRegion, RGN_DIFF);
+    Brush := TBrush.Create;
+    try
+      Brush.Color := BGround or PalRelative;
+      Brush.Style := bsSolid;
+      FillRgn(Canvas.Handle, OuterRegion, Brush.Handle);
+    finally
+      Brush.Free;
+      DeleteObject(OuterRegion);
+      DeleteObject(InnerRegion);
     end;
   end;
 
-InPath := False;
-Pn := 0;
-OldPn := 0;
-Start := 0;
+  InPath := False;
+  Pn := 0;
+  OldPn := 0;
+  Start := 0;
 
-try
-  for I := 0 to 3 do
-    if S[I] in [bssSolid, bssInset, bssOutset] then
+  try
+    for I := 0 to 3 do
+      if S[I] in [bssSolid, bssInset, bssOutset] then
       begin
-      Bnd[0] := PO[I];
-      Bnd[1] := PO[(I+1) Mod 4];
-      Bnd[2] := PI[(I+1) Mod 4];
-      Bnd[3] := PI[I];
-      Color := C[I] or PalRelative;
-      case S[I] of
-        bssSolid:
-          DrawOnePolygon(Canvas, Bnd, Color, I, Print);
-        bssInset:
-          begin
-          if I in [0,1] then
-            Color := Darker(C[I]) or PalRelative;
-          DrawOnePolygon(Canvas, Bnd, Color, I, Print);
-          end;
-        bssOutset:
-          begin
-          if (I in [2,3]) then
-            Color := Darker(C[I]) or PalRelative;
-          DrawOnePolygon(Canvas, Bnd, Color, I, Print);
-          end;
+        Bnd[0] := PO[I];
+        Bnd[1] := PO[(I + 1) mod 4];
+        Bnd[2] := PI[(I + 1) mod 4];
+        Bnd[3] := PI[I];
+        Color := C[I] or PalRelative;
+        case S[I] of
+          bssSolid:
+            DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+          bssInset:
+            begin
+              if I in [0, 1] then
+                Color := Darker(C[I]) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+            end;
+          bssOutset:
+            begin
+              if (I in [2, 3]) then
+                Color := Darker(C[I]) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+            end;
         end;
       end
-    else if S[I] in [bssRidge, bssGroove] then
-      begin    {ridge or groove}
-      Color := C[I] or PalRelative;
-      Bnd[0] := PO[I];
-      Bnd[1] := PO[(I+1) Mod 4];
-      Bnd[2] := PM[(I+1) Mod 4];
-      Bnd[3] := PM[I];
-      case S[I] of
-        bssGroove:
-          begin
-          if I in [0,1] then
-            Color := Darker(C[I]) or PalRelative;
-          DrawOnePolygon(Canvas, Bnd, Color, I, Print);
-          end;
-        bssRidge:
-          begin
-          if (I in [2,3]) then
-            Color := Darker(C[I]) or PalRelative;
-          DrawOnePolygon(Canvas, Bnd, Color, I, Print);
-          end;
+      else if S[I] in [bssRidge, bssGroove] then
+      begin {ridge or groove}
+        Color := C[I] or PalRelative;
+        Bnd[0] := PO[I];
+        Bnd[1] := PO[(I + 1) mod 4];
+        Bnd[2] := PM[(I + 1) mod 4];
+        Bnd[3] := PM[I];
+        case S[I] of
+          bssGroove:
+            begin
+              if I in [0, 1] then
+                Color := Darker(C[I]) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+            end;
+          bssRidge:
+            begin
+              if (I in [2, 3]) then
+                Color := Darker(C[I]) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+            end;
         end;
-      Color := C[I] or PalRelative;
-      Bnd[0] := PM[I];
-      Bnd[1] := PM[(I+1) Mod 4];
-      Bnd[2] := PI[(I+1) Mod 4];
-      Bnd[3] := PI[I];
-      case S[I] of
-        bssRidge:
-          begin
-          if I in [0,1] then
-            Color := Darker(C[I]) or PalRelative;
-          DrawOnePolygon(Canvas, Bnd, Color, I, Print);
-          end;
-        bssGroove:
-          begin
-          if (I in [2,3]) then
-            Color := Darker(C[I]) or PalRelative;
-          DrawOnePolygon(Canvas, Bnd, Color, I, Print);
-          end;
+        Color := C[I] or PalRelative;
+        Bnd[0] := PM[I];
+        Bnd[1] := PM[(I + 1) mod 4];
+        Bnd[2] := PI[(I + 1) mod 4];
+        Bnd[3] := PI[I];
+        case S[I] of
+          bssRidge:
+            begin
+              if I in [0, 1] then
+                Color := Darker(C[I]) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+            end;
+          bssGroove:
+            begin
+              if (I in [2, 3]) then
+                Color := Darker(C[I]) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+            end;
         end;
       end
-    else if S[I] = bssDouble then
+      else if S[I] = bssDouble then
       begin
-      Color := C[I] or PalRelative;
-      Bnd[0] := PO[I];
-      Bnd[1] := PO[(I+1) Mod 4];
-      Bnd[2] := P1[(I+1) Mod 4];
-      Bnd[3] := P1[I];
-      DrawOnePolygon(Canvas, Bnd, Color, I, Print);
-      Bnd[0] := P2[I];
-      Bnd[1] := P2[(I+1) Mod 4];
-      Bnd[2] := PI[(I+1) Mod 4];
-      Bnd[3] := PI[I];
-      DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+        Color := C[I] or PalRelative;
+        Bnd[0] := PO[I];
+        Bnd[1] := PO[(I + 1) mod 4];
+        Bnd[2] := P1[(I + 1) mod 4];
+        Bnd[3] := P1[I];
+        DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+        Bnd[0] := P2[I];
+        Bnd[1] := P2[(I + 1) mod 4];
+        Bnd[2] := PI[(I + 1) mod 4];
+        Bnd[3] := PI[I];
+        DrawOnePolygon(Canvas, Bnd, Color, I, Print);
       end
-    else if S[I] in [bssDashed, bssDotted] then
+      else if S[I] in [bssDashed, bssDotted] then
       begin
-      if not InPath then
+        if not InPath then
         begin
-        lb.lbStyle := BS_SOLID;
-        lb.lbColor := C[I] or PalRelative;
-        lb.lbHatch := 0;
-        if S[I] = bssDotted then
-          PenType := PS_Dot or ps_EndCap_Round
-        else PenType := PS_Dash or ps_EndCap_Square;
-        Pn := ExtCreatePen(PS_GEOMETRIC or PenType or ps_Join_Miter, W[I], lb, 0, Nil);
-        OldPn := SelectObject(Canvas.Handle, Pn);
-        BeginPath(Canvas.Handle);
-        Windows.movetoEx(Canvas.Handle, PM[I].x, PM[I].y, Nil);
-        Start := I;
-        InPath := True;
+          lb.lbStyle := BS_SOLID;
+          lb.lbColor := C[I] or PalRelative;
+          lb.lbHatch := 0;
+          if S[I] = bssDotted then
+            PenType := PS_Dot or ps_EndCap_Round
+          else
+            PenType := PS_Dash or ps_EndCap_Square;
+          Pn := ExtCreatePen(PS_GEOMETRIC or PenType or ps_Join_Miter, W[I], lb, 0, nil);
+          OldPn := SelectObject(Canvas.Handle, Pn);
+          BeginPath(Canvas.Handle);
+          Windows.movetoEx(Canvas.Handle, PM[I].x, PM[I].y, nil);
+          Start := I;
+          InPath := True;
         end;
-      Windows.LineTo(Canvas.Handle, PM[(I+1) mod 4].x, PM[(I+1) mod 4].y);
-      if (I=3) or (S[I+1] <> S[I]) or (C[I+1] <> C[I]) or (W[I+1] <> W[I]) then
+        Windows.LineTo(Canvas.Handle, PM[(I + 1) mod 4].x, PM[(I + 1) mod 4].y);
+        if (I = 3) or (S[I + 1] <> S[I]) or (C[I + 1] <> C[I]) or (W[I + 1] <> W[I]) then
         begin
-        if (I=3) and (Start=0) then
-          CloseFigure(Canvas.Handle);   {it's a closed path}
-        EndPath(Canvas.Handle);
-        StrokePath(Canvas.Handle);
-        SelectObject(Canvas.Handle, OldPn);
-        DeleteObject(Pn);
-        Pn := 0;
-        InPath := False;
+          if (I = 3) and (Start = 0) then
+            CloseFigure(Canvas.Handle); {it's a closed path}
+          EndPath(Canvas.Handle);
+          StrokePath(Canvas.Handle);
+          SelectObject(Canvas.Handle, OldPn);
+          DeleteObject(Pn);
+          Pn := 0;
+          InPath := False;
         end;
       end;
-finally
-  if Pn <> 0 then
+  finally
+    if Pn <> 0 then
     begin
-    SelectObject(Canvas.Handle, OldPn);
-    DeleteObject(Pn);
+      SelectObject(Canvas.Handle, OldPn);
+      DeleteObject(Pn);
     end;
   end;
 end;
@@ -4033,60 +4120,59 @@ end;
 
 function GetImageHeight(Image: TGpObject): integer;
 begin
-if Image is TBitmap then
-  Result := TBitmap(Image).Height
-else if Image is TGpImage then
-  Result := TGpImage(Image).Height
-else if Image is TGifImage then
-  Result := TGifImage(Image).Height
-{$ifndef NoMetafile}
-else if Image is ThtMetaFile then
-  Result := ThtMetaFile(Image).Height
-{$endif}
-else Raise(EGDIPlus.Create('Not a TBitmap, TGifImage, TMetafile, or TGpImage'));
+  if Image is TBitmap then
+    Result := TBitmap(Image).Height
+  else if Image is TGpImage then
+    Result := TGpImage(Image).Height
+  else if Image is TGifImage then
+    Result := TGifImage(Image).Height
+{$IFNDEF NoMetafile}
+  else if Image is ThtMetaFile then
+    Result := ThtMetaFile(Image).Height
+{$ENDIF}
+  else
+    raise(EGDIPlus.Create('Not a TBitmap, TGifImage, TMetafile, or TGpImage'));
 end;
 
 function GetImageWidth(Image: TGpObject): integer;
 begin
-if Image is TBitmap then
-  Result := TBitmap(Image).Width
-else if Image is TGpImage then
-  Result := TGpImage(Image).Width
-else if Image is TGifImage then
-  Result := TGifImage(Image).Width
-{$ifndef NoMetafile}
-else if Image is ThtMetaFile then
-  Result := ThtMetaFile(Image).Width
-{$endif}
-else Raise(EGDIPlus.Create('Not a TBitmap, TGifImage, TMetafile, or TGpImage'));
+  if Image is TBitmap then
+    Result := TBitmap(Image).Width
+  else if Image is TGpImage then
+    Result := TGpImage(Image).Width
+  else if Image is TGifImage then
+    Result := TGifImage(Image).Width
+{$IFNDEF NoMetafile}
+  else if Image is ThtMetaFile then
+    Result := ThtMetaFile(Image).Width
+{$ENDIF}
+  else
+    raise(EGDIPlus.Create('Not a TBitmap, TGifImage, TMetafile, or TGpImage'));
 end;
 
 initialization
 
-{$ifdef UseElPack}
-UnicodeControls := True;
-{$endif}
+{$IFDEF UseElPack}
+  UnicodeControls := True;
+{$ENDIF}
 
-{$ifdef UseTNT}
-UnicodeControls := not IsWin32Platform;
-{$endif}
+{$IFDEF UseTNT}
+  UnicodeControls := not IsWin32Platform;
+{$ENDIF}
 
-DefBitMap := TBitmap.Create;
-DefBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(DefaultBitmap));
-ErrorBitMap := TBitmap.Create;
-ErrorBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmap));
-ErrorBitMapMask := TBitmap.Create;
-ErrorBitMapMask.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmapMask));
-Screen.Cursors[HandCursor] := LoadCursor(HInstance, MakeIntResource(Hand_Cursor));
-Screen.Cursors[UpDownCursor] := LoadCursor(HInstance, 'UPDOWNCURSOR');
-Screen.Cursors[UpOnlyCursor] := LoadCursor(HInstance, 'UPONLYCURSOR');
-Screen.Cursors[DownOnlyCursor] := LoadCursor(HInstance, 'DOWNONLYCURSOR');
+  DefBitMap := TBitmap.Create;
+  DefBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(DefaultBitmap));
+  ErrorBitMap := TBitmap.Create;
+  ErrorBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmap));
+  ErrorBitMapMask := TBitmap.Create;
+  ErrorBitMapMask.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmapMask));
+  Screen.Cursors[HandCursor] := LoadCursor(HInstance, MakeIntResource(Hand_Cursor));
+  Screen.Cursors[UpDownCursor] := LoadCursor(HInstance, 'UPDOWNCURSOR');
+  Screen.Cursors[UpOnlyCursor] := LoadCursor(HInstance, 'UPONLYCURSOR');
+  Screen.Cursors[DownOnlyCursor] := LoadCursor(HInstance, 'DOWNONLYCURSOR');
 
-WaitStream := TMemoryStream.Create;
+  WaitStream := TMemoryStream.Create;
 
-Finalization
-ThisExit;
+finalization
+  ThisExit;
 end.
-
-
-

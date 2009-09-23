@@ -42,7 +42,7 @@ var
   IsWin95: Boolean;
   IsWin32Platform: Boolean; {win95, 98, ME}
   ColorBits: Byte;
-  ThePalette: HPalette;       {the rainbow palette for 256 colors}
+  ThePalette: HPalette; {the rainbow palette for 256 colors}
   PalRelative: integer;
 
 implementation
@@ -55,48 +55,48 @@ var
   LP: ^TLogPalette;
   I, J, K, Sub: integer;
 begin
-GetMem(LP, Sizeof(TLogPalette) + 256*Sizeof(TPaletteEntry));
-try
-  with LP^ do
+  GetMem(LP, Sizeof(TLogPalette) + 256 * Sizeof(TPaletteEntry));
+  try
+    with LP^ do
     begin
-    palVersion := $300;
-    palNumEntries := 256;
-    GetSystemPaletteEntries(DC, 0, 256, palPalEntry);
-    Sub := 10;  {start at entry 10}
-    for I := 0 to 5 do
-      for J := 0 to 5 do
-        for K := 0 to 5 do
-          if not ((I=5) and (J=5) and (K=5)) then  {skip the white}
-            with palPalEntry[Sub] do
+      palVersion := $300;
+      palNumEntries := 256;
+      GetSystemPaletteEntries(DC, 0, 256, palPalEntry);
+      Sub := 10; {start at entry 10}
+      for I := 0 to 5 do
+        for J := 0 to 5 do
+          for K := 0 to 5 do
+            if not ((I = 5) and (J = 5) and (K = 5)) then {skip the white}
+              with palPalEntry[Sub] do
               begin
-              peBlue := Values[I];
-              peGreen := Values[J];
-              peRed := Values[K];
-              peFlags := 0;
-              Inc(Sub);
+                peBlue := Values[I];
+                peGreen := Values[J];
+                peRed := Values[K];
+                peFlags := 0;
+                Inc(Sub);
               end;
-    for I := 1 to 24 do
-       if not (I in [7, 15, 21]) then   {these would be duplicates}
+      for I := 1 to 24 do
+        if not (I in [7, 15, 21]) then {these would be duplicates}
           with palPalEntry[Sub] do
-            begin
-            peBlue := 130 + 5*I;
-            peGreen := 130 + 5*I;
-            peRed := 130 + 5*I;
+          begin
+            peBlue := 130 + 5 * I;
+            peGreen := 130 + 5 * I;
+            peRed := 130 + 5 * I;
             peFlags := 0;
             Inc(Sub);
-            end;
-    Sub := 245;
-    with palPalEntry[Sub] do
+          end;
+      Sub := 245;
+      with palPalEntry[Sub] do
       begin
-      peBlue := 254;
-      peGreen := 255;
-      peRed := 255;
-      peFlags := 0;
+        peBlue := 254;
+        peGreen := 255;
+        peRed := 255;
+        peFlags := 0;
       end;
-    ThePalette := CreatePalette(LP^);
+      ThePalette := CreatePalette(LP^);
     end;
-finally
-  FreeMem(LP, Sizeof(TLogPalette) + 256*Sizeof(TPaletteEntry));
+  finally
+    FreeMem(LP, Sizeof(TLogPalette) + 256 * Sizeof(TPaletteEntry));
   end;
 end;
 
@@ -106,20 +106,22 @@ var
 initialization
   DC := GetDC(0);
   try
-    ColorBits := GetDeviceCaps(DC, BitsPixel)*GetDeviceCaps(DC, Planes);
+    ColorBits := GetDeviceCaps(DC, BitsPixel) * GetDeviceCaps(DC, Planes);
 
     if ColorBits <= 4 then
       ColorBits := 4
     else if ColorBits <= 8 then
       ColorBits := 8
-    else  ColorBits := 24;
+    else
+      ColorBits := 24;
 
     ThePalette := 0;
     if ColorBits = 8 then
       CalcPalette(DC);
-    if ColorBits <= 8 then     {use Palette Relative bit only when Palettes used}
+    if ColorBits <= 8 then {use Palette Relative bit only when Palettes used}
       PalRelative := $2000000
-    else PalRelative := 0;
+    else
+      PalRelative := 0;
   finally
     ReleaseDC(0, DC);
   end;

@@ -1,6 +1,6 @@
 {Version 10.00}
 
-{$I htmlcons.inc}  
+{$I htmlcons.inc}
 
 unit HTMLCompEdit;
 
@@ -9,19 +9,19 @@ interface
 uses
   SysUtils, Windows, Messages, Classes, Controls, StdCtrls,
   Dialogs, ExtCtrls,
-  {$ifdef Delphi6_Plus}
-  designintf, DesignEditors;        
-  {$else}
+{$IFDEF Delphi6_Plus}
+  designintf, DesignEditors;
+{$ELSE}
   dsgnintf;
-  {$endif}
+{$ENDIF}
 
 
 type
 
   THtComponentEditor = class(TComponentEditor)
-    function GetVerbCount: Integer; Override;
-    function GetVerb(index: Integer): String; Override;
-    procedure ExecuteVerb(index: Integer); Override;
+    function GetVerbCount: Integer; override;
+    function GetVerb(index: Integer): string; override;
+    procedure ExecuteVerb(index: Integer); override;
   end;
 
   THTMLEditor = class(THtComponentEditor)
@@ -59,7 +59,7 @@ begin
   Result := 'About..';
 end;
 
-procedure THtComponentEditor.ExecuteVerb(index:integer);
+procedure THtComponentEditor.ExecuteVerb(index: integer);
 begin
   MessageDlg(
     GetComponent.ClassName + ', Version (V) ' + VersionNo + #13#13 +
