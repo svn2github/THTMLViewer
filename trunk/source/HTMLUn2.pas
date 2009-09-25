@@ -2180,7 +2180,7 @@ function GetImageAndMaskFromStream(Stream: TMemoryStream;
   var Transparent: Transparency; var AMask: TBitmap): TgpObject;
 var
   Filename: string;
-  Path: array[0..Max_Path] of Ansichar;
+  Path: PChar;
   F: file;
   I: integer;
 begin
@@ -2192,9 +2192,14 @@ begin
   if GDIPlusActive and (KindOfImage(Stream.Memory) = png) then
   begin
     try
-      GetTempPath(Max_Path, @Path);
-      SetLength(Filename, Max_Path + 1);
-      GetTempFilename(@Path, 'png', Unique, PChar(Filename));
+      Path := StrAlloc(MAX_PATH);
+      try
+        GetTempPath(Max_Path, Path);
+        SetLength(Filename, Max_Path+1);
+        GetTempFilename(Path, 'png', Unique, PChar(Filename));
+      finally
+        StrDispose(Path);
+      end;
       Inc(Unique);
       I := Pos(#0, Filename);
       SetLength(Filename, I - 1);
