@@ -5154,12 +5154,16 @@ begin
 end;
 
 procedure THTMLViewer.SetPrintScale(Value: double);
+//BG, 29.08.2009: changed zoom factor limits from 0.25..4 to 0.125..8
+//BG, 07.10.2009: constants for min/max zoom factor. 
+const
+  CMinPrintScale = 0.125;
+  CMaxPrintScale = 8.0;
 begin
-  //BG, 29.08.2009: changed zoom factor limits from 0.25..4 to 0.125..8
-  if Value > 8.0 then
-    FPrintScale := 8.0
-  else if Value < 0.125 then
-    FPrintScale := 0.125
+  if Value > CMaxPrintScale then
+    FPrintScale := CMaxPrintScale
+  else if Value < CMinPrintScale then
+    FPrintScale := CMinPrintScale
   else
     FPrintScale := Value;
 end;
