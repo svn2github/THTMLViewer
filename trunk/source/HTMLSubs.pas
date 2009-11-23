@@ -1086,6 +1086,7 @@ type
   end;
 
   TCellObj = class(TObject) {holds a TCell and some other information}
+  public
     ColSpan, RowSpan, {column and row spans for this cell}
       Wd: integer; {total width (may cover more than one column)}
     Ht, {total height (may cover more than one row)}
@@ -1102,6 +1103,7 @@ type
     BrdTop, BrdRight, BrdBottom, BrdLeft: integer;
     HzSpace, VrSpace: integer;
     BorderStyle: BorderStyleType;
+    ShowEmptyCells: Boolean;
     Cell: TCellObjCell;
 
     NeedDoImageStuff: boolean;
@@ -7454,6 +7456,7 @@ begin
       BrdLeft := MargArray[BorderLeftWidth];
     end;
     Prop.GetPageBreaks(BreakBefore, BreakAfter, KeepIntact);
+    ShowEmptyCells := Prop.ShowEmptyCells;
   end;
 end;
 
@@ -7756,7 +7759,7 @@ begin
         DrawBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB),
           Colors, Styles, MargArray[BackgroundColor], Cell.MasterList.Printing);
     end
-    else if Border and (Cell.Count > 0) then
+    else if Border and ((Cell.Count > 0) or ShowEmptyCells) then
       if (Light = clBtnHighLight) and (Dark = clBtnShadow) then
         RaisedRect(Cell.MasterList, Canvas, X + CellSpacing, YO + CellSpacing,
           X + Wd - 1, YO + Ht - 1, False, 1)

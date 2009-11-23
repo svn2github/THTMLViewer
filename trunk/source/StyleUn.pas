@@ -89,8 +89,6 @@ type
     procedure Assign(Source: TFontInfoArray);
   end;
 
-  SetOfChar = set of AnsiChar;
-
   TMyFont = class(TFont)
   public
     bgColor: TColor;
@@ -116,7 +114,7 @@ type
     BackgroundRepeat, BackgroundAttachment, VerticalAlign, Position, ZIndex,
     ListStyleType, ListStyleImage, Float, Clear, TextIndent,
     PageBreakBefore, PageBreakAfter, PageBreakInside, TextTransform,
-    WordWrap, FontVariant, BorderCollapse, OverFlow, piDisplay);
+    WordWrap, FontVariant, BorderCollapse, OverFlow, piDisplay, piEmptyCells);
 
   TVMarginArray = array[BackgroundColor..LeftPos] of Variant;
   TMarginArray = array[BackgroundColor..LeftPos] of integer;
@@ -201,6 +199,7 @@ type
     function GetDisplay: TPropDisplay; //BG, 15.09.2009
     //function DisplayNone: boolean;
     function Collapse: boolean;
+    function ShowEmptyCells: Boolean;
     procedure SetFontBG;
     procedure AddPropertyByName(const PropName, PropValue: string);
     function IsOverflowHidden: boolean;
@@ -245,7 +244,7 @@ const
     'background-repeat', 'background-attachment', 'vertical-align', 'position', 'z-index',
     'list-style-type', 'list-style-image', 'float', 'clear', 'text-indent',
     'page-break-before', 'page-break-after', 'page-break-inside', 'text-transform',
-    'word-wrap', 'font-variant', 'border-collapse', 'overflow', 'display');
+    'word-wrap', 'font-variant', 'border-collapse', 'overflow', 'display', 'empty-cells');
 
 procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize,
   ExSize: integer; BStyle: BorderStyleType; var AutoCount: integer;
@@ -1020,6 +1019,12 @@ procedure TProperties.SetFontBG;
 begin
   if (VarType(Props[BackgroundColor]) in varInt) and Originals[BackgroundColor] then
     FontBG := Props[BackgroundColor];
+end;
+
+//-- BG ---------------------------------------------------------- 23.11.2009 --
+function TProperties.ShowEmptyCells: Boolean;
+begin
+  Result := (VarIsStr(Props[piEmptyCells])) and (Props[piEmptyCells] = 'show');
 end;
 
 procedure ConvVertMargins(const VM: TVMarginArray;

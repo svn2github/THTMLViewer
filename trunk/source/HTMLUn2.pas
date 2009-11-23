@@ -398,7 +398,7 @@ type
 {$ENDIF}
 
   ImageType = (NoImage, Bmp, Gif, Gif89, Png, Jpg);
-  SetOfChar = set of AnsiChar;
+  //SetOfChar = set of AnsiChar;
 
   htColorArray = packed array[0..3] of TColor;
   htBorderStyleArray = packed array[0..3] of BorderStyleType;
@@ -411,7 +411,7 @@ var
   //BG, 09.09.2009: unused: ABitmapList: TStringBitmapList; {the image cache}
   WaitStream: TMemoryStream;
 
-function InSet(W: WideChar; S: SetOfChar): boolean;
+//function InSet(W: WideChar; S: SetOfChar): boolean;
 
 function StrLenW(Str: PWideChar): Cardinal;
 function StrPosW(Str, SubStr: PWideChar): PWideChar;
@@ -2962,13 +2962,13 @@ begin
 end;
 {$ENDIF}
 
-function InSet(W: WideChar; S: SetOfChar): boolean;
-begin
-  if Ord(W) > 255 then
-    Result := False
-  else
-    Result := Char(W) in S;
-end;
+//function InSet(W: WideChar; S: SetOfChar): boolean;
+//begin
+//  if Ord(W) > 255 then
+//    Result := False
+//  else
+//    Result := Char(W) in S;
+//end;
 
 {----------------TCharCollection.GetAsString:}
 
