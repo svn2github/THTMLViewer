@@ -648,6 +648,9 @@ begin
       Viewer.OnImageRequest := FOnImageRequest;
     if fvNoLinkHilite in FOptions then
       Viewer.htOptions := Viewer.htOptions + [htNoLinkHilite];
+    //BG, 24.11.2009: added fvNoFocusRect handling according to mik kvitchko's patch MK20091107
+    if fvNoFocusRect in FOptions then
+      Viewer.htOptions := Viewer.htOptions + [htNoFocusRect];
     Viewer.OnFormSubmit := DoFormSubmitEvent;
     Viewer.OnLink := FOnLink;
     Viewer.OnMeta := FOnMeta;
@@ -3045,6 +3048,12 @@ begin
         htOptions := htOptions + [htNoLinkHilite]
       else
         htOptions := htOptions - [htNoLinkHilite];
+
+      //BG, 24.11.2009: added fvNoFocusRect handling according to mik kvitchko's patch MK20091107
+      if (fvNoFocusRect in Value) then
+        htOptions := htOptions + [htNoFocusRect]
+      else
+        htOptions := htOptions - [htNoFocusRect];
 
       if (fvNoFocusRect in Value) or (fvNoBorder in Value) then
         BorderStyle := htNone

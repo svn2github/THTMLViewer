@@ -44,7 +44,8 @@ type
     var Handled: boolean) of object;
   THotSpotTargetEvent = procedure(Sender: TObject; const Target, URL: string) of object;
   TWindowRequestEvent = procedure(Sender: TObject; const Target, URL: string) of object;
-  fvOptionEnum = (fvMetaRefresh, fvNoBorder, fvNoLinkUnderline, fvOverLinksActive,
+  fvOptionEnum = (
+    fvMetaRefresh, fvNoBorder, fvNoLinkUnderline, fvOverLinksActive,
     fvPrintMonochromeBlack, fvPrintTableBackground, fvPrintBackground,
     fvShowVScroll, fvNoFocusRect, fvShowDummyCaret, fvNoWheelMouse,
     fvNoLinkHilite);

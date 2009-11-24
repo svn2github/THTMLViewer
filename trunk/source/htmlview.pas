@@ -76,10 +76,13 @@ type
   TMetaRefreshType = procedure(Sender: TObject; Delay: integer; const URL: string) of object;
   TParseEvent = procedure(Sender: TObject; var Source: string) of object;
 
-  htOptionEnum = (htOverLinksActive, htNoLinkUnderline, htPrintTableBackground,
+  THtmlViewerOption = (
+    htOverLinksActive, htNoLinkUnderline, htPrintTableBackground,
     htPrintBackground, htPrintMonochromeBlack, htShowDummyCaret,
-    htShowVScroll, htNoWheelMouse, htNoLinkHilite);
-  ThtmlViewerOptions = set of htOptionEnum;
+    htShowVScroll, htNoWheelMouse, htNoLinkHilite,
+    htNoFocusRect //MK20091107
+    );
+  THtmlViewerOptions = set of THtmlViewerOption;
   ThtProgressEvent = procedure(Sender: TObject; Stage: TProgressStage;
     PercentDone: integer) of object;
 

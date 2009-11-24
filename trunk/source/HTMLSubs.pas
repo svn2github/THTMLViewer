@@ -2589,7 +2589,10 @@ begin
           ARect := Rect(X, YBaseLine - ImageHeight - VSpaceB, X + ImageWidth, YBaseLine - VSpaceB);
       end;
       if not ParentSectionList.IsCopy then
-        Canvas.DrawFocusRect(ARect) {draw focus box}
+      begin
+        if not (htNoFocusRect in ThtmlViewer(ParentSectionList.TheOwner).htOptions) then //MK20091107
+          Canvas.DrawFocusRect(ARect);  {draw focus box}
+      end
       else
         ParentSectionList.LinkDrawnEvent(ParentSectionList.TheOwner, ParentSectionList.LinkPage,
           FO.UrlTarget.Url, FO.UrlTarget.Target, ARect);
@@ -11680,15 +11683,18 @@ var
               begin
                 Canvas.Brush.Color := clWhite;
                 SaveColor := SetTextColor(Handle, clBlack);
-                if (Ctrl is TRadioButtonFormControlObj) then
+                if not (htNoFocusRect in ThtmlViewer(ParentSectionList.TheOwner).htOptions) then //MK20091107
                 begin
-                  if Screen.PixelsPerInch > 100 then
-                    Canvas.DrawFocusRect(Rect(Left - 2, Top - 2, Left + 18, Top + 18))
+                  if (Ctrl is TRadioButtonFormControlObj) then
+                  begin
+                    if Screen.PixelsPerInch > 100 then
+                      Canvas.DrawFocusRect(Rect(Left - 2, Top - 2, Left + 18, Top + 18))
+                    else
+                      Canvas.DrawFocusRect(Rect(Left - 3, Top - 2, Left + 16, Top + 16));
+                  end
                   else
-                    Canvas.DrawFocusRect(Rect(Left - 3, Top - 2, Left + 16, Top + 16));
-                end
-                else
-                  Canvas.DrawFocusRect(Rect(Left - 3, Top - 3, Left + 16, Top + 16));
+                    Canvas.DrawFocusRect(Rect(Left - 3, Top - 3, Left + 16, Top + 16));
+                end;
                 SetTextColor(Handle, SaveColor);
               end;
             end;
@@ -11832,7 +11838,8 @@ var
           begin
             Canvas.Font.Color := clBlack; {black font needed for DrawFocusRect}
             DC := Canvas.Handle; {Dummy call needed to make Delphi add font color change to handle}
-            Canvas.DrawFocusRect(ARect);
+            if not (htNoFocusRect in ThtmlViewer(ParentSectionList.TheOwner).htOptions) then //MK20091107
+              Canvas.DrawFocusRect(ARect);
           end;
           if Assigned(ParentSectionList.LinkDrawnEvent) then
             ParentSectionList.LinkDrawnEvent(ParentSectionList.TheOwner, ParentSectionList.LinkPage,
