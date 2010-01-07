@@ -81,28 +81,33 @@ uses
 
 type
   LoadStyleType = (lsFile, lsString, lsInclude);
-  TIncludeType = procedure(Sender: TObject; const Command: string;
-    Params: TStrings; var IString: string) of object;
-  TSoundType = procedure(Sender: TObject; const SRC: string; Loop: integer;
-    Terminate: boolean) of object;
+  TIncludeType = procedure(Sender: TObject; const Command: string; Params: TStrings; var IString: string) of object;
+  TSoundType = procedure(Sender: TObject; const SRC: string; Loop: integer; Terminate: boolean) of object;
   TMetaType = procedure(Sender: TObject; const HttpEq, Name, Content: string) of object;
   TLinkType = procedure(Sender: TObject; const Rel, Rev, Href: string) of object;
 
-  TGetStreamEvent = procedure(Sender: TObject; const SRC: string;
-    var Stream: TMemoryStream) of object;
+  TGetStreamEvent = procedure(Sender: TObject; const SRC: string; var Stream: TMemoryStream) of object;
+
   TFrameViewerBase = class(TWinControl)
   private
-    procedure wmerase(var msg: TMessage); message wm_erasebkgnd;
-  protected
     FOnInclude: TIncludeType;
-    FOnSoundRequest: TSoundType;
-    FOnScript: TScriptEvent;
     FOnLink: TLinkType;
-
-    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string); virtual; abstract;
+    FOnScript: TScriptEvent;
+    FOnSoundRequest: TSoundType;
+    procedure wmerase(var msg: TMessage); message WM_ERASEBKGND;
+  protected
     function CreateSubFrameSet(FrameSet: TObject): TObject; virtual; abstract;
+    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string); virtual; abstract;
     procedure DoAttributes(FrameSet: TObject; Attr: TAttributeList); virtual; abstract;
     procedure EndFrameSet(FrameSet: TObject); virtual; abstract;
+    procedure SetOnInclude(Handler: TIncludeType); virtual;
+    procedure SetOnLink(Handler: TLinkType); virtual;
+    procedure SetOnScript(Handler: TScriptEvent); virtual;
+    procedure SetOnSoundRequest(Handler: TSoundType); virtual;
+    property OnInclude: TIncludeType read FOnInclude write SetOnInclude;
+    property OnLink: TLinkType read FOnLink write SetOnLink;
+    property OnScript: TScriptEvent read FOnScript write SetOnScript;
+    property OnSoundRequest: TSoundType read FOnSoundRequest write SetOnSoundRequest;
   end;
 
   TPropStack = class(TFreeList)
@@ -4004,10 +4009,36 @@ end;
 
 { TFrameViewerBase }
 
+//-- BG ---------------------------------------------------------- 05.01.2010 --
+procedure TFrameViewerBase.SetOnInclude(Handler: TIncludeType);
+begin
+  FOnInclude := Handler;
+end;
+
+//-- BG ---------------------------------------------------------- 05.01.2010 --
+procedure TFrameViewerBase.SetOnLink(Handler: TLinkType);
+begin
+  FOnLink := Handler;
+end;
+
+//-- BG ---------------------------------------------------------- 05.01.2010 --
+procedure TFrameViewerBase.SetOnScript(Handler: TScriptEvent);
+begin
+  FOnScript := Handler;
+end;
+
+//-- BG ---------------------------------------------------------- 05.01.2010 --
+procedure TFrameViewerBase.SetOnSoundRequest(Handler: TSoundType);
+begin
+  FOnSoundRequest := Handler;
+end;
+
 procedure TFrameViewerBase.wmerase(var msg: TMessage);
 begin
   msg.result := 1;
 end;
+
+{ TPropStack }
 
 function TPropStack.GetProp(Index: integer): TProperties;
 begin
