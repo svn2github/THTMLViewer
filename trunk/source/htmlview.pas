@@ -181,8 +181,10 @@ type
     FBackGround: TColor;
     FFontSize: integer;
     FProcessing: boolean;
+// These fields are set in SubmitForm and read in WMFormSubmit
     FAction, FFormTarget, FEncType, FMethod: string;
     FStringList: TStringList;
+//
     FImageCacheCount: integer;
     FNoSelect: boolean;
     FScrollBars: TScrollStyle;
@@ -4326,7 +4328,10 @@ begin
     FEncType := EncType;
     FStringList := Results;
     PostMessage(Handle, wm_FormSubmit, 0, 0);
-  end;
+  end
+  //BG, 03.01.2010: memory leak:
+  else
+    Results.Free;
 end;
 
 procedure ThtmlViewer.WMFormSubmit(var Message: TMessage);
