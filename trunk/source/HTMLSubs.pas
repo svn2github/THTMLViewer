@@ -973,16 +973,14 @@ type
     procedure AdjustFormControls;
 
   public
-    ShowImages, {set if showing images}
-      Printing: boolean; {set if printing -- also see IsCopy}
+    // copied by move() in CreateCopy()
+    ShowImages: boolean; {set if showing images}
+    Printing: boolean; {set if printing -- also see IsCopy}
     YOff: integer; {marks top of window that's displayed}
     YOffChange: boolean; {when above changes}
-    NoPartialLine: boolean; {set when printing if no partial line allowed
-                              at page bottom}
+    NoPartialLine: boolean; {set when printing if no partial line allowed at page bottom}
     SelB, SelE: integer;
-    PreFontName: string; {<pre>, <code> font for document}
-    LinkVisitedColor, LinkActiveColor,
-      HotSpotColor: TColor;
+    LinkVisitedColor, LinkActiveColor, HotSpotColor: TColor;
     PrintTableBackground: boolean;
     PrintBackground: boolean;
     PrintMonoBlack: boolean;
@@ -997,6 +995,9 @@ type
     ObjectChange: ThtObjectEvent;
     FileBrowse: TFileBrowseEvent;
     BackGround: TColor;
+    // end of copied by move() in CreateCopy()
+    // don't copy strings via move()
+    PreFontName: string; {<pre>, <code> font for document}
 
     OnBackgroundChange: TNotifyEvent;
     BackgroundBitmap: TGpObject; //TBitmap;
@@ -2317,7 +2318,7 @@ begin
       end;
     end
     else
-    begin {no Alt text and no size spedified}
+    begin {no Alt text and no size specified}
       AltWidth := IntMax(ObjWidth, 16 + 8);
       AltHeight := IntMax(ObjHeight, 16 + 8);
     end;
@@ -6406,8 +6407,14 @@ begin
   InlineList := T.InlineList; {same list}
   IsCopy := True;
   inherited CreateCopy(Self, T);
+// r14: Added some fixes for object copies done using Move(), re-checked Unicode Support, minor fixes for file structure
 // was: System.Move(T.ShowImages, ShowImages, DWord(@Background) - DWord(@ShowImages) + Sizeof(Integer));
-  ShowImages := T.ShowImages;
+  //BG, 08.06.2010: Issue 9: Getting black background
+  // this Move() copied 24 fields including a string, not only ShowImages.
+  // re-introduce Move() after moving string out of the moved area between ShowImages and Background.
+  //ShowImages := T.ShowImages;
+  System.Move(T.ShowImages, ShowImages, DWord(@Background) - DWord(@ShowImages) + Sizeof(Integer));
+  PreFontName := T.PreFontName;
   BitmapName := '';
   BackgroundBitmap := nil;
   BackgroundMask := nil;
