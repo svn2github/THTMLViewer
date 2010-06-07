@@ -175,7 +175,7 @@ type
 
 const
   MaxRes = 80;
-  MaxEndRes = 57;
+  MaxEndRes = 59;
   ResWords: array[1..MaxRes] of SymString =
   ('HTML', 'TITLE', 'BODY', 'HEAD', 'B', 'I', 'H', 'EM', 'STRONG',
     'U', 'CITE', 'VAR', 'TT', 'CODE', 'KBD', 'SAMP', 'OL', 'UL', 'DIR',
@@ -184,9 +184,9 @@ const
     'CAPTION', 'FORM', 'TEXTAREA', 'SELECT', 'OPTION', 'FONT', 'SUB', 'SUP',
     'BIG', 'SMALL', 'P', 'MAP', 'FRAMESET', 'NOFRAMES', 'SCRIPT', 'DIV',
     'S', 'STRIKE', 'TR', 'NOBR', 'STYLE', 'SPAN', 'COLGROUP', 'LABEL',
-    'THEAD', 'TBODY', 'TFOOT', 'OBJECT',
+    'THEAD', 'TBODY', 'TFOOT', 'OBJECT', 'DD', 'DT',
 
-    'LI', 'BR', 'HR', 'DD', 'DT', 'IMG', 'BASE', 'BUTTON', 'INPUT',
+    'LI', 'BR', 'HR', 'IMG', 'BASE', 'BUTTON', 'INPUT',
     'SELECTED', 'BASEFONT', 'AREA', 'FRAME', 'PAGE', 'BGSOUND', 'WRAP',
     'META', 'PANEL', 'WBR', 'LINK', 'COL', 'PARAM', 'READONLY');
 
@@ -197,9 +197,9 @@ const
     TDsy, THSy, CaptionSy, FormSy, TextAreaSy, SelectSy, OptionSy, FontSy,
     SubSy, SupSy, BigSy, SmallSy, PSy, MapSy, FrameSetSy, NoFramesSy,
     ScriptSy, DivSy, SSy, StrikeSy, TRSy, NoBrSy, StyleSy, SpanSy, ColGroupSy,
-    LabelSy, THeadSy, TBodySy, TFootSy, ObjectSy,
+    LabelSy, THeadSy, TBodySy, TFootSy, ObjectSy, DDSy, DTSy,
 
-    LISy, BRSy, HRSy, DDSy, DTSy, ImageSy, BaseSy, ButtonSy,
+    LISy, BRSy, HRSy, ImageSy, BaseSy, ButtonSy,
     InputSy, SelectedSy, BaseFontSy, AreaSy, FrameSy, PageSy, BgSoundSy,
     WrapSy, MetaSy, PanelSy, WbrSy, LinkSy, ColSy, ParamSy, ReadonlySy);
 
@@ -214,7 +214,7 @@ const
     SubEndSy, SupEndSy, BigEndSy, SmallEndSy, PEndSy, MapEndSy, FrameSetEndSy,
     NoFramesEndSy, ScriptEndSy, DivEndSy, SEndSy, StrikeEndSy, TREndSy,
     NoBrEndSy, StyleEndSy, SpanEndSy, ColGroupEndSy, LabelEndSy,
-    THeadEndSy, TBodyEndSy, TFootEndSy, ObjectEndSy);
+    THeadEndSy, TBodyEndSy, TFootEndSy, ObjectEndSy, DDEndSy, DTEndSy);
 
 type
   EParseError = class(Exception);
@@ -2995,7 +2995,7 @@ begin
     SectionList := NewBlock.OwnerCell;
     Exit;
   end;
-  if Sym in [ULSy, OLSy, DirSy, MenuSy] then
+  if Sym in [ULSy, OLSy, DirSy, MenuSy, DLSy] then
     Inc(ListLevel);
   repeat
     case Sy of
@@ -3036,7 +3036,7 @@ begin
       Next;
     end;
   until (Sy in [EndSym, EofSy]) or (Sy in TermSet);
-  if Sym in [ULSy, OLSy, DirSy, MenuSy] then
+  if Sym in [ULSy, OLSy, DirSy, MenuSy, DLSy] then
     Dec(ListLevel);
   SectionList.Add(Section, TagIndex);
   if SectionList.CheckLastBottomMargin then
