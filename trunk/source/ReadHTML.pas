@@ -175,7 +175,7 @@ type
 
 const
   MaxRes = 80;
-  MaxEndRes = 59;
+  MaxEndRes = 60;
   ResWords: array[1..MaxRes] of SymString =
   ('HTML', 'TITLE', 'BODY', 'HEAD', 'B', 'I', 'H', 'EM', 'STRONG',
     'U', 'CITE', 'VAR', 'TT', 'CODE', 'KBD', 'SAMP', 'OL', 'UL', 'DIR',
@@ -197,9 +197,9 @@ const
     TDsy, THSy, CaptionSy, FormSy, TextAreaSy, SelectSy, OptionSy, FontSy,
     SubSy, SupSy, BigSy, SmallSy, PSy, MapSy, FrameSetSy, NoFramesSy,
     ScriptSy, DivSy, SSy, StrikeSy, TRSy, NoBrSy, StyleSy, SpanSy, ColGroupSy,
-    LabelSy, THeadSy, TBodySy, TFootSy, ObjectSy, DDSy, DTSy,
+    LabelSy, THeadSy, TBodySy, TFootSy, ObjectSy, DDSy, DTSy, LISy,
 
-    LISy, BRSy, HRSy, ImageSy, BaseSy, ButtonSy,
+    BRSy, HRSy, ImageSy, BaseSy, ButtonSy,
     InputSy, SelectedSy, BaseFontSy, AreaSy, FrameSy, PageSy, BgSoundSy,
     WrapSy, MetaSy, PanelSy, WbrSy, LinkSy, ColSy, ParamSy, ReadonlySy);
 
@@ -214,7 +214,7 @@ const
     SubEndSy, SupEndSy, BigEndSy, SmallEndSy, PEndSy, MapEndSy, FrameSetEndSy,
     NoFramesEndSy, ScriptEndSy, DivEndSy, SEndSy, StrikeEndSy, TREndSy,
     NoBrEndSy, StyleEndSy, SpanEndSy, ColGroupEndSy, LabelEndSy,
-    THeadEndSy, TBodyEndSy, TFootEndSy, ObjectEndSy, DDEndSy, DTEndSy);
+    THeadEndSy, TBodyEndSy, TFootEndSy, ObjectEndSy, DDEndSy, DTEndSy, LIEndSy);
 
 type
   EParseError = class(Exception);

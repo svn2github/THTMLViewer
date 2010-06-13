@@ -1,5 +1,5 @@
 
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     HTMLSUBS.PAS                      *}
 {*********************************************************}
@@ -205,7 +205,10 @@ type
     Pos: integer; {0..Len  index of image position}
     ImageHeight, {does not include VSpace}
       ImageWidth: integer;
-    ObjAlign: AlignmentType;
+//BG, 17.01.2010: separate vertical and horizontal alignment:
+//    ObjAlign: AlignmentType;
+    VertAlign: AlignmentType;
+    HorzAlign: AlignmentType;
     Indent: integer;
     HSpaceL, HSpaceR, VSpaceT, VSpaceB: integer; {horizontal, vertical extra space}
     SpecWidth: integer; {as specified by <img or panel> tag}
@@ -834,17 +837,18 @@ type
     procedure FindRowHeights(Canvas: TCanvas; AHeight: integer);
   public
     Rows: TFreeList; {a list of TCellLists}
-    ListsProcessed: boolean;
-    Indent, {table indent}
-      Border: integer; {width of border}
-    Float: boolean; {if floating}
+    ListsProcessed: Boolean;
+    Indent: Integer; {table indent}
+    BorderWidth: Integer; {width of border}
+    Float: Boolean; {if floating}
     NumCols, {Number columns in table}
       TableWidth, {width of table}
       tblWidthAttr: integer; {Width attribute as entered}
     UseAbsolute: boolean; {width entries are considered absolute}
     TableHeight: integer; {height of table itself, not incl caption}
-    CellPadding, CellSpacing: integer;
+    CellPadding, CellSpacing: Integer;
     HSpace, VSpace: integer; {horizontal, vertical extra space}
+    BorderColor: TColor; //BG, 13.06.2010: added for Issue 5: Table border versus stylesheets
     BorderColorLight, BorderColorDark: TColor;
     EndList: boolean; {marker for copy}
     DrawX: integer;
@@ -1277,7 +1281,7 @@ begin
   begin
     IW := Img.ImageWidth + Img.HSpaceL + Img.HSpaceR;
     IH := Img.ImageHeight + Img.VSpaceT + Img.VSpaceB;
-    if (Img.ObjAlign = ALeft) then
+    if (Img.HorzAlign = ALeft) then
     begin
       IR := IndentRec.Create;
       with IR do
@@ -1290,7 +1294,7 @@ begin
         L.Add(IR);
       end;
     end
-    else if (Img.ObjAlign = ARight) then
+    else if (Img.HorzAlign = ARight) then
     begin
       IR := IndentRec.Create;
       with IR do
@@ -1750,7 +1754,8 @@ begin
   inherited Create;
   ParentSectionList := MasterList;
   Pos := Position;
-  ObjAlign := ABottom; {default}
+  VertAlign := ABottom; {default}
+  HorzAlign := ANone; {default}
   NewSpace := -1;
   SpecHeight := -1;
   SpecWidth := -1;
@@ -1779,13 +1784,13 @@ begin
           begin
             S := UpperCase(Name);
             if S = 'TOP' then
-              ObjAlign := ATop
+              VertAlign := ATop
             else if (S = 'MIDDLE') or (S = 'ABSMIDDLE') then
-              ObjAlign := AMiddle
+              VertAlign := AMiddle
             else if S = 'LEFT' then
-              ObjAlign := ALeft
+              HorzAlign := ALeft
             else if S = 'RIGHT' then
-              ObjAlign := ARight;
+              HorzAlign := ARight;
           end;
         BorderSy:
           begin
@@ -1825,7 +1830,7 @@ begin
 
   if NewSpace >= 0 then
     HSpaceL := NewSpace
-  else if ObjAlign in [ALeft, ARight] then
+  else if HorzAlign in [ALeft, ARight] then
     HSpaceL := ImageSpace {default}
   else
     HSpaceL := 0;
@@ -1837,7 +1842,8 @@ constructor TImageObj.SimpleCreate(MasterList: TSectionList; const AnURL: string
 begin
   inherited Create;
   ParentSectionList := MasterList;
-  ObjAlign := ABottom; {default}
+  VertAlign := ABottom; {default}
+  HorzAlign := ANone; {default}
   Source := AnURL;
   NoBorder := True;
   BorderSize := 0;
@@ -1855,7 +1861,7 @@ var
   EmSize, ExSize: integer;
 begin
   if Prop.GetVertAlign(Align) then
-    ObjAlign := Align;
+    VertAlign := Align;
   if Prop.GetFloat(Align) and (Align <> ANone) then
   begin
     if HSpaceR = 0 then
@@ -1863,7 +1869,7 @@ begin
       HSpaceR := ImageSpace;
       HSpaceL := ImageSpace;
     end;
-    ObjAlign := Align;
+    HorzAlign := Align;
   end;
   if ImageTitle = '' then {a Title attribute will have higher priority than inherited}
     ImageTitle := Prop.PropTitle;
@@ -1919,9 +1925,9 @@ begin
   end;
 
   if Prop.GetVertAlign(Align) then
-    ObjAlign := Align;
+    VertAlign := Align;
   if Prop.GetFloat(Align) and (Align <> ANone) then
-    ObjAlign := Align;
+    HorzAlign := Align;
   if Prop.BorderStyleNotBlank then
   begin
     NoBorder := True; {will have inline border instead}
@@ -2489,16 +2495,19 @@ begin
       Ofst := 4
     else
       Ofst := 0;
-    if ObjAlign = AMiddle then
+    if VertAlign = AMiddle then
       MiddleAlignTop := YBaseLine + FO.Descent - (FO.tmHeight div 2) - ((ImageHeight - VSpaceT + VSpaceB) div 2)
     else
       MiddleAlignTop := 0; {not used}
 
     DrawXX := X;
-    case ObjAlign of
-      ALeft, ARight, ATop: DrawYY := TopY + VSpaceT;
-      AMiddle: DrawYY := MiddleAlignTop;
-      ABottom, ABaseline: DrawYY := YBaseLine - ImageHeight - VSpaceB;
+    case VertAlign of
+      {ALeft, ARight,} ATop:
+        DrawYY := TopY + VSpaceT;
+      AMiddle:
+        DrawYY := MiddleAlignTop;
+      ABottom, ABaseline:
+        DrawYY := YBaseLine - ImageHeight - VSpaceB;
     end;
     if (BorderSize > 0) then
     begin
@@ -2514,8 +2523,8 @@ begin
     begin
       Font.Color := FO.TheFont.Color;
     {calc the offset from the image's base to the alt= text baseline}
-      case ObjAlign of
-        ATop, ALeft, ARight:
+      case VertAlign of
+        ATop{, ALeft, ARight}:
           begin
             if FAltW <> '' then
               WrapTextW(Canvas, X + 24, TopY + Ofst + VSpaceT, X + AltWidth - 2, TopY + AltHeight - 1 + VSpaceT, FAltW);
@@ -2553,8 +2562,8 @@ begin
         if (FAltW <> '') and SubstImage then {output Alt message}
         begin
           YY := DrawYY - ParentSectionList.YOff;
-          case ObjAlign of
-            ALeft, ARight, ATop:
+          case VertAlign of
+            {ALeft, ARight,} ATop:
               WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2, YY + AltHeight - 1, FAltW);
             AMiddle:
               WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2,
@@ -2564,8 +2573,8 @@ begin
                 YY + AltHeight - 1, FAltW);
           end;
         end;
-        case ObjAlign of {draw border}
-          ALeft, ARight, ATop: Rectangle(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
+        case VertAlign of {draw border}
+          {ALeft, ARight,} ATop: Rectangle(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
           AMiddle: Rectangle(X, MiddleAlignTop, X + ImageWidth, MiddleAlignTop + ImageHeight);
           ABottom, ABaseline: Rectangle(X, YBaseLine - ImageHeight - VSpaceB, X + ImageWidth, YBaseLine - VSpaceB);
         end;
@@ -2581,8 +2590,8 @@ begin
     begin
       SaveColor := SetTextColor(Handle, clBlack);
       Brush.Color := clWhite;
-      case ObjAlign of
-        ALeft, ARight, ATop:
+      case VertAlign of
+        {ALeft, ARight,} ATop:
           ARect := Rect(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
         AMiddle:
           ARect := Rect(X, MiddleAlignTop, X + ImageWidth, MiddleAlignTop + ImageHeight);
@@ -2641,7 +2650,7 @@ begin
   if Assigned(FLObj) then
   begin
     Result := FLObj.ImageHeight + FLObj.VSpaceT + FLObj.VSpaceB;
-    AAlign := FLObj.ObjAlign;
+    AAlign := FLObj.VertAlign;
   end
   else
     Result := -1;
@@ -2654,7 +2663,7 @@ begin
   if Assigned(FLObj) then
   begin
     Result := FLObj.ImageWidth;
-    AAlign := FLObj.ObjAlign;
+    AAlign := FLObj.HorzAlign;
     HSpcL := FLObj.HSpaceL;
     HSpcR := FLObj.HSpaceR;
   end
@@ -5044,10 +5053,10 @@ begin
 
     YClear := Y + ClearAddon;
   //BG, 08.06.2008: moved after IMgr.GetNextLeftXY()
-  //if MargArray[MarginTop] > 0 then
-  //  DrawTop := YClear
-  //else
-  //  DrawTop := YClear + MargArray[MarginTop]; {Border top}
+  //  if MargArray[MarginTop] > 0 then
+  //    DrawTop := YClear
+  //  else
+  //    DrawTop := YClear + MargArray[MarginTop]; {Border top}
   //BG, 08.06.2008
     if FloatLR = ALeft then
     begin
@@ -5716,7 +5725,7 @@ constructor TTableBlock.Create(Master: TSectionList; Prop: TProperties;
 var
   I, AutoCount: integer;
   Percent: boolean;
-  J: PropIndices;
+  S,W,C: PropIndices;
 begin
   inherited Create(Master, Prop, AnOwnerCell, TableAttr);
   Table := ATable;
@@ -5766,19 +5775,50 @@ begin
             MargArrayO[Height] := Name;
       end;
 
-  if (Table.Border > 0) and (MargArrayO[BorderLeftStyle] = bssNone)
-    and (MargArrayO[BorderTopStyle] = bssNone)
-    and (MargArrayO[BorderRightStyle] = bssNone)
-    and (MargArrayO[BorderBottomStyle] = bssNone) then
-  begin {no CSS border}
-    for J := BorderTopWidth to BorderLeftWidth do
-      MargArrayO[J] := Table.Border;
-    for J := BorderTopStyle to BorderLeftStyle do
-      MargArrayO[J] := bssOutSet;
-    TableBorder := True;
-  end
-  else
-    TableBorder := False;
+  //BG, 13.06.2010: Issue 5: Table border versus stylesheets:
+  if Table.BorderWidth > 0 then
+  begin
+    S := BorderTopStyle;
+    for W := BorderTopWidth to BorderLeftWidth do
+    begin
+      if MargArrayO[S] = bssNone then
+      begin
+        MargArrayO[S] := bssSolid;
+        if (VarType(MargArrayO[W]) in varInt) and (MargArrayO[W] = IntNull) then
+          MargArrayO[W] := Table.BorderWidth;
+        MargArrayO[BorderLeftWidth] := Table.BorderWidth;
+      end;
+      Inc(S);
+    end;
+    BorderStyle := bssOutset;
+  end;
+
+  C := BorderTopColor;
+  TableBorder := False;
+  for S := BorderTopStyle to BorderLeftStyle do
+  begin
+    if MargArrayO[S] <> bssNone then
+    begin
+      TableBorder := True;
+      case BorderStyleType(MargArrayO[S]) of
+        bssOutset:
+          if S in [BorderLeftStyle, BorderTopStyle] then
+            MargArrayO[C] := Table.BorderColorLight
+          else
+            MargArrayO[C] := Table.BorderColorDark;
+        bssInset:
+          if S in [BorderLeftStyle, BorderTopStyle] then
+            MargArrayO[C] := Table.BorderColorDark
+          else
+            MargArrayO[C] := Table.BorderColorLight;
+      else
+        if (VarType(MargArrayO[C]) in VarInt) and (MargArrayO[C] = IntNull) then
+          MargArrayO[C] := Table.BorderColor;
+      end;
+    end;
+    Inc(C);
+  end;
+
 
 {need to see if width is defined in style}
   Percent := (VarIsStr(MargArrayO[Width])) and (Pos('%', MargArrayO[Width]) > 0);
@@ -6000,19 +6040,18 @@ begin
 end;
 
 procedure TTableBlock.DrawBlockBorder(Canvas: TCanvas; ORect, IRect: TRect);
+var
+  Light, Dark: TColor;
+  C: PropIndices;
 begin
-  with Table, IRect do
-    if TableBorder then
-    begin
-      if (BorderColorLight = clBtnHighLight) and (BorderColorDark = clBtnShadow) then
-        RaisedRect(ParentSectionList, Canvas, Left - 1, Top - 1, Right,
-          Bottom, True, Border)
-      else
-        RaisedRectColor(ParentSectionList, Canvas, Left - 1, Top - 1, Right,
-          Bottom, BorderColorLight, BorderColorDark, True, Border);
-    end
-    else
-      inherited;
+  //BG, 13.06.2010: Issue 5: Table border versus stylesheets
+  GetRaisedColors(ParentSectionList, Canvas, Light, Dark);
+  for C := BorderTopColor to BorderLeftColor do
+    if MargArrayO[C] = clBtnHighLight then
+      MargArray[C] := Light
+    else if MargArrayO[C] = clBtnShadow then
+      MargArray[C] := Dark;
+  inherited;
 end;
 
 procedure TTableBlock.AddSectionsToList;
@@ -6177,10 +6216,10 @@ function TBlockLI.Draw1(Canvas: TCanvas; const ARect: TRect;
 
 const
   MaxRoman = 20;
-  LowRoman: array[1..MaxRoman] of string[5] = ('i', 'ii', 'iii', 'iv', 'v', 'vi',
+  LowRoman: array[1..MaxRoman] of string = ('i', 'ii', 'iii', 'iv', 'v', 'vi',
     'vii', 'viii', 'ix', 'x', 'xi', 'xii', 'xiii', 'xiv', 'xv', 'xvi', 'xvii',
     'xviii', 'xix', 'xx');
-  HighRoman: array[1..MaxRoman] of string[5] = ('I', 'II', 'III', 'IV', 'V', 'VI',
+  HighRoman: array[1..MaxRoman] of string = ('I', 'II', 'III', 'IV', 'V', 'VI',
     'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII',
     'XVIII', 'XIX', 'XX');
 var
@@ -8157,12 +8196,14 @@ constructor ThtmlTable.Create(Master: TSectionList; Attr: TAttributeList;
   Prop: TProperties);
 var
   I: integer;
-  BdrColor: TColor;
 begin
+  //BG, 08.06.2010: TODO:  Issue 5: Table border versus stylesheets:
+  //  Added: BorderColor
   inherited Create(Master, Prop);
   Rows := TFreeList.Create;
   CellPadding := 1;
   CellSpacing := 2;
+  BorderColor := clWhite;
   BorderColorLight := clBtnHighLight;
   BorderColorDark := clBtnShadow;
   for I := 0 to Attr.Count - 1 do
@@ -8170,9 +8211,9 @@ begin
       case Which of
         BorderSy:
           if Name = '' then
-            Border := 1
+            BorderWidth := 1
           else
-            Border := IntMin(100, IntMax(0, Value)); {Border=0 is no border}
+            BorderWidth := IntMin(100, IntMax(0, Value)); {Border=0 is no border}
         CellSpacingSy:
           if Value >= -1 then
             CellSpacing := IntMin(Value, 40);
@@ -8180,11 +8221,7 @@ begin
           if Value >= 0 then
             CellPadding := IntMin(Value, 50);
         BorderColorSy:
-          if ColorFromString(Name, False, BdrColor) then
-          begin
-            BorderColorLight := BdrColor;
-            BorderColorDark := BdrColor;
-          end;
+          ColorFromString(Name, False, BorderColor);
         BorderColorLightSy:
           ColorFromString(Name, False, BorderColorLight);
         BorderColorDarkSy:
@@ -8286,7 +8323,7 @@ begin
         for Cl := Count - 1 downto 0 do
           with TCellObj(Items[Cl]) do
           begin
-            InitializeCell(CellPadding, BkImage, APRec, Self.Border > 0);
+            InitializeCell(CellPadding, BkImage, APRec, Self.BorderWidth > 0);
             if WidthAttr > 0 then
             begin
               if not AsPercent then
@@ -9337,7 +9374,7 @@ begin
   DrawY := YY;
   for I := 0 to Rows.Count - 1 do
     YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-      XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+      XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
       BorderColorDark, I);
 end;
 
@@ -9357,8 +9394,8 @@ begin
 
   if TTableBlock(MyBlock).TableBorder then
   begin
-    TopBorder := Border;
-    BottomBorder := Border;
+    TopBorder := BorderWidth;
+    BottomBorder := BorderWidth;
   end
   else
   begin
@@ -9375,7 +9412,7 @@ begin
         begin
           for I := 0 to Rows.Count - 1 do {do whole table now}
             YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-              XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+              XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
               BorderColorDark, I);
           ParentSectionList.PrintingTable := nil;
         end
@@ -9402,7 +9439,7 @@ begin
           ParentSectionList.PageBottom := SavePageBottom - FootHeight - Cellspacing - BottomBorder - 5; {a little to spare}
           for I := 0 to Rows.Count - 1 do {do part of table}
             YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-              XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+              XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
               BorderColorDark, I);
           BodyBreak := ParentSectionList.PageBottom;
           if FootStartRow >= 0 then
@@ -9431,7 +9468,7 @@ begin
         begin {can complete table now}
           for I := 0 to Rows.Count - 1 do {do remainder of table now}
             YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-              XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+              XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
               BorderColorDark, I);
           ThtmlViewer(ParentSectionList.TheOwner).TablePartRec.TablePart := Normal;
         end
@@ -9442,7 +9479,7 @@ begin
             - FootHeight + IntMax(Cellspacing, 1) - BottomBorder;
           for I := 0 to Rows.Count - 1 do
             YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-              XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+              XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
               BorderColorDark, I);
           BodyBreak := ParentSectionList.PageBottom;
           if FootStartRow >= 0 then
@@ -9470,7 +9507,7 @@ begin
         begin
           for I := 0 to Rows.Count - 1 do {do remainder of table now}
             YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-              XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+              XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
               BorderColorDark, I);
           ThtmlViewer(ParentSectionList.TheOwner).TablePartRec.TablePart := Normal;
           ParentSectionList.PrintingTable := nil;
@@ -9480,7 +9517,7 @@ begin
           SavePageBottom := ParentSectionList.PageBottom;
           for I := 0 to Rows.Count - 1 do {do part of table}
             YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-              XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+              XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
               BorderColorDark, I);
           BodyBreak := ParentSectionList.PageBottom;
           if FootStartRow >= 0 then
@@ -9509,7 +9546,7 @@ begin
         if FootStartRow >= 0 then
           for I := FootStartRow to Rows.Count - 1 do
             YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-              XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+              XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
               BorderColorDark, I);
         if HeaderHeight > 0 then
         begin
@@ -9531,7 +9568,7 @@ begin
       begin
         for I := 0 to HeaderRowCount - 1 do
           YY := TCellList(Rows.Items[I]).Draw(Canvas, ParentSectionList, ARect, Widths,
-            XX, YY, YOffset, CellSpacing, Border > 0, BorderColorLight,
+            XX, YY, YOffset, CellSpacing, BorderWidth > 0, BorderColorLight,
             BorderColorDark, I);
         TablePartRec.TablePart := DoBody1;
         TablePartRec.PartStart := BodyBreak - 1;
@@ -10127,7 +10164,7 @@ begin
 
 {After floating images at start, delete an annoying space}
   for I := Length(BuffS) - 1 downto 1 do
-    if (BuffS[I] = ImgPan) and (Images.FindImage(I - 1).ObjAlign in [ALeft, ARight])
+    if (BuffS[I] = ImgPan) and (Images.FindImage(I - 1).HorzAlign in [ALeft, ARight])
       and (BuffS[I + 1] = ' ') then
       Remove(I + 1);
 
@@ -10572,8 +10609,9 @@ begin
             Break {One or more do fit, this one doesn't}
           else
           begin {first image doesn't fit}
-            if IMgr.GetNextWiderY(Y) > Y then
-              Break; {wider area below, it might fit there}
+//BG, 24.01.2010: only moving down looks very strange. 
+//            if IMgr.GetNextWiderY(Y) > Y then
+//              Break; {wider area below, it might fit there}
           {Can't move it down, might as well put it here}
             IMgr.Update(Y, FlObj);
             ImgHt := IntMax(ImgHt, FlObj.ImageHeight + FlObj.VSpaceT + FlObj.VSpaceB);
@@ -10685,7 +10723,7 @@ begin
     begin
       DrawLogic(Self.ParentSectionList, Canvas, Fonts.GetFontObjAt(Pos, Indx), 0, 0);
       if not PercentWidth then
-        if ObjAlign in [ALeft, ARight] then
+        if HorzAlign in [ALeft, ARight] then
         begin
           Max := Max + ImageWidth + HSpaceL + HSpaceR;
           Brk[Pos + 1] := 'y'; {allow break after floating image}
@@ -11170,13 +11208,29 @@ begin {TSection.DrawLogic}
     else
       Tmp := 0;
     if Tmp > 0 then
-    begin {move down where it's wider}
-      LR.LineHt := Tmp;
-      Inc(SectionHeight, Tmp);
-      LR.Ln := 0;
-      LR.Start := PStart;
-      Inc(Y, Tmp);
-      Lines.Add(LR);
+    begin
+      //BG, 24.01.2010: do not move down images or trailing spaces.
+      P := PStart + N - 1; {the last char that fits}
+      if ((P^ in [WideChar(' '), {FmCtl,} ImgPan]) or WrapChar(P^)) and (Brk[P - Buff + 1] <> 'n')
+      or (P^ = BrkCh) then
+      begin {move past spaces so as not to print any on next line}
+        while (N < Max) and ((P + 1)^ = ' ') do
+        begin
+          Inc(P);
+          Inc(N);
+        end;
+        Finished := N >= Max;
+        LineComplete(N);
+      end
+      else
+      begin {move down where it's wider}
+        LR.LineHt := Tmp;
+        Inc(SectionHeight, Tmp);
+        LR.Ln := 0;
+        LR.Start := PStart;
+        Inc(Y, Tmp);
+        Lines.Add(LR);
+      end
     end {else can't move down or don't have to}
     else if N = Max then
     begin {Do the remainder}
@@ -11465,7 +11519,7 @@ var
         Obj := Images.FindImage(Start - Buff);
         if Obj is TImageObj then
         begin
-          if Obj.ObjAlign in [ALeft, ARight] then
+          if Obj.HorzAlign in [ALeft, ARight] then
           begin
             if ImageAtStart then
             begin
@@ -11504,7 +11558,7 @@ var
                 if (Start - Buff >= BR.BStart) and (Start - Buff <= BR.BEnd) then
                 begin {there is a border here, find the image dimensions}
                   with TImageObj(Obj) do
-                    case ObjAlign of
+                    case VertAlign of
                       ATop:
                         begin
                           TopP := Y - LR.LineHt + VSpaceT;
@@ -11552,7 +11606,7 @@ var
           with TPanelObj(Obj) do
           begin
             ShowIt := True;
-            if (Obj.ObjAlign in [ALeft, ARight]) then
+            if (Obj.HorzAlign in [ALeft, ARight]) then
             begin
               LeftT := IMgr.LfEdge + Obj.Indent;
               if ImageAtStart then
@@ -11574,7 +11628,7 @@ var
             else
             begin
               LeftT := CPx + Obj.HSpaceL;
-              case Obj.ObjAlign of
+              case Obj.VertAlign of
                 ATop: TopP := Y - YOffset - LR.LineHt + Obj.VSpaceT;
                 AMiddle: TopP := Y - YOffset - FO.tmHeight div 2 - (ImageHeight - Obj.VSpaceT + Obj.VSpaceB) div 2;
                 ABottom, ABaseline: TopP := Y - YOffset - ImageHeight - Descent - Obj.VSpaceB;
@@ -12447,7 +12501,8 @@ begin
     Ctl3D := False;
     ParentCtl3D := False;
     ParentFont := False;
-    ObjAlign := ABottom; {default}
+    VertAlign := ABottom; {default}
+    HorzAlign := ANone;
     NewSpace := -1;
     for I := 0 to L.Count - 1 do
       with TAttribute(L[I]) do
@@ -12490,13 +12545,13 @@ begin
             begin
               S := UpperCase(Name);
               if S = 'TOP' then
-                ObjAlign := ATop
+                VertAlign := ATop
               else if (S = 'MIDDLE') or (S = 'ABSMIDDLE') then
-                ObjAlign := AMiddle
+                VertAlign := AMiddle
               else if S = 'LEFT' then
-                ObjAlign := ALeft
+                HorzAlign := ALeft
               else if S = 'RIGHT' then
-                ObjAlign := ARight;
+                HorzAlign := ARight;
             end;
           AltSy:
             begin
@@ -12510,7 +12565,7 @@ begin
         end;
     if NewSpace >= 0 then
       HSpaceL := NewSpace
-    else if ObjAlign in [ALeft, ARight] then
+    else if HorzAlign in [ALeft, ARight] then
       HSpaceL := ImageSpace {default}
     else
       HSpaceL := 0;
@@ -12681,7 +12736,8 @@ begin
   NoBorder := T.NoBorder;
   BorderSize := T.BorderSize;
   Indent := T.Indent;
-  ObjAlign := T.ObjAlign;
+  VertAlign := T.VertAlign;
+  HorzAlign := T.HorzAlign;
   HSpaceL := T.HSpaceL;
   HSpaceR := T.HSpaceR;
   VSpaceT := T.VSpaceT;

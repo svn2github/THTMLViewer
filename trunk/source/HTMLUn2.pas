@@ -33,7 +33,7 @@ unit HTMLUn2;
 interface
 uses
   Windows, SysUtils, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, StdCtrls, ExtCtrls, Clipbrd,
+  Forms, Dialogs, StdCtrls, ExtCtrls, Clipbrd, Math,
   GDIPL2A,
   HtmlGlobals,
   StyleUn;
@@ -100,7 +100,7 @@ type
        {Keep order}
     TTSy, CodeSy, KbdSy, SampSy, TTEndSy, CodeEndSy, KbdEndSy, SampEndSy,
        {end order}
-    OLSy, OLEndSy, LISy, ULSy, ULEndSy, DirSy, DirEndSy, MenuSy, MenuEndSy,
+    OLSy, OLEndSy, LISy, LIEndSy, ULSy, ULEndSy, DirSy, DirEndSy, MenuSy, MenuEndSy,
     DLSy, DLEndSy, DDSy, DDEndSy, DTSy, DTEndSy, AddressSy, AddressEndSy,
     BlockQuoteSy, BlockQuoteEndSy, PreSy, PreEndSy, ImageSy, Centersy, CenterEndSy,
     OtherAttribute, ASy, AEndSy, HrefSy, NameSy, SrcSy, AltSy, AlignSy,
@@ -457,11 +457,17 @@ procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: integer; Color: TColor)
 procedure FormControlRect(Canvas: TCanvas; X1: integer;
   Y1: integer; X2: integer; Y2: integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
 function GetXExtent(DC: HDC; P: PWideChar; N: integer): integer;
+
 procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-  Y1: integer; X2: integer; Y2: integer; Raised: boolean; W: integer);
+  Y1: integer; X2: integer; Y2: integer; Raised: boolean; W: integer); 
 procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
   Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
-  W: integer);
+  W: integer); overload;
+procedure RaisedRectColor(Canvas: TCanvas;
+  const ORect, IRect: TRect;
+  const Colors: htColorArray;
+  Styles: htBorderStyleArray); overload;
+
 function EnlargeImage(Image: TGpObject; W, H: integer): TBitmap;
 procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
 //procedure PrintBitmap1(Canvas: TCanvas; X, Y, W, H, YI, HI: integer;
@@ -481,10 +487,15 @@ procedure StretchPrintGpImageDirect(Handle: THandle; Image: TGpImage;
   ScaleX, ScaleY: single);
 procedure StretchPrintGpImageOnColor(Canvas: TCanvas; Image: TGpImage;
   DestX, DestY, DestW, DestH: integer; Color: TColor = clWhite);
+
 function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
 function htColors(C0, C1, C2, C3: TColor): htColorArray;
-procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; C: htColorArray;
+function htRaisedColors(Light, Dark: TColor; Raised: Boolean): htColorArray; overload;
+function htRaisedColors(SectionList: TFreeList; Canvas: TCanvas; Raised: Boolean): htColorArray; overload;
+procedure GetRaisedColors(SectionList: TFreeList; Canvas: TCanvas; out Light, Dark: TColor);
+procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
   S: htBorderStyleArray; BGround: TColor; Print: boolean);
+
 function MultibyteToWideString(CodePage: integer; const S: Ansistring): WideString;
 function WideStringToMultibyte(CodePage: integer; W: WideString): Ansistring;
 function GetImageHeight(Image: TGpObject): integer;
@@ -1061,79 +1072,64 @@ begin
   end;
 end;
 
-procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-  Y1: integer; X2: integer; Y2: integer; Raised: boolean; W: integer);
+procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas; X1, Y1, X2, Y2: integer; Raised: boolean; W: integer);
 {Draws raised or lowered rectangles for table borders}
-var
-  White, BlackBorder: boolean;
-  Light, Dark: TColor;
 begin
-  with SectionList as TSectionList, Canvas do
-  begin
-    White := Printing or ((Background and $FFFFFF = clWhite) or
-      ((Background = clWindow) and (GetSysColor(Color_Window) = $FFFFFF)));
-    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
-      (GetDeviceCaps(Handle, PLANES) = 1);
-  end;
-  if BlackBorder then
-  begin
-    Light := clBlack;
-    Dark := clBlack;
-  end
-  else
-  begin
-    Dark := clBtnShadow;
-    if White then
-      Light := clSilver
-    else
-      Light := clBtnHighLight;
-  end;
-  RaisedRectColor(SectionList, Canvas, X1, Y1, X2, Y2, Light, Dark, Raised, W);
-end;
-
-procedure RaisedRectColor1(Canvas: TCanvas; X1: integer;
-  Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean);
-{Draws single line colored raised or lowered rectangles for table borders}
-begin
-  Y1 := IntMax(Y1, TopLim);
-  Y2 := IntMin(Y2, BotLim);
-  with Canvas do
-  begin
-    if Raised then
-      Pen.Color := Light
-    else
-      Pen.Color := Dark;
-
-    MoveTo(X1, Y2);
-    LineTo(X1, Y1);
-    LineTo(X2, Y1);
-    if not Raised then
-      Pen.Color := Light
-    else
-      Pen.Color := Dark;
-    LineTo(X2, Y2);
-    LineTo(X1, Y2);
-  end;
+  RaisedRectColor(Canvas,
+    Rect(X1 - W + 1, Y1 - W + 1, X2 + W, Y2 + W),
+    Rect(X1 + 1, Y1 + 1, X2, Y2),
+    htRaisedColors(SectionList, Canvas, Raised),
+    htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
 end;
 
 procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
   Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
   W: integer);
-{Draws colored raised or lowered rectangles for table borders}
-var
-  Colors: htColorArray;
 begin
-  if W = 1 then {this looks better in Print Preview}
-    RaisedRectColor1(Canvas, X1, Y1, X2, Y2, Light, Dark, Raised)
-  else
+  RaisedRectColor(Canvas,
+    Rect(X1 - W + 1, Y1 - W + 1, X2 + W, Y2 + W),
+    Rect(X1 + 1, Y1 + 1, X2, Y2),
+    htRaisedColors(SectionList, Canvas, Raised),
+    htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
+end;
+
+//-- BG ---------------------------------------------------------- 12.06.2010 --
+procedure RaisedRectColor(Canvas: TCanvas;
+  const ORect, IRect: TRect;
+  const Colors: htColorArray;
+  Styles: htBorderStyleArray);
+
+  procedure RaisedRectColor1(Canvas: TCanvas; X1: integer;
+    Y1: integer; X2: integer; Y2: integer; const Colors: htColorArray);
+  {Draws single line colored raised or lowered rectangles for table borders}
   begin
-    if Raised then
-      Colors := htColors(Light, Light, Dark, Dark)
-    else
-      Colors := htColors(Dark, Dark, Light, Light);
-    DrawBorder(Canvas, Rect(X1 - W + 1, Y1 - W + 1, X2 + W, Y2 + W), Rect(X1 + 1, Y1 + 1, X2, Y2), Colors,
-      htStyles(bssSolid, bssSolid, bssSolid, bssSolid), clNone, False);
+    Y1 := Max(Y1, TopLim);
+    Y2 := Min(Y2, BotLim);
+    with Canvas do
+    begin
+      MoveTo(X1, Y2);
+      Pen.Color := Colors[0];
+      LineTo(X1, Y1);
+      Pen.Color := Colors[1];
+      LineTo(X2, Y1);
+      Pen.Color := Colors[2];
+      LineTo(X2, Y2);
+      Pen.Color := Colors[3];
+      LineTo(X1, Y2);
+    end;
   end;
+
+{Draws colored raised or lowered rectangles for table borders}
+begin
+  if (IRect.Left - ORect.Left = 1) and
+     (IRect.Top - ORect.Top = 1) and
+     (ORect.Right - IRect.Right = 1) and
+     (ORect.Bottom - IRect.Bottom = 1)
+  then
+    {this looks better in Print Preview}
+    RaisedRectColor1(Canvas, ORect.Left, ORect.Top, ORect.Right, ORect.Bottom, Colors)
+  else
+    DrawBorder(Canvas, ORect, IRect, Colors, Styles, clNone, False);
 end;
 
 {$IFDEF Ver90}
@@ -3785,6 +3781,71 @@ begin
   Result[3] := C3;
 end;
 
+//-- BG ---------------------------------------------------------- 12.06.2010 --
+function htRaisedColors(Light, Dark: TColor; Raised: Boolean): htColorArray;
+begin
+  if Raised then
+    Result := htColors(Light, Light, Dark, Dark)
+  else
+    Result := htColors(Dark, Dark, Light, Light);
+end;
+
+//-- BG ---------------------------------------------------------- 12.06.2010 --
+function htRaisedColors(SectionList: TFreeList; Canvas: TCanvas; Raised: Boolean): htColorArray;
+var
+  White, BlackBorder: boolean;
+  Light, Dark: TColor;
+begin
+  with SectionList as TSectionList, Canvas do
+  begin
+    White := Printing or ((Background and $FFFFFF = clWhite) or
+      ((Background = clWindow) and (GetSysColor(Color_Window) = $FFFFFF)));
+    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
+      (GetDeviceCaps(Handle, PLANES) = 1);
+  end;
+  if BlackBorder then
+  begin
+    Light := clBlack;
+    Dark := clBlack;
+  end
+  else
+  begin
+    Dark := clBtnShadow;
+    if White then
+      Light := clSilver
+    else
+      Light := clBtnHighLight;
+  end;
+  Result := htRaisedColors(Light, Dark, Raised);
+end;
+
+//-- BG ---------------------------------------------------------- 12.06.2010 --
+procedure GetRaisedColors(SectionList: TFreeList; Canvas: TCanvas; out Light, Dark: TColor);
+var
+  White, BlackBorder: boolean;
+begin
+  with SectionList as TSectionList, Canvas do
+  begin
+    White := Printing or ((Background and $FFFFFF = clWhite) or
+      ((Background = clWindow) and (GetSysColor(Color_Window) = $FFFFFF)));
+    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
+      (GetDeviceCaps(Handle, PLANES) = 1);
+  end;
+  if BlackBorder then
+  begin
+    Light := clBlack;
+    Dark := clBlack;
+  end
+  else
+  begin
+    Dark := clBtnShadow;
+    if White then
+      Light := clSilver
+    else
+      Light := clBtnHighLight;
+  end;
+end;
+
 procedure DrawOnePolygon(Canvas: TCanvas; P: BorderPointArray; Color: TColor;
   Side: integer; Printing: boolean);
 {Here we draw a 4 sided polygon (by filling a region).  This represents one
@@ -3855,7 +3916,7 @@ end;
 
 {----------------DrawBorder}
 
-procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; C: htColorArray;
+procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
   S: htBorderStyleArray; BGround: TColor; Print: boolean);
 {Draw the 4 sides of a border.  The sides may be of different styles or colors.
  The side indices, 0,1,2,3, represent left, top, right, bottom.
@@ -3894,10 +3955,10 @@ var
 
 begin
 {Limit the borders to somewhat more than the screen size}
-  ORect.Bottom := IntMin(ORect.Bottom, BotLim);
-  ORect.Top := IntMax(ORect.Top, TopLim);
-  IRect.Bottom := IntMin(IRect.Bottom, BotLim);
-  IRect.Top := IntMax(IRect.Top, TopLim);
+  ORect.Bottom := Min(ORect.Bottom, BotLim);
+  ORect.Top := Max(ORect.Top, TopLim);
+  IRect.Bottom := Min(IRect.Bottom, BotLim);
+  IRect.Top := Max(IRect.Top, TopLim);
 
 {Find out what style types are represented in this border}
   StyleSet := [];

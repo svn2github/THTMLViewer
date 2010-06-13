@@ -60,11 +60,11 @@ type
     function GetSubFrameSetClass: TSubFrameSetClass; override;
     function MasterSet: TbrFrameSet; inline;
     procedure CreateViewer; override;
+    procedure frLoadFromBrzFile(const URL, Dest, Query, EncType, Referer: string; Bump, IsGet, Reload: boolean);
+    procedure LoadFiles; override;
     procedure RefreshEvent(Sender: TObject; Delay: integer; const URL: string); override;
     procedure RefreshTimerTimer(Sender: TObject); override;
     procedure ReLoadFiles(APosition: LongInt); override;
-    procedure LoadFiles; override;
-    procedure frLoadFromBrzFile(const URL, Dest, Query, EncType, Referer: string; Bump, IsGet, Reload: boolean);
     procedure URLExpandName(Sender: TObject; const SRC: string; var Rslt: string);
   protected
     TheStream: TMemoryStream;
