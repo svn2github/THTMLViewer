@@ -1,4 +1,4 @@
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     FRAMVIEW.PAS                      *}
 {*********************************************************}
@@ -33,7 +33,7 @@ unit FramView;
 interface
 
 uses
-  SysUtils, Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls,
+  SysUtils, Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls, Math,
   HtmlGlobals, Htmlsubs, Htmlview, HTMLUn2, ReadHTML;
 
 type
@@ -542,7 +542,7 @@ type
   protected
     function ExpandSourceName(Base, Path, S: String): String; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
-    function MasterSet: TFrameSet; inline;
+    function MasterSet: TFrameSet; 
     procedure frLoadFromFile(const FName, Dest: string; Bump, Reload: boolean); override;
     procedure LoadFiles(); overload; override;
     procedure LoadFiles(PEV: PEventRec); reintroduce; overload;
@@ -558,7 +558,7 @@ type
 
   TFrameSet = class(TFrameSetBase)
   protected
-    function FrameViewer: TFrameViewer; inline;
+    function FrameViewer: TFrameViewer; 
     function GetFrameClass: TViewerFrameClass; override;
     function RequestEvent: boolean; override;
     function TriggerEvent(const Src: string; PEV: PEventRec): Boolean;
@@ -575,7 +575,7 @@ type
     FOnStringsRequest: TStringsRequestEvent;
     UrlRequestStream: TMemoryStream;
   protected
-    function CurFrameSet: TFrameSet; inline;
+    function CurFrameSet: TFrameSet; 
     function GetFrameSetClass: TFrameSetClass; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
     function HotSpotClickHandled: Boolean;
@@ -1695,21 +1695,21 @@ var
           Numb := Numb + Ch;
           GetCh;
         end;
-        N := IntMax(1, StrToInt(Numb)); {no zeros}
+        N := Max(1, StrToInt(Numb)); {no zeros}
         while not (Ch in ['*', '%', ',', EOL]) do
           GetCh;
         if ch = '*' then
         begin
-          Dim[DimCount] := -IntMin(99, N); {store '*' relatives as negative, -1..-99}
+          Dim[DimCount] := -Min(99, N); {store '*' relatives as negative, -1..-99}
           GetCh;
         end
         else if Ch = '%' then
         begin {%'s stored as -(100 + %),  i.e. -110 is 10% }
-          Dim[DimCount] := -IntMin(1000, N + 100); {limit to 900%}
+          Dim[DimCount] := -Min(1000, N + 100); {limit to 900%}
           GetCh;
         end
         else
-          Dim[DimCount] := IntMin(N, 5000); {limit absolute to 5000}
+          Dim[DimCount] := Min(N, 5000); {limit absolute to 5000}
       end
       else if Ch in ['*', ',', EOL] then
       begin
@@ -1740,7 +1740,7 @@ begin
     if L.Find(BorderSy, T) or L.Find(FrameBorderSy, T) then
     begin
       BorderSize := T.Value;
-      OuterBorder := IntMax(2 - BorderSize, 0);
+      OuterBorder := Max(2 - BorderSize, 0);
       if OuterBorder >= 1 then
       begin
         BevelWidth := OuterBorder;
@@ -4244,7 +4244,7 @@ procedure TFVBase.SetVisitedMaxCount(Value: integer);
 var
   I, J: integer;
 begin
-  Value := IntMax(Value, 0);
+  Value := Max(Value, 0);
   if Value <> FVisitedMaxCount then
   begin
     FVisitedMaxCount := Value;

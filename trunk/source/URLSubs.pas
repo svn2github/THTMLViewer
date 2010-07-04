@@ -1,10 +1,9 @@
-{Version 10.00}
+{Version 10.1}
 unit URLSubs;
 
 interface
 
-uses
-  Windows, Messages, SysUtils, Math;
+{$I htmlcons.inc}
 
 function GetBase(const URL: string): string;
 {Given an URL, get the base directory}
@@ -39,6 +38,9 @@ procedure ParseURL(const url: string; var Proto, User, Pass, Host, Port, Path: s
 {François PIETTE's URL parsing procedure}
 
 implementation
+
+uses
+  SysUtils, Math;
 
 {----------------GetBase}
 

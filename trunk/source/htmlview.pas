@@ -1,4 +1,4 @@
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     HTMLVIEW.PAS                      *}
 {*********************************************************}
@@ -33,13 +33,9 @@ unit Htmlview;
 interface
 
 uses
-  SysUtils, Windows, Messages, Classes, Graphics, Controls, StdCtrls,
-  vwPrint, MetafilePrinter, mmSystem,
-  //BG, 09.09.2009: remove recursive use of units:
-  //  add HtmlGlobals
-  HtmlGlobals,
-  HTMLUn2, Forms, Dialogs, ExtCtrls, ReadHTML, HTMLSubs, StyleUn, Printers, Menus,
-  GDIPL2A;
+  Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls,
+  MetafilePrinter,
+  HtmlGlobals, HTMLUn2, ReadHTML, HTMLSubs, StyleUn, vwPrint;
 
 const
   wm_FormSubmit = wm_User + 100;
@@ -599,10 +595,8 @@ type
 implementation
 
 uses
-//BG, 01.12.2006: beg of modification
-  Math,
-//BG, 01.12.2006: end of modification
-  Clipbrd, htmlgif2{$IFDEF UNICODE}, AnsiStrings{$ENDIF};
+  SysUtils, Math, Clipbrd, Forms, Printers, {$IFDEF UNICODE}AnsiStrings, {$ENDIF}
+  htmlgif2 {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
 
 const
   ScrollGap = 20;
@@ -793,7 +787,7 @@ begin
       begin
         FS := TFileStream.Create(FName, fmOpenRead or fmShareDenyWrite);
         try
-          SetLength(Tmp, FS.Size);
+          SetString(Tmp, nil, FS.Size); // Yunqa.de: SetString() is faster than SetLength().
           FS.ReadBuffer(Tmp[1], FS.Size);
           FDocumentSource := Tmp;
         finally
@@ -967,8 +961,7 @@ procedure ThtmlViewer.LoadFromBuffer(Buffer: PChar; BufLenTChars: integer; const
 var
   S: string;
 begin
-  SetLength(S, BufLenTChars);
-  Move(Buffer^, S[1], BufLenTChars * SizeOf(Char));
+  SetString(S, Buffer, BufLenTChars); // Yunqa.de: SetString() is faster than SetLength().
   LoadString(S, Reference, HTMLType);
   if (FRefreshDelay > 0) and Assigned(FOnMetaRefresh) then
     FOnMetaRefresh(Self, FRefreshDelay, FRefreshURL);
@@ -1155,7 +1148,7 @@ var
   ScrollInfo: TScrollInfo;
 
 begin
-  ScrollWidth := IntMin(ScrollWidth, MaxHScroll);
+  ScrollWidth := Min(ScrollWidth, MaxHScroll);
   if FBorderStyle = htNone then
   begin
     WFactor := 0;
@@ -1210,9 +1203,9 @@ begin
     PaintPanel.Height := Height - WFactor2;
     VHeight := Height - WFactor2;
   end;
-  HWidth := IntMax(ScrollWidth, Wid - WFactor2);
+  HWidth := Max(ScrollWidth, Wid - WFactor2);
   HScrollBar.Visible := HBar;
-  HScrollBar.LargeChange := IntMax(1, Wid - 20);
+  HScrollBar.LargeChange := Max(1, Wid - 20);
   HScrollBar.SetBounds(WFactor, Height - sbWidth - WFactor, Wid - WFactor, sbWidth);
   VScrollBar.SetBounds(Width - sbWidth - WFactor, WFactor, sbWidth, VHeight);
   VScrollBar.LargeChange := PaintPanel.Height - VScrollBar.SmallChange;
@@ -1224,7 +1217,7 @@ begin
   else
     VScrollBar.Visible := VBar;
 
-  HScrollBar.Max := IntMax(0, HWidth);
+  HScrollBar.Max := Max(0, HWidth);
   VScrollBar.SetParams(VScrollBar.Position, PaintPanel.Height + 1, 0, FMaxVertical);
   ScrollInfo.cbSize := SizeOf(ScrollInfo);
   ScrollInfo.fMask := SIF_PAGE;
@@ -1322,21 +1315,21 @@ begin
   else
     ScrollTo(VScrollBar.Position); {keep aligned to limits}
   with HScrollBar do
-    Position := IntMin(Position, Max - PaintPanel.Width);
+    Position := Math.Min(Position, Max - PaintPanel.Width);
 end;
 
 procedure ThtmlViewer.Scroll(Sender: TObject; ScrollCode: TScrollCode;
   var ScrollPos: Integer);
 {only the horizontal scrollbar comes here}
 begin
-  ScrollPos := IntMin(ScrollPos, HScrollBar.Max - PaintPanel.Width);
+  ScrollPos := Min(ScrollPos, HScrollBar.Max - PaintPanel.Width);
   PaintPanel.Invalidate;
 end;
 
 procedure ThtmlViewer.ScrollTo(Y: integer);
 begin
-  Y := IntMin(Y, FMaxVertical - PaintPanel.Height);
-  Y := IntMax(Y, 0);
+  Y := Min(Y, FMaxVertical - PaintPanel.Height);
+  Y := Max(Y, 0);
   VScrollBar.Position := Y;
   FSectionList.SetYOffset(Y);
   Invalidate;
@@ -1458,7 +1451,8 @@ begin
             S1 := FCurrentFile + UrlTmp
           else
             S1 := HTMLExpandFilename(UrlTmp);
-          if CompareText(S, S1) = 0 then
+          // Yunqa.de: Except for the domain, URLs might be case sensitive!
+          if S = S1 then
             Visited := True;
         end;
       end;
@@ -1974,7 +1968,7 @@ begin
   if Hiliting and (Sel1 >= 0) then
     with FSectionList do
     begin
-      YWin := IntMin(IntMax(0, Y), Height);
+      YWin := Min(Max(0, Y), Height);
       Curs := FindCursor(PaintPanel.Canvas, X, YWin + YOff, XR, YR, CaretHt, InText);
       if (Curs >= 0) and not FNoSelect then
       begin
@@ -2041,7 +2035,7 @@ begin
           else if Pos > Position then
             PaintPanel.Cursor := DownOnlyCursor;
         end;
-        Pos := IntMax(0, IntMin(Pos, FMaxVertical - PaintPanel.Height));
+        Pos := Math.Max(0, Math.Min(Pos, FMaxVertical - PaintPanel.Height));
         FSectionList.SetYOffset(Pos);
         SetPosition(Pos);
         DoHilite(Pt.X, Pt.Y);
@@ -2203,8 +2197,7 @@ var
   TheChange: integer;
 begin
   inherited KeyDown(Key, Shift);
-  if Shift <> [] then
-    Exit;
+
   if MiddleScrollOn then
   begin
     MiddleScrollOn := False;
@@ -2212,22 +2205,47 @@ begin
     Exit;
   end;
   with VScrollBar do
-    if Key in [VK_PRIOR, VK_NEXT, VK_UP, VK_DOWN, VK_HOME, VK_END] then
-    begin
-      Pos := Position;
-      OrigPos := Pos;
-      case Key of
-        VK_PRIOR: Dec(Pos, LargeChange);
-        VK_NEXT: Inc(Pos, LargeChange);
-        VK_UP: Dec(Pos, SmallChange);
-        VK_DOWN: Inc(Pos, SmallChange);
-        VK_Home: Pos := 0;
-        VK_End: Pos := FMaxVertical;
-      end;
-      if Pos < 0 then
-        Pos := 0;
-      Pos := IntMax(0, IntMin(Pos, FMaxVertical - PaintPanel.Height));
+  begin
+    Pos := Position;
+    OrigPos := Pos;
+    case Key of
 
+      VK_PRIOR:
+        if Shift = [] then
+          Dec(Pos, LargeChange);
+
+      VK_NEXT:
+        if Shift = [] then
+          Inc(Pos, LargeChange);
+
+      VK_UP:
+        if Shift = [] then
+          Dec(Pos, SmallChange);
+
+      VK_DOWN:
+        if Shift = [] then
+          Inc(Pos, SmallChange);
+
+      VK_HOME:
+        if Shift = [ssCtrl] then
+          Pos := 0;
+
+      VK_END:
+        if Shift = [ssCtrl] then
+          Pos := FMaxVertical;
+
+      VK_SPACE:
+        if Shift = [] then
+          Inc(Pos, LargeChange)
+        else if Shift = [ssShift] then
+          Dec(Pos, LargeChange);
+    end;
+    if Pos < 0 then
+      Pos := 0;
+    Pos := Math.Max(0, Math.Min(Pos, FMaxVertical - PaintPanel.Height));
+
+    if Pos <> OrigPos then
+    begin
       Position := Pos;
       FSectionList.SetYOffset(Pos);
 
@@ -2240,21 +2258,31 @@ begin
       else
         PaintPanel.Invalidate;
     end;
+  end;
 
   with HScrollBar do
-    if Key in [VK_LEFT, VK_RIGHT] then
+  begin
+    Pos := Position;
+    OrigPos := Pos;
+    case Key of
+      VK_LEFT:
+        if Shift = [] then
+          Dec(Pos, SmallChange);
+
+      VK_RIGHT:
+        if Shift = [] then
+          Inc(Pos, SmallChange);
+    end;
+    if Pos < 0 then
+      Pos := 0;
+    Pos := Math.Min(Pos, Max - PaintPanel.Width);
+    
+    if Pos <> OrigPos then
     begin
-      Pos := Position;
-      case Key of
-        VK_LEFT: Dec(Pos, SmallChange);
-        VK_RIGHT: Inc(Pos, SmallChange);
-      end;
-      if Pos < 0 then
-        Pos := 0;
-      Pos := IntMin(Pos, Max - PaintPanel.Width);
       Position := Pos;
       PaintPanel.Invalidate;
     end;
+  end;
 end;
 
 procedure ThtmlViewer.WMGetDlgCode(var Message: TMessage);
@@ -2300,7 +2328,7 @@ procedure ThtmlViewer.SetScrollPos(Value: integer);
 begin
   if Value < 0 then
     Value := 0;
-  Value := IntMin(Value, FMaxVertical - PaintPanel.Height);
+  Value := Min(Value, FMaxVertical - PaintPanel.Height);
   if Value <> GetScrollPos then
     ScrollTo(Value);
 end;
@@ -2319,7 +2347,7 @@ procedure ThtmlViewer.SetHScrollPos(Value: integer);
 begin
   if Value < 0 then
     Value := 0;
-  Value := IntMin(Value, HScrollBar.Max - PaintPanel.Width);
+  Value := Min(Value, HScrollBar.Max - PaintPanel.Width);
   HScrollbar.Position := Value;
   Invalidate;
 end;
@@ -2342,7 +2370,7 @@ function ThtmlViewer.HTMLExpandFilename(const Filename: string): string;
 var
   Tmp: string;
 begin
-{pass http: and other protocols except for file:///}
+  {pass http: and other protocols except for file:///}
   if (Pos('://', Filename) > 1) and (Pos('file://', Lowercase(Filename)) = 0) then
     Result := Filename
   else
@@ -2551,7 +2579,7 @@ procedure ThtmlViewer.SetVisitedMaxCount(Value: integer);
 var
   I: integer;
 begin
-  Value := IntMax(Value, 0);
+  Value := Max(Value, 0);
   if Value <> FVisitedMaxCount then
   begin
     FVisitedMaxCount := Value;
@@ -2708,7 +2736,9 @@ var
   DC: HDC;
   OldBack, OldFore: TColor;
   Bitmap: TBitmap;
-  graphics: TGpGraphics;
+  {$IFNDEF NoGDIPlus}
+  Graphics: TGpGraphics;
+  {$ENDIF NoGDIPlus}
 begin
   DC := ACanvas.handle;
   if DC <> 0 then
@@ -2776,7 +2806,8 @@ begin
           except
           end;
         end
-{$ENDIF}
+{$ENDIF !NoMetafile}
+{$IFNDEF NoGDIPlus}
         else
         begin
           Y := YStart;
@@ -2796,6 +2827,7 @@ begin
           end;
           Graphics.Free;
         end;
+{$ENDIF !NoGDIPlus}
     finally
       SelectObject(DC, OldBrush);
       SelectPalette(DC, OldPal, False);
@@ -2875,7 +2907,8 @@ begin
           except
           end;
         end
-{$ENDIF}
+{$ENDIF !NoMetafile}
+{$IFNDEF NoGDIPlus}
         else
         begin
           Y := YStart;
@@ -2892,7 +2925,8 @@ begin
             end;
           except
           end;
-        end;
+        end
+        {$ENDIF !NoGDIPlus};
     finally
       SelectObject(DC, OldBrush);
       SelectPalette(DC, OldPal, False);
@@ -3028,7 +3062,7 @@ begin
       DocHeight := CopyList.DoLogic(Canvas, 0, FormatWidth, Height, 0, Dummy, Curs);
       DoBackground1(Canvas, YTop, Width, Height, DocHeight);
 
-      CopyList.SetYOffset(IntMax(0, YTop));
+      CopyList.SetYOffset(Max(0, YTop));
       CopyList.Draw(Canvas, Rect(0, 0, Width, Height), MaxHScroll, 0, 0, 0, 0);
     except
       Result.Free;
@@ -3196,7 +3230,7 @@ begin
       DocHeight := CopyList.DoLogic(Result.Canvas, 0, FormatWidth, Height, 300, Dummy, Curs);
       DoBackground1(Result.Canvas, YTop, Width, Height, DocHeight);
 
-      CopyList.SetYOffset(IntMax(0, YTop));
+      CopyList.SetYOffset(Max(0, YTop));
       CopyList.Draw(Result.Canvas, Rect(0, 0, Width, Height), MaxHScroll, 0, 0, 0, 0);
     except
       Result.Free;
@@ -3345,7 +3379,7 @@ var
         else
         begin {Footer}
           YOrigin := -(TopPixels + H);
-          Ht := IntMin(ScaledPgHt - (TopPixels + H), DocHeight);
+          Ht := Min(ScaledPgHt - (TopPixels + H), DocHeight);
           YOff := 0;
         end;
         SetWindowOrgEx(DC, 0, YOrigin, nil);
@@ -3890,7 +3924,7 @@ var
         else
         begin {Footer}
           YOrigin := -(TopPixels + H);
-          Ht := IntMin(ScaledPgHt - (TopPixels + H), DocHeight);
+          Ht := Min(ScaledPgHt - (TopPixels + H), DocHeight);
           YOff := 0;
         end;
         SetWindowOrgEx(DC, 0, YOrigin, nil);
@@ -4035,9 +4069,9 @@ begin
           {This one is primarily used to clip the top and bottom margins to insure
            nothing is output there.  It's also constrained to the print region
            in case the margins are misadjusted.}
-          hrgnClip := CreateRectRgn(MLeftPrn, IntMax(0, TopPixelsPrn),
-            IntMin(MFPrinter.PageWidth, WPrn + MLeftPrn + 2),
-            IntMin(MFPrinter.PageHeight, TopPixelsPrn + HPrn));
+          hrgnClip := CreateRectRgn(MLeftPrn, Max(0, TopPixelsPrn),
+            Min(MFPrinter.PageWidth, WPrn + MLeftPrn + 2),
+            Min(MFPrinter.PageHeight, TopPixelsPrn + HPrn));
           Application.ProcessMessages;
           if Assigned(FOnPageEvent) then
             FOnPageEvent(Self, FPage, Done);
@@ -4182,9 +4216,9 @@ begin
 //BG, 01.12.2006: beg of modification
                 ARect := Rect(MLeft + XOrigin, TopPixels, W + MLeft + XOrigin, TopPixels + H);
 //BG, 01.12.2006: end of modification
-                hrgnClip := CreateRectRgn(MLeftPrn, IntMax(0, TopPixelsPrn),
-                  IntMin(MFPrinter.PageWidth, WPrn + MLeftPrn + 2),
-                  IntMin(MFPrinter.PageHeight, TopPixelsPrn + HPrn));
+                hrgnClip := CreateRectRgn(MLeftPrn, Max(0, TopPixelsPrn),
+                  Min(MFPrinter.PageWidth, WPrn + MLeftPrn + 2),
+                  Min(MFPrinter.PageHeight, TopPixelsPrn + HPrn));
                 LastPrintMarginTop := FPrintMarginTop;
               end;
 {.$EndRegion}
@@ -4617,10 +4651,10 @@ var
       Exit;
     end;
     Len := Length(S);
-    SetLength(WS, Len);
+    SetString(WS, nil, Len); // Yunqa.de: SetString() is faster than SetLength().
     Len := MultibyteToWideChar(CodePage, 0, PAnsiChar(S), Len, PWideChar(WS), Len);
     Len1 := 4 * Len;
-    SetLength(Result, Len1);
+    SetString(Result, nil, Len1); // Yunqa.de: SetString() is faster than SetLength().
     Len1 := WideCharToMultibyte(CP_UTF8, 0, PWideChar(WS), Len, PAnsiChar(Result), Len1, nil, nil);
     SetLength(Result, Len1);
   end;
@@ -4809,8 +4843,8 @@ end;
 
 procedure ThtmlViewer.SetImageCacheCount(Value: integer);
 begin
-  Value := IntMax(0, Value);
-  Value := IntMin(20, Value);
+  Value := Max(0, Value);
+  Value := Min(20, Value);
   if Value <> FImageCacheCount then
   begin
     FImageCacheCount := Value;
@@ -4964,10 +4998,7 @@ end;
 
 procedure THTMLViewer.SetServerRoot(Value: string);
 begin
-  Value := Trim(Value);
-  if (Length(Value) >= 1) and (Value[Length(Value)] = '\') then
-    SetLength(Value, Length(Value) - 1);
-  FServerRoot := Value;
+  FServerRoot := ExcludeTrailingPathDelimiter(Trim(Value));
 end;
 
 procedure THTMLViewer.HandleMeta(Sender: TObject; const HttpEq, Name, Content: string);
@@ -5301,7 +5332,7 @@ begin
         XOff := HScrollbar.Position;
         YOff := FSectionList.YOff;
         IW := HScrollbar.Max;
-        IH := IntMax(MaxVertical, Self.ClientRect.Bottom);
+        IH := Max(MaxVertical, Self.ClientRect.Bottom);
       end;
 
     {Calculate where the tiled background images go}
@@ -5433,7 +5464,7 @@ begin
           SPos := (FMaxVertical - PaintPanel.Height);
       end;
     end;
-    SPos := IntMax(0, IntMin(SPos, (FMaxVertical - PaintPanel.Height)));
+    SPos := Math.Max(0, Math.Min(SPos, (FMaxVertical - PaintPanel.Height)));
 
     Self.SetPosition(SPos);
 

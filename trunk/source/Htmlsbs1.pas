@@ -1,4 +1,4 @@
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     HTMLSBS1.PAS                      *}
 {*********************************************************}
@@ -32,8 +32,7 @@ unit Htmlsbs1;
 
 interface
 uses
-  SysUtils, Windows, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, StdCtrls, ExtCtrls, HTMLUn2, HTMLGif2, HTMLSubs, StyleUn;
+  Windows, Classes, Graphics, HtmlUn2, HtmlSubs, StyleUn;
 
 type
 
@@ -147,10 +146,8 @@ type
 implementation
 
 uses
-{$IFDEF Delphi6_Plus}
-  Variants,
-{$ENDIF}
-  ReadHTML, HTMLView;
+  SysUtils, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}Forms, StdCtrls, Math,
+  ReadHtml, HtmlView;
 
 destructor TOptionObj.Destroy;
 begin
@@ -279,13 +276,13 @@ begin
   SetTextAlign(Canvas.handle, TA_Left + TA_Top);
   ARect := Rect(X1 + Addon, Y1 + Addon, X1 + LB.Width - 2 * Addon, Y1 + LB.Height - 2 * Addon);
   if UnicodeControls then
-    for I := LB.TopIndex to IntMin(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
+    for I := LB.TopIndex to Min(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
 {$WARNINGS Off}
       ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + Addon + (I - LB.TopIndex) * H2, ETO_CLIPPED, @ARect,
         PWideChar(LB.Items[I]), Length(LB.Items[I]), nil)
 {$WARNINGS On}
   else
-    for I := LB.TopIndex to IntMin(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
+    for I := LB.TopIndex to Min(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
       Canvas.TextRect(ARect, X1 + Addon, Y1 + Addon + (I - LB.TopIndex) * H2, LB.Items[I]);
 end;
 
@@ -323,7 +320,7 @@ begin
   finally
     ReleaseDC(0, DC);
   end;
-  Longest := IntMax(Longest, ExtS.cx);
+  Longest := Max(Longest, ExtS.cx);
 end;
 
 procedure TListBoxFormControlObj.ResetToValue;
@@ -358,7 +355,7 @@ begin
   begin
     Canvas.Font := Font;
     if LBSize = -1 then
-      LBSize := IntMax(1, IntMin(8, TheOptions.Count));
+      LBSize := Max(1, Min(8, TheOptions.Count));
     if FHeight >= 10 then
       ClientHeight := FHeight
     else
@@ -403,7 +400,7 @@ begin
   with ThtListbox(FControl) do
   begin
     EnterItems := Items.Count;
-    for I := 0 to IntMin(Items.Count - 1, 50) do
+    for I := 0 to Min(Items.Count - 1, 50) do
       EnterSelected[I] := Selected[I];
   end;
 end;
@@ -419,7 +416,7 @@ begin
     if Items.Count <> EnterItems then
       Changed := True
     else
-      for I := 0 to IntMin(Items.Count - 1, 50) do
+      for I := 0 to Min(Items.Count - 1, 50) do
         if EnterSelected[I] <> Selected[I] then
         begin
           Changed := True;
@@ -724,13 +721,13 @@ begin
     SetTextAlign(Canvas.handle, TA_Left + TA_Top);
     ARect := Rect(X1 + Addon, Y1 + Addon, X1 + Width - 2 * Addon, Y1 + Height - 2 * Addon);
     if UnicodeControls then
-      for I := 0 to IntMin(Lines.Count - 1, Rows - 1) do
+      for I := 0 to Min(Lines.Count - 1, Rows - 1) do
 {$WARNINGS Off}
         ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + Addon + I * H2, ETO_CLIPPED, @ARect,
           PWideChar(Lines[I]), Length(Lines[I]), nil)
 {$WARNINGS On}
     else
-      for I := 0 to IntMin(Lines.Count - 1, Rows - 1) do
+      for I := 0 to Min(Lines.Count - 1, Rows - 1) do
         Canvas.TextRect(ARect, X1 + Addon, Y1 + Addon + I * H2, Lines[I]);
   end;
 end;

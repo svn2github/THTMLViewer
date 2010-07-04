@@ -1,5 +1,5 @@
 
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     READHTML.PAS                      *}
 {*                                                       *}
@@ -76,8 +76,8 @@ unit Readhtml;
 
 interface
 uses
-  SysUtils, Windows, Messages, Classes, Graphics, Controls, Dialogs, StdCtrls,
-  UrlSubs, StyleUn, htmlUN2, HtmlGlobals, StylePars;
+  Messages, Classes, Graphics, Controls,
+  HtmlGlobals, HtmlUn2, StyleUn;
 
 type
   LoadStyleType = (lsFile, lsString, lsInclude);
@@ -116,12 +116,11 @@ type
   public
     property AnItem[Index: integer]: TProperties read GetProp; default;
     function Last: TProperties;
-    procedure Delete(Index: integer);
   end;
 
 var
   PropStack: TPropStack;
-  Title: string;
+  Title: UnicodeString;
   Base: string;
   BaseTarget: string;
   NoBreak: boolean; {set when in <NoBr>}
@@ -137,13 +136,14 @@ function IsFrameString(ALoadStyle: LoadStyleType; const FName, S: string;
   FrameViewer: TObject): boolean;
 function TranslateCharset(const Content: string; var Charset: TFontCharset): boolean;
 procedure InitializeFontSizes(Size: integer);
-function PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties): boolean;
-procedure PopAProp(Tag: string);
+procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties);
+procedure PopAProp(const Tag: string);
 
 implementation
 
 uses
-  htmlsubs, htmlsbs1, htmlview;
+  Windows, SysUtils, Math,
+  HtmlSubs, HtmlSbs1, HtmlView, StylePars, UrlSubs;
 
 const
   Tab = #9;
@@ -170,13 +170,10 @@ var
   IsUTF8: boolean;
 
 
-type
-  SymString = string;
-
 const
   MaxRes = 80;
   MaxEndRes = 60;
-  ResWords: array[1..MaxRes] of SymString =
+  ResWords: array[1..MaxRes] of string =
   ('HTML', 'TITLE', 'BODY', 'HEAD', 'B', 'I', 'H', 'EM', 'STRONG',
     'U', 'CITE', 'VAR', 'TT', 'CODE', 'KBD', 'SAMP', 'OL', 'UL', 'DIR',
     'MENU', 'DL',
@@ -820,14 +817,17 @@ begin
     EndTag := True;
     GetCh;
   end
-  else if not {$IFDEF UNICODE}CharInSet(Ch, ['A'..'Z', '?']){$ELSE}(ch in ['A'..'Z', '?']){$ENDIF} then
-  begin {an odd '<'}
+  else
+  case Ch of
+    'A'..'Z', '?':
+      EndTag := False;
+
+  else
+    {an odd '<'}
     Sy := TextSy;
     LCToken.AddUnicodeChar('<', Save);
     Exit;
-  end
-  else
-    EndTag := False;
+  end;
   Sy := CommandSy;
   Done := False;
   while not Done do
@@ -944,13 +944,15 @@ begin {already have fresh character loaded here}
         LCh := '?';
 end;
 
-function PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties): boolean;
-{add a TProperties to the Prop stack}
+{ Add a TProperties to the PropStack. }
+procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties);
+var
+  NewProp: TProperties;
 begin
-  PropStack.Add(TProperties.Create);
-  PropStack.Last.Inherit(Tag, PropStack[PropStackIndex - 1]);
-  PropStack.Last.Combine(MasterList.Styles, Tag, AClass, AnID, APseudo, ATitle, AProp);
-  Result := True;
+  NewProp := TProperties.Create;
+  NewProp.Inherit(Tag, PropStack.Last);
+  NewProp.Combine(MasterList.Styles, Tag, AClass, AnID, APseudo, ATitle, AProp);
+  PropStack.Add(NewProp);
 end;
 
 procedure PopProp;
@@ -960,7 +962,7 @@ begin
     PropStack.Delete(PropStackIndex);
 end;
 
-procedure PopAProp(Tag: string);
+procedure PopAProp(const Tag: string);
 {pop and free a TProperties from the Prop stack.  It should be on top but in
  case of a nesting error, find it anyway}
 var
@@ -1154,7 +1156,7 @@ begin
 
         Section := TSection.Create(MasterList, nil, PropStack.Last,
           CurrentUrlTarget, SectionList, True);
-        if Sy in [DivEndSy] then
+        if Sy = DivEndSy then
           Next;
       end;
     CenterSy:
@@ -1167,7 +1169,7 @@ begin
         SectionList.Add(Section, TagIndex);
         PopAProp('center');
         Section := nil;
-        if Sy in [CenterEndSy] then
+        if Sy = CenterEndSy then
           Next;
       end;
     FormSy:
@@ -1318,7 +1320,7 @@ var
                 VAlign := Algn;
             end;
           SpanSy:
-            Span := IntMax(1, Value);
+            Span := Max(1, Value);
         end;
   end;
 
@@ -1345,7 +1347,7 @@ begin
       cAlign := xAlign;
       Span := 1;
       ReadColAttributes(cWidth, cAsPercent, cVAlign, cAlign, Span);
-      for I := 1 to IntMin(Span, 100) do
+      for I := 1 to Min(Span, 100) do
         Table.DoColumns(cWidth, cAsPercent, cVAlign, cAlign);
     end;
     SkipWhiteSpace;
@@ -1382,6 +1384,7 @@ var
   HFStack: integer;
   FootList: TList;
   I: integer;
+  TrDisplay: TPropDisplay; // Yunqa.de.
 
   function GetVAlign(Default: AlignmentType): AlignmentType;
   var
@@ -1430,11 +1433,16 @@ var
     if Assigned(Row) then
     begin
       AddSection;
-      if RowType <> TFoot then
-        Table.Rows.Add(Row)
+      if TrDisplay <> pdNone then
+      begin
+        if RowType <> TFoot then
+          Table.Rows.Add(Row)
+        else
+          FootList.Add(Row);
+        Row.RowType := RowType;
+      end
       else
-        FootList.Add(Row);
-      Row.RowType := RowType;
+        Row.Free;
       Row := nil;
       while PropStackIndex > RowStack do
         PopProp;
@@ -1607,6 +1615,7 @@ begin
             AddRow; {if it is still assigned}
             RowStack := PropStackIndex;
             PushNewProp('tr', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
+            TrDisplay := PropStack.Last.Display; // Yunqa.de.
             CheckForAlign;
             Row := TCellList.Create(Attributes, PropStack.Last);
             RowVAlign := GetVAlign(AMiddle);
@@ -2014,7 +2023,7 @@ var
             begin
               if (Length(Name) >= 2) and (Name[1] in ['+', '-']) then
                 Value := BaseFontSize + Value;
-              NewSize := IntMax(1, IntMin(7, Value)); {limit 1..7}
+              NewSize := Max(1, Min(7, Value)); {limit 1..7}
               if (Sy = BaseFontSy) then
                 BaseFontSize := NewSize;
               Include(FontResults, Siz);
@@ -2248,7 +2257,7 @@ var
                         PopAProp(EndSymbToStr(Sy));
                     end;
 
-                    TSection(Section).ChangeFont(PropStack.Last);
+                    Section.ChangeFont(PropStack.Last);
                   end;
 
                 FontSy, BaseFontSy:
@@ -2256,7 +2265,7 @@ var
                     Section.AddTokenObj(S);
                     S.Clear;
                     ChangeTheFont(Sy, True);
-                    TSection(Section).ChangeFont(PropStack.Last);
+                    Section.ChangeFont(PropStack.Last);
                   end;
                 FontEndSy:
                   if PropStackIndex > InitialStackIndex then
@@ -2264,7 +2273,7 @@ var
                     PopAProp('font');
                     Section.AddTokenObj(S);
                     S.Clear;
-                    TSection(Section).ChangeFont(PropStack.Last);
+                    Section.ChangeFont(PropStack.Last);
                   end;
                 ASy:
                   begin
@@ -2296,7 +2305,7 @@ var
                     Prop.SetFontBG;
                     if Prop.GetBorderStyle <> bssNone then {start of inline border}
                       MasterList.ProcessInlines(SIndex, Prop, True);
-                    TSection(Section).ChangeFont(PropStack.Last);
+                    Section.ChangeFont(PropStack.Last);
 
                     if Attributes.Find(NameSy, T) then
                     begin
@@ -2320,7 +2329,7 @@ var
                   begin
                     Section.AddTokenObj(S);
                     PushNewProp('img', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-                    IO := TSection(Section).AddImage(Attributes, SectionList, TagIndex);
+                    IO := Section.AddImage(Attributes, SectionList, TagIndex);
                     IO.ProcessProperties(PropStack.Last);
                     PopAProp('img');
                     S.Clear;
@@ -2329,7 +2338,7 @@ var
                   begin
                     Section.AddTokenObj(S);
                     PushNewProp('panel', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-                    IO := TSection(Section).AddPanel(Attributes, SectionList, TagIndex);
+                    IO := Section.AddPanel(Attributes, SectionList, TagIndex);
                     IO.ProcessProperties(PropStack.Last);
                     PopAProp('panel');
                     S.Clear;
@@ -2363,7 +2372,7 @@ var
                     SaveSy := Sy;
                     Section.AddTokenObj(S);
                     PushNewProp(SymbToStr(Sy), Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-                    FormControl := TSection(Section).AddFormControl(Sy, MasterList,
+                    FormControl := Section.AddFormControl(Sy, MasterList,
                       Attributes, SectionList, TagIndex, PropStack.Last);
                     FormControl.ProcessProperties(PropStack.Last);
                     if Sy = SelectSy then
@@ -2375,7 +2384,7 @@ var
                   begin
                     Section.AddTokenObj(S);
                     PushNewProp('textarea', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-                    TxtArea := TSection(Section).AddFormControl(TextAreaSy, MasterList,
+                    TxtArea := Section.AddFormControl(TextAreaSy, MasterList,
                       Attributes, SectionList, TagIndex, PropStack.Last) as TTextAreaFormControlObj;
                     DoTextArea(TxtArea);
                     TxtArea.ProcessProperties(PropStack.Last);
@@ -2472,9 +2481,9 @@ begin
         if Prop.GetBorderStyle <> bssNone then {start of inline border}
           MasterList.ProcessInlines(SIndex, Prop, True);
         if Sy = ImageSy then
-          IO := TSection(Section).AddImage(Attributes, SectionList, TagIndex)
+          IO := Section.AddImage(Attributes, SectionList, TagIndex)
         else
-          IO := TSection(Section).AddPanel(Attributes, SectionList, TagIndex);
+          IO := Section.AddPanel(Attributes, SectionList, TagIndex);
         IO.ProcessProperties(PropStack.Last);
         PopAProp(SymbToStr(Sy));
         Next;
@@ -2494,7 +2503,7 @@ begin
             CurrentUrlTarget, SectionList, True);
         SaveSy := Sy;
         PushNewProp(SymbToStr(Sy), Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-        FormControl := TSection(Section).AddFormControl(Sy, MasterList, Attributes,
+        FormControl := Section.AddFormControl(Sy, MasterList, Attributes,
           SectionList, TagIndex, PropStack.Last);
         if Sy = SelectSy then
           GetOptions(FormControl as TListBoxFormControlObj);
@@ -2508,7 +2517,7 @@ begin
           Section := TSection.Create(MasterList, nil, PropStack.Last,
             CurrentUrlTarget, SectionList, True);
         PushNewProp('textarea', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-        TxtArea := TSection(Section).AddFormControl(TextAreaSy, MasterList,
+        TxtArea := Section.AddFormControl(TextAreaSy, MasterList,
           Attributes, SectionList, TagIndex,
           PropStack.Last) as TTextAreaFormControlObj;
         DoTextArea(TxtArea);
@@ -2558,7 +2567,7 @@ begin
             PopAProp(EndSymbToStr(Sy));
         end;
         if Assigned(Section) then
-          TSection(Section).ChangeFont(PropStack.Last);
+          Section.ChangeFont(PropStack.Last);
         Next;
       end;
 
@@ -3407,10 +3416,10 @@ begin
         DoStyle(MasterList.Styles, C, slGet, Path, True);
       end;
       Stream.Free;
-      SetLength(slS, 0);
+      slS := '';
     except
       Stream.Free;
-      SetLength(slS, 0);
+      slS := '';
     end;
   end;
   if Assigned(LinkEvent) then
@@ -3482,9 +3491,9 @@ begin
                       MasterList.LinksActive := True;
                     end;
                   MarginWidthSy, LeftMarginSy:
-                    AMarginWidth := IntMin(IntMax(0, Value), 200);
+                    AMarginWidth := Min(Max(0, Value), 200);
                   MarginHeightSy, TopMarginSy:
-                    AMarginHeight := IntMin(IntMax(0, Value), 200);
+                    AMarginHeight := Min(Max(0, Value), 200);
                   BGPropertiesSy:
                     if CompareText(Name, 'fixed') = 0 then
                       PropStack.Last.Assign('fixed', BackgroundAttachment);
@@ -3499,7 +3508,6 @@ begin
 
             SectionList := BodyBlock.OwnerCell;
             SectionList.Remove(BodyBlock);
-            BodyBlock.Free;
             BodyBlock := TBodyBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
             SectionList.Add(BodyBlock, TagIndex);
             SectionList := BodyBlock.MyCell;
@@ -3598,12 +3606,12 @@ begin
   Result := False;
   I := Pos(#$1b'$@', DocS); {look for starting sequence}
   J := Pos(#$1b'$B', DocS);
-  I := IntMax(I, J); {pick a positive value}
+  I := Max(I, J); {pick a positive value}
   if I > 0 then
   begin {now look for ending sequence after the start}
     K := PosX(#$1b'(J', DocS, I);
     L := PosX(#$1b'(B', DocS, I);
-    K := IntMax(K, L); {pick a positive value}
+    K := Max(K, L); {pick a positive value}
     if K > 0 then {start and end sequence found}
       Result := True;
   end;
@@ -4048,12 +4056,6 @@ end;
 function TPropStack.Last: TProperties;
 begin
   Result := Items[Count - 1];
-end;
-
-procedure TPropStack.Delete(Index: integer);
-begin
-  TObject(Items[Index]).Free;
-  inherited Delete(Index);
 end;
 
 {----------------GetEntity}

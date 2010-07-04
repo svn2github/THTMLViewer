@@ -1,5 +1,5 @@
 
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     HtmlGlobals.pas                   *}
 {*********************************************************}
@@ -33,10 +33,17 @@ URLCON.PAS are covered by separate copyright notices located in those modules.
 
 unit HtmlGlobals;
 
+{$I htmlcons.inc}
+
 interface
 
 uses
   Windows, Graphics, Classes, SysUtils;
+
+{$IFNDEF Unicode}
+type
+  UnicodeString = WideString;
+{$ENDIF !Unicode}
 
 var
   IsWin95: Boolean;

@@ -1,6 +1,6 @@
 {This is a modification of code found in Borland's Printers.Pas}
 
-{Version 10.00}
+{Version 10.1}
 {*******************************************************}
 {                                                       }
 {       Delphi Visual Component Library                 }
@@ -15,7 +15,8 @@ unit vwPrint;
 
 interface
 
-uses Windows, WinSpool, SysUtils, Classes, Graphics, Forms, Printers;
+uses
+  Windows, Classes, Graphics, Printers;
 
 type
   TvwPrinter = class(TObject)
@@ -66,7 +67,8 @@ function vwSetPrinter(NewPrinter: TvwPrinter): TvwPrinter;
 
 implementation
 
-uses Consts;
+uses
+  Consts, SysUtils, Forms;
 
 var
   FPrinter: TvwPrinter;

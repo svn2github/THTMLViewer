@@ -1,4 +1,4 @@
-{Version 10.00}
+{Version 10.1}
 {***************************************************************}
 {*                  METAFILEPRINTER.PAS                        *}
 {*                                                             *}
@@ -12,11 +12,12 @@
 
 unit MetaFilePrinter;
 
+{$I htmlcons.inc}
+
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs, Printers,
-  GDIPL2A;
+  Classes, Graphics, Printers;
 
 type
   TUnits = (unInches, unCentimeters);
@@ -88,6 +89,9 @@ type
 
 implementation
 
+uses
+  Windows, SysUtils, Forms {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF NoGDIPlus};
+
 const
   INCH_TO_CM = 2.54;
 
@@ -96,14 +100,8 @@ const
 constructor TMetaFilePrinter.Create(AOwner: TComponent);
 begin
   inherited;
-  FPrinting := False;
-  FUsedPage := False;
-  FCurCanvas := nil;
   FMFList := TList.Create;
   FUnits := unInches;
-  FPrinterDC := 0;
-  FPgHeight := 0;
-  FPgWidth := 0;
 end;
 
 destructor TMetaFilePrinter.Destroy;
@@ -203,9 +201,11 @@ begin
   MetaFile := TMetaFile.Create;
   FMFList.Add(MetaFile);
 
-  if GDIPlusActive then
+  {$IFNDEF NoGDIPlus}
+  if GDIPlusActive then                                  
     NewCanvas := TMetaFileCanvas.Create(MetaFile, Printer.Handle)
   else
+    {$ENDIF NoGDIPlus}
     NewCanvas := TMetaFileCanvas.Create(MetaFile, 0);
    { fill the page with "whiteness" }
   NewCanvas.Brush.Color := clWhite;

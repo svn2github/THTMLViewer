@@ -1,4 +1,4 @@
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     STYLEUN.PAS                       *}
 {*********************************************************}
@@ -33,8 +33,7 @@ unit StyleUn;
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs, Math,
-  HtmlGlobals;
+  Classes, Graphics;
 
 const
   IntNull = -12345678;
@@ -277,11 +276,8 @@ procedure FreeAndNil(var Obj);
 implementation
 
 uses
-{$IFDEF Delphi6_Plus}
-  Variants,
-{$ENDIF}
-  htmlsubs,
-  readhtml;
+  Windows, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}SysUtils, Math, Forms,
+  HtmlGlobals, HtmlSubs, ReadHtml;
 
 var
   DefPointSize: double;
@@ -2475,7 +2471,7 @@ end;
 
 const
   NumColors = 176;
-  Colors: array[1..NumColors] of string[20] = ('transparent',
+  Colors: array[1..NumColors] of string = ('transparent',
     'black', 'maroon', 'green', 'olive', 'navy', 'purple', 'teal', 'gray',
     'silver', 'red', 'lime', 'yellow', 'blue', 'fuchsia', 'aqua', 'white',
     'aliceblue', 'antiquewhite', 'aquamarine', 'azure', 'beige',

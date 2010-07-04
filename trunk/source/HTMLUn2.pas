@@ -1,4 +1,4 @@
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     HTMLUN2.PAS                       *}
 {*********************************************************}
@@ -32,14 +32,11 @@ unit HTMLUn2;
 
 interface
 uses
-  Windows, SysUtils, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, StdCtrls, ExtCtrls, Clipbrd, Math,
-  GDIPL2A,
-  HtmlGlobals,
-  StyleUn;
+  Windows, SysUtils, Classes, Graphics, Clipbrd,
+  StyleUn {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
 
 const
-  VersionNo = '10.00';
+  VersionNo = '10.01';
   MaxHScroll = 6000; {max horizontal display in pixels}
   HandCursor = 10101;
   OldThickIBeamCursor = 2;
@@ -78,13 +75,11 @@ type
   TScriptEvent = procedure(Sender: TObject; const Name, Language,
     Script: string) of object;
 
+  { Like TList but frees it's items. Use only descendents of TObject! }
   TFreeList = class(TList)
-  {like a TList but frees it's items.  Use only descendents of TObject}
-    destructor Destroy; override;
-{$WARNINGS Off}
-    procedure Clear; {do not override}
+  protected
+    procedure Notify(Ptr: Pointer; Action: TListNotification); override;
   end;
-{$WARNINGS On}
 
   //BG, 09.09.2009: renamed TGif and TPng to TrGif and TrPng
   //  TGif interfered with same named class.
@@ -139,7 +134,6 @@ type
     CodePage: integer;
     constructor Create(ASym: Symb; AValue: integer;
       const NameStr, ValueStr: string; ACodePage: integer);
-    destructor Destroy; override;
   end;
 
   TAttributeList = class(TFreeList) {a list of tag attributes,(TAttributes)}
@@ -152,7 +146,7 @@ type
     function GetStyle: TProperties;
   public
     destructor Destroy; override;
-    procedure Clear;
+    procedure Clear; override;
     function Find(Sy: Symb; var T: TAttribute): boolean;
     function CreateStringList: TStringList;
     property TheClass: string read GetClass;
@@ -234,7 +228,7 @@ type
     constructor Create;
     procedure Copy(UT: TUrlTarget);
     destructor Destroy; override;
-    procedure Assign(AnUrl, ATarget: string; L: TAttributeList; AStart: integer);
+    procedure Assign(const AnUrl, ATarget: string; L: TAttributeList; AStart: integer);
     procedure Clear;
     procedure SetLast(List: TList; ALast: integer);
     property Start: integer read GetStart;
@@ -358,7 +352,6 @@ type
     function GetYPosition: integer; virtual; abstract;
   public
     property YPosition: integer read GetYPosition;
-    destructor Destroy; override;
   end;
 
   TChPosObj = class(TIDObject)
@@ -427,8 +420,6 @@ function WideSameStr1(const S1, S2: WideString): boolean;
 function PosX(const SubStr, S: string; Offset: integer = 1): Integer;
    {find substring in S starting at Offset}
 
-function IntMin(A, B: Integer): Integer;
-function IntMax(A, B: Integer): Integer;
 procedure GetClippingRgn(Canvas: TCanvas; ARect: TRect; Printing: boolean;
   var Rgn, SaveRgn: HRgn);
 
@@ -476,6 +467,8 @@ procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
 //             Bitmap, Mask: TBitmap; YI, HI: integer);
 procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: integer;
   Bitmap, Mask: TBitmap; YI, HI: integer);
+
+{$IFNDEF NoGDIPlus}
 procedure DrawGpImage(Handle: THandle; Image: TGPImage; DestX, DestY: integer); overload;
 procedure DrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY,
   SrcX, SrcY, SrcW, SrcH: integer); overload;
@@ -487,6 +480,7 @@ procedure StretchPrintGpImageDirect(Handle: THandle; Image: TGpImage;
   ScaleX, ScaleY: single);
 procedure StretchPrintGpImageOnColor(Canvas: TCanvas; Image: TGpImage;
   DestX, DestY, DestW, DestH: integer; Color: TColor = clWhite);
+{$ENDIF NoGDIPlus}
 
 function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
 function htColors(C0, C1, C2, C3: TColor): htColorArray;
@@ -504,13 +498,12 @@ function GetImageWidth(Image: TGpObject): integer;
 implementation
 
 uses
-  jpeg, DitherUnit,
-{$IFDEF UNICODE}
+  HtmlGlobals,  Forms, jpeg, DitherUnit, Math,
+  {$IFDEF UNICODE}
   PngImage,
-{$ENDIF}
+  {$ENDIF}
   htmlsubs,
-  HtmlGif2,
-  StylePars, ActiveX;
+  HtmlGif2, StylePars;
 
 type
   EGDIPlus = class(Exception);
@@ -794,22 +787,6 @@ begin
     else
       Result := 0;
   end;
-end;
-
-function IntMin(A, B: Integer): Integer;
-asm
-  cmp edx, eax
-  jnle @1
-  mov eax, edx
-@1:
-end;
-
-function IntMax(A, B: Integer): Integer;
-asm
-  cmp edx, eax
-  jl @1
-  mov eax, edx
-@1:
 end;
 
 procedure GetClippingRgn(Canvas: TCanvas; ARect: TRect; Printing: boolean; var Rgn, SaveRgn: HRgn);
@@ -1139,22 +1116,10 @@ begin {dummy Assert for Delphi 2}
 end;
 {$ENDIF}
 
-destructor TFreeList.Destroy;
-var
-  I: integer;
+procedure TFreeList.Notify(Ptr: Pointer; Action: TListNotification);
 begin
-  for I := 0 to Count - 1 do
-    TObject(Items[I]).Free;
-  inherited Destroy;
-end;
-
-procedure TFreeList.Clear;
-var
-  I: integer;
-begin
-  for I := 0 to Count - 1 do
-    TObject(Items[I]).Free;
-  inherited Clear;
+  if Action = lnDeleted then
+    TObject(Ptr).Free;
 end;
 
 constructor TBitmapItem.Create(AImage: TgpObject; AMask: TBitmap; Tr: Transparency);
@@ -1178,7 +1143,9 @@ constructor TStringBitmapList.Create;
 begin
   inherited Create;
   MaxCache := 4;
+  {$IFNDEF NoGDIPlus}
   CheckInitGDIPlus;
+  {$ENDIF NoGDIPlus}
 end;
 
 destructor TStringBitmapList.Destroy;
@@ -1187,7 +1154,9 @@ var
 begin
   for I := 0 to Count - 1 do
     (Objects[I] as TBitmapItem).Free;
+  {$IFNDEF NoGDIPlus}
   CheckExitGDIPlus;
+  {$ENDIF NoGDIPlus}
   inherited Destroy;
 end;
 
@@ -1306,11 +1275,6 @@ begin
   CodePage := ACodePage;
 end;
 
-destructor TAttribute.Destroy;
-begin
-  inherited Destroy;
-end;
-
 {----------------TAttributeList}
 
 destructor TAttributeList.Destroy;
@@ -1321,8 +1285,8 @@ end;
 
 procedure TAttributeList.Clear;
 begin
-  SaveID := '';
   inherited Clear;
+  SaveID := '';
 end;
 
 function TAttributeList.Find(Sy: Symb; var T: TAttribute): boolean;
@@ -1433,7 +1397,7 @@ end;
 var
   Sequence: integer = 10;
 
-procedure TUrlTarget.Assign(AnUrl, ATarget: string; L: TAttributeList; AStart: integer);
+procedure TUrlTarget.Assign(const AnUrl, ATarget: string; L: TAttributeList; AStart: integer);
 var
   SL: TStringList;
 begin
@@ -2051,11 +2015,13 @@ begin
   Mask := nil;
   if not FileExists(Filename) then
     Exit;
+  {$IFNDEF NoGDIPlus}
   if GDIPlusActive and (KindOfImageFile(Filename) = Png) then
   begin
     Result := TObject(TGPBitmap.Create(Filename));
   end
   else
+  {$ENDIF !NoGDIPlus}
   begin
     Stream := TMemoryStream.Create;
     Stream.LoadFromFile(Filename);
@@ -2174,17 +2140,21 @@ var
 
 function GetImageAndMaskFromStream(Stream: TMemoryStream;
   var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+{$IFNDEF NoGDIPlus}
 var
   Filename: string;
   Path: PChar;
   F: file;
   I: integer;
+  {$ENDIF !NoGDIPlus}
 begin
   Result := nil;
   AMask := nil;
   if not Assigned(Stream) or (Stream.Memory = nil) or (Stream.Size < 20) then
     Exit;
   Stream.Position := 0;
+
+  {$IFNDEF NoGDIPlus}
   if GDIPlusActive and (KindOfImage(Stream.Memory) = png) then
   begin
     try
@@ -2209,6 +2179,7 @@ begin
     end;
     Exit;
   end;
+  {$ENDIF !NoGDIPlus}
 
   Result := GetBitmapAndMaskFromStream(Stream, Transparent, AMask);
 {$IFNDEF NoMetafile}
@@ -2299,12 +2270,14 @@ begin
           GpObj.Free;
         end
 {$ENDIF}
+        {$IFNDEF NoGDIPlus}
         else if GpObj is TGpImage then
         begin
           Result := TBitmap.Create;
           Result.Assign(TGpImage(GpObj).GetTBitmap);
           GpObj.Free;
         end;
+        {$ENDIF !NoGDIPlus}
       end;
     finally
       Stream.Free;
@@ -2715,7 +2688,7 @@ begin
   else if CR = Y then
     Result := CL
   else
-    Result := IntMin(CL, CR);
+    Result := Min(CL, CR);
 end;
 
 function IndentManagerBasic.SetLeftIndent(XLeft, Y: integer): integer;
@@ -2750,13 +2723,11 @@ end;
 
 procedure IndentManagerBasic.FreeLeftIndentRec(I: integer);
 begin
-  IndentRec(L.Items[I]).Free;
   L.Delete(I);
 end;
 
 procedure IndentManagerBasic.FreeRightIndentRec(I: integer);
 begin
-  IndentRec(R.Items[I]).Free;
   R.Delete(I);
 end;
 
@@ -2857,11 +2828,6 @@ begin
   ChPosObj.List := OwnerList;
   ChPosObj.ChPos := Pos;
   AddObject(S, ChPosObj);
-end;
-
-destructor TIDObject.Destroy;
-begin
-  inherited;
 end;
 
 {----------------TChPosObj.GetYPosition:}
@@ -3392,22 +3358,25 @@ var
   NewBitmap: TBitmap;
 begin
   Result := TBitmap.Create;
+  {$IFNDEF NoGDIPlus}
   if Image is TGpImage then
     NewBitmap := TGpImage(Image).GetTBitmap
-  else
+  else {$ENDIF !NoGDIPlus}
     NewBitmap := Image as TBitmap;
   Result.Assign(NewBitmap);
   if NewBitmap.Width = 1 then
-    Result.Width := IntMin(100, W)
+    Result.Width := Min(100, W)
   else
     Result.Width := NewBitmap.Width;
   if NewBitmap.Height = 1 then
-    Result.Height := IntMin(100, H)
+    Result.Height := Min(100, H)
   else
     Result.Height := NewBitmap.Height;
   Result.Canvas.StretchDraw(Rect(0, 0, Result.Width, Result.Height), NewBitmap);
+  {$IFNDEF NoGDIPlus}
   if Image is TGpImage then
     NewBitmap.Free;
+  {$ENDIF NoGDIPlus}
 end;
 
 {----------------PrintBitmap}
@@ -3675,6 +3644,8 @@ begin
   Result[3] := P3;
 end;
 
+{$IFNDEF NoGDIPlus}
+
 procedure DrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY: integer);
 {Draws the entire image as specified at the point specified}
 var
@@ -3764,6 +3735,8 @@ begin
   end;
   g.Free;
 end;
+
+{$ENDIF NoGDIPlus}
 
 function Points(P0, P1, P2, P3: TPoint): BorderPointArray;
 begin
@@ -4188,9 +4161,11 @@ function GetImageHeight(Image: TGpObject): integer;
 begin
   if Image is TBitmap then
     Result := TBitmap(Image).Height
-  else if Image is TGpImage then
+  else {$IFNDEF NoGDIPlus}
+  if Image is TGpImage then
     Result := TGpImage(Image).Height
-  else if Image is TGifImage then
+  else {$ENDIF !NoGDIPlus}
+  if Image is TGifImage then
     Result := TGifImage(Image).Height
 {$IFNDEF NoMetafile}
   else if Image is ThtMetaFile then
@@ -4204,9 +4179,11 @@ function GetImageWidth(Image: TGpObject): integer;
 begin
   if Image is TBitmap then
     Result := TBitmap(Image).Width
-  else if Image is TGpImage then
+  else {$IFNDEF NoGDIPlus}
+  if Image is TGpImage then
     Result := TGpImage(Image).Width
-  else if Image is TGifImage then
+  else {$ENDIF !NoGDIPlus}
+  if Image is TGifImage then
     Result := TGifImage(Image).Width
 {$IFNDEF NoMetafile}
   else if Image is ThtMetaFile then

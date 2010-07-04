@@ -1,4 +1,4 @@
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                    STYLEPARS.PAS                      *}
 {*********************************************************}
@@ -33,8 +33,7 @@ unit StylePars;
 interface
 
 uses
-  SysUtils, Windows, Graphics, Messages, Classes, Controls, Dialogs, StdCtrls,
-  UrlSubs, StyleUn, htmlun2;
+  StyleUn;
 
 type
   CharFunction = function: Char;
@@ -45,6 +44,9 @@ procedure ParsePropertyStr(const PropertyStr: string; var Propty: TProperties);
 function SortContextualItems(S: string): string;
 
 implementation
+
+uses
+  SysUtils, Classes, Graphics, UrlSubs, HtmlUn2;
 
 const
   NeedPound = True;
@@ -87,7 +89,9 @@ begin
           Comment := True;
           LastCh := LCh;
           LCh := GetC;
-        until ((LCh = '/') and (LastCh = '*')) or (LCh = EofChar) or (LCh = '<')
+        until ((LCh = '/') and (LastCh = '*')) or (LCh = EofChar)
+        { Yunqa.de: Do not stop CSS comment at '<'. }
+        { or (LCh = '<') }
       else
         Back := NextCh; {put character back}
     end;
