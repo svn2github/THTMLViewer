@@ -2555,12 +2555,9 @@ begin
   if ColorStrings = nil then
   begin
     ColorStrings := TStringList.Create;
-    with ColorStrings do
-    begin
-      for I := 1 to NumColors do
-        ColorStrings.AddObject(Colors[I], Pointer(ColorValues[I]));
-      Sort;
-    end;
+    for I := 1 to NumColors do
+      ColorStrings.AddObject(Colors[I], Pointer(ColorValues[I]));
+    ColorStrings.Sort;
   end;
 end;
 
@@ -2637,7 +2634,10 @@ begin
     Result := True;
     Exit;
   end;
-  if (Length(S) > 0) and (S[1] <> '#') and (Pos('rgb(', S) = 0) then
+  I := Pos('rgb', S);
+  if (I = 0) and (S[1] <> '#') then
+  begin
+    SortColors;
     if ColorStrings.Find(S, I) then
     begin
       Color := TColor(ColorStrings.Objects[I]);
@@ -2646,8 +2646,8 @@ begin
       LastColor := Color;
       Exit;
     end;
+  end;
   S1 := S;
-  I := Pos('rgb', S);
   if (I > 0) then
     Result := FindRGBColor(Copy(S, I + 3, 255))
   else
@@ -2731,73 +2731,91 @@ begin
   end;
 end;
 
-{$HINTS OFF}
+//BG, 14.07.2010:
+function decodeSize(const Str: string; var V: extended; var U: String): boolean;
+var
+  I, J, L: Integer;
+begin
+  Val(Str, V, I);
+  Result := I <> 1;
+  if Result then
+  begin
+    L := Length(Str);
+    if I = 0 then
+      I := L + 1;
+    J := Pos('e', Str); {'e' would be legal for Val but not for us}
+    if (J > 0) and (I > J) then
+      I := J;
+    if I <= L then
+    begin
+      Val(Copy(Str, 1, I - 1), V, J);
+      U := Trim(Copy(Str, I, L - I + 1)); // text after number, maybe a unit
+    end
+    else
+      U := '';
+  end;
+end;
+
+const
+  f_cm = 1.0 / 2.54;
+  f_px = 1.0 / 6.00;
+  f_mm = 1.0 / 25.4;
+  f_pt = 1.0 / 72.0;
+  f_pc = 1.0 / 100.0;
+
 {----------------FontSizeConv}
 
 function FontSizeConv(const Str: string; OldSize: double): double;
 {given a font-size string, return the point size}
 var
-  V, PPI: double;
-  S1, S2: string;
-  I, J: integer;
+  V: extended;
+  U: string;
 begin
-  PPI := Screen.PixelsPerInch;
-  Val(Str, V, I);
-  J := Pos('e', Str); {'e' would be legal for Val but not for us}
-  if (J <> 0) and (I > J) then
-    I := J;
-  if I > 0 then
+  if decodeSize(Str, V, U) then
   begin
-    S1 := Copy(Str, 1, I - 1);
-    S2 := Trim(Copy(Str, I, Length(Str) - I + 1));
+    if U = 'in' then
+      V := 72.0 * V
+    else if U = 'cm' then
+      V := 72.0 * V * f_cm
+    else if U = 'mm' then
+      V := 72.0 * V * f_mm
+    else if U = 'pt' then
+    else if U = 'px' then
+      V := V * 72.0 / Screen.PixelsPerInch
+    else if U = 'pc' then
+      V := V * 12.0
+    else if U = 'em' then
+      V := V * OldSize
+    else if U = 'ex' then
+      V := V * OldSize * 0.5 {1/2 of em}
+    else if U = '%' then
+      V := V * OldSize * f_pc
+    else if U = '' then
+      V := V * 72.0 / Screen.PixelsPerInch {pixels by default}
+    else if U = 'smaller' then
+      V := 0.75 * OldSize
+    else if U = 'larger' then
+      V := 1.25 * OldSize
+    else if U = 'xx-small' then
+      V := DefPointSize / 1.5
+    else if U = 'x-small' then
+      V := DefPointSize / 1.2
+    else if U = 'small' then
+      V := DefPointSize
+    else if U = 'medium' then
+      V := DefPointSize * 1.2
+    else if U = 'large' then
+      V := DefPointSize * 1.5
+    else if U = 'x-large' then
+      V := DefPointSize * 2.0
+    else if U = 'xx-large' then
+      V := DefPointSize * 3.0
+    else
+      V := DefPointSize; {error, return 12pt}
+    Result := V;
   end
   else
-  begin
-    S1 := Str;
-    S2 := '';
-  end;
-{S1 has the number, S2 the units}
-  Val(S1, V, I);
-  if S2 = 'in' then
-    V := 72.0 * V
-  else if S2 = 'cm' then
-    V := 72.0 * V / 2.54
-  else if S2 = 'mm' then
-    V := 72.0 * V / 25.4
-  else if S2 = 'pt' then
-  else if S2 = 'px' then
-    V := V * 72.0 / PPI
-  else if S2 = 'pc' then
-    V := V * 12.0
-  else if S2 = 'em' then
-    V := V * OldSize
-  else if S2 = 'ex' then
-    V := V * OldSize / 2.0 {1/2 of em}
-  else if S2 = '%' then
-    V := V * OldSize / 100.0
-  else if S2 = '' then
-    V := V * 72.0 / PPI {pixels by default}
-  else if S2 = 'smaller' then
-    V := 0.75 * OldSize
-  else if S2 = 'larger' then
-    V := 1.25 * OldSize
-  else if S2 = 'xx-small' then
-    V := DefPointSize / 1.5
-  else if S2 = 'x-small' then
-    V := DefPointSize / 1.2
-  else if S2 = 'small' then
-    V := DefPointSize
-  else if S2 = 'medium' then
-    V := DefPointSize * 1.2
-  else if S2 = 'large' then
-    V := DefPointSize * 1.5
-  else if S2 = 'x-large' then
-    V := DefPointSize * 2.0
-  else if S2 = 'xx-large' then
-    V := DefPointSize * 3.0
-  else
-    V := DefPointSize; {error, return 12pt}
-  Result := V;
+    Result := DefPointSize;
 end;
 
 {----------------LengthConv}
@@ -2809,60 +2827,46 @@ function LengthConv(const Str: string; Relative: boolean; Base, EmSize, ExSize,
  Relative makes a numerical entry relative to Base.
  Default returned if no match.}
 var
-  V, PPI: double;
-  S1, S2: string;
-  I, J: integer;
+  V: extended;
+  U: string;
 begin
-  PPI := Screen.PixelsPerInch;
-  Val(Str, V, I);
-  J := Pos('e', Str); {'e' would be legal for Val but not for us}
-  if (J <> 0) and (I > J) then
-    I := J;
-  if I > 0 then
+  if decodeSize(Str, V, U) then
   begin
-    S1 := Copy(Str, 1, I - 1);
-    S2 := Trim(Copy(Str, I, Length(Str) - I + 1));
+    {U the units}
+    if U = '' then
+    begin
+      if Relative then
+        V := V * Base; {relative}
+      //else
+      //  V := V {same as pixels, at least for margins}
+    end
+    else if U = '%' then
+      V := V * Base * f_pc
+    else if U = 'in' then
+      V := V * Screen.PixelsPerInch
+    else if U = 'cm' then
+      V := V * Screen.PixelsPerInch * f_cm
+    else if U = 'mm' then
+      V := V * Screen.PixelsPerInch * f_mm
+    else if U = 'pt' then
+      V := V * Screen.PixelsPerInch * f_pt
+    else if U = 'px' then
+    else if U = 'pc' then
+      V := V * Screen.PixelsPerInch * f_px
+    else if U = 'em' then
+      V := V * EmSize
+    else if U = 'ex' then
+      V := V * ExSize
+    else
+      V := Default;
+    Result := Round(V);
   end
   else
-  begin
-    S1 := Str;
-    S2 := '';
-  end;
-{S1 has the number, S2 the units}
-  Val(S1, V, I);
-  if S2 = 'in' then
-    V := PPI * V
-  else if S2 = 'cm' then
-    V := PPI * V / 2.54
-  else if S2 = 'mm' then
-    V := PPI * V / 25.4
-  else if S2 = 'pt' then
-    V := V * PPI / 72.0
-  else if S2 = 'px' then
-  else if S2 = 'pc' then
-    V := V * PPI / 6.0
-  else if S2 = 'em' then
-    V := V * EmSize
-  else if S2 = 'ex' then
-    V := V * ExSize
-  else if S2 = '%' then
-    V := V * Base / 100.0
-  else if S2 = '' then
-    if Relative then
-      V := V * Base {relative}
-    else
-      V := V {same as pixels, at least for margins}
-  else
-    V := Default;
-  Result := Round(V);
+    // anything else but a number, maybe 'auto'
+    Result := Default;
 end;
 
 initialization
-
-  SortColors;
-
 finalization
-
-  ColorStrings.Free;
-
+  freeAndNil(ColorStrings);
 end.
