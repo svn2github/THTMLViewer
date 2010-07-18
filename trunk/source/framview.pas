@@ -94,6 +94,7 @@ type
     FOnImageClick: TImageClickEvent;
     FOnImageOver: TImageOverEvent;
     FOnImageRequest: TGetImageEvent;
+    FOnImageRequested: TGottenImageEvent;
     FOnMeta: TMetaType;
     FOnMouseDouble: TMouseEvent;
     FOnObjectBlur: ThtObjectEvent;
@@ -201,6 +202,7 @@ type
     procedure SetOnBitmapRequest(Handler: TGetBitmapEvent);
     procedure SetOnFileBrowse(Handler: TFileBrowseEvent);
     procedure SetOnImageRequest(Handler: TGetImageEvent);
+    procedure SetOnImageRequested(Handler: TGottenImageEvent);
     procedure SetOnLink(Handler: TLinkType); override;
     procedure SetOnMeta(Handler: TMetaType);
     procedure SetOnObjectBlur(Handler: ThtObjectEvent);
@@ -313,6 +315,7 @@ type
     property OnImageClick: TImageClickEvent read FOnImageClick write SetImageClick;
     property OnImageOver: TImageOverEvent read FOnImageOver write SetImageOver;
     property OnImageRequest: TGetImageEvent read FOnImageRequest write SetOnImageRequest;
+    property OnImageRequested: TGottenImageEvent read FOnImageRequested write SetOnImageRequested;
     property OnInclude;
     property OnLink;
     property OnMeta: TMetaType read FOnMeta write SetOnMeta;
@@ -3576,8 +3579,17 @@ begin
   FOnImageRequest := Handler;
   with CurFrameSet do
     for I := 0 to Viewers.Count - 1 do
-      with THtmlViewer(Viewers[I]) do
-        OnImageRequest := Handler;
+      THtmlViewer(Viewers[I]).OnImageRequest := Handler;
+end;
+
+procedure TFVBase.SetOnImageRequested(Handler: TGottenImageEvent);
+var
+  I: integer;
+begin
+  FOnImageRequested := Handler;
+  with CurFrameSet do
+    for I := 0 to Viewers.Count - 1 do
+      THtmlViewer(Viewers[I]).OnImageRequested := Handler;
 end;
 
 function TFVBase.ViewerFromTarget(const Target: string): THtmlViewer;

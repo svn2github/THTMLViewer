@@ -115,19 +115,14 @@ type
   TLinkDrawnEvent = procedure(Sender: TObject; Page: integer; const Url, Target: string;
     ARect: TRect) of object;
   TFileBrowseEvent = procedure(Sender, Obj: TObject; var S: string) of object;
-  TGetBitmapEvent = procedure(Sender: TObject; const SRC: string;
-    var Bitmap: TBitmap; var Color: TColor) of object;
-  TGetImageEvent = procedure(Sender: TObject; const SRC: string;
-    var Stream: TMemoryStream) of object;
-  TFormSubmitEvent = procedure(Sender: TObject; const Action, Target, EncType, Method: string;
-    Results: TStringList) of object;
-  TPanelCreateEvent = procedure(Sender: TObject; const AName, AType, SRC: string;
-    Panel: ThvPanel) of object;
+  TGetBitmapEvent = procedure(Sender: TObject; const SRC: string; var Bitmap: TBitmap; var Color: TColor) of object;
+  TGetImageEvent = procedure(Sender: TObject; const SRC: string; var Stream: TMemoryStream) of object;
+  TGottenImageEvent = TGetImageEvent;
+  TFormSubmitEvent = procedure(Sender: TObject; const Action, Target, EncType, Method: string; Results: TStringList) of object;
+  TPanelCreateEvent = procedure(Sender: TObject; const AName, AType, SRC: string; Panel: ThvPanel) of object;
   TPanelDestroyEvent = procedure(Sender: TObject; Panel: ThvPanel) of object;
   TPanelPrintEvent = procedure(Sender: TObject; Panel: ThvPanel; const Bitmap: TBitmap) of object;
-  TObjectTagEvent = procedure(Sender: TObject; Panel: ThvPanel;
-    const Attributes, Params: TStringList;
-    var WantPanel: boolean) of object;
+  TObjectTagEvent = procedure(Sender: TObject; Panel: ThvPanel; const Attributes, Params: TStringList; var WantPanel: boolean) of object;
   TObjectClickEvent = procedure(Sender, Obj: TObject; const OnClick: string) of object;
   ThtObjectEvent = procedure(Sender, Obj: TObject; const Attribute: string) of object;
   TExpandNameEvent = procedure(Sender: TObject; const SRC: string; var Result: string) of object;
@@ -997,6 +992,7 @@ type
     PPanel: TWinControl; {the viewer's PaintPanel}
     GetBitmap: TGetBitmapEvent; {for OnBitmapRequest Event}
     GetImage: TGetImageEvent; {for OnImageRequest Event}
+    GottenImage: TGottenImageEvent; {for OnImageRequest Event}
     ExpandName: TExpandNameEvent;
     ObjectClick: TObjectClickEvent;
     ObjectFocus: ThtObjectEvent;
@@ -7185,7 +7181,8 @@ begin
                 Result := GetImageAndMaskFromStream(Stream, Transparent, AMask);
             end;
           finally
-            //Stream.Free;
+            if assigned(GottenImage) then
+              GottenImage(TheOwner, BMName, Stream);
           end
         else if not Assigned(Stream) then
           Result := LoadImageFromFile(ThtmlViewer(TheOwner).HTMLExpandFilename(BMName), AMask, Transparent);

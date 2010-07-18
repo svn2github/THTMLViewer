@@ -123,6 +123,7 @@ type
     vwP, OldPrinter: TvwPrinter;
     fScaleX, fScaleY: single;
     FCodePage: integer;
+    FOnImageRequested: TGottenImageEvent;
     function GetCursor: TCursor;
     procedure SetCursor(Value: TCursor);
   protected
@@ -268,6 +269,7 @@ type
     procedure SetVisitedMaxCount(Value: integer);
     procedure SetOnBitmapRequest(Handler: TGetBitmapEvent);
     procedure SetOnImageRequest(Handler: TGetImageEvent);
+    procedure SetOnImageRequested(Handler: TGottenImageEvent);
     procedure SetOnScript(Handler: TScriptEvent);
     procedure SetOnFormSubmit(Handler: TFormSubmitEvent);
     function GetOurPalette: HPalette;
@@ -492,6 +494,8 @@ type
       write SetOnBitmapRequest;
     property OnImageRequest: TGetImageEvent read FOnImageRequest
       write SetOnImageRequest;
+    property OnImageRequested: TGottenImageEvent read FOnImageRequested
+      write SetOnImageRequested;
     property OnScript: TScriptEvent read FOnScript
       write SetOnScript;
     property OnFormSubmit: TFormSubmitEvent read FOnFormSubmit
@@ -4280,6 +4284,12 @@ procedure ThtmlViewer.SetOnImageRequest(Handler: TGetImageEvent);
 begin
   FOnImageRequest := Handler;
   FSectionList.GetImage := Handler;
+end;
+
+procedure ThtmlViewer.SetOnImageRequested(Handler: TGottenImageEvent);
+begin
+  FOnImageRequested := Handler;
+  FSectionList.GottenImage := Handler;
 end;
 
 procedure ThtmlViewer.SetOnExpandName(Handler: TExpandNameEvent);
