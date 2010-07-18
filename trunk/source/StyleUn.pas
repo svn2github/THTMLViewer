@@ -148,8 +148,6 @@ type
     procedure AddPropertyByIndex(Index: PropIndices; PropValue: string);
     procedure GetSingleFontInfo(var Font: ThtFontInfo);
     procedure CalcLinkFontInfo(Styles: TStyleList; I: integer);
-    procedure CombineX(Styles: TStyleList;
-      const Tag, AClass, AnID, PSeudo, ATitle: string; AProp: TProperties);
   public
     PropTag, PropClass, PropID, PropPseudo, PropTitle: string;
     PropStyle: TProperties;
@@ -171,7 +169,7 @@ type
     procedure AssignCharSet(CS: TFontCharset);
     procedure AssignUTF8;
     procedure Combine(Styles: TStyleList;
-      const Tag, AClass, AnID, Pseudo, ATitle: string; AProp: TProperties);
+      const Tag, AClass, AnID, Pseudo, ATitle: string; AProp: TProperties; ParentIndexInPropStack: Integer);
     procedure Update(Source: TProperties; Styles: TStyleList; I: integer);
     function GetFont: TMyFont;
     procedure GetFontInfo(AFI: TFontInfoArray);
@@ -1287,10 +1285,335 @@ end;
 {----------------TProperties.Combine}
 
 procedure TProperties.Combine(Styles: TStyleList;
-  const Tag, AClass, AnID, PSeudo, ATitle: string; AProp: TProperties);
+  const Tag, AClass, AnID, PSeudo, ATitle: string; AProp: TProperties; ParentIndexInPropStack: Integer);
 {When called, this TProperties contains the inherited properties.  Here we
  add the ones relevant to this item. AProp are TProperties gleaned from the
  Style= attribute. AClass may be a multiple class like class="ab.cd"}
+
+  procedure CombineX(Styles: TStyleList;
+    const Tag, AClass, AnID, PSeudo, ATitle: string; AProp: TProperties);
+  {When called, this TProperties contains the inherited properties.  Here we
+   add the ones relevant to this item. AProp are TProperties gleaned from the
+   Style= attribute.}
+  var
+    OldSize: double;
+    IX: integer;
+    NoHoverVisited: boolean;
+
+    procedure Merge(Source: TProperties);
+    var
+      Index: PropIndices;
+      I: FIIndex;
+      Wt: integer;
+      S1: string;
+    begin
+      for Index := Low(Index) to High(PropIndices) do
+        if (VarType(Source.Props[Index]) <> varEmpty) and (Vartype(Source.Props[Index]) <> varNull) then
+          case Index of
+            MarginTop..LeftPos:
+              if VarIsStr(Source.Props[Index]) then // if VarType(Source.Props[Index]) = VarString then
+              begin
+                Props[Index] := Source.Props[Index];
+                Originals[Index] := True;
+              end
+              else if Source.Props[Index] <> IntNull then
+              begin
+                Props[Index] := Source.Props[Index];
+                Originals[Index] := True;
+              end;
+            FontFamily, FontSize, FontStyle, FontWeight, Color, BackgroundColor,
+              TextDecoration, LetterSpacing:
+              begin
+                Originals[Index] := True;
+                Props[Index] := Source.Props[Index];
+                if InLink then
+                  for I := LFont to HVFont do
+                    with FIArray.Ar[I] do
+                      case Index of
+                        FontFamily:
+                          begin
+                            S1 := ReadFontName(Props[FontFamily]);
+                            if S1 <> '' then
+                              iName := S1;
+                          end;
+                        FontSize:
+                          iSize := FontSizeConv(Props[FontSize], iSize);
+                        Color: iColor := Props[Color];
+                        BackgroundColor: ibgColor := Props[BackgroundColor];
+                        FontStyle:
+                          if (Props[FontStyle] = 'italic') or (Props[FontStyle] = 'oblique') then
+                            iStyle := iStyle + [fsItalic]
+                          else if Props[FontStyle] = 'normal' then
+                            iStyle := iStyle - [fsItalic];
+                        FontWeight:
+                          if Pos('bold', Props[FontWeight]) > 0 then
+                            iStyle := iStyle + [fsBold]
+                          else if Pos('normal', Props[FontWeight]) > 0 then
+                            iStyle := iStyle - [fsBold]
+                          else
+                          begin
+                            Wt := StrToIntDef(Props[FontWeight], 0);
+                            if Wt >= 600 then
+                              iStyle := iStyle + [fsBold];
+                          end;
+                        TextDecoration:
+                          if Props[TextDecoration] = 'underline' then
+                            iStyle := iStyle + [fsUnderline]
+                          else if Props[TextDecoration] = 'line-through' then
+                            iStyle := iStyle + [fsStrikeOut]
+                          else if Props[TextDecoration] = 'none' then
+                            iStyle := iStyle - [fsStrikeOut, fsUnderline];
+                        LetterSpacing:
+                          iCharExtra := Props[LetterSpacing];
+                      end;
+              end
+          else
+            begin
+              Props[Index] := Source.Props[Index];
+              Originals[Index] := True; {it's defined for this item, not inherited}
+            end;
+          end;
+    end;
+
+    function CheckForContextual(I: integer): boolean;
+    {process contextual selectors}
+    var
+      J, K, N: integer;
+      A: array[1..10] of record
+        Tg, Cl, ID, PS: string;
+        gt: boolean;
+      end;
+      MustMatchParent: Boolean;
+
+      procedure Split(S: string);
+      var
+        I, J: integer;
+      begin
+        N := 1; {N is number of selectors in contextual string}
+        I := Pos(' ', S);
+        while (I > 0) and (N < 10) do
+        begin
+          A[N].Tg := System.Copy(S, 1, I - 1);
+          Delete(S, 1, I);
+          S := Trim(S);
+          Inc(N);
+          I := Pos(' ', S);
+        end;
+        A[N].Tg := S;
+        if (N >= 2) and (Length(A[2].Tg) > 0) then
+          repeat
+            Delete(A[2].Tg, 1, 1); {remove the sort digit}
+          until (length(A[2].Tg) = 0) or not (A[2].Tg[1] in ['0'..'9']);
+        for I := 1 to N do
+        begin
+          J := Pos('>', A[I].Tg);
+          if I > 1 then
+            A[I - 1].gt := J > 0;
+          if J > 0 then
+            Delete(A[I].Tg, J, 1);
+          J := Pos(':', A[I].Tg);
+          if J > 0 then
+          begin
+            A[I].PS := System.Copy(A[I].Tg, J + 1, Length(A[I].Tg));
+            A[I].Tg := System.Copy(A[I].Tg, 1, J - 1);
+          end
+          else
+            A[I].PS := '';
+          J := Pos('#', A[I].Tg);
+          if J > 0 then
+          begin
+            A[I].ID := System.Copy(A[I].Tg, J + 1, Length(A[I].Tg));
+            A[I].Tg := System.Copy(A[I].Tg, 1, J - 1);
+          end
+          else
+            A[I].ID := '';
+          J := Pos('.', A[I].Tg);
+          if J > 0 then
+          begin
+            A[I].Cl := System.Copy(A[I].Tg, J + 1, Length(A[I].Tg));
+            A[I].Tg := System.Copy(A[I].Tg, 1, J - 1);
+          end
+          else
+            A[I].Cl := '';
+        end;
+      end;
+
+      function PartOf(const S1, S2: string): boolean;
+      {see if all classes in S1 are present in S2.  Classes are separated by '.'}
+      var
+        SL1, SL2: TStringList;
+        J, X: integer;
+
+        function FormStringList(S: string): TStringList;
+        {construct a TStringList from classes in string S}
+        var
+          I: integer;
+        begin
+          Result := TStringList.Create;
+          Result.Sorted := True;
+          I := Pos('.', S);
+          while I >= 1 do
+          begin
+            Result.Add(System.Copy(S, 1, I - 1));
+            Delete(S, 1, I);
+            I := Pos('.', S);
+          end;
+          Result.Add(S);
+        end;
+
+      begin {PartOf}
+        SL1 := FormStringList(S1);
+        try
+          SL2 := FormStringList(S2);
+          try
+            Result := True; {assume all will be found}
+            for J := 0 to SL1.Count - 1 do
+              if not SL2.Find(SL1[J], X) then
+              begin
+                Result := False; {one is missing, return False}
+                Break;
+              end;
+          finally
+            SL2.Free;
+          end;
+        finally
+          SL1.Free;
+        end;
+      end;
+
+    begin
+      Result := False;
+      Split(Styles[I]); //split contextual selectors into parts in array A
+      if (A[1].Tg <> Tag) and (A[1].Cl <> AClass) and (A[1].PS <> PSeudo) then
+        Exit
+      else
+        Result := True;
+      if (N > 1) //it's a contextual selector.  N is count of selectors
+        and ((A[1].Tg = Tag) or (A[1].Tg = ''))
+        and ((A[1].Cl = AClass) or (A[1].Cl = ''))
+        and ((A[1].ID = AnID) or (A[1].ID = ''))
+        and ((A[1].PS = PSeudo) or (A[1].PS = '') and (PSeudo = 'link')) then
+      begin //look thru the stack to see if this contextual selector is appropriate
+        K := 2; //K is selector index in the sequence
+        J := ParentIndexInPropStack; //PropStack.Count - 2; // start on stack item below this one
+        MustMatchParent := A[1].gt;
+        while (K <= N) and (J >= 1) do
+        begin
+          with PropStack[J] do
+            if ((A[K].Tg = PropTag) or (A[K].Tg = ''))
+              and ((A[K].Cl = PropClass) or (A[K].Cl = '') or PartOf(A[K].Cl, PropClass))
+              and ((A[K].ID = PropID) or (A[K].ID = ''))
+              and ((A[K].PS = PropPseudo) or (A[K].PS = '')) then
+            begin
+              if K = N then //all parts of contextual selector match
+                Merge(Styles.Objects[I] as TProperties);
+              MustMatchParent := A[K].gt;
+              Inc(K);
+            end
+            else if MustMatchParent then
+              Break; {Didn't match}
+          Dec(J);
+        end;
+      end
+    end;
+
+    procedure MergeItems(const Item: string);
+    {look up items in the Style list.  If found, merge them in this TProperties.
+     Items may be duplicated in which case the last has priority.  Items may be
+     simple tags like 'p', 'blockquote', 'em', etc or they may be more complex
+     like  p.class, em#id, a.class:link, etc}
+    var
+      X: integer;
+    begin
+      if Styles.Find(Item, X) then
+      begin
+        Merge(Styles.Objects[X] as TProperties);
+        Inc(X);
+        while (X < Styles.Count) and (Styles[X] = Item) do
+        begin //duplicates, last one has highest priority
+          Merge(Styles.Objects[X] as TProperties);
+          Inc(X);
+        end;
+      end;
+    end;
+
+  begin
+  {$IFDEF Quirk}
+    if (Tag = 'td') or (Tag = 'th') then
+      OldSize := DefPointSize
+    else
+  {$ENDIF}if (VarType(Props[FontSize]) = VarDouble) and (Props[FontSize] > 0.0) then {should be true}
+        OldSize := Props[FontSize]
+      else
+        OldSize := DefPointSize;
+
+  {Some hover and visited items adequately taken care of when link processed}
+    NoHoverVisited := (Pseudo = '') or ((Pseudo <> 'hover') and (Pseudo <> 'visited'));
+
+  // in the following, lowest priority on top, highest towards bottom.
+
+    if (Tag = 'a') and (Pseudo <> '') then
+      MergeItems('::' + Pseudo); {default Pseudo definition}
+
+    if NoHoverVisited then
+      MergeItems(Tag);
+
+    if Pseudo <> '' then
+      MergeItems(':' + Pseudo);
+
+    if (AClass <> '') and NoHoverVisited then
+      MergeItems('.' + AClass);
+
+    if (AClass <> '') and NoHoverVisited then
+      MergeItems(Tag + '.' + AClass);
+
+    if Pseudo <> '' then
+      MergeItems(Tag + ':' + Pseudo);
+
+    if (AClass <> '') and (PSeudo <> '') then
+      MergeItems('.' + AClass + ':' + Pseudo);
+
+    if (AClass <> '') and (Pseudo <> '') then
+      MergeItems(Tag + '.' + AClass + ':' + Pseudo);
+
+    if AnID <> '' then
+    begin
+      MergeItems('#' + AnID);
+      MergeItems(Tag + '#' + AnID);
+      if (AClass <> '') then
+        MergeItems('.' + AClass + '#' + AnID);
+      if (Pseudo <> '') then
+      begin
+        MergeItems('#' + AnID + ':' + Pseudo);
+        MergeItems(Tag + '#' + AnID + ':' + Pseudo);
+      end;
+      if (AClass <> '') then
+        MergeItems(Tag + '.' + AClass + '#' + AnID);
+      MergeItems('.' + AClass + '#' + AnID + ':' + Pseudo);
+      MergeItems(Tag + '.' + AClass + '#' + AnID + ':' + Pseudo);
+    end;
+
+  {process the entries in Styles to see if they are contextual selectors}
+    Styles.Find(Tag, IX); //place to start
+    while (IX < Styles.Count) and (Pos(Tag, Styles[IX]) = 1) and CheckForContextual(IX) do
+      Inc(IX);
+
+    Styles.Find('.' + AClass, IX); //place to start
+    while (IX < Styles.Count) and (Pos('.' + AClass, Styles[IX]) = 1) and CheckForContextual(IX) do
+      Inc(IX);
+
+    Styles.Find(':' + PSeudo, IX); //place to start
+    while (IX < Styles.Count) and (Pos(':' + PSeudo, Styles[IX]) = 1) and CheckForContextual(IX) do
+      Inc(IX);
+
+    if Assigned(AProp) then //the Style= attribute
+      Merge(AProp);
+
+    if not ((VarType(Props[FontSize]) = VarDouble) or
+      (VarType(Props[FontSize]) in varInt)) then {if still a string, hasn't been converted}
+      Props[FontSize] := FontSizeConv(Props[FontSize], OldSize);
+  end;
+
 var
   BClass, S: string;
   I: integer;
@@ -1325,332 +1648,6 @@ begin
     CalcLinkFontInfo(Styles, PropStack.Count - 1);
     InLink := True;
   end;
-end;
-
- {----------------TProperties.CombineX}
-
-procedure TProperties.CombineX(Styles: TStyleList;
-  const Tag, AClass, AnID, PSeudo, ATitle: string; AProp: TProperties);
-{When called, this TProperties contains the inherited properties.  Here we
- add the ones relevant to this item. AProp are TProperties gleaned from the
- Style= attribute.}
-var
-  OldSize: double;
-  IX: integer;
-  NoHoverVisited: boolean;
-
-  procedure Merge(Source: TProperties);
-  var
-    Index: PropIndices;
-    I: FIIndex;
-    Wt: integer;
-    S1: string;
-  begin
-    for Index := Low(Index) to High(PropIndices) do
-      if (VarType(Source.Props[Index]) <> varEmpty) and (Vartype(Source.Props[Index]) <> varNull) then
-        case Index of
-          MarginTop..LeftPos:
-            if VarIsStr(Source.Props[Index]) then // if VarType(Source.Props[Index]) = VarString then
-            begin
-              Props[Index] := Source.Props[Index];
-              Originals[Index] := True;
-            end
-            else if Source.Props[Index] <> IntNull then
-            begin
-              Props[Index] := Source.Props[Index];
-              Originals[Index] := True;
-            end;
-          FontFamily, FontSize, FontStyle, FontWeight, Color, BackgroundColor,
-            TextDecoration, LetterSpacing:
-            begin
-              Originals[Index] := True;
-              Props[Index] := Source.Props[Index];
-              if InLink then
-                for I := LFont to HVFont do
-                  with FIArray.Ar[I] do
-                    case Index of
-                      FontFamily:
-                        begin
-                          S1 := ReadFontName(Props[FontFamily]);
-                          if S1 <> '' then
-                            iName := S1;
-                        end;
-                      FontSize:
-                        iSize := FontSizeConv(Props[FontSize], iSize);
-                      Color: iColor := Props[Color];
-                      BackgroundColor: ibgColor := Props[BackgroundColor];
-                      FontStyle:
-                        if (Props[FontStyle] = 'italic') or (Props[FontStyle] = 'oblique') then
-                          iStyle := iStyle + [fsItalic]
-                        else if Props[FontStyle] = 'normal' then
-                          iStyle := iStyle - [fsItalic];
-                      FontWeight:
-                        if Pos('bold', Props[FontWeight]) > 0 then
-                          iStyle := iStyle + [fsBold]
-                        else if Pos('normal', Props[FontWeight]) > 0 then
-                          iStyle := iStyle - [fsBold]
-                        else
-                        begin
-                          Wt := StrToIntDef(Props[FontWeight], 0);
-                          if Wt >= 600 then
-                            iStyle := iStyle + [fsBold];
-                        end;
-                      TextDecoration:
-                        if Props[TextDecoration] = 'underline' then
-                          iStyle := iStyle + [fsUnderline]
-                        else if Props[TextDecoration] = 'line-through' then
-                          iStyle := iStyle + [fsStrikeOut]
-                        else if Props[TextDecoration] = 'none' then
-                          iStyle := iStyle - [fsStrikeOut, fsUnderline];
-                      LetterSpacing:
-                        iCharExtra := Props[LetterSpacing];
-                    end;
-            end
-        else
-          begin
-            Props[Index] := Source.Props[Index];
-            Originals[Index] := True; {it's defined for this item, not inherited}
-          end;
-        end;
-  end;
-
-  function CheckForContextual(I: integer): boolean;
-  {process contextual selectors}
-  var
-    J, K, N: integer;
-    A: array[1..10] of record
-      Tg, Cl, ID, PS: string;
-      gt: boolean;
-    end;
-    MustMatchParent: Boolean;
-
-    procedure Split(S: string);
-    var
-      I, J: integer;
-    begin
-      N := 1; {N is number of selectors in contextual string}
-      I := Pos(' ', S);
-      while (I > 0) and (N < 10) do
-      begin
-        A[N].Tg := System.Copy(S, 1, I - 1);
-        Delete(S, 1, I);
-        S := Trim(S);
-        Inc(N);
-        I := Pos(' ', S);
-      end;
-      A[N].Tg := S;
-      if (N >= 2) and (Length(A[2].Tg) > 0) then
-        repeat
-          Delete(A[2].Tg, 1, 1); {remove the sort digit}
-        until (length(A[2].Tg) = 0) or not (A[2].Tg[1] in ['0'..'9']);
-      for I := 1 to N do
-      begin
-        J := Pos('>', A[I].Tg);
-        if I > 1 then
-          A[I - 1].gt := J > 0;
-        if J > 0 then
-          Delete(A[I].Tg, J, 1);
-        J := Pos(':', A[I].Tg);
-        if J > 0 then
-        begin
-          A[I].PS := System.Copy(A[I].Tg, J + 1, Length(A[I].Tg));
-          A[I].Tg := System.Copy(A[I].Tg, 1, J - 1);
-        end
-        else
-          A[I].PS := '';
-        J := Pos('#', A[I].Tg);
-        if J > 0 then
-        begin
-          A[I].ID := System.Copy(A[I].Tg, J + 1, Length(A[I].Tg));
-          A[I].Tg := System.Copy(A[I].Tg, 1, J - 1);
-        end
-        else
-          A[I].ID := '';
-        J := Pos('.', A[I].Tg);
-        if J > 0 then
-        begin
-          A[I].Cl := System.Copy(A[I].Tg, J + 1, Length(A[I].Tg));
-          A[I].Tg := System.Copy(A[I].Tg, 1, J - 1);
-        end
-        else
-          A[I].Cl := '';
-      end;
-    end;
-
-    function PartOf(const S1, S2: string): boolean;
-    {see if all classes in S1 are present in S2.  Classes are separated by '.'}
-    var
-      SL1, SL2: TStringList;
-      J, X: integer;
-
-      function FormStringList(S: string): TStringList;
-      {construct a TStringList from classes in string S}
-      var
-        I: integer;
-      begin
-        Result := TStringList.Create;
-        Result.Sorted := True;
-        I := Pos('.', S);
-        while I >= 1 do
-        begin
-          Result.Add(System.Copy(S, 1, I - 1));
-          Delete(S, 1, I);
-          I := Pos('.', S);
-        end;
-        Result.Add(S);
-      end;
-
-    begin {PartOf}
-      SL1 := FormStringList(S1);
-      try
-        SL2 := FormStringList(S2);
-        try
-          Result := True; {assume all will be found}
-          for J := 0 to SL1.Count - 1 do
-            if not SL2.Find(SL1[J], X) then
-            begin
-              Result := False; {one is missing, return False}
-              Break;
-            end;
-        finally
-          SL2.Free;
-        end;
-      finally
-        SL1.Free;
-      end;
-    end;
-
-  begin
-    Result := False;
-    Split(Styles[I]); //split contextual selectors into parts in array A
-    if (A[1].Tg <> Tag) and (A[1].Cl <> AClass) and (A[1].PS <> PSeudo) then
-      Exit
-    else
-      Result := True;
-    if (N > 1) //it's a contextual selector.  N is count of selectors
-      and ((A[1].Tg = Tag) or (A[1].Tg = ''))
-      and ((A[1].Cl = AClass) or (A[1].Cl = ''))
-      and ((A[1].ID = AnID) or (A[1].ID = ''))
-      and ((A[1].PS = PSeudo) or (A[1].PS = '') and (PSeudo = 'link')) then
-    begin //look thru the stack to see if this contextual selector is appropriate
-      K := 2; //K is selector index in the sequence
-      J := PropStack.Count - 2; // start on stack item below this one
-      MustMatchParent := A[1].gt;
-      while (K <= N) and (J >= 1) do
-      begin
-        with PropStack[J] do
-          if ((A[K].Tg = PropTag) or (A[K].Tg = ''))
-            and ((A[K].Cl = PropClass) or (A[K].Cl = '') or PartOf(A[K].Cl, PropClass))
-            and ((A[K].ID = PropID) or (A[K].ID = ''))
-            and ((A[K].PS = PropPseudo) or (A[K].PS = '')) then
-          begin
-            if K = N then //all parts of contextual selector match
-              Merge(Styles.Objects[I] as TProperties);
-            MustMatchParent := A[K].gt;
-            Inc(K);
-          end
-          else if MustMatchParent then
-            Break; {Didn't match}
-        Dec(J);
-      end;
-    end
-  end;
-
-  procedure MergeItems(const Item: string);
-  {look up items in the Style list.  If found, merge them in this TProperties.
-   Items may be duplicated in which case the last has priority.  Items may be
-   simple tags like 'p', 'blockquote', 'em', etc or they may be more complex
-   like  p.class, em#id, a.class:link, etc}
-  var
-    X: integer;
-  begin
-    if Styles.Find(Item, X) then
-    begin
-      Merge(Styles.Objects[X] as TProperties);
-      Inc(X);
-      while (X < Styles.Count) and (Styles[X] = Item) do
-      begin //duplicates, last one has highest priority
-        Merge(Styles.Objects[X] as TProperties);
-        Inc(X);
-      end;
-    end;
-  end;
-
-begin
-{$IFDEF Quirk}
-  if (Tag = 'td') or (Tag = 'th') then
-    OldSize := DefPointSize
-  else
-{$ENDIF}if (VarType(Props[FontSize]) = VarDouble) and (Props[FontSize] > 0.0) then {should be true}
-      OldSize := Props[FontSize]
-    else
-      OldSize := DefPointSize;
-
-{Some hover and visited items adequately taken care of when link processed}
-  NoHoverVisited := (Pseudo = '') or ((Pseudo <> 'hover') and (Pseudo <> 'visited'));
-
-// in the following, lowest priority on top, highest towards bottom.
-
-  if (Tag = 'a') and (Pseudo <> '') then
-    MergeItems('::' + Pseudo); {default Pseudo definition}
-
-  if NoHoverVisited then
-    MergeItems(Tag);
-
-  if Pseudo <> '' then
-    MergeItems(':' + Pseudo);
-
-  if (AClass <> '') and NoHoverVisited then
-    MergeItems('.' + AClass);
-
-  if (AClass <> '') and NoHoverVisited then
-    MergeItems(Tag + '.' + AClass);
-
-  if Pseudo <> '' then
-    MergeItems(Tag + ':' + Pseudo);
-
-  if (AClass <> '') and (PSeudo <> '') then
-    MergeItems('.' + AClass + ':' + Pseudo);
-
-  if (AClass <> '') and (Pseudo <> '') then
-    MergeItems(Tag + '.' + AClass + ':' + Pseudo);
-
-  if AnID <> '' then
-  begin
-    MergeItems('#' + AnID);
-    MergeItems(Tag + '#' + AnID);
-    if (AClass <> '') then
-      MergeItems('.' + AClass + '#' + AnID);
-    if (Pseudo <> '') then
-    begin
-      MergeItems('#' + AnID + ':' + Pseudo);
-      MergeItems(Tag + '#' + AnID + ':' + Pseudo);
-    end;
-    if (AClass <> '') then
-      MergeItems(Tag + '.' + AClass + '#' + AnID);
-    MergeItems('.' + AClass + '#' + AnID + ':' + Pseudo);
-    MergeItems(Tag + '.' + AClass + '#' + AnID + ':' + Pseudo);
-  end;
-
-{process the entries in Styles to see if they are contextual selectors}
-  Styles.Find(Tag, IX); //place to start
-  while (IX < Styles.Count) and (Pos(Tag, Styles[IX]) = 1) and CheckForContextual(IX) do
-    Inc(IX);
-
-  Styles.Find('.' + AClass, IX); //place to start
-  while (IX < Styles.Count) and (Pos('.' + AClass, Styles[IX]) = 1) and CheckForContextual(IX) do
-    Inc(IX);
-
-  Styles.Find(':' + PSeudo, IX); //place to start
-  while (IX < Styles.Count) and (Pos(':' + PSeudo, Styles[IX]) = 1) and CheckForContextual(IX) do
-    Inc(IX);
-
-  if Assigned(AProp) then //the Style= attribute
-    Merge(AProp);
-
-  if not ((VarType(Props[FontSize]) = VarDouble) or
-    (VarType(Props[FontSize]) in varInt)) then {if still a string, hasn't been converted}
-    Props[FontSize] := FontSizeConv(Props[FontSize], OldSize);
 end;
 
 function TProperties.GetFont: TMyFont;
@@ -1869,11 +1866,11 @@ end;
 procedure TProperties.CalcLinkFontInfo(Styles: TStyleList; I: integer);
 {I is index in PropStack for this item}
 
-procedure InsertNewProp(N: integer; const Pseudo: string);
+  procedure InsertNewProp(N: integer; const Pseudo: string);
   begin
     PropStack.Insert(N, TProperties.Create);
     PropStack[N].Inherit('', PropStack[N - 1]);
-    PropStack[N].Combine(Styles, PropTag, PropClass, PropID, Pseudo, PropTitle, PropStyle);
+    PropStack[N].Combine(Styles, PropTag, PropClass, PropID, Pseudo, PropTitle, PropStyle, N - 1);
   end;
 
 begin

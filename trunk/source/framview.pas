@@ -2121,17 +2121,7 @@ end;
 {----------------TSubFrameSetBase.Clear}
 
 procedure TSubFrameSetBase.Clear;
-var
-  I: integer;
-  X: TFrameBase;
 begin
-//  for I := List.Count - 1 downto 0 do
-//  begin
-//    X := List.Items[I];
-//    List.Delete(I);
-//    RemoveControl(X);
-//    X.Free;
-//  end;
   List.Clear;
   DimCount := 0;
   First := True;

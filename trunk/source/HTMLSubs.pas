@@ -7185,7 +7185,7 @@ begin
                 Result := GetImageAndMaskFromStream(Stream, Transparent, AMask);
             end;
           finally
-            Stream.Free;
+            //Stream.Free;
           end
         else if not Assigned(Stream) then
           Result := LoadImageFromFile(ThtmlViewer(TheOwner).HTMLExpandFilename(BMName), AMask, Transparent);

@@ -951,7 +951,7 @@ var
 begin
   NewProp := TProperties.Create;
   NewProp.Inherit(Tag, PropStack.Last);
-  NewProp.Combine(MasterList.Styles, Tag, AClass, AnID, APseudo, ATitle, AProp);
+  NewProp.Combine(MasterList.Styles, Tag, AClass, AnID, APseudo, ATitle, AProp, PropStack.Count - 1);
   PropStack.Add(NewProp);
 end;
 

@@ -1,4 +1,4 @@
-{Version 10.00}
+{Version 10.1}
 {*********************************************************}
 {*                     FRAMBRWZ.PAS                      *}
 {*********************************************************}
@@ -54,6 +54,8 @@ type
   TbrFrame = class(TViewerFrameBase) {TbrFrame holds a ThtmlViewer or TbrSubFrameSet}
   private
     URLBase: string;
+    TheStream: TMemoryStream;
+    TheStreamType: ThtmlFileType;
   protected
     function ExpandSourceName(Base, Path: string; S: string): string; override;
     function FrameSet: TbrSubFrameSet; inline;
@@ -61,14 +63,12 @@ type
     function MasterSet: TbrFrameSet; inline;
     procedure CreateViewer; override;
     procedure frLoadFromBrzFile(const URL, Dest, Query, EncType, Referer: string; Bump, IsGet, Reload: boolean);
+    procedure frLoadFromFile(const FName, Dest: string; Bump, Reload: Boolean); override;
     procedure LoadFiles; override;
     procedure RefreshEvent(Sender: TObject; Delay: integer; const URL: string); override;
     procedure RefreshTimerTimer(Sender: TObject); override;
     procedure ReLoadFiles(APosition: LongInt); override;
     procedure URLExpandName(Sender: TObject; const SRC: string; var Rslt: string);
-  protected
-    TheStream: TMemoryStream;
-    TheStreamType: ThtmlFileType;
   end;
 
   TbrSubFrameSet = class(TSubFrameSetBase) {can contain one or more TbrFrames and/or TSubFrameSets}
@@ -591,6 +591,11 @@ begin
     URLBase := OldBase;
     raise;
   end;
+end;
+
+procedure TbrFrame.frLoadFromFile(const FName, Dest: string; Bump, Reload: Boolean);
+begin
+  frLoadFromBrzFile(FName, Dest, '', '', Viewer.CurrentFile, Bump, True, Reload);
 end;
 
 function ConvDosToHTML(const Name: string): string;
