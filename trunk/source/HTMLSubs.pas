@@ -5815,7 +5815,7 @@ begin
         MargArrayO[S] := bssSolid;
         if (VarType(MargArrayO[W]) in varInt) and (MargArrayO[W] = IntNull) then
           MargArrayO[W] := Table.BorderWidth;
-        MargArrayO[BorderLeftWidth] := Table.BorderWidth;
+        //MargArrayO[BorderLeftWidth] := Table.BorderWidth;
       end;
       Inc(S);
     end;
