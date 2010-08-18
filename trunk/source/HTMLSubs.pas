@@ -5150,10 +5150,8 @@ begin
       if IB > ClientContentBot then
         ClientContentBot := IB;
     end;
-    ContentBot := ClientContentBot + MargArray[PaddingBottom] +
-      MargArray[BorderBottomWidth] + MargArray[MarginBottom];
-    DrawBot := Max(ClientContentBot, MyCell.tcDrawBot) + MargArray[PaddingBottom]
-      + MargArray[BorderBottomWidth];
+    ContentBot :=  ClientContentBot +                    MargArray[PaddingBottom] + MargArray[BorderBottomWidth] + MargArray[MarginBottom];
+    DrawBot := Max(ClientContentBot, MyCell.tcDrawBot) + MargArray[PaddingBottom] + MargArray[BorderBottomWidth];
 
     Result := ContentBot - Y;
 
@@ -5396,9 +5394,7 @@ begin
 
   X := X + Indent;
 
-  XR := RefX + MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth]
-    + NewWidth + MargArray[MarginRight] +
-    MargArray[PaddingRight] + MargArray[BorderRightWidth]; {current right edge}
+  XR := RefX + MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth] + NewWidth + MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth]; {current right edge}
   if Positioning = posRelative then
     YB := ContentBot - YOffset + TopP
   else if FLoatLR in [ALeft, ARight] then
@@ -5812,10 +5808,12 @@ begin
     begin
       if MargArrayO[S] = bssNone then
       begin
-        MargArrayO[S] := bssSolid;
+        if Table.BorderColor = clNone then
+          MargArrayO[S] := bssOutset
+        else
+          MargArrayO[S] := bssSolid;
         if (VarType(MargArrayO[W]) in varInt) and (MargArrayO[W] = IntNull) then
           MargArrayO[W] := Table.BorderWidth;
-        //MargArrayO[BorderLeftWidth] := Table.BorderWidth;
       end;
       Inc(S);
     end;
@@ -7671,11 +7669,8 @@ begin
   PL := BL + BrdLeft; {Padding left and right}
   PR := BR - BrdRight;
 
-  BT := Y - Cell.MasterList.YOff + Cellspacing; {Border Top and Bottom}
-  if CellSpacing >= 0 then
-    BB := BT + Ht - CellSpacing
-  else
-    BB := BT + Ht;
+  BT := YO + CellSpacing; {Border Top and Bottom}
+  BB := YO + Ht;
   PT := BT + BrdTop; {Padding Top and Bottom}
   PB := BB - BrdBottom;
 
@@ -7836,19 +7831,16 @@ begin
       if (BrdTop = 1) and (BrdRight = 1) and (BrdBottom = 1) and (BrdLeft = 1) and
         (Styles[0] = bssSolid) and (Styles[1] = bssSolid) and (Styles[2] = bssSolid) and (Styles[3] = bssSolid) and
         (Colors[1] = Colors[0]) and (Colors[2] = Colors[0]) and (Colors[3] = Colors[0]) then
-        RaisedRectColor(Cell.MasterList, Canvas, X + CellSpacing, YO + CellSpacing,
-          X + Wd - 1, YO + Ht - 1, Colors[0], Colors[0], False, 1)
+        RaisedRectColor(Cell.MasterList, Canvas, BL, BT, BR - 2, BB - 2, Colors[0], Colors[0], False, 1)
       else
         DrawBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB),
           Colors, Styles, MargArray[BackgroundColor], Cell.MasterList.Printing);
     end
     else if Border and ((Cell.Count > 0) or ShowEmptyCells) then
       if (Light = clBtnHighLight) and (Dark = clBtnShadow) then
-        RaisedRect(Cell.MasterList, Canvas, X + CellSpacing, YO + CellSpacing,
-          X + Wd - 1, YO + Ht - 1, False, 1)
+        RaisedRect(Cell.MasterList, Canvas, BL, BT, BR - 2, BB - 2, False, 1)
       else
-        RaisedRectColor(Cell.MasterList, Canvas, X + CellSpacing, YO + CellSpacing,
-          X + Wd - 1, YO + Ht - 1, Light, Dark, False, 1);
+        RaisedRectColor(Cell.MasterList, Canvas, BL, BT, BR - 2, BB - 2, Light, Dark, False, 1);
   except
   end;
 end;
@@ -8237,7 +8229,7 @@ begin
   Rows := TFreeList.Create;
   CellPadding := 1;
   CellSpacing := 2;
-  BorderColor := clWhite;
+  BorderColor := clNone;
   BorderColorLight := clBtnHighLight;
   BorderColorDark := clBtnShadow;
   for I := 0 to Attr.Count - 1 do
@@ -8249,11 +8241,9 @@ begin
           else
             BorderWidth := Min(100, Max(0, Value)); {Border=0 is no border}
         CellSpacingSy:
-          if Value >= -1 then
-            CellSpacing := Min(Value, 40);
+          CellSpacing := Min(40, Max(-1, Value));
         CellPaddingSy:
-          if Value >= 0 then
-            CellPadding := Min(Value, 50);
+          CellPadding := Min(50, Max(0, Value));
         BorderColorSy:
           ColorFromString(Name, False, BorderColor);
         BorderColorLightSy:
