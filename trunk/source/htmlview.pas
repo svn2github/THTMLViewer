@@ -3886,7 +3886,7 @@ var
     Canvas.Brush.Style := bsSolid;
     Canvas.Pen.Style := psSolid;
     Canvas.Pen.Color := clWhite;
-    Canvas.Rectangle(MLeft, 0, W + MLeft + 1, TopPixels - 1);
+    Canvas.Rectangle(MLeft, 0, W + MLeft + 1, TopPixels - 2);
     Canvas.Rectangle(MLeft, Y, W + MLeft + 1, TopPixels + H + 1);
     if (htPrintBackground in FOptions) and (Y - TopPixels < H) then
     begin {need to reprint background in whited out area}
