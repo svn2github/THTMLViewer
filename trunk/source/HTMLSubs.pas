@@ -10013,13 +10013,16 @@ destructor TSection.Destroy;
 var
   i: Integer;
 begin
+  if XP <> nil then
     Freemem(XP);
 
   { Yunqa.de: Do not leave references to deleted font objects in the
     HtmlViewer's link list. Otherwise TURLTarget.SetLast might see an access
     violation. }
-  for i := 0 to Fonts.Count - 1 do
-    ParentSectionList.LinkList.Remove(Fonts[i]);
+  if ParentSectionList <> nil then
+    if ParentSectionList.LinkList <> nil then
+      for i := 0 to Fonts.Count - 1 do
+        ParentSectionList.LinkList.Remove(Fonts[i]);
 
   Fonts.Free;
   Images.Free;
