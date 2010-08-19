@@ -3880,6 +3880,8 @@ var
   procedure WhiteoutArea(Canvas: TCanvas; Y: integer);
   {White out excess printing.  Y is top of the bottom area to be blanked.}
   begin
+    if NoOutput then
+      exit;
     Canvas.Brush.Color := clWhite;
     Canvas.Brush.Style := bsSolid;
     Canvas.Pen.Style := psSolid;

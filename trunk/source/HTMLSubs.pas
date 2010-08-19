@@ -13086,16 +13086,13 @@ var
   YOffset, Y: integer;
 begin
   Result := inherited Draw1(Canvas, ARect, Imgr, X, XRef, YRef);
-  Y := YDraw;
-
-  with ParentSectionList do
-    if Printing then
-    begin
-      YOffset := YOff;
-      if (Y - YOffset > ARect.Top + 5) and (Y - YOffset < ARect.Bottom) and
-        (Y < PageBottom) then
-        PageBottom := Y;
-    end;
+  if ParentSectionList.Printing then
+  begin
+    Y := YDraw;
+    YOffset := ParentSectionList.YOff;
+    if (Y - YOffset > ARect.Top + 5) and (Y - YOffset < ARect.Bottom) and (Y + ARect.Top < ParentSectionList.PageBottom) then
+      ParentSectionList.PageBottom := Y + ARect.Top;
+  end;
 end;
 
 {----------------THorzLine.Create}
