@@ -186,7 +186,7 @@ type
     FNoSelect: boolean;
     FScrollBars: TScrollStyle;
     FBorderStyle: THTMLBorderStyle;
-    FDither: boolean;
+//BG, 21.08.2010: has no effect:    FDither: boolean;
     FCaretPos: integer;
     FOptions: ThtmlViewerOptions;
     sbWidth: integer;
@@ -274,7 +274,7 @@ type
     procedure SetOnFormSubmit(Handler: TFormSubmitEvent);
     function GetOurPalette: HPalette;
     procedure SetOurPalette(Value: HPalette);
-    procedure SetDither(Value: boolean);
+//    procedure SetDither(Value: boolean); 
     procedure SetCaretPos(Value: integer);
     procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
     procedure BackgroundChange(Sender: TObject);
@@ -464,7 +464,7 @@ type
     property SelText: WideString read GetSelText;
     property Target: string read FTarget write FTarget;
     property Palette: HPalette read GetOurPalette write SetOurPalette;
-    property Dither: boolean read FDither write SetDither default True;
+//    property Dither: boolean read FDither write SetDither default True;
     property CaretPos: integer read FCaretPos write SetCaretPos;
     property FormControlList: TList read GetFormControlList;
     property NameList: TStringList read GetNameList;
@@ -697,7 +697,7 @@ begin
   FHistory := TStringList.Create;
   FPositionHistory := TFreeList.Create;
   FTitleHistory := TStringList.Create;
-  FDither := True;
+//BG, 21.08.2010: has no effect:  FDither := True;
 
   Visited := TStringList.Create;
   HTMLTimer := TTimer.Create(Self);
@@ -4953,25 +4953,19 @@ begin
       if ThePalette <> 0 then
         DeleteObject(ThePalette);
       ThePalette := NewPalette;
-      if FDither then
-        SetGlobalPalette(ThePalette);
     end;
   end;
 end;
 
-{----------------ThtmlViewer.SetDither}
-
-procedure ThtmlViewer.SetDither(Value: boolean);
-begin
-  if (Value <> FDither) and (ColorBits = 8) then
-  begin
-    FDither := Value;
-    if Value then
-      SetGlobalPalette(ThePalette)
-    else
-      SetGLobalPalette(0);
-  end;
-end;
+//{----------------ThtmlViewer.SetDither}
+//
+//procedure ThtmlViewer.SetDither(Value: boolean);
+//begin
+//  if (Value <> FDither) and (ColorBits = 8) then
+//  begin
+//    FDither := Value;
+//  end;
+//end;
 
 procedure ThtmlViewer.SetCaretPos(Value: integer);
 begin

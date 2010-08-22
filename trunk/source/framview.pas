@@ -72,7 +72,7 @@ type
     FCharset: TFontCharset;
 {$ENDIF}
     FCursor: TCursor;
-    FDither: Boolean;
+//BG, 21.08.2010: has no effect:    FDither: Boolean; 
     FFontColor: TColor;
     FFontName: string;
     FFontSize: Integer;
@@ -183,7 +183,7 @@ type
     procedure SetCaretPos(Value: integer);
     procedure SetColor(Value: TColor);
     procedure SetCursor(Value: TCursor);
-    procedure SetDither(Value: boolean);
+//    procedure SetDither(Value: boolean); 
     procedure SetDragDrop(const Value: TDragDropEvent);
     procedure SetDragOver(const Value: TDragOverEvent);
     procedure SetFontColor(Value: TColor);
@@ -270,7 +270,7 @@ type
 
     property ActiveViewer: THtmlViewer read GetActiveViewer;
     property CaretPos: integer read GetCaretPos write SetCaretPos;
-    property Dither: boolean read FDither write SetDither default True;
+//    property Dither: boolean read FDither write SetDither default True;
     property History: TStrings read FHistory;
     property LinkAttributes: TStringList read FLinkAttributes;
     property LinkText: string read FLinkText;
@@ -2628,7 +2628,7 @@ begin
   FFontName := 'Times New Roman';
   FPreFontName := 'Courier New';
   FCursor := crIBeam;
-  FDither := True;
+//BG, 21.08.2010: has no effect:  FDither := True;
   TabStop := False;
   FPrintMarginLeft := 2.0;
   FPrintMarginRight := 2.0;
@@ -4543,25 +4543,19 @@ begin
       if ThePalette <> 0 then
         DeleteObject(ThePalette);
       ThePalette := NewPalette;
-      if FDither then
-        SetGlobalPalette(ThePalette);
     end;
   end;
 end;
 
-{----------------TFVBase.SetDither}
-
-procedure TFVBase.SetDither(Value: boolean);
-begin
-  if (Value <> FDither) and (ColorBits = 8) then
-  begin
-    FDither := Value;
-    if Value then
-      SetGlobalPalette(ThePalette)
-    else
-      SetGLobalPalette(0);
-  end;
-end;
+//{----------------TFVBase.SetDither}
+//
+//procedure TFVBase.SetDither(Value: boolean);
+//begin
+//  if (Value <> FDither) and (ColorBits = 8) then
+//  begin
+//    FDither := Value;
+//  end;
+//end;
 
 function TFVBase.GetCaretPos: integer;
 var
