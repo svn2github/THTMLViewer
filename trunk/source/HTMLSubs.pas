@@ -2537,28 +2537,23 @@ begin
       Font.Color := FO.TheFont.Color;
     {calc the offset from the image's base to the alt= text baseline}
       case VertAlign of
-        ATop{, ALeft, ARight}:
+        ATop:
           begin
             if FAltW <> '' then
               WrapTextW(Canvas, X + 24, TopY + Ofst + VSpaceT, X + AltWidth - 2, TopY + AltHeight - 1 + VSpaceT, FAltW);
-            RaisedRect(ParentSectionList, Canvas, X, TopY + VSpaceT,
-              X + AltWidth - 1, TopY + AltHeight - 1 + VSpaceT, False, 1);
+            RaisedRect(ParentSectionList, Canvas, X, TopY + VSpaceT, X + AltWidth, TopY + AltHeight + VSpaceT, False, 1);
           end;
         AMiddle:
           begin {MiddleAlignTop is always initialized}
             if FAltW <> '' then
-              WrapTextW(Canvas, X + 24, MiddleAlignTop + Ofst, X + AltWidth - 2,
-                MiddleAlignTop + AltHeight - 1, FAltW);
-            RaisedRect(ParentSectionList, Canvas, X, MiddleAlignTop,
-              X + AltWidth - 1, MiddleAlignTop + AltHeight - 1, False, 1);
+              WrapTextW(Canvas, X + 24, MiddleAlignTop + Ofst, X + AltWidth - 2, MiddleAlignTop + AltHeight - 1, FAltW);
+            RaisedRect(ParentSectionList, Canvas, X, MiddleAlignTop, X + AltWidth, MiddleAlignTop + AltHeight, False, 1);
           end;
         ABottom, ABaseline:
           begin
             if FAltW <> '' then
-              WrapTextW(Canvas, X + 24, YBaseLine - AltHeight + Ofst - VSpaceB, X + AltWidth - 2,
-                YBaseLine - VSpaceB - 1, FAltW);
-            RaisedRect(ParentSectionList, Canvas, X, YBaseLine - AltHeight - VSpaceB,
-              X + AltWidth - 1, YBaseLine - VSpaceB - 1, False, 1);
+              WrapTextW(Canvas, X + 24, YBaseLine - AltHeight + Ofst - VSpaceB, X + AltWidth - 2, YBaseLine - VSpaceB - 1, FAltW);
+            RaisedRect(ParentSectionList, Canvas, X, YBaseLine - AltHeight - VSpaceB, X + AltWidth, YBaseLine - VSpaceB, False, 1);
           end;
       end;
     end;
@@ -2579,11 +2574,9 @@ begin
             {ALeft, ARight,} ATop:
               WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2, YY + AltHeight - 1, FAltW);
             AMiddle:
-              WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2,
-                YY + AltHeight - 1, FAltW);
+              WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2, YY + AltHeight - 1, FAltW);
             ABottom, ABaseline:
-              WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2,
-                YY + AltHeight - 1, FAltW);
+              WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2, YY + AltHeight - 1, FAltW);
           end;
         end;
         case VertAlign of {draw border}
@@ -7644,6 +7637,7 @@ var
   BRect: TRect;
   Colors: htColorArray;
   Styles: htBorderStyleArray;
+  IsVisible: Boolean;
 
   procedure InitFullBg(W, H: integer);
   begin
@@ -7718,12 +7712,16 @@ begin
       else if BorderStyle = bssNone then
         if Border then
         {slip under border to fill gap when printing}
-          Canvas.FillRect(Rect(PL - 1, FT - 1, PR, FT + IH))
+          Canvas.FillRect(Rect(PL - 1, FT - 1, PR + 1, FT + IH + 1))
         else
           Canvas.FillRect(Rect(PL, FT, PR, FT + IH))
       else
       begin {slip the fill under any border}
         BRect := Rect(PL, FT, PR, FT + IH);
+        if MargArray[BorderLeftWidth] > 0 then
+          Dec(BRect.Left);
+        if MargArray[BorderTopWidth] > 0 then
+          Dec(BRect.Top);
         if MargArray[BorderRightWidth] > 0 then
           Inc(BRect.Right);
         if MargArray[BorderBottomWidth] > 0 then
@@ -7781,8 +7779,9 @@ begin
   except
   end;
 
+  IsVisible := (YO < ARect.Bottom + 200) and (YO + Ht > -200);
   try
-    if (Cell.Count > 0) and (YO < ARect.Bottom + 200) and (YO + Ht > -200) then
+    if IsVisible and (Cell.Count > 0) then
     begin
     {clip cell contents to prevent overflow.  First check to see if there is
      already a clip region}
@@ -7792,9 +7791,9 @@ begin
       GetWindowOrgEx(Canvas.Handle, Point); {when scrolling or animated Gifs, canvas may not start at X=0, Y=0}
       if not Cell.MasterList.Printing then
         if IsWin95 then
-          Rgn := CreateRectRgn(X + CellSpacing - Point.X, Max(YO + CellSpacing - Point.Y, -32000), X + Wd - Point.X, Min(YO + Ht - Point.Y, 32000))
+          Rgn := CreateRectRgn(BL - Point.X, Max(BT - Point.Y, -32000), X + Wd - Point.X, Min(YO + Ht - Point.Y, 32000))
         else
-          Rgn := CreateRectRgn(X + CellSpacing - Point.X, YO + CellSpacing - Point.Y, X + Wd - Point.X, YO + Ht - Point.Y)
+          Rgn := CreateRectRgn(BL - Point.X, BT - Point.Y, X + Wd - Point.X, YO + Ht - Point.Y)
       else
       begin
         GetViewportExtEx(Canvas.Handle, SizeV);
@@ -7802,9 +7801,9 @@ begin
         HF := (SizeV.cx / SizeW.cx); {Horizontal adjustment factor}
         VF := (SizeV.cy / SizeW.cy); {Vertical adjustment factor}
         if IsWin95 then
-          Rgn := CreateRectRgn(Round(HF * (X + CellSpacing - Point.X) - 1), Max(Round(VF * (YO + CellSpacing - Point.Y) - 1), -32000), Round(HF * (X + Wd - Point.X) + 1), Min(Round(VF * (YO + Ht - Point.Y)), 32000))
+          Rgn := CreateRectRgn(Round(HF * (BL - Point.X) - 1), Max(Round(VF * (BT - Point.Y) - 1), -32000), Round(HF * (X + Wd - Point.X) + 1), Min(Round(VF * (YO + Ht - Point.Y)), 32000))
         else
-          Rgn := CreateRectRgn(Round(HF * (X + CellSpacing - Point.X) - 1), Round(VF * (YO + CellSpacing - Point.Y) - 1), Round(HF * (X + Wd - Point.X) + 1), Round(VF * (YO + Ht - Point.Y)));
+          Rgn := CreateRectRgn(Round(HF * (BL - Point.X) - 1), Round(VF * (BT - Point.Y) - 1), Round(HF * (X + Wd - Point.X) + 1), Round(VF * (YO + Ht - Point.Y)));
       end;
       if Rslt = 1 then {if there was a region, use the intersection with this region}
         CombineRgn(Rgn, Rgn, SaveRgn, Rgn_And);
@@ -7822,27 +7821,20 @@ begin
         DeleteObject(SaveRgn);
       end;
     end;
-
-    Cell.DrawYY := Y;
-    if BorderStyle <> bssNone then
-    begin
-      Styles := htStyles(BorderStyleType(MargArray[BorderLeftStyle]), BorderStyleType(MargArray[BorderTopStyle]), BorderStyleType(MargArray[BorderRightStyle]), BorderStyleType(MargArray[BorderBottomStyle]));
-      Colors := htColors(MargArray[BorderLeftColor], MargArray[BorderTopColor], MargArray[BorderRightColor], MargArray[BorderBottomColor]);
-      if (BrdTop = 1) and (BrdRight = 1) and (BrdBottom = 1) and (BrdLeft = 1) and
-        (Styles[0] = bssSolid) and (Styles[1] = bssSolid) and (Styles[2] = bssSolid) and (Styles[3] = bssSolid) and
-        (Colors[1] = Colors[0]) and (Colors[2] = Colors[0]) and (Colors[3] = Colors[0]) then
-        RaisedRectColor(Cell.MasterList, Canvas, BL, BT, BR - 2, BB - 2, Colors[0], Colors[0], False, 1)
-      else
-        DrawBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB),
-          Colors, Styles, MargArray[BackgroundColor], Cell.MasterList.Printing);
-    end
-    else if Border and ((Cell.Count > 0) or ShowEmptyCells) then
-      if (Light = clBtnHighLight) and (Dark = clBtnShadow) then
-        RaisedRect(Cell.MasterList, Canvas, BL, BT, BR - 2, BB - 2, False, 1)
-      else
-        RaisedRectColor(Cell.MasterList, Canvas, BL, BT, BR - 2, BB - 2, Light, Dark, False, 1);
   except
   end;
+
+  Cell.DrawYY := Y;
+  if IsVisible and ((Cell.Count > 0) or ShowEmptyCells) then
+    try
+      if BorderStyle <> bssNone then
+        Styles := htStyles(BorderStyleType(MargArray[BorderLeftStyle]), BorderStyleType(MargArray[BorderTopStyle]), BorderStyleType(MargArray[BorderRightStyle]), BorderStyleType(MargArray[BorderBottomStyle]))
+      else
+        Styles := htStyles(bssSolid, bssSolid, bssSolid, bssSolid);
+      Colors := htColors(MargArray[BorderLeftColor], MargArray[BorderTopColor], MargArray[BorderRightColor], MargArray[BorderBottomColor]);
+      DrawBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB), Colors, Styles, MargArray[BackgroundColor], Cell.MasterList.Printing);
+    except
+    end;
 end;
 
 {----------------TSectionBase.Create}
@@ -13090,8 +13082,8 @@ begin
   begin
     Y := YDraw;
     YOffset := ParentSectionList.YOff;
-    if (Y - YOffset > ARect.Top + 5) and (Y - YOffset < ARect.Bottom) and (Y + ARect.Top < ParentSectionList.PageBottom) then
-      ParentSectionList.PageBottom := Y + ARect.Top;
+    if (Y - YOffset > ARect.Top + 5) and (Y - YOffset < ARect.Bottom) and (Y + ARect.Top - 1 < ParentSectionList.PageBottom) then
+      ParentSectionList.PageBottom := Y + ARect.Top - 1;
   end;
 end;
 

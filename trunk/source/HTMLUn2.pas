@@ -391,20 +391,13 @@ type
 {$ENDIF}
 
   ImageType = (NoImage, Bmp, Gif, Gif89, Png, Jpg);
-  //SetOfChar = set of AnsiChar;
 
   htColorArray = packed array[0..3] of TColor;
   htBorderStyleArray = packed array[0..3] of BorderStyleType;
 
 var
-//  ColorBits: Byte;
-//  ThePalette: HPalette;       {the rainbow palette for 256 colors}
-//  PalRelative: integer;
   DefBitMap, ErrorBitMap, ErrorBitmapMask: TBitMap;
-  //BG, 09.09.2009: unused: ABitmapList: TStringBitmapList; {the image cache}
   WaitStream: TMemoryStream;
-
-//function InSet(W: WideChar; S: SetOfChar): boolean;
 
 function StrLenW(Str: PWideChar): Cardinal;
 function StrPosW(Str, SubStr: PWideChar): PWideChar;
@@ -434,12 +427,6 @@ procedure WrapTextW(Canvas: TCanvas; X1, Y1, X2, Y2: integer; S: WideString);
 procedure FinishTransparentBitmap(ahdc: HDC;
   InImage, Mask: TBitmap; xStart, yStart, W, H: integer);
 function GetImageMask(Image: TBitmap; ColorValid: boolean; AColor: TColor): TBitmap;
-//function TransparentGIF(const FName: string; var Color: TColor): boolean;
-//function Allocate(Size: integer): AllocRec;
-//procedure DeAllocate(AR: AllocRec);
-//function CopyPalette(Source: hPalette): hPalette;
-procedure SetGlobalPalette(Value: HPalette);
-//function GetImageFromFile(const Filename: String): TBitmap;
 function GetImageAndMaskFromStream(Stream: TMemoryStream;
   var Transparent: Transparency; var AMask: TBitmap): TgpObject;
 function KindOfImageFile(FName: string): ImageType;
@@ -461,10 +448,6 @@ procedure RaisedRectColor(Canvas: TCanvas;
 
 function EnlargeImage(Image: TGpObject; W, H: integer): TBitmap;
 procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
-//procedure PrintBitmap1(Canvas: TCanvas; X, Y, W, H, YI, HI: integer;
-//             BMHandle: HBitmap);
-//procedure PrintTransparentBitmap1(Canvas: TCanvas; X, Y, NewW, NewH: integer;
-//             Bitmap, Mask: TBitmap; YI, HI: integer);
 procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: integer;
   Bitmap, Mask: TBitmap; YI, HI: integer);
 
@@ -1047,66 +1030,6 @@ begin
     Pen.Style := OldStyle;
     Pen.Width := OldWid;
   end;
-end;
-
-procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas; X1, Y1, X2, Y2: integer; Raised: boolean; W: integer);
-{Draws raised or lowered rectangles for table borders}
-begin
-  RaisedRectColor(Canvas,
-    Rect(X1 - W + 1, Y1 - W + 1, X2 + W, Y2 + W),
-    Rect(X1 + 1, Y1 + 1, X2, Y2),
-    htRaisedColors(SectionList, Canvas, Raised),
-    htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
-end;
-
-procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-  Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
-  W: integer);
-begin
-  RaisedRectColor(Canvas,
-    Rect(X1 - W + 1, Y1 - W + 1, X2 + W, Y2 + W),
-    Rect(X1 + 1, Y1 + 1, X2, Y2),
-    htRaisedColors(SectionList, Canvas, Raised),
-    htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
-end;
-
-//-- BG ---------------------------------------------------------- 12.06.2010 --
-procedure RaisedRectColor(Canvas: TCanvas;
-  const ORect, IRect: TRect;
-  const Colors: htColorArray;
-  Styles: htBorderStyleArray);
-
-  procedure RaisedRectColor1(Canvas: TCanvas; X1: integer;
-    Y1: integer; X2: integer; Y2: integer; const Colors: htColorArray);
-  {Draws single line colored raised or lowered rectangles for table borders}
-  begin
-    Y1 := Max(Y1, TopLim);
-    Y2 := Min(Y2, BotLim);
-    with Canvas do
-    begin
-      MoveTo(X1, Y2);
-      Pen.Color := Colors[0];
-      LineTo(X1, Y1);
-      Pen.Color := Colors[1];
-      LineTo(X2, Y1);
-      Pen.Color := Colors[2];
-      LineTo(X2, Y2);
-      Pen.Color := Colors[3];
-      LineTo(X1, Y2);
-    end;
-  end;
-
-{Draws colored raised or lowered rectangles for table borders}
-begin
-  if (IRect.Left - ORect.Left = 1) and
-     (IRect.Top - ORect.Top = 1) and
-     (ORect.Right - IRect.Right = 1) and
-     (ORect.Bottom - IRect.Bottom = 1)
-  then
-    {this looks better in Print Preview}
-    RaisedRectColor1(Canvas, ORect.Left, ORect.Top, ORect.Right, ORect.Bottom, Colors)
-  else
-    DrawBorder(Canvas, ORect, IRect, Colors, Styles, clNone, False);
 end;
 
 {$IFDEF Ver90}
@@ -2218,74 +2141,74 @@ begin
   end;
 end;
 
-function GetImageFromFile(const Filename: string): TBitmap;
-{used only externally in OnBitmapRequest handler}
-var
-  IT: ImageType;
-  Mask: TBitmap;
-  Transparent: Transparency;
-  Stream: TMemoryStream;
-  GpObj: TGpObject;
-
-  function GetGif: TBitmap;
-  var
-    TmpGif: TGifImage;
-    NonAnimated: boolean;
-  begin
-    Result := nil;
-    TmpGif := CreateAGifFromStream(NonAnimated, Stream);
-    if Assigned(TmpGif) then
-    begin
-      Result := TBitmap.Create;
-      try
-        Result.Assign(TmpGif.Bitmap);
-      except
-        Result.Free;
-        Result := nil;
-      end;
-      TmpGif.Free;
-    end
-  end;
-
-begin
-  Result := nil;
-  try
-    Stream := TMemoryStream.Create;
-    try
-      Stream.LoadFromFile(Filename);
-      IT := KindOfImage(Stream.Memory);
-      if IT in [Gif, Gif89] then
-        Result := GetGif
-      else
-      begin
-        GpObj := GetImageAndMaskFromStream(Stream, Transparent, Mask);
-        Mask.Free;
-        if GpObj is TBitmap then
-          Result := TBitmap(GpObj)
-{$IFNDEF NoMetafile}
-        else if GpObj is ThtMetafile then
-        begin
-          Result := TBitmap.Create;
-          Result.Assign(ThtMetafile(GpObj).WhiteBGBitmap);
-          GpObj.Free;
-        end
-{$ENDIF}
-        {$IFNDEF NoGDIPlus}
-        else if GpObj is TGpImage then
-        begin
-          Result := TBitmap.Create;
-          Result.Assign(TGpImage(GpObj).GetTBitmap);
-          GpObj.Free;
-        end;
-        {$ENDIF !NoGDIPlus}
-      end;
-    finally
-      Stream.Free;
-    end;
-  except
-    Result := nil;
-  end;
-end;
+//function GetImageFromFile(const Filename: string): TBitmap;
+//{used only externally in OnBitmapRequest handler}
+//var
+//  IT: ImageType;
+//  Mask: TBitmap;
+//  Transparent: Transparency;
+//  Stream: TMemoryStream;
+//  GpObj: TGpObject;
+//
+//  function GetGif: TBitmap;
+//  var
+//    TmpGif: TGifImage;
+//    NonAnimated: boolean;
+//  begin
+//    Result := nil;
+//    TmpGif := CreateAGifFromStream(NonAnimated, Stream);
+//    if Assigned(TmpGif) then
+//    begin
+//      Result := TBitmap.Create;
+//      try
+//        Result.Assign(TmpGif.Bitmap);
+//      except
+//        Result.Free;
+//        Result := nil;
+//      end;
+//      TmpGif.Free;
+//    end
+//  end;
+//
+//begin
+//  Result := nil;
+//  try
+//    Stream := TMemoryStream.Create;
+//    try
+//      Stream.LoadFromFile(Filename);
+//      IT := KindOfImage(Stream.Memory);
+//      if IT in [Gif, Gif89] then
+//        Result := GetGif
+//      else
+//      begin
+//        GpObj := GetImageAndMaskFromStream(Stream, Transparent, Mask);
+//        Mask.Free;
+//        if GpObj is TBitmap then
+//          Result := TBitmap(GpObj)
+//{$IFNDEF NoMetafile}
+//        else if GpObj is ThtMetafile then
+//        begin
+//          Result := TBitmap.Create;
+//          Result.Assign(ThtMetafile(GpObj).WhiteBGBitmap);
+//          GpObj.Free;
+//        end
+//{$ENDIF}
+//        {$IFNDEF NoGDIPlus}
+//        else if GpObj is TGpImage then
+//        begin
+//          Result := TBitmap.Create;
+//          Result.Assign(TGpImage(GpObj).GetTBitmap);
+//          GpObj.Free;
+//        end;
+//        {$ENDIF !NoGDIPlus}
+//      end;
+//    finally
+//      Stream.Free;
+//    end;
+//  except
+//    Result := nil;
+//  end;
+//end;
 
 {----------------FinishTransparentBitmap }
 
@@ -2729,10 +2652,6 @@ end;
 procedure IndentManagerBasic.FreeRightIndentRec(I: integer);
 begin
   R.Delete(I);
-end;
-
-procedure SetGlobalPalette(Value: HPalette);
-begin
 end;
 
 function CopyPalette(Source: hPalette): hPalette;
@@ -3381,8 +3300,7 @@ end;
 
 {----------------PrintBitmap}
 
-procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer;
-  BMHandle: HBitmap);
+procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
 {Y relative to top of display here}
 var
   OldPal: HPalette;
@@ -3405,8 +3323,7 @@ begin
         GetDIB(BMHandle, ThePalette, Info^, Image.Ptr^);
         RealizePalette(DC);
         with Info^.bmiHeader do
-          StretchDIBits(DC, X, Y, W, H,
-            0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
+          StretchDIBits(DC, X, Y, W, H, 0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
       finally
         DeAllocate(Image);
         SelectPalette(DC, OldPal, False);
@@ -3415,98 +3332,6 @@ begin
       FreeMem(Info, InfoSize);
     end;
   except
-  end;
-end;
-
-{----------------PrintBitmap1}
-
-procedure PrintBitmap1(Canvas: TCanvas; X, Y, W, H, YI, HI: integer;
-  BMHandle: HBitmap);
-{Y relative to top of display here}
-var
-  OldPal: HPalette;
-  DC: HDC;
-  Info: PBitmapInfo;
-  Image: AllocRec;
-  ImageSize: DWord;
-  InfoSize: DWord;
-begin
-  if BMHandle = 0 then
-    Exit;
-  DC := Canvas.Handle;
-  try
-    GetDIBSizes(BMHandle, InfoSize, ImageSize);
-    GetMem(Info, InfoSize);
-    try
-      Image := Allocate(ImageSize);
-      OldPal := SelectPalette(DC, ThePalette, False);
-      try
-        GetDIB(BMHandle, ThePalette, Info^, Image.Ptr^);
-        RealizePalette(DC);
-        with Info^.bmiHeader do
-          StretchDIBits(DC, X, Y, biWidth, HI,
-            0, YI, biWidth, HI, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
-      finally
-        DeAllocate(Image);
-        SelectPalette(DC, OldPal, False);
-      end;
-    finally
-      FreeMem(Info, InfoSize);
-    end;
-  except
-  end;
-end;
-
-{----------------PrintTransparentBitmap1}
-
-procedure PrintTransparentBitmap1(Canvas: TCanvas; X, Y, NewW, NewH: integer;
-  Bitmap, Mask: TBitmap; YI, HI: integer);
-{Y relative to top of display here}
-{This routine prints transparently but only on a white background}
-{X, Y are point where upper left corner will be printed.
- NewW, NewH are the Width and Height of the output (possibly stretched)
- Vertically only a portion of the Bitmap, Mask may be printed starting at
-   Y=YI in the bitmap and a height of HI
-}
-var
-  OldPal: HPalette;
-  DC: HDC;
-  Info: PBitmapInfo;
-  Image: AllocRec;
-  ImageSize: DWord;
-  InfoSize: DWord;
-  Abitmap: TBitmap;
-
-begin
-  ABitmap := TBitmap.Create;
-  try
-    Abitmap.Assign(Bitmap);
-    ABitmap.Height := HI;
-    SetBkColor(ABitmap.Canvas.Handle, clWhite);
-    SetTextColor(ABitmap.Canvas.Handle, clBlack);
-    BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, Bitmap.Canvas.Handle, 0, YI, SrcCopy);
-    BitBlt(ABitmap.Canvas.Handle, 0, 0, Bitmap.Width, HI, Mask.Canvas.Handle, 0, YI, SRCPAINT);
-    DC := Canvas.Handle;
-    GetDIBSizes(ABitmap.Handle, InfoSize, ImageSize);
-    GetMem(Info, InfoSize);
-    try
-      Image := Allocate(ImageSize);
-      OldPal := SelectPalette(DC, ThePalette, False);
-      try
-        GetDIB(ABitmap.Handle, ThePalette, Info^, Image.Ptr^);
-        RealizePalette(DC);
-        with Info^.bmiHeader do
-          StretchDIBits(DC, X, Y, NewW, NewH,
-            0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
-      finally
-        DeAllocate(Image);
-        SelectPalette(DC, OldPal, False);
-      end;
-    finally
-      FreeMem(Info, InfoSize);
-    end;
-  finally
-    ABitmap.Free;
   end;
 end;
 
@@ -3738,6 +3563,33 @@ end;
 
 {$ENDIF NoGDIPlus}
 
+//-- BG ---------------------------------------------------------- 12.06.2010 --
+procedure GetRaisedColors(SectionList: TFreeList; Canvas: TCanvas; out Light, Dark: TColor);
+var
+  White, BlackBorder: boolean;
+begin
+  with SectionList as TSectionList, Canvas do
+  begin
+    White := Printing or ((Background and $FFFFFF = clWhite) or
+      ((Background = clWindow) and (GetSysColor(Color_Window) = $FFFFFF)));
+    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
+      (GetDeviceCaps(Handle, PLANES) = 1);
+  end;
+  if BlackBorder then
+  begin
+    Light := clBlack;
+    Dark := clBlack;
+  end
+  else
+  begin
+    Dark := clBtnShadow;
+    if White then
+      Light := clSilver
+    else
+      Light := clBtnHighLight;
+  end;
+end;
+
 function Points(P0, P1, P2, P3: TPoint): BorderPointArray;
 begin
   Result[0] := P0;
@@ -3766,112 +3618,66 @@ end;
 //-- BG ---------------------------------------------------------- 12.06.2010 --
 function htRaisedColors(SectionList: TFreeList; Canvas: TCanvas; Raised: Boolean): htColorArray;
 var
-  White, BlackBorder: boolean;
   Light, Dark: TColor;
 begin
-  with SectionList as TSectionList, Canvas do
-  begin
-    White := Printing or ((Background and $FFFFFF = clWhite) or
-      ((Background = clWindow) and (GetSysColor(Color_Window) = $FFFFFF)));
-    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
-      (GetDeviceCaps(Handle, PLANES) = 1);
-  end;
-  if BlackBorder then
-  begin
-    Light := clBlack;
-    Dark := clBlack;
-  end
-  else
-  begin
-    Dark := clBtnShadow;
-    if White then
-      Light := clSilver
-    else
-      Light := clBtnHighLight;
-  end;
+  GetRaisedColors(SectionList, Canvas, Light, Dark);
   Result := htRaisedColors(Light, Dark, Raised);
 end;
 
-//-- BG ---------------------------------------------------------- 12.06.2010 --
-procedure GetRaisedColors(SectionList: TFreeList; Canvas: TCanvas; out Light, Dark: TColor);
-var
-  White, BlackBorder: boolean;
-begin
-  with SectionList as TSectionList, Canvas do
-  begin
-    White := Printing or ((Background and $FFFFFF = clWhite) or
-      ((Background = clWindow) and (GetSysColor(Color_Window) = $FFFFFF)));
-    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
-      (GetDeviceCaps(Handle, PLANES) = 1);
-  end;
-  if BlackBorder then
-  begin
-    Light := clBlack;
-    Dark := clBlack;
-  end
-  else
-  begin
-    Dark := clBtnShadow;
-    if White then
-      Light := clSilver
-    else
-      Light := clBtnHighLight;
-  end;
-end;
-
 procedure DrawOnePolygon(Canvas: TCanvas; P: BorderPointArray; Color: TColor;
-  Side: integer; Printing: boolean);
+  Side: byte; Printing: boolean);
 {Here we draw a 4 sided polygon (by filling a region).  This represents one
  side (or part of a side) of a border.
  For single pixel thickness, drawing is done by lines for better printing}
-type SideArray = array[0..3, 1..4] of integer;
-
-const
-  AD: SideArray = ((0, 1, 0, 3),
-    (0, 1, 1, 1),
-    (2, 0, 2, 1),
-    (1, 3, 3, 3));
-  AP: SideArray = ((0, 1, 0, 3),
-    (0, 1, 2, 1),
-    (2, 0, 2, 2),
-    (1, 3, 3, 3));
+//BG, 22.08.2010: in print preview results are better without the single pixel exception.
+//type
+//  SideArray = array[0..3, 1..4] of integer;
+//const
+//  AD: SideArray = ((0, 1, 0, 3),
+//    (0, 1, 1, 1),
+//    (2, 0, 2, 1),
+//    (1, 3, 3, 3));
+//  AP: SideArray = ((0, 1, 0, 3),
+//    (0, 1, 2, 1),
+//    (2, 0, 2, 2),
+//    (1, 3, 3, 3));
 var
   R: HRgn;
-  OldWidth: integer;
-  OldStyle: TPenStyle;
-  OldColor: TColor;
-  Thickness: integer;
-  P1, P2: TPoint;
-  I: SideArray;
+//  OldWidth: integer;
+//  OldStyle: TPenStyle;
+//  OldColor: TColor;
+//  Thickness: integer;
+//  P1, P2: TPoint;
+//  I: SideArray;
 begin
-  if Side in [0, 2] then
-    Thickness := Abs(P[2].X - P[1].X)
-  else
-    Thickness := Abs(P[1].Y - P[2].Y);
-  if Thickness = 1 then
-  begin
-    with Canvas do
-    begin
-      OldColor := Pen.Color;
-      OldStyle := Pen.Style;
-      OldWidth := Pen.Width;
-      Pen.Color := Color;
-      Pen.Style := psSolid;
-      Pen.Width := 1;
-      if Printing then
-        I := AP
-      else
-        I := AD;
-      P1 := Point(P[I[Side, 1]].X, P[I[Side, 2]].Y);
-      P2 := Point(P[I[Side, 3]].X, P[I[Side, 4]].Y);
-      MoveTo(P1.X, P1.Y);
-      LineTo(P2.X, P2.Y);
-      Pen.Width := OldWidth;
-      Pen.Style := OldStyle;
-      Pen.Color := OldColor;
-    end;
-  end
-  else
+//  if Side in [0, 2] then
+//    Thickness := Abs(P[2].X - P[1].X)
+//  else
+//    Thickness := Abs(P[1].Y - P[2].Y);
+//  if Thickness = 1 then
+//  begin
+//    with Canvas do
+//    begin
+//      OldColor := Pen.Color;
+//      OldStyle := Pen.Style;
+//      OldWidth := Pen.Width;
+//      Pen.Color := Color;
+//      Pen.Style := psSolid;
+//      Pen.Width := 1;
+//      if Printing then
+//        I := AP
+//      else
+//        I := AD;
+//      P1 := Point(P[I[Side, 1]].X, P[I[Side, 2]].Y);
+//      P2 := Point(P[I[Side, 3]].X, P[I[Side, 4]].Y);
+//      MoveTo(P1.X, P1.Y);
+//      LineTo(P2.X, P2.Y);
+//      Pen.Width := OldWidth;
+//      Pen.Style := OldStyle;
+//      Pen.Color := OldColor;
+//    end;
+//  end
+//  else
   begin
     R := CreatePolygonRgn(P, 4, Alternate);
     try
@@ -4153,6 +3959,42 @@ begin
       DeleteObject(Pn);
     end;
   end;
+end;
+
+//-- BG ---------------------------------------------------------- 12.06.2010 --
+procedure RaisedRectColor(Canvas: TCanvas;
+  const ORect, IRect: TRect;
+  const Colors: htColorArray;
+  Styles: htBorderStyleArray);
+{Draws colored raised or lowered rectangles for table borders}
+begin
+  DrawBorder(Canvas, ORect, IRect, Colors, Styles, clNone, False);
+end;
+
+procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas;
+  X1, Y1, X2, Y2: integer;
+  Light, Dark: TColor;
+  Raised: boolean;
+  W: integer);
+begin
+  RaisedRectColor(Canvas,
+    Rect(X1, Y1, X2, Y2),
+    Rect(X1 + W, Y1 + W, X2 - W, Y2 - W),
+    htRaisedColors(SectionList, Canvas, Raised),
+    htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
+end;
+
+procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas;
+  X1, Y1, X2, Y2: integer;
+  Raised: boolean;
+  W: integer);
+{Draws raised or lowered rectangles for table borders}
+begin
+  RaisedRectColor(Canvas,
+    Rect(X1, Y1, X2, Y2),
+    Rect(X1 + W, Y1 + W, X2 - W, Y2 - W),
+    htRaisedColors(SectionList, Canvas, Raised),
+    htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
 end;
 
 { TgpObject }
