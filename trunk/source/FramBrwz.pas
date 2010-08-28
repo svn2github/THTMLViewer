@@ -58,9 +58,9 @@ type
     TheStreamType: ThtmlFileType;
   protected
     function ExpandSourceName(Base, Path: string; S: string): string; override;
-    function FrameSet: TbrSubFrameSet; inline;
+    function FrameSet: TbrSubFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
     function GetSubFrameSetClass: TSubFrameSetClass; override;
-    function MasterSet: TbrFrameSet; inline;
+    function MasterSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
     procedure CreateViewer; override;
     procedure frLoadFromBrzFile(const URL, Dest, Query, EncType, Referer: string; Bump, IsGet, Reload: boolean);
     procedure frLoadFromFile(const FName, Dest: string; Bump, Reload: Boolean); override;
@@ -87,9 +87,9 @@ type
   private
     URLBase: string;
   protected
-    function FrameViewer: TFrameBrowser; inline;
+    function FrameViewer: TFrameBrowser; {$ifdef Compiler17_Plus} inline; {$endif}
     function GetFrameClass: TViewerFrameClass; override;
-    function MasterSet: TbrFrameSet; inline;
+    function MasterSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
     function RequestEvent: Boolean; override;
     procedure RefreshTimerTimer(Sender: TObject); override;
     procedure LoadFromBrzFile(Stream: TMemoryStream; StreamType: ThtmlFileType; const URL, Dest: string);
@@ -102,7 +102,7 @@ type
     FOnGetPostRequestEx: TGetPostRequestExEvent;
     FEncodePostArgs: boolean;
     InFormSubmit: boolean;
-    function CurbrFrameSet: TbrFrameSet; inline; {the TbrFrameSet being displayed}
+    function CurbrFrameSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif} {the TbrFrameSet being displayed}
     function HotSpotClickHandled(const FullUrl: string): boolean;
     procedure LoadURLInternal(const URL, Query, EncType, Referer: string; IsGet, Reload: boolean);
   protected

@@ -1,8 +1,77 @@
-{Version 10.00}  
+{Version 10.01}
 
-{$ifDef ver150}  {Delphi 7}
+{ Identify Compiler Version:
+
+Compiler    Version Compiler Defined Symbol
+Delphi 2010   21    VER210
+Delphi 2009   20    VER200
+Delphi 2007   18.5  VER185
+Delphi 2006   18    VER180
+Delphi 2005   17    VER170
+Delphi 8      16    VER160
+Delphi 7      15    VER150
+Delphi 6      14    VER140
+C++Builder 5        VER130 BCB
+Delphi 5            VER130
+C++Builder 4        VER125
+Delphi 4            VER120
+C++Builder 3        VER110
+Delphi 3            VER100
+C++Builder 1        VER93
+Delphi 2            VER90
+Delphi 1            VER80
+
+Since Delphi 6 the version number can be found in the system constant System.CompilerVersion
+}
+
+{$ifdef ver80}  {Delphi 1}
+{$else}
+  {$ifdef ver90}  {Delphi 2}
+  {$else}
+    {$ifdef ver93}  {C++Builder 1}
+      {$Define CppBuilder}
+    {$else}
+      {$define ver100_plus}
+      {$ifdef ver100} {Delphi 3}
+      {$else}
+        {$ifdef ver110} {C++Builder 3}
+          {$Define CppBuilder}
+          {$ObjExportAll On}
+        {$else}
+          {$define ver120_plus}
+          {$ifdef Ver120} {Delphi 4}
+          {$else}
+            {$ifdef ver125} {C++Builder 4}
+              {$Define CppBuilder}
+              {$ObjExportAll On}
+            {$else}
+              {$ifdef Ver130} {Delphi 5, C++Builder 5}
+                {$ifdef BCB}   {C++Builder}
+                  {$Define CppBuilder}
+                  {$ObjExportAll On}
+                {$endif}
+              {$else}         {Delphi 6 and up}
+                {$define Delphi6_Plus}
+                {$if CompilerVersion >= 15}
+                  {$define Delphi7_Plus}
+                  {$if CompilerVersion >= 17}
+                     {$define Compiler17_Plus}
+                  {$ifend}
+                {$ifend}
+              {$endif}
+            {$endif}
+          {$endif}
+        {$endif}
+      {$endif}
+    {$endif}
+  {$endif}
+{$endif}
+
+{ Set Compiler Switches }
+
+{$ifdef ver150}  {Delphi 7}
 {$WARN Unsafe_Type off}
-{$WARN Unsafe_Code off}       
+{$WARN Unsafe_Code off}
 {$WARN Unsafe_Cast off}
 {$endif}
 
@@ -31,76 +100,11 @@
   {$endif}
 {$endif}
 
-{$Define ver100_plus}
-{$Define ver120_plus}
-{$Define Delphi6_Plus}
-{$Define Delphi7_Plus}
-
-{$ifdef ver90}     {Delphi 2}
-{$UnDef ver100_plus}
-{$UnDef ver120_plus}
-{$UnDef Delphi6_Plus}
-{$UnDef Delphi7_Plus}
-{$endif}
-
-{$ifdef ver93}     {C++Builder 1}
-{$Define CppBuilder}
-{$UnDef ver100_plus}
-{$UnDef ver120_plus}
-{$UnDef Delphi6_Plus}
-{$UnDef Delphi7_Plus}
-{$endif}
-
-{$ifdef ver100}   {Delphi 3}
-{$UnDef ver120_plus}
-{$UnDef Delphi6_Plus}
-{$UnDef Delphi7_Plus}
-{$endif}
-
-{$ifdef ver110}    {C++Builder 3}
-{$ObjExportAll On}
-{$Define CppBuilder}
-{$UnDef ver120_plus}
-{$UnDef Delphi6_Plus}
-{$UnDef Delphi7_Plus}
-{$endif}
-
-{$ifdef Ver120}   {Delphi 4}
-{$UnDef Delphi6_Plus}
-{$UnDef Delphi7_Plus}
-{$endif}
-
-{$ifdef ver125}    {C++Builder 4}
-{$ObjExportAll On}
-{$Define CppBuilder}
-{$UnDef Delphi6_Plus}
-{$UnDef Delphi7_Plus}
-{$endif}
-
-{$ifdef Ver130}   {Delphi 5, C++Builder 5}
-  {$ifdef BCB}   {C++Builder}
-    {$Define CppBuilder}
-    {$ObjExportAll On}
-  {$endif}
-{$UnDef Delphi6_Plus}
-{$UnDef Delphi7_Plus}
-{$endif}
-
-{$ifDef ver140}  {Delphi 6}
-{$UnDef Delphi7_Plus}
-{$endif}
-
-{$ifDef ver150}  {Delphi 7}
-{$endif}
-
-{$IF compilerversion >= 19}
-  {$DEFINE Delphi6_Plus}
-  {$Define Delphi7_Plzs}
-{$IFEND}
-
 {$ifdef Delphi6_Plus}
   {$Warn Symbol_Platform Off}
 {$endif}
+
+{ Define Aspects Of HtmlViewer }
 
 {.$Define NoGDIPlus} {The gdiplus.dll provides Alpha transparency support for
         PNG images.  If, for some reason the use of the gdiplus.dll is
@@ -113,7 +117,7 @@
         For applications where printing is unimportant or Win98/95/ME need not
         be supported, undefining this constant will allow Metafiles to be
         displayed.}
-     
+
 {$Define NoTabLink}  {To eliminate tabbing between links, define "NoTabLink" by
         removing the '.'.  For documents with hundreds of links, tabbing may not
         be desirable and also may cause delays in loading.  Even when NoTabLink

@@ -545,7 +545,7 @@ type
   protected
     function ExpandSourceName(Base, Path, S: String): String; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
-    function MasterSet: TFrameSet; 
+    function MasterSet: TFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
     procedure frLoadFromFile(const FName, Dest: string; Bump, Reload: boolean); override;
     procedure LoadFiles(); overload; override;
     procedure LoadFiles(PEV: PEventRec); reintroduce; overload;
@@ -561,7 +561,7 @@ type
 
   TFrameSet = class(TFrameSetBase)
   protected
-    function FrameViewer: TFrameViewer; 
+    function FrameViewer: TFrameViewer; {$ifdef Compiler17_Plus} inline; {$endif}
     function GetFrameClass: TViewerFrameClass; override;
     function RequestEvent: boolean; override;
     function TriggerEvent(const Src: string; PEV: PEventRec): Boolean;
@@ -578,7 +578,7 @@ type
     FOnStringsRequest: TStringsRequestEvent;
     UrlRequestStream: TMemoryStream;
   protected
-    function CurFrameSet: TFrameSet; 
+    function CurFrameSet: TFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
     function GetFrameSetClass: TFrameSetClass; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
     function HotSpotClickHandled: Boolean;
