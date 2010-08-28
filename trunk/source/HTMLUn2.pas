@@ -3735,11 +3735,9 @@ var
   function Lighter(Color: TColor): TColor;
   {find a somewhat lighter color for shading purposes}
   const
-    CF = 1.15; // CF > 1 makes color lighter
-    CP = trunc(255 / CF);
+    F = 1.15; // F > 1 makes color lighter
   var
-    Red, Green, Blue, Lightest: Byte;
-    F: single;
+    Red, Green, Blue: Byte;
   begin
     if Color and $80000000 = $80000000 then
       Color := GetSysColor(Color and $FFFFFF)
@@ -3752,11 +3750,6 @@ var
       Red := Color and $FF;
       Green := (Color and $FF00) shr 8;
       Blue := (Color and $FF0000) shr 16;
-//      Lightest := Max(Red, Max(Green, Blue));
-//      if Lightest > CP then
-//        F := 255 / Lightest
-//      else
-        F := CF;
       Result := RGB(Min(255, Round(F * Red)), Min(255, Round(F * Green)), Min(255, Round(F * Blue)));
     end;
   end;
@@ -3904,7 +3897,6 @@ begin
       end
       else if S[I] in [bssRidge, bssGroove] then
       begin {ridge or groove}
-        Color := C[I] or PalRelative;
         Bnd[0] := PO[I];
         Bnd[1] := PO[(I + 1) mod 4];
         Bnd[2] := PM[(I + 1) mod 4];
@@ -3927,7 +3919,6 @@ begin
               DrawOnePolygon(Canvas, Bnd, Color, I, Print);
             end;
         end;
-        Color := C[I] or PalRelative;
         Bnd[0] := PM[I];
         Bnd[1] := PM[(I + 1) mod 4];
         Bnd[2] := PI[(I + 1) mod 4];
