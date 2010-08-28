@@ -243,9 +243,8 @@ const
     'page-break-before', 'page-break-after', 'page-break-inside', 'text-transform',
     'word-wrap', 'font-variant', 'border-collapse', 'overflow', 'display', 'empty-cells');
 
-procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize,
-  ExSize: integer; BStyle: BorderStyleType; var AutoCount: integer;
-  var M: TMarginArray);
+procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: integer;
+  BorderStyle: BorderStyleType; BorderWidth: Integer; var AutoCount: integer; var M: TMarginArray);
 
 procedure ConvVertMargins(const VM: TVMarginArray;
   BaseHeight, EmSize, ExSize: Integer;
@@ -1053,9 +1052,8 @@ end;
 
 {----------------ConvMargArray}
 
-procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize,
-  ExSize: Integer; BStyle: BorderStyleType; var AutoCount: integer;
-  var M: TMarginArray);
+procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: Integer;
+  BorderStyle: BorderStyleType; BorderWidth: Integer; var AutoCount: integer; var M: TMarginArray);
 {This routine does not do MarginTop and MarginBottom as they are done by ConvVertMargins}
 var
   I: PropIndices;
@@ -1093,24 +1091,40 @@ begin
               else if VM[I] = 'thick' then
                 M[I] := 6
               else
-                M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, 4); {Auto will be 4}
+                M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, BorderWidth); {Auto will be 4}
             end
             else if (VarType(VM[I]) in varInt) then
             begin
               if (VM[I] = IntNull) then
-                M[I] := 4
+                M[I] := BorderWidth
               else
                 M[I] := VM[I];
             end;
           end;
         end;
-      Height, PaddingTop..PaddingLeft:
+      Height:
         begin
           if VarIsStr(VM[I]) then
           begin
             M[I] := LengthConv(VM[I], False, Base, EmSize, ExSize, 0); {Auto will be 0}
-            if (I = Height) and (Pos('%', VM[I]) > 0) then {include border in % heights}
+            if Pos('%', VM[I]) > 0 then {include border in % heights}
               M[I] := M[I] - M[BorderTopWidth] - M[BorderBottomWidth] - M[PaddingTop] - M[PaddingBottom];
+          end
+          else if VarType(VM[I]) in varInt then
+          begin
+            if VM[I] = IntNull then
+              M[I] := 0
+            else
+              M[I] := VM[I];
+          end
+          else
+            M[I] := 0;
+        end;
+      PaddingTop..PaddingLeft:
+        begin
+          if VarIsStr(VM[I]) then
+          begin
+            M[I] := LengthConv(VM[I], False, Base, EmSize, ExSize, 0); {Auto will be 0}
           end
           else if VarType(VM[I]) in varInt then
           begin
@@ -1904,8 +1918,10 @@ begin
       BorderTopStyle..BorderLeftStyle:
         if VarIsStr(Props[I]) then
           MArray[I] := BorderStyleFromString(Props[I])
-        else
-          MArray[I] := bssNone;
+        else if (VarType(Props[I]) in varInt) and (Props[i] <> IntNull) then
+          MArray[I] := Props[I];
+//        else
+//          MArray[I] := bssNone;
     else
       MArray[I] := Props[I];
     end;

@@ -3718,7 +3718,7 @@ var
   function Darker(Color: TColor): TColor;
   {find a somewhat darker color for shading purposes}
   const
-    F = 0.75;
+    F = 0.75; // F < 1 makes color darker
   var
     Red, Green, Blue: Byte;
   begin
@@ -3732,12 +3732,50 @@ var
     Result := RGB(Round(F * Red), Round(F * Green), Round(F * Blue));
   end;
 
+  function Lighter(Color: TColor): TColor;
+  {find a somewhat lighter color for shading purposes}
+  const
+    CF = 1.15; // CF > 1 makes color lighter
+    CP = trunc(255 / CF);
+  var
+    Red, Green, Blue, Lightest: Byte;
+    F: single;
+  begin
+    if Color and $80000000 = $80000000 then
+      Color := GetSysColor(Color and $FFFFFF)
+    else
+      Color := Color and $FFFFFF;
+    if Color = 0 then
+      Result := 0
+    else
+    begin
+      Red := Color and $FF;
+      Green := (Color and $FF00) shr 8;
+      Blue := (Color and $FF0000) shr 16;
+//      Lightest := Max(Red, Max(Green, Blue));
+//      if Lightest > CP then
+//        F := 255 / Lightest
+//      else
+        F := CF;
+      Result := RGB(Min(255, Round(F * Red)), Min(255, Round(F * Green)), Min(255, Round(F * Blue)));
+    end;
+  end;
+
 begin
 {Limit the borders to somewhat more than the screen size}
+
   ORect.Bottom := Min(ORect.Bottom, BotLim);
   ORect.Top := Max(ORect.Top, TopLim);
   IRect.Bottom := Min(IRect.Bottom, BotLim);
   IRect.Top := Max(IRect.Top, TopLim);
+
+{Widths are needed for Dashed, Dotted, and Double}
+  W[0] := IRect.Left - Orect.Left;
+  W[1] := IRect.Top - Orect.Top;
+  W[2] := ORect.Right - IRect.Right;
+  W[3] := ORect.Bottom - IRect.Bottom;
+  if (W[0] = 0) and (W[1] = 0) and (W[2] = 0) and (W[3] = 0) then
+    exit;
 
 {Find out what style types are represented in this border}
   StyleSet := [];
@@ -3774,12 +3812,6 @@ begin
       PM[3] := BottomRight;
     end;
   end;
-
-{Widths are needed for Dashed, Dotted, and Double}
-  W[0] := IRect.Left - Orect.Left;
-  W[1] := IRect.Top - Orect.Top;
-  W[2] := ORect.Right - IRect.Right;
-  W[3] := ORect.Bottom - IRect.Bottom;
 
 {the Double style needs the space between inner and outer rectangles divided
  into three parts}
@@ -3855,13 +3887,17 @@ begin
           bssInset:
             begin
               if I in [0, 1] then
-                Color := Darker(C[I]) or PalRelative;
+                Color := Darker(C[I]) or PalRelative
+              else
+                Color := Lighter(C[I]) or PalRelative;
               DrawOnePolygon(Canvas, Bnd, Color, I, Print);
             end;
           bssOutset:
             begin
               if (I in [2, 3]) then
-                Color := Darker(C[I]) or PalRelative;
+                Color := Darker(C[I]) or PalRelative
+              else
+                Color := Lighter(C[I]) or PalRelative;
               DrawOnePolygon(Canvas, Bnd, Color, I, Print);
             end;
         end;
@@ -3877,13 +3913,17 @@ begin
           bssGroove:
             begin
               if I in [0, 1] then
-                Color := Darker(C[I]) or PalRelative;
+                Color := Darker(C[I]) or PalRelative
+              else
+                Color := Lighter(C[I]) or PalRelative;
               DrawOnePolygon(Canvas, Bnd, Color, I, Print);
             end;
           bssRidge:
             begin
               if (I in [2, 3]) then
-                Color := Darker(C[I]) or PalRelative;
+                Color := Darker(C[I]) or PalRelative
+              else
+                Color := Lighter(C[I]) or PalRelative;
               DrawOnePolygon(Canvas, Bnd, Color, I, Print);
             end;
         end;
@@ -3896,13 +3936,17 @@ begin
           bssRidge:
             begin
               if I in [0, 1] then
-                Color := Darker(C[I]) or PalRelative;
+                Color := Darker(C[I]) or PalRelative
+              else
+                Color := Lighter(C[I]) or PalRelative;
               DrawOnePolygon(Canvas, Bnd, Color, I, Print);
             end;
           bssGroove:
             begin
               if (I in [2, 3]) then
-                Color := Darker(C[I]) or PalRelative;
+                Color := Darker(C[I]) or PalRelative
+              else
+                Color := Lighter(C[I]) or PalRelative;
               DrawOnePolygon(Canvas, Bnd, Color, I, Print);
             end;
         end;

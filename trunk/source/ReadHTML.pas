@@ -142,7 +142,7 @@ procedure PopAProp(const Tag: string);
 implementation
 
 uses
-  Windows, SysUtils, Math,
+  Windows, SysUtils, Math, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}
   HtmlSubs, HtmlSbs1, HtmlView, StylePars, UrlSubs;
 
 const
@@ -1385,6 +1385,9 @@ var
   FootList: TList;
   I: integer;
   TrDisplay: TPropDisplay; // Yunqa.de.
+  S: PropIndices;
+  V: Variant;
+  CellBorderStyle: BorderStyleType;
 
   function GetVAlign(Default: AlignmentType): AlignmentType;
   var
@@ -1538,6 +1541,35 @@ begin
                 PropStack.Last.Assign('center', TextAlign) {th}
               else
                 PropStack.Last.Assign('left', TextAlign); {td}
+//            if (Table.BorderWidth > 0) and (NewBlock.BorderStyle in [bssInset, bssOutset])then
+            if (Attributes.TheStyle = nil) or (Table.BorderWidth > 0) then
+            begin
+              if NewBlock.BorderStyle = bssOutset then
+                CellBorderStyle := bssInset
+              else if NewBlock.BorderStyle = bssInset then
+                CellBorderStyle := bssOutset
+              else
+                CellBorderStyle := NewBlock.BorderStyle;
+
+              for S := BorderTopStyle to BorderLeftStyle do
+              begin
+                V := PropStack.Last.Props[S];
+                if (VarType(V) in varInt) and (V = IntNull) then
+                  PropStack.Last.Props[S] := CellBorderStyle;
+              end;
+              for S := BorderTopWidth to BorderLeftWidth do
+              begin
+                V := PropStack.Last.Props[S];
+                if (VarType(V) in varInt) and (V = IntNull) then
+                  PropStack.Last.Props[S] := 1;
+              end;
+              for S := BorderTopColor to BorderLeftColor do
+              begin
+                V := PropStack.Last.Props[S];
+                if (VarType(V) in varInt) and (V = IntNull) then
+                  PropStack.Last.Props[S] := Table.BorderColor;
+              end;
+            end;
             CellObj := TCellObj.Create(MasterList, VAlign, Attributes, PropStack.Last);
             SectionList := CellObj.Cell;
             if ((CellObj.WidthAttr = 0) or CellObj.AsPercent) and Attributes.Find(NoWrapSy, T) then

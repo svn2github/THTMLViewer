@@ -624,7 +624,9 @@ type
   private
     procedure DrawBlockBorder(Canvas: TCanvas; ORect, IRect: TRect); virtual;
   protected
+    function getBorderWidth: Integer; virtual;
     function getDisplay: TPropDisplay; virtual;
+    property BorderWidth: Integer read getBorderWidth;
   public
     MargArray: TMarginArray;
     MyCell: TBlockCell;
@@ -696,6 +698,8 @@ type
   TTableBlock = class(TBlock)
   private
     procedure DrawBlockBorder(Canvas: TCanvas; ORect, IRect: TRect); override;
+  protected
+    function getBorderWidth: Integer; override;
   public
     Table: ThtmlTable;
     WidthAttr: integer;
@@ -4440,7 +4444,7 @@ begin
   end;
 {$endif}
 
-  ConvMargArray(MargArrayO, 0, 400, EmSize, ExSize, BorderStyle, AutoCount, MargArray);
+  ConvMargArray(MargArrayO, 0, 400, EmSize, ExSize, BorderStyle, BorderWidth, AutoCount, MargArray);
   HideOverflow := HideOverflow and (MargArray[Width] <> Auto) and (MargArray[Width] > 20);
   if HideOverflow then
   begin
@@ -5015,7 +5019,7 @@ begin
     StartCurs := Curs;
     MaxWidth := AWidth;
 
-    ConvMargArray(MargArrayO, AWidth, AHeight, EmSize, ExSize, BorderStyle, AutoCount, MargArray);
+    ConvMargArray(MargArrayO, AWidth, AHeight, EmSize, ExSize, BorderStyle, BorderWidth, AutoCount, MargArray);
 
     TopP := MargArray[TopPos];
     LeftP := MargArray[LeftPos];
@@ -5417,139 +5421,141 @@ begin
     GetClipRgn(Canvas.Handle, SaveRgn1);
     SelectClipRgn(Canvas.Handle, 0);
   end;
-
-  MyRect := Rect(BL, BT, BR, BB);
-  if (BT <= ARect.Bottom) and (BB >= ARect.Top) then
-  begin
-    HasBackgroundColor := MargArray[BackgroundColor] <> clNone;
-    try
-      if NeedDoImageStuff and Assigned(BGImage) and (BGImage.Image <> DefBitmap) then
-      begin
-        if BGImage.Image = ErrorBitmap then {Skip the background image}
-          FreeAndNil(BGImage)
-        else
-        try
-          if FloatLR in [ALeft, ARight] then
-            TmpHt := DrawBot - ContentTop + MargArray[PaddingTop] + MargArray[PaddingBottom]
-          else
-            TmpHt := ClientContentBot - ContentTop + MargArray[PaddingTop] + MargArray[PaddingBottom];
-
-          DoImageStuff(Canvas, MargArray[PaddingLeft] + NewWidth + MargArray[PaddingRight],
-            TmpHt, BGImage, PRec, TiledImage, TiledMask, NoMask);
-          if ParentSectionList.IsCopy and (TiledImage is TBitmap) then
-            TBitmap(TiledImage).HandleType := bmDIB;
-        except {bad image, get rid of it}
-          FreeAndNil(BGImage);
-          FreeAndNil(TiledImage);
-          FreeAndNil(TiledMask);
-        end;
-        NeedDoImageStuff := False;
-      end;
-
-      ImgOK := not NeedDoImageStuff and Assigned(BGImage) and (BGImage.Bitmap <> DefBitmap)
-        and ParentSectionList.ShowImages;
-
-      if HasBackgroundColor and
-        (not ParentSectionList.Printing or ParentSectionList.PrintTableBackground) then
-      begin {color the Padding Region}
-        Canvas.Brush.Color := MargArray[BackgroundColor] or PalRelative;
-        Canvas.Brush.Style := bsSolid;
-        if ParentSectionList.IsCopy and ImgOK then
+  try
+    MyRect := Rect(BL, BT, BR, BB);
+    if (BT <= ARect.Bottom) and (BB >= ARect.Top) then
+    begin
+      HasBackgroundColor := MargArray[BackgroundColor] <> clNone;
+      try
+        if NeedDoImageStuff and Assigned(BGImage) and (BGImage.Image <> DefBitmap) then
         begin
-          InitFullBG(PR - PL, IH);
-          FullBG.Canvas.Brush.Color := MargArray[BackgroundColor] or PalRelative;
-          FullBG.Canvas.Brush.Style := bsSolid;
-          FullBG.Canvas.FillRect(Rect(0, 0, PR - PL, IH));
-        end
-        else
-          Canvas.FillRect(Rect(PL, FT, PR, FT + IH));
-      end;
+          if BGImage.Image = ErrorBitmap then {Skip the background image}
+            FreeAndNil(BGImage)
+          else
+          try
+            if FloatLR in [ALeft, ARight] then
+              TmpHt := DrawBot - ContentTop + MargArray[PaddingTop] + MargArray[PaddingBottom]
+            else
+              TmpHt := ClientContentBot - ContentTop + MargArray[PaddingTop] + MargArray[PaddingBottom];
 
-      if ImgOK then
-      begin
-        if not ParentSectionList.IsCopy then
-          {$IFNDEF NoGDIPlus}
-          if TiledImage is TgpBitmap then
-          //DrawGpImage(Canvas.Handle, TgpImage(TiledImage), PL, PT)
-            DrawGpImage(Canvas.Handle, TgpImage(TiledImage), PL, FT, 0, IT, PR - PL, IH)
-          //BitBlt(Canvas.Handle, PL, FT, PR-PL, IH, TiledImage.Canvas.Handle, 0, IT, SrcCopy)
-          else
-          {$ENDIF !NoGDIPlus}
-          if NoMask then
-            BitBlt(Canvas.Handle, PL, FT, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcCopy)
-          else
+            DoImageStuff(Canvas, MargArray[PaddingLeft] + NewWidth + MargArray[PaddingRight],
+              TmpHt, BGImage, PRec, TiledImage, TiledMask, NoMask);
+            if ParentSectionList.IsCopy and (TiledImage is TBitmap) then
+              TBitmap(TiledImage).HandleType := bmDIB;
+          except {bad image, get rid of it}
+            FreeAndNil(BGImage);
+            FreeAndNil(TiledImage);
+            FreeAndNil(TiledMask);
+          end;
+          NeedDoImageStuff := False;
+        end;
+
+        ImgOK := not NeedDoImageStuff and Assigned(BGImage) and (BGImage.Bitmap <> DefBitmap)
+          and ParentSectionList.ShowImages;
+
+        if HasBackgroundColor and
+          (not ParentSectionList.Printing or ParentSectionList.PrintTableBackground) then
+        begin {color the Padding Region}
+          Canvas.Brush.Color := MargArray[BackgroundColor] or PalRelative;
+          Canvas.Brush.Style := bsSolid;
+          if ParentSectionList.IsCopy and ImgOK then
           begin
             InitFullBG(PR - PL, IH);
-            BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, Canvas.Handle, PL, FT, SrcCopy);
+            FullBG.Canvas.Brush.Color := MargArray[BackgroundColor] or PalRelative;
+            FullBG.Canvas.Brush.Style := bsSolid;
+            FullBG.Canvas.FillRect(Rect(0, 0, PR - PL, IH));
+          end
+          else
+            Canvas.FillRect(Rect(PL, FT, PR, FT + IH));
+        end;
+
+        if ImgOK then
+        begin
+          if not ParentSectionList.IsCopy then
+            {$IFNDEF NoGDIPlus}
+            if TiledImage is TgpBitmap then
+            //DrawGpImage(Canvas.Handle, TgpImage(TiledImage), PL, PT)
+              DrawGpImage(Canvas.Handle, TgpImage(TiledImage), PL, FT, 0, IT, PR - PL, IH)
+            //BitBlt(Canvas.Handle, PL, FT, PR-PL, IH, TiledImage.Canvas.Handle, 0, IT, SrcCopy)
+            else
+            {$ENDIF !NoGDIPlus}
+            if NoMask then
+              BitBlt(Canvas.Handle, PL, FT, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcCopy)
+            else
+            begin
+              InitFullBG(PR - PL, IH);
+              BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, Canvas.Handle, PL, FT, SrcCopy);
+              BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcInvert);
+              BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TiledMask.Canvas.Handle, 0, IT, SRCAND);
+              BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SRCPaint);
+              BitBlt(Canvas.Handle, PL, FT, PR - PL, IH, FullBG.Canvas.Handle, 0, 0, SRCCOPY);
+            end
+          else
+          {$IFNDEF NoGDIPlus}
+          if TiledImage is TGpBitmap then {printing}
+          begin
+            if HasBackgroundColor then
+            begin
+              DrawGpImage(FullBg.Canvas.Handle, TgpImage(TiledImage), 0, 0);
+              PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG.Handle);
+            end
+            else
+              PrintGpImageDirect(Canvas.Handle, TgpImage(TiledImage), PL, PT,
+                ParentSectionList.ScaleX, ParentSectionList.ScaleY);
+          end
+          else
+          {$ENDIF !NoGDIPlus}
+          if NoMask then {printing}
+            PrintBitmap(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage).Handle)
+          else if HasBackgroundColor then
+          begin
             BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcInvert);
             BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TiledMask.Canvas.Handle, 0, IT, SRCAND);
             BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SRCPaint);
-            BitBlt(Canvas.Handle, PL, FT, PR - PL, IH, FullBG.Canvas.Handle, 0, 0, SRCCOPY);
-          end
-        else
-        {$IFNDEF NoGDIPlus}
-        if TiledImage is TGpBitmap then {printing}
-        begin
-          if HasBackgroundColor then
-          begin
-            DrawGpImage(FullBg.Canvas.Handle, TgpImage(TiledImage), 0, 0);
             PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG.Handle);
           end
           else
-            PrintGpImageDirect(Canvas.Handle, TgpImage(TiledImage), PL, PT,
-              ParentSectionList.ScaleX, ParentSectionList.ScaleY);
-        end
-        else
-        {$ENDIF !NoGDIPlus}
-        if NoMask then {printing}
-          PrintBitmap(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage).Handle)
-        else if HasBackgroundColor then
-        begin
-          BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcInvert);
-          BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TiledMask.Canvas.Handle, 0, IT, SRCAND);
-          BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SRCPaint);
-          PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG.Handle);
-        end
-        else
-          PrintTransparentBitmap3(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage), TiledMask, IT, IH)
+            PrintTransparentBitmap3(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage), TiledMask, IT, IH)
+        end;
+
+      except
       end;
-
-    except
     end;
-  end;
 
-  if HideOverflow then
-    GetClippingRgn(Canvas, Rect(PL + MargArray[PaddingLeft], PT + MargArray[PaddingTop],
-      PR - MargArray[PaddingRight], PB - MargArray[PaddingBottom]),
-      ParentSectionList.Printing, Rgn, SaveRgn);
+    if HideOverflow then
+      GetClippingRgn(Canvas, Rect(PL + MargArray[PaddingLeft], PT + MargArray[PaddingTop],
+        PR - MargArray[PaddingRight], PB - MargArray[PaddingBottom]),
+        ParentSectionList.Printing, Rgn, SaveRgn);
 
-  SaveID := IMgr.CurrentID;
-  Imgr.CurrentID := Self;
-  if Positioning = posRelative then
-    DrawTheList(Canvas, ARect, NewWidth, X,
-      RefX + MargArray[MarginLeft] + MargArray[BorderLeftWidth] + MargArray[PaddingLeft],
-      Y + MargArray[MarginTop] + MargArray[BorderTopWidth] + MargArray[PaddingTop])
-  else if Positioning = posAbsolute then
-    DrawTheList(Canvas, ARect, NewWidth, X,
-      RefX + MargArray[MarginLeft] + MargArray[BorderLeftWidth],
-      Y + MargArray[MarginTop] + MargArray[BorderTopWidth])
-  else
-    DrawTheList(Canvas, ARect, NewWidth, X, XRef, YRef);
-  Imgr.CurrentID := SaveID;
+    SaveID := IMgr.CurrentID;
+    Imgr.CurrentID := Self;
+    if Positioning = posRelative then
+      DrawTheList(Canvas, ARect, NewWidth, X,
+        RefX + MargArray[MarginLeft] + MargArray[BorderLeftWidth] + MargArray[PaddingLeft],
+        Y + MargArray[MarginTop] + MargArray[BorderTopWidth] + MargArray[PaddingTop])
+    else if Positioning = posAbsolute then
+      DrawTheList(Canvas, ARect, NewWidth, X,
+        RefX + MargArray[MarginLeft] + MargArray[BorderLeftWidth],
+        Y + MargArray[MarginTop] + MargArray[BorderTopWidth])
+    else
+      DrawTheList(Canvas, ARect, NewWidth, X, XRef, YRef);
+    Imgr.CurrentID := SaveID;
 
-  if HideOverflow then {restore any previous clip region}
-  begin
-    SelectClipRgn(Canvas.Handle, SaveRgn);
-    DeleteObject(Rgn);
-    if SaveRgn <> 0 then
-      DeleteObject(SaveRgn);
-  end;
-  DrawBlockBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB));
-
-  if OpenRgn then
-  begin
-    SelectClipRgn(Canvas.Handle, SaveRgn1);
-    DeleteObject(SaveRgn1);
+    if HideOverflow then {restore any previous clip region}
+    begin
+      SelectClipRgn(Canvas.Handle, SaveRgn);
+      DeleteObject(Rgn);
+      if SaveRgn <> 0 then
+        DeleteObject(SaveRgn);
+    end;
+    if (BL <> PL) or (BT <> PT) or (BR <> PR) or (BB <> PB) then
+      DrawBlockBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB));
+  finally
+    if OpenRgn then
+    begin
+      SelectClipRgn(Canvas.Handle, SaveRgn1);
+      DeleteObject(SaveRgn1);
+    end;
   end;
 end;
 
@@ -5598,6 +5604,12 @@ begin
   BM := IntToStr(MargArray[MarginBottom]);
   Tree := Tree + Indent + TagClass + '  ' + TM + '  ' + BM + ^M + ^J;
   MyCell.FormTree(MyIndent, Tree);
+end;
+
+//-- BG ---------------------------------------------------------- 24.08.2010 --
+function TBlock.getBorderWidth: Integer;
+begin
+  Result := 4;
 end;
 
 {----------------TTableAndCaptionBlock.Create}
@@ -5741,7 +5753,7 @@ constructor TTableBlock.Create(Master: TSectionList; Prop: TProperties;
   AnOwnerCell: TCellBasic; ATable: ThtmlTable; TableAttr: TAttributeList;
   TableLevel: integer);
 var
-  I, AutoCount: integer;
+  I, AutoCount, BorderColor: integer;
   Percent: boolean;
   S,W,C: PropIndices;
 begin
@@ -5813,6 +5825,9 @@ begin
     BorderStyle := bssOutset;
   end;
 
+  BorderColor := Table.BorderColor;
+  if BorderColor = clNone then
+    BorderColor := clSilver;
   C := BorderTopColor;
   TableBorder := False;
   for S := BorderTopStyle to BorderLeftStyle do
@@ -5820,21 +5835,21 @@ begin
     if MargArrayO[S] <> bssNone then
     begin
       TableBorder := True;
-      case BorderStyleType(MargArrayO[S]) of
-        bssOutset:
-          if S in [BorderLeftStyle, BorderTopStyle] then
-            MargArrayO[C] := Table.BorderColorLight
-          else
-            MargArrayO[C] := Table.BorderColorDark;
-        bssInset:
-          if S in [BorderLeftStyle, BorderTopStyle] then
-            MargArrayO[C] := Table.BorderColorDark
-          else
-            MargArrayO[C] := Table.BorderColorLight;
-      else
-        if (VarType(MargArrayO[C]) in VarInt) and (MargArrayO[C] = IntNull) then
-          MargArrayO[C] := Table.BorderColor;
-      end;
+      if (VarType(MargArrayO[C]) in varInt) and (MargArrayO[C] = IntNull) then
+        case BorderStyleType(MargArrayO[S]) of
+          bssOutset:
+            if S in [BorderLeftStyle, BorderTopStyle] then
+              MargArrayO[C] := Table.BorderColorLight
+            else
+              MargArrayO[C] := Table.BorderColorDark;
+          bssInset:
+            if S in [BorderLeftStyle, BorderTopStyle] then
+              MargArrayO[C] := Table.BorderColorDark
+            else
+              MargArrayO[C] := Table.BorderColorLight;
+        else
+          MargArrayO[C] := BorderColor;
+        end;
     end;
     Inc(C);
   end;
@@ -5842,7 +5857,7 @@ begin
 
 {need to see if width is defined in style}
   Percent := (VarIsStr(MargArrayO[Width])) and (Pos('%', MargArrayO[Width]) > 0);
-  ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, BorderStyle, AutoCount, MargArray);
+  ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, BorderStyle, BorderWidth, AutoCount, MargArray);
   if MargArray[Width] > 0 then
   begin
     if Percent then
@@ -5949,6 +5964,12 @@ begin
       Result := Allow;
   end;
   Result := Result + LeftSide + RightSide;
+end;
+
+//-- BG ---------------------------------------------------------- 24.08.2010 --
+function TTableBlock.getBorderWidth: Integer;
+begin
+  Result := Table.BorderWidth;
 end;
 
 {----------------TTableBlock.FindWidth}
@@ -6366,7 +6387,7 @@ var
 begin
   YDraw := Y;
   StartCurs := Curs;
-  ConvMargArray(MargArrayO, AWidth, AHeight, EmSize, ExSize, BorderStyle, AutoCount, MargArray);
+  ConvMargArray(MargArrayO, AWidth, AHeight, EmSize, ExSize, BorderStyle, BorderWidth, AutoCount, MargArray);
 
   NewWidth := IMgr.Width - (MargArray[MarginLeft] + MargArray[PaddingLeft] +
     MargArray[BorderLeftWidth] + MargArray[MarginRight] +
@@ -7332,7 +7353,6 @@ var
   I, EmSize, ExSize: integer;
   IR: InlineRec;
   MargArrayO: TVMarginArray;
-  Dummy: BorderStyleType;
   Dummy1: integer;
 begin
   with InlineList do
@@ -7349,8 +7369,7 @@ begin
         Prop.GetVMarginArray(MargArrayO);
         EmSize := Prop.EmSize;
         ExSize := Prop.ExSize;
-        Dummy := bssNone;
-        ConvMargArray(MargArrayO, 200, 200, EmSize, ExSize, Dummy, Dummy1, MargArray);
+        ConvMargArray(MargArrayO, 200, 200, EmSize, ExSize, bssNone, 0{4}, Dummy1, MargArray);
       end;
     end
     else {this call has end information}
@@ -7428,6 +7447,8 @@ var
   BackgroundImage: string;
   Percent: boolean;
   Algn: AlignmentType;
+  J: PropIndices;
+  Border: Boolean;
 begin
   inherited Create;
   Cell := TCellObjCell.Create(Master);
@@ -7477,7 +7498,7 @@ begin
     EmSize := Prop.EmSize;
     ExSize := Prop.ExSize;
     Percent := (VarIsStr(MargArrayO[Width])) and (Pos('%', MargArrayO[Width]) > 0);
-    ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, bssNone, AutoCount, MargArray);
+    ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, bssNone, 0, AutoCount, MargArray);
     if MargArray[Width] > 0 then
       if Percent then
       begin
@@ -7507,7 +7528,6 @@ begin
       Prop.GetBackgroundPos(EmSize, ExSize, PRec);
     end;
 
-    BorderStyle := Prop.GetBorderStyle;
   {In the following, Padding widths in percent aren't accepted}
     ConvMargArrayForCellPadding(MargArrayO, EmSize, ExSize, MargArray);
     PadTop := MargArray[PaddingTop];
@@ -7515,13 +7535,36 @@ begin
     PadBottom := MargArray[PaddingBottom];
     PadLeft := MargArray[PaddingLeft];
 
-    if BorderStyle <> bssNone then
+    Border := True;
+    if BorderStyleType(MargArray[BorderTopStyle]) <> bssNone then
     begin
+      Border := False;
       BrdTop := MargArray[BorderTopWidth];
+    end;
+    if BorderStyleType(MargArray[BorderRightStyle]) <> bssNone then
+    begin
+      Border := False;
       BrdRight := MargArray[BorderRightWidth];
+    end;
+    if BorderStyleType(MargArray[BorderBottomStyle]) <> bssNone then
+    begin
+      Border := False;
       BrdBottom := MargArray[BorderBottomWidth];
+    end;
+    if BorderStyleType(MargArray[BorderLeftStyle]) <> bssNone then
+    begin
+      Border := False;
       BrdLeft := MargArray[BorderLeftWidth];
     end;
+    if Border then
+      BorderStyle := Prop.GetBorderStyle
+    else
+      BorderStyle := bssNone;
+
+    for J := BorderTopColor to BorderLeftColor do
+      if MargArray[J] = clNone then
+        MargArray[J] := clSilver;
+
     Prop.GetPageBreaks(BreakBefore, BreakAfter, KeepIntact);
     ShowEmptyCells := Prop.ShowEmptyCells;
   end;
@@ -7635,8 +7678,6 @@ var
   SizeV, SizeW: TSize;
   HF, VF: double;
   BRect: TRect;
-  Colors: htColorArray;
-  Styles: htBorderStyleArray;
   IsVisible: Boolean;
 
   procedure InitFullBg(W, H: integer);
@@ -7709,23 +7750,24 @@ begin
         FullBG.Canvas.Brush.Style := bsSolid;
         FullBG.Canvas.FillRect(Rect(0, 0, PR - PL, IH));
       end
-      else if BorderStyle = bssNone then
-        if Border then
-        {slip under border to fill gap when printing}
-          Canvas.FillRect(Rect(PL - 1, FT - 1, PR + 1, FT + IH + 1))
-        else
-          Canvas.FillRect(Rect(PL, FT, PR, FT + IH))
       else
-      begin {slip the fill under any border}
+      begin
+        {slip under border to fill gap when printing}
         BRect := Rect(PL, FT, PR, FT + IH);
-        if MargArray[BorderLeftWidth] > 0 then
-          Dec(BRect.Left);
-        if MargArray[BorderTopWidth] > 0 then
-          Dec(BRect.Top);
-        if MargArray[BorderRightWidth] > 0 then
-          Inc(BRect.Right);
-        if MargArray[BorderBottomWidth] > 0 then
-          Inc(BRect.Bottom);
+        if BorderStyle = bssNone then
+        begin
+          if MargArray[BorderLeftWidth] > 0 then
+            Dec(BRect.Left);
+          if MargArray[BorderTopWidth] > 0 then
+            Dec(BRect.Top);
+          if MargArray[BorderRightWidth] > 0 then
+            Inc(BRect.Right);
+          if MargArray[BorderBottomWidth] > 0 then
+            Inc(BRect.Bottom);
+        end
+        else
+          if Border then
+            InflateRect(BRect, -1, -1);
         Canvas.FillRect(BRect);
       end;
     end;
@@ -7809,8 +7851,8 @@ begin
         CombineRgn(Rgn, Rgn, SaveRgn, Rgn_And);
       SelectClipRgn(Canvas.Handle, Rgn);
       try
-
-        Cell.Draw(Canvas, ARect, Wd - HzSpace - CellSpacing, X + PadLeft + BrdLeft + CellSpacing,
+        Cell.Draw(Canvas, ARect, Wd - HzSpace - CellSpacing,
+          X + PadLeft + BrdLeft + CellSpacing,
           Y + PadTop + BrdTop + YIndent, ARect.Left, 0); {possibly should be IRgn.LfEdge}
       finally
         if Rslt = 1 then {restore any previous clip region}
@@ -7827,12 +7869,10 @@ begin
   Cell.DrawYY := Y;
   if IsVisible and ((Cell.Count > 0) or ShowEmptyCells) then
     try
-      if BorderStyle <> bssNone then
-        Styles := htStyles(BorderStyleType(MargArray[BorderLeftStyle]), BorderStyleType(MargArray[BorderTopStyle]), BorderStyleType(MargArray[BorderRightStyle]), BorderStyleType(MargArray[BorderBottomStyle]))
-      else
-        Styles := htStyles(bssSolid, bssSolid, bssSolid, bssSolid);
-      Colors := htColors(MargArray[BorderLeftColor], MargArray[BorderTopColor], MargArray[BorderRightColor], MargArray[BorderBottomColor]);
-      DrawBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB), Colors, Styles, MargArray[BackgroundColor], Cell.MasterList.Printing);
+      DrawBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB),
+        htColors(MargArray[BorderLeftColor], MargArray[BorderTopColor], MargArray[BorderRightColor], MargArray[BorderBottomColor]),
+        htStyles(BorderStyleType(MargArray[BorderLeftStyle]), BorderStyleType(MargArray[BorderTopStyle]), BorderStyleType(MargArray[BorderRightStyle]), BorderStyleType(MargArray[BorderBottomStyle])),
+        MargArray[BackgroundColor], Cell.MasterList.Printing);
     except
     end;
 end;
