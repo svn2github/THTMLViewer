@@ -53,6 +53,7 @@ contains
   HTMLGif2 in '..\source\HTMLGif2.pas',
   htmlgif1 in '..\source\htmlgif1.pas',
   FrameViewerReg in '..\source\FrameViewerReg.pas',
-  GDIPL2A in '..\source\GDIPL2A.pas';
+  GDIPL2A in '..\source\GDIPL2A.pas',
+  HtmlGlobals in '..\source\HtmlGlobals.pas';
 
 end.
