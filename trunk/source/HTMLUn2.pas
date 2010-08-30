@@ -490,10 +490,10 @@ uses
 
 type
   EGDIPlus = class(Exception);
-  TJpegMod = class(TJpegImage)
-  public
-    property Bitmap;
-  end;
+//  TJpegMod = class(TJpegImage)
+//  public
+//    property Bitmap;
+//  end;
 
 //var
 //  DC: HDC;
@@ -1962,12 +1962,7 @@ function GetBitmapAndMaskFromStream(Stream: TMemoryStream;
   var Transparent: Transparency; var AMask: TBitmap): TBitmap;
 var
   IT: ImageType;
-  jpImage: TJpegMod;
-//  {$ifndef NoOldPng}
-//  PI: TPngObject;
-//  Color: TColor;
-//  Tmp: TBitmap;
-//  {$endif}
+  jpImage: TJpegImage;
 begin
   Result := nil;
   AMask := nil;
@@ -1984,7 +1979,7 @@ begin
     if IT = Jpg then
     begin
       Transparent := NotTransp;
-      jpImage := TJpegMod.Create;
+      jpImage := TJpegImage.Create;
       try
         jpImage.LoadFromStream(Stream);
         if ColorBits <= 8 then
@@ -1995,7 +1990,7 @@ begin
         end
         else
           jpImage.PixelFormat := jf24bit;
-        Result.Assign(jpImage.Bitmap);
+        Result.Assign(jpImage);
       finally
         jpImage.Free;
       end;
@@ -2016,7 +2011,7 @@ begin
 //    end
 //  {$else}
     else if IT = Png then
-      Result := nil
+      freeAndNil(Result)
 //  {$endif}
     else
     begin
