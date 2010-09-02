@@ -20,11 +20,11 @@ unit FDemUnit;
 interface
 
 uses
-  SysUtils, WinTypes, WinProcs, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, FramView, ExtCtrls, StdCtrls, Menus, MMSystem,
-  Clipbrd, HTMLsubs, HTMLun2, HTMLView, ShellAPI, PreviewForm,
-  FontDlg, HTMLAbt, Submit, ImgForm, MPlayer, Readhtml, 
-  {$ifdef UseXpMan} XpMan, {$endif} ComCtrls;
+  Windows, SysUtils, Messages, Classes, Graphics, Controls, Forms, Dialogs,
+  ExtCtrls, StdCtrls, Menus, MMSystem, Clipbrd, ShellAPI, FontDlg, HTMLAbt,
+  MPlayer, {$ifdef UseXpMan} XpMan, {$endif} ComCtrls,
+
+  FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, HTMLView, Submit, ImgForm, PreviewForm;
 
 const
   MaxHistories = 6;  {size of History list}
@@ -220,8 +220,11 @@ if I=1 then
   if Assigned(Viewer) then
     begin
     ID := Copy(URL, 10, Length(URL)-9);
-    Viewer.IDDisplay[ID+'Plus'] := not Viewer.IDDisplay[ID+'Plus'];
-    Viewer.IDDisplay[ID+'Minus'] := not Viewer.IDDisplay[ID+'Minus'];
+    if Viewer.IDDisplay[ID+'Minus'] = High(TPropDisplay) then
+      Viewer.IDDisplay[ID+'Minus'] := Low(TPropDisplay)
+    else
+      Viewer.IDDisplay[ID+'Minus'] := Succ(Viewer.IDDisplay[ID+'Minus']);
+    Viewer.IDDisplay[ID+'Plus'] := Viewer.IDDisplay[ID+'Minus'];
     Viewer.Reformat;
     end;
   Handled := True;

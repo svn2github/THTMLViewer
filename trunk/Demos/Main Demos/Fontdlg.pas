@@ -3,7 +3,7 @@ unit Fontdlg;
 interface
 
 uses
-  SysUtils, WinTypes, WinProcs, Messages, Classes, Graphics, Controls,
+  SysUtils, Windows, Messages, Classes, Graphics, Controls,
   Forms, Dialogs, StdCtrls, ColorGrd, Htmlview, Spin;
 
 type
