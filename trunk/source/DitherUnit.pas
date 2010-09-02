@@ -556,7 +556,9 @@ end;
 
 function TDIBReader.GetScanline(Row: integer): pointer;
 begin
+{$ifndef FPC_TODO}
   Result := FBitmap.ScanLine[Row];
+{$endif}
 end;
 
 ////////////////////////////////////////////////////////////////////////////////

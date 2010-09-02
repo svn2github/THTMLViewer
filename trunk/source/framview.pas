@@ -243,9 +243,7 @@ type
     property Base: string read GetBase write SetBase;
     property BaseTarget: string read GetBaseTarget;
     property CurFrameSet: TFrameSetBase read FCurFrameSet;
-    property CurrentFile: string read GetCurrentFile;
     property CurViewer[I: integer]: THtmlViewer read GetCurViewer;
-    property DocumentTitle: string read GetTitle;
     property OnBitmapRequest: TGetBitmapEvent read FOnBitmapRequest write SetOnBitmapRequest;
     property ServerRoot: string read FServerRoot write SetServerRoot;
   public
@@ -254,15 +252,17 @@ type
     function Find(const S: WideString; MatchCase: boolean): boolean;
     function FindEx(const S: WideString; MatchCase, Reverse: boolean): boolean;
     function InsertImage(Viewer: THtmlViewer; const Src: string; Stream: TMemoryStream): boolean;
+{$ifndef FPC_TODO_PRINTING}
     function NumPrinterPages(var WidthRatio: double): integer; overload;
     function NumPrinterPages: integer; overload;
+    procedure Print(FromPage, ToPage: integer);
+{$endif}
     function ViewerFromTarget(const Target: string): THtmlViewer;
     procedure Clear;
-    procedure ClearHistory; 
+    procedure ClearHistory;
     procedure CopyToClipboard;
     procedure GoBack;
     procedure GoFwd;
-    procedure Print(FromPage, ToPage: integer);
     procedure Reload;
     procedure Repaint; override;
     procedure SelectAll;
@@ -270,6 +270,8 @@ type
 
     property ActiveViewer: THtmlViewer read GetActiveViewer;
     property CaretPos: integer read GetCaretPos write SetCaretPos;
+    property CurrentFile: string read GetCurrentFile;
+    property DocumentTitle: string read GetTitle;
 //    property Dither: boolean read FDither write SetDither default True;
     property History: TStrings read FHistory;
     property LinkAttributes: TStringList read FLinkAttributes;
@@ -4683,6 +4685,8 @@ begin
     FOnProcessing(Self, False);
 end;
 
+{$ifndef FPC_TODO_PRINTING}
+
 {----------------TFVBase.Print}
 
 procedure TFVBase.Print(FromPage, ToPage: integer);
@@ -4713,6 +4717,8 @@ var
 begin
   Result := NumPrinterPages(Dummy);
 end;
+
+{$endif}
 
 {----------------TFVBase.CopyToClipboard}
 

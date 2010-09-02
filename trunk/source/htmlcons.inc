@@ -24,40 +24,79 @@ Delphi 1            VER80
 Since Delphi 6 the version number can be found in the system constant System.CompilerVersion
 }
 
-{$ifdef ver80}  {Delphi 1}
+{$ifdef FPC}
+  {$define FreePascal}
+  {$define LCL}
+
+  {$MODE Delphi}
+
+  {$define FPC_TODO}
+  {$define FPC_TODO_PRINTING}
+
+  {$define NoGDIPlus}
+
+  {$define CopyPaletteMissing}
+  {$define TransparentStretchBltMissing}
+  {$define MetaFileMissing}
+  {$define UnitConstsMissing}
+
+  {$define ver100_plus}
+  {$define ver120_plus}
+  {$define Delphi6_Plus}
 {$else}
-  {$ifdef ver90}  {Delphi 2}
-  {$else}
-    {$ifdef ver93}  {C++Builder 1}
-      {$Define CppBuilder}
+  {$define VCL}
+  {$ifdef CONDITIONALEXPRESSIONS} {Delphi 6 and up}
+    {$define ver100_plus}
+    {$define ver120_plus}
+    {$define Delphi6_Plus}
+    {$ifdef ver140}
     {$else}
-      {$define ver100_plus}
-      {$ifdef ver100} {Delphi 3}
+      {$define Delphi7_Plus}
+      {$ifdef ver140}
       {$else}
-        {$ifdef ver110} {C++Builder 3}
-          {$Define CppBuilder}
-          {$ObjExportAll On}
+        {$ifdef ver140}
         {$else}
-          {$define ver120_plus}
-          {$ifdef Ver120} {Delphi 4}
+          {$ifdef ver150}
           {$else}
-            {$ifdef ver125} {C++Builder 4}
+            {$ifdef ver160}
+            {$else}
+              {$define Compiler17_Plus}
+            {$endif}
+          {$endif}
+        {$endif}
+      {$endif}
+    {$endif}
+  {$else}
+    {$ifdef ver80}  {Delphi 1}
+    {$else}
+      {$ifdef ver90}  {Delphi 2}
+      {$else}
+        {$ifdef ver93}  {C++Builder 1}
+          {$Define CppBuilder}
+        {$else}
+          {$define ver100_plus}
+          {$ifdef ver100} {Delphi 3}
+            {$define D3_BCB3}
+          {$else}
+            {$ifdef ver110} {C++Builder 3}
+              {$define D3_BCB3}
               {$Define CppBuilder}
               {$ObjExportAll On}
             {$else}
-              {$ifdef Ver130} {Delphi 5, C++Builder 5}
-                {$ifdef BCB}   {C++Builder}
+              {$define ver120_plus}
+              {$ifdef Ver120} {Delphi 4}
+              {$else}
+                {$ifdef ver125} {C++Builder 4}
                   {$Define CppBuilder}
                   {$ObjExportAll On}
+                {$else}
+                  {$ifdef Ver130} {Delphi 5, C++Builder 5}
+                    {$ifdef BCB}   {C++Builder}
+                      {$Define CppBuilder}
+                      {$ObjExportAll On}
+                    {$endif}
+                  {$endif}
                 {$endif}
-              {$else}         {Delphi 6 and up}
-                {$define Delphi6_Plus}
-                {$if CompilerVersion >= 15}
-                  {$define Delphi7_Plus}
-                  {$if CompilerVersion >= 17}
-                     {$define Compiler17_Plus}
-                  {$ifend}
-                {$ifend}
               {$endif}
             {$endif}
           {$endif}
@@ -65,43 +104,49 @@ Since Delphi 6 the version number can be found in the system constant System.Com
       {$endif}
     {$endif}
   {$endif}
-{$endif}
 
-{ Set Compiler Switches }
-
-{$ifdef ver150}  {Delphi 7}
-{$WARN Unsafe_Type off}
-{$WARN Unsafe_Code off}
-{$WARN Unsafe_Cast off}
-{$endif}
-
-{$A+,B-,F-,G+,I+,P+,T-,V+,X+,R-}
-
-{$ifdef Win32}
-  {$J+}  {typed constants are modifiable}
-  {$H+}  {LongStrings On}
-{$endif}
-
-{$ifndef DebugIt}
-  {$W-}  {Stack frames off}
-  {$Q-}  {overflow checking off}
-  {$S-}  {stack checking off}
-  {$C-}  {Assertions off}
-  {$ifdef Win32}
-    {$O+}  {optimization on}
+  {$ifndef ver100_plus}
+    {$define CopyPaletteMissing}
+    {$define TransparentStretchBltMissing}
   {$endif}
-{$else}
-  {$W+}  {Stack frames on}
-  {$Q+}  {overflow checking on}
-  {$S+}  {stack checking on}
-  {$C+}  {Assertions on}
-  {$ifdef Win32}
-    {$O-}  {optimization off}
-  {$endif}
-{$endif}
 
-{$ifdef Delphi6_Plus}
-  {$Warn Symbol_Platform Off}
+  { Set Delphi Compiler Switches }
+
+  {$ifdef ver150}  {Delphi 7}
+  {$WARN Unsafe_Type off}
+  {$WARN Unsafe_Code off}
+  {$WARN Unsafe_Cast off}
+  {$endif}
+
+  {$A+,B-,F-,G+,I+,P+,T-,V+,X+,R-}
+
+  {$ifdef Win32}
+    {$J+}  {typed constants are modifiable}
+    {$H+}  {LongStrings On}
+  {$endif}
+
+  {$ifndef DebugIt}
+    {$W-}  {Stack frames off}
+    {$Q-}  {overflow checking off}
+    {$S-}  {stack checking off}
+    {$C-}  {Assertions off}
+    {$ifdef Win32}
+      {$O+}  {optimization on}
+    {$endif}
+  {$else}
+    {$W+}  {Stack frames on}
+    {$Q+}  {overflow checking on}
+    {$S+}  {stack checking on}
+    {$C+}  {Assertions on}
+    {$ifdef Win32}
+      {$O-}  {optimization off}
+    {$endif}
+  {$endif}
+
+  {$ifdef Delphi6_Plus}
+    {$Warn Symbol_Platform Off}
+  {$endif}
+
 {$endif}
 
 { Define Aspects Of HtmlViewer }

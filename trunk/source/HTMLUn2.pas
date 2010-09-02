@@ -32,7 +32,8 @@ unit HTMLUn2;
 
 interface
 uses
-  Windows, SysUtils, Classes, Graphics, Clipbrd,
+  Windows, SysUtils, Classes, Graphics, ClipBrd
+  {$ifdef FreePascal}, Interfaces, IntfGraphics, FpImage{$endif},
   StyleUn {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
 
 const
@@ -51,8 +52,8 @@ const
   BrkCh = WideChar(#8);
 
 {$IFNDEF DOTNET}
-type
 {$IFNDEF FPC}
+type
     //needed so that in FreePascal, we can use pointers of different sizes
 {$IFDEF WIN32}
   PtrInt = LongInt;
@@ -447,7 +448,7 @@ procedure RaisedRectColor(Canvas: TCanvas;
   Styles: htBorderStyleArray); overload;
 
 function EnlargeImage(Image: TGpObject; W, H: integer): TBitmap;
-procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
+procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; Bitmap: TBitmap);
 procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: integer;
   Bitmap, Mask: TBitmap; YI, HI: integer);
 
@@ -481,7 +482,7 @@ function GetImageWidth(Image: TGpObject): integer;
 implementation
 
 uses
-  HtmlGlobals,  Forms, jpeg, DitherUnit, Math,
+  HtmlGlobals,  Forms {$ifndef FPC_TODO}, jpeg{$endif}, DitherUnit, Math,
   {$IFDEF UNICODE}
   PngImage,
   {$ENDIF}
@@ -490,13 +491,6 @@ uses
 
 type
   EGDIPlus = class(Exception);
-//  TJpegMod = class(TJpegImage)
-//  public
-//    property Bitmap;
-//  end;
-
-//var
-//  DC: HDC;
 
 {----------------StrLenW}
 
@@ -1461,7 +1455,9 @@ begin
     DataPtr := GlobalLock(Data);
     try
       Move(Buffer^, DataPtr^, 2 * BufferLeng);
+{$ifndef FPC_TODO}
       Clipboard.SetAsHandle(CF_UNICODETEXT, Data);
+{$endif}
     finally
       GlobalUnlock(Data);
     end;
@@ -1984,66 +1980,25 @@ begin
         jpImage.LoadFromStream(Stream);
         if ColorBits <= 8 then
         begin
-          jpImage.PixelFormat := jf8bit;
+          jpImage.PixelFormat := {$ifdef FreePascal} pf8bit {$else} jf8bit {$endif};
           if not jpImage.GrayScale and (ColorBits = 8) then
             jpImage.Palette := CopyPalette(ThePalette);
         end
         else
-          jpImage.PixelFormat := jf24bit;
+          jpImage.PixelFormat := {$ifdef FreePascal} pf24bit {$else} jf24bit {$endif};
         Result.Assign(jpImage);
       finally
         jpImage.Free;
       end;
     end
-//  {$ifndef NoOldPng}
-//  else if IT = Png then
-//    begin
-//    if IsTransparentPNG(Stream, Color) then  {check for transparent PNG}
-//      Transparent := TPng;
-//    PI := TPngObject.Create;
-//    try
-//     PI.LoadFromStream(Stream);
-//     Result.Assign(PI);
-//     if Result.Handle <> 0 then;      {force proper initiation win98/95}
-//    finally
-//     PI.Free;
-//     end;
-//    end
-//  {$else}
     else if IT = Png then
       freeAndNil(Result)
-//  {$endif}
     else
     begin
       Result.LoadFromStream(Stream); {Bitmap}
     end;
     if Transparent = LLCorner then
-      AMask := GetImageMask(Result, False, 0)
-//  {$ifdef NoOldPng}
-      ;
-//  {$else}
-//  else if Transparent = TPng then
-//    begin
-//    AMask := GetImageMask(Result, True, Color);
-//    {Replace the background color with black.  This is needed if the Png is a
-//     background image.}
-//    Tmp := Result;
-//    Result := TBitmap.Create;
-//    Result.Width := Tmp.Width;
-//    Result.Height := Tmp.Height;
-//    Result.Palette := CopyPalette(ThePalette);
-//    with Result do
-//      begin
-//      Canvas.Brush.Color := Color;
-//      PatBlt(Canvas.Handle, 0, 0, Width, Height, PatCopy);
-//      SetBkColor(Canvas.Handle, clWhite);
-//      SetTextColor(Canvas.Handle, clBlack);
-//      BitBlt(Canvas.Handle, 0, 0, Width, Height, AMask.Canvas.Handle, 0, 0, SrcAnd);
-//      BitBlt(Canvas.Handle, 0, 0, Width, Height, Tmp.Canvas.Handle, 0, 0, SrcInvert);
-//      end;
-//    Tmp.Free;
-//    end;
-//  {$endif}
+      AMask := GetImageMask(Result, False, 0);
     Result := ConvertImage(Result);
   except
     Result.Free;
@@ -3146,17 +3101,119 @@ var
   RgnData: PRgnData; // Pointer to structure RGNDATA used to create regions
   lr, lg, lb: Byte; // values for lowest and hightest trans. colors
   x, y, x0: Integer; // coordinates of current rect of visible pixels
+  maxRects: Cardinal; // Number of rects to realloc memory by chunks of AllocUnit
+{$ifdef LCL}
+  bmp: TLazIntfImage;
+  b: TFpColor;
+{$else}
   b: PByteArray; // used to easy the task of testing the byte pixels (R,G,B)
   ScanLinePtr: Pointer; // Pointer to current ScanLine being scanned
   ScanLineInc: Integer; // Offset to next bitmap scanline (can be negative)
-  maxRects: Cardinal; // Number of rects to realloc memory by chunks of AllocUnit
   bmp: TBitmap;
+{$endif}
 begin
   Result := 0;
   lr := GetRValue(TransparentColor);
   lg := GetGValue(TransparentColor);
   lb := GetBValue(TransparentColor);
   { ensures that the pixel format is 32-bits per pixel }
+{$ifdef LCL}
+  bmp := TLazIntfImage.Create(0,0);
+  try
+    bmp.Assign(ABmp);
+    { alloc initial region data }
+    maxRects := AllocUnit;
+    GetMem(RgnData, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * maxRects));
+    FillChar(RgnData^, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * maxRects), 0);
+    try
+      with RgnData^.rdh do
+      begin
+        dwSize := SizeOf(TRgnDataHeader);
+        iType := RDH_RECTANGLES;
+        nCount := 0;
+        nRgnSize := 0;
+        SetRect(rcBound, MAXLONG, MAXLONG, 0, 0);
+      end;
+      { scan each bitmap row - the orientation doesn't matter (Bottom-up or not) }
+      for y := 0 to bmp.Height - 1 do
+      begin
+        x := 0;
+        while x < bmp.Width do
+        begin
+          x0 := x;
+          while x < bmp.Width do
+          begin
+            b := bmp[x,y];
+            if (b.red = lr) and (b.green = lg) and (b.blue = lb) then
+              Break; // pixel is transparent
+            Inc(x);
+          end;
+          { test to see if we have a non-transparent area in the image }
+          if x > x0 then
+          begin
+            { increase RgnData by AllocUnit rects if we exceeds maxRects }
+            if RgnData^.rdh.nCount >= maxRects then
+            begin
+              Inc(maxRects, AllocUnit);
+              ReallocMem(RgnData, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * MaxRects));
+              pr := @RgnData^.Buffer;
+              FillChar(pr^[maxRects - AllocUnit], AllocUnit * SizeOf(TRect), 0);
+            end;
+            { Add the rect (x0, y)-(x, y+1) as a new visible area in the region }
+            pr := @RgnData^.Buffer; // Buffer is an array of rects
+            with RgnData^.rdh do
+            begin
+              SetRect(pr[nCount], x0, y, x, y + 1);
+              { adjust the bound rectangle of the region if we are "out-of-bounds" }
+              if x0 < rcBound.Left then
+                rcBound.Left := x0;
+              if y < rcBound.Top then
+                rcBound.Top := y;
+              if x > rcBound.Right then
+                rcBound.Right := x;
+              if y + 1 > rcBound.Bottom then
+                rcBound.Bottom := y + 1;
+              Inc(nCount);
+            end;
+          end; // if x > x0
+          { Need to create the region by muliple calls to ExtCreateRegion, 'cause }
+          { it will fail on Windows 98 if the number of rectangles is too large   }
+          if RgnData^.rdh.nCount = 2000 then
+          begin
+            h := ExtCreateRegion(XForm, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * maxRects), RgnData^);
+            if Result > 0 then
+            begin // Expand the current region
+              CombineRgn(Result, Result, h, RGN_OR);
+              DeleteObject(h);
+            end
+            else // First region, assign it to Result
+              Result := h;
+            RgnData^.rdh.nCount := 0;
+            SetRect(RgnData^.rdh.rcBound, MAXLONG, MAXLONG, 0, 0);
+          end;
+          Inc(x);
+        end; // scan every sample byte of the image
+      end;
+      { need to call ExCreateRegion one more time because we could have left    }
+      { a RgnData with less than 2000 rects, so it wasn't yet created/combined  }
+      if RgnData^.rdh.nCount > 0 then {LDB  0 Count causes exception and abort in Win98}
+        h := ExtCreateRegion(XForm, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * MaxRects), RgnData^)
+      else
+        h := 0;
+      if Result > 0 then
+      begin
+        CombineRgn(Result, Result, h, RGN_OR);
+        DeleteObject(h);
+      end
+      else
+        Result := h;
+    finally
+      FreeMem(RgnData, SizeOf(TRgnDataHeader) + (SizeOf(TRect) * MaxRects));
+    end;
+  finally
+    bmp.Free;
+  end;
+{$else}
   bmp := TBitmap.Create;
   try
     bmp.Assign(ABmp);
@@ -3190,9 +3247,7 @@ begin
           begin
             b := @PByteArray(ScanLinePtr)[x * SizeOf(TRGBQuad)];
             // BGR-RGB: Windows 32bpp BMPs are made of BGRa quads (not RGBa)
-            if (b[2] = lr) and
-              (b[1] = lg) and
-              (b[0] = lb) then
+            if (b[2] = lr) and (b[1] = lg) and (b[0] = lb) then
               Break; // pixel is transparent
             Inc(x);
           end;
@@ -3262,6 +3317,7 @@ begin
   finally
     bmp.Free;
   end;
+{$endif}
 end;
 
 {----------------EnlargeImage}
@@ -3295,8 +3351,11 @@ end;
 
 {----------------PrintBitmap}
 
-procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; BMHandle: HBitmap);
+
+procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; Bitmap: TBitmap);
 {Y relative to top of display here}
+{$ifdef LCL}
+{$else}
 var
   OldPal: HPalette;
   DC: HDC;
@@ -3304,18 +3363,22 @@ var
   Image: AllocRec;
   ImageSize: DWord;
   InfoSize: DWord;
+{$endif}
 begin
-  if BMHandle = 0 then
+{$ifdef LCL}
+  Canvas.StretchDraw(Rect(X, Y, W, H), Bitmap);
+{$else}
+  if (Bitmap = nil) or (Bitmap.Handle = 0) then
     Exit;
   DC := Canvas.Handle;
   try
-    GetDIBSizes(BMHandle, InfoSize, ImageSize);
+    GetDIBSizes(Bitmap.Handle, InfoSize, ImageSize);
     GetMem(Info, InfoSize);
     try
       Image := Allocate(ImageSize);
       OldPal := SelectPalette(DC, ThePalette, False);
       try
-        GetDIB(BMHandle, ThePalette, Info^, Image.Ptr^);
+        GetDIB(Bitmap.Handle, ThePalette, Info^, Image.Ptr^);
         RealizePalette(DC);
         with Info^.bmiHeader do
           StretchDIBits(DC, X, Y, W, H, 0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
@@ -3328,6 +3391,7 @@ begin
     end;
   except
   end;
+{$endif}
 end;
 
 {----------------PrintTransparentBitmap3}
@@ -3342,12 +3406,7 @@ procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: integer;
    Y=YI in the bitmap and a height of HI
 }
 var
-  OldPal: HPalette;
   DC: HDC;
-  Info: PBitmapInfo;
-  Image: AllocRec;
-  ImageSize: DWord;
-  InfoSize: DWord;
   hRgn, OldRgn: THandle;
   Rslt: integer;
   XForm: TXForm;
@@ -3415,24 +3474,7 @@ begin
           if Rslt = 1 then
             CombineRgn(hRgn, hRgn, OldRgn, RGN_AND);
           SelectClipRgn(DC, hRgn);
-          GetDIBSizes(ABitmap.Handle, InfoSize, ImageSize);
-          GetMem(Info, InfoSize);
-          try
-            Image := Allocate(ImageSize);
-            OldPal := SelectPalette(DC, ThePalette, True);
-            try
-              GetDIB(ABitmap.Handle, ThePalette, Info^, Image.Ptr^);
-              RealizePalette(DC);
-              with Info^.bmiHeader do
-                StretchDIBits(DC, X, Y, NewW, NewH,
-                  0, 0, biWidth, biHeight, Image.Ptr, Info^, DIB_RGB_COLORS, SRCCOPY);
-            finally
-              DeAllocate(Image);
-              SelectPalette(DC, OldPal, False);
-            end;
-          finally
-            FreeMem(Info, InfoSize);
-          end;
+          PrintBitmap(Canvas, X, Y, NewW, NewH, ABitmap);
         finally
           if Rslt = 1 then
             SelectClipRgn(DC, OldRgn)
@@ -3717,7 +3759,7 @@ var
   var
     Red, Green, Blue: Byte;
   begin
-    if Color and $80000000 = $80000000 then
+    if Color < 0 then
       Color := GetSysColor(Color and $FFFFFF)
     else
       Color := Color and $FFFFFF;
@@ -3734,7 +3776,7 @@ var
   var
     Red, Green, Blue: Byte;
   begin
-    if Color and $80000000 = $80000000 then
+    if Color < 0 then
       Color := GetSysColor(Color and $FFFFFF)
     else
       Color := Color and $FFFFFF;

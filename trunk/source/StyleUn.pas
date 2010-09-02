@@ -33,7 +33,7 @@ unit StyleUn;
 interface
 
 uses
-  Classes, Graphics;
+  Classes{$ifdef FreePascal}, Interfaces{$endif}, Graphics;
 
 const
   IntNull = -12345678;

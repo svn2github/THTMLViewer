@@ -34,8 +34,14 @@ interface
 
 uses
   Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls,
-  MetafilePrinter,
-  HtmlGlobals, HTMLUn2, ReadHTML, HTMLSubs, StyleUn, vwPrint;
+{$ifdef FreePascal}
+  Interfaces,
+  LMessages,
+{$endif}
+{$ifndef FPC_TODO_PRINTING}
+  MetafilePrinter, vwPrint,
+{$endif}
+  HtmlGlobals, HTMLUn2, ReadHTML, HTMLSubs, StyleUn;
 
 const
   wm_FormSubmit = wm_User + 100;
@@ -108,7 +114,11 @@ type
     procedure SetPosition(Value: integer);
     procedure SetMin(Value: Integer);
     procedure SetMax(Value: Integer);
+{$ifdef FreePascal}
+    procedure CNVScroll(var Message: TLMVScroll); message LM_VSCROLL;
+{$else}
     procedure CNVScroll(var Message: TWMVScroll); message CN_VSCROLL;
+{$endif}
   public
     property Position: integer read FPosition write SetPosition;
     property Min: integer read FMin write SetMin;
@@ -120,7 +130,9 @@ type
 
   THTMLViewer = class(TWinControl)
   private
+{$ifndef FPC_TODO_PRINTING}
     vwP, OldPrinter: TvwPrinter;
+{$endif}
     fScaleX, fScaleY: single;
     FCodePage: integer;
     FOnImageRequested: TGottenImageEvent;
@@ -205,7 +217,9 @@ type
     FOnPrintHeader, FOnPrintFooter: TPagePrinted;
     FOnPrintHTMLHeader, FOnPrintHTMLFooter: ThtmlPagePrinted;
     FPage: integer;
+{$ifndef FPC_TODO_PRINTING}
     FOnPageEvent: TPageEvent;
+{$endif}
     FOnMouseDouble: TMouseEvent;
     HotSpotAction: boolean;
     FMarginHeight, FMarginWidth: integer;
@@ -399,6 +413,10 @@ type
     procedure LoadImageFile(const FileName: string);
     procedure LoadTextStrings(Strings: TStrings);
     procedure LoadStream(const URL: string; AStream: TMemoryStream; ft: ThtmlFileType);
+{$ifndef FPC_TODO_PRINTING}
+    procedure OpenPrint;
+    procedure ClosePrint;
+    procedure AbortPrint;
     procedure Print(FromPage, ToPage: integer);
     function NumPrinterPages: integer; overload;
     function NumPrinterPages(var WidthRatio: double): integer; overload;
@@ -406,6 +424,7 @@ type
     procedure NumPrinterPages(MFPrinter: TMetaFilePrinter; out Width, Height: Integer); overload;
     function PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: boolean = False): integer; virtual;
 //BG, 01.12.2006: end of modification
+{$endif}
     function PositionTo(Dest: string): boolean;
     function Find(const S: WideString; MatchCase: boolean): boolean;
     function FindEx(const S: WideString; MatchCase, Reverse: boolean): boolean;
@@ -435,15 +454,14 @@ type
     procedure htProgressInit;
     function FullDisplaySize(FormatWidth: integer): TSize;
     function MakeBitmap(YTop, FormatWidth, Width, Height: integer): TBitmap;
+{$ifndef FPC_TODO_PRINTING}
     function MakeMetaFile(YTop, FormatWidth, Width, Height: integer): TMetaFile;
     function MakePagedMetaFiles(Width, Height: integer): TList;
+{$endif}
     procedure ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
     function GetCharAtPos(Pos: integer; var Ch: WideChar;
       var Font: TFont): boolean;
     function GetTextByIndices(AStart, ALast: integer): WideString;
-    procedure OpenPrint;
-    procedure ClosePrint;
-    procedure AbortPrint;
 
     property DocumentTitle: string read GetTitle;
     property URL: string read FURL write FURL;
@@ -470,7 +488,9 @@ type
     property NameList: TStringList read GetNameList;
     property LinkList: TList read GetLinkList;
     property SectionList: TSectionList read FSectionList;
+{$ifndef FPC_TODO_PRINTING}
     property OnPageEvent: TPageEvent read FOnPageEvent write FOnPageEvent;
+{$endif}
     property OnExpandName: TExpandNameEvent read FOnExpandName write SetOnExpandName;
     property FormData: TFreeList read GetFormData write SetFormData;
     property DocumentSource: string read FDocumentSource;
@@ -634,12 +654,14 @@ begin
   BorderPanel := TPanel.Create(Self);
   BorderPanel.BevelInner := bvNone;
   BorderPanel.BevelOuter := bvNone;
-  BorderPanel.Ctl3D := False;
   BorderPanel.Align := alClient;
+{$ifndef FreePascal}
+  BorderPanel.Ctl3D := False;
   BorderPanel.ParentCtl3D := False;
-{$IFDEF delphi7_plus}
+{$ifdef delphi7_plus}
   BorderPanel.ParentBackground := False;
-{$ENDIF}
+{$endif}
+{$endif}
 
   BorderPanel.Parent := Self;
 
@@ -650,7 +672,9 @@ begin
   PaintPanel.Left := 1;
   PaintPanel.BevelOuter := bvNone;
   PaintPanel.BevelInner := bvNone;
+{$ifndef FreePascal}
   PaintPanel.ctl3D := False;
+{$endif}
 
   PaintPanel.OnPaint := HTMLPaint;
   PaintPanel.OnMouseDown := HTMLMouseDown;
@@ -722,7 +746,9 @@ begin
   Visited.Free;
   HTMLTimer.Free;
   FLinkAttributes.Free;
+{$ifndef FPC_TODO_PRINTING}
   AbortPrint;
+{$endif}
   inherited Destroy;
 end;
 
@@ -2883,7 +2909,7 @@ begin
             while X < XLast do
             begin
               if Mask = nil then
-                PrintBitmap(ACanvas, X, Y, BW, BH, Bitmap.Handle)
+                PrintBitmap(ACanvas, X, Y, BW, BH, Bitmap)
               else
               begin
                 PrintTransparentBitmap3(ACanvas, X, Y, BW, BH, Bitmap, Mask, 0, Bitmap.Height);
@@ -3041,6 +3067,8 @@ end;
 
 type
   EExcessiveSizeError = class(Exception);
+
+{$ifndef FreePascal}
 
 function ThtmlViewer.MakeMetaFile(YTop, FormatWidth, Width, Height: integer): TMetaFile;
 var
@@ -3209,6 +3237,8 @@ begin
   end;
 end;
 
+{$endif}
+
 function ThtmlViewer.MakeBitmap(YTop, FormatWidth, Width, Height: integer): TBitmap;
 var
   CopyList: TSectionList;
@@ -3272,6 +3302,7 @@ begin
   end;
 end;
 
+{$ifndef FPC_TODO_PRINTING}
 procedure ThtmlViewer.Print(FromPage, ToPage: integer);
 var
   ARect, CRect: TRect;
@@ -3809,7 +3840,7 @@ var
   Curs: integer;
   Done: boolean;
   DC: HDC;
-  PrnDC: HDC; {metafile printer's DC}
+  //PrnDC: HDC; {metafile printer's DC}
 
   UpperLeftPagePoint, { these will contain Top/Left and Bottom/Right unprintable area}
     LowerRightPagePoint: TPoint;
@@ -3979,25 +4010,23 @@ begin
 
           BeginDoc;
           DC := Canvas.Handle;
-          PrnDC := PrinterDC;
 
-          P3 := GetDeviceCaps(PrnDC, LOGPIXELSY);
-          P1 := GetDeviceCaps(PrnDC, LOGPIXELSX);
+          P3 := PixelsPerInchY;
+          P1 := PixelsPerInchX;
           P2 := Round(Screen.PixelsPerInch * FPrintScale);
           fScaleX := 100.0 / P3;
           fScaleY := 100.0 / P1;
           PrintList.ScaleX := fScaleX;
           PrintList.ScaleY := fScaleY;
           SetMapMode(DC, mm_AnIsotropic);
-          //P1 := GetDeviceCaps(PrnDC, LOGPIXELSX);
           SetWindowExtEx(DC, P2, P2, nil);
           SetViewPortExtEx(DC, P1, P3, nil);
 
           { calculate the amount of space that is non-printable }
 
           { get PHYSICAL page width }
-          LowerRightPagePoint.X := GetDeviceCaps(PrnDC, PhysicalWidth);
-          LowerRightPagePoint.Y := GetDeviceCaps(PrnDC, PhysicalHeight);
+          LowerRightPagePoint.X := PaperWidth;
+          LowerRightPagePoint.Y := PaperHeight;
 
           { now compute a complete unprintable area rectangle
            (composed of 2*width, 2*height) in pixels...}
@@ -4009,8 +4038,8 @@ begin
 
           { get upper left physical offset for the printer... ->
             printable area <> paper size }
-          UpperLeftPagePoint.X := GetDeviceCaps(PrnDC, PhysicalOffsetX);
-          UpperLeftPagePoint.Y := GetDeviceCaps(PrnDC, PhysicalOffsetY);
+          UpperLeftPagePoint.X := OffsetX;
+          UpperLeftPagePoint.Y := OffsetY;
 
           { now that we know the TOP and LEFT offset we finally can
             compute the BOTTOM and RIGHT offset: }
@@ -4270,6 +4299,8 @@ begin
     Result := FPage;
   end;
 end;
+
+{$endif}
 
 procedure ThtmlViewer.BackgroundChange(Sender: TObject);
 begin
@@ -5434,7 +5465,11 @@ begin
   SetParams(FPosition, FPage, FMin, Value);
 end;
 
+{$ifdef FreePascal}
+procedure T32ScrollBar.CNVScroll(var Message: TLMVScroll);
+{$else}
 procedure T32ScrollBar.CNVScroll(var Message: TWMVScroll);
+{$endif}
 var
   SPos: integer;
   ScrollInfo: TScrollInfo;

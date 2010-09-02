@@ -888,8 +888,8 @@ begin
   CodePage := PropStack.Last.CodePage;
   Buffer := TCharCollection.Create;
   try
-    Result := not (LCh in [#0..#8, EOFChar, '<']);
-    while not (LCh in [#0..#8, EOFChar, '<']) do
+    Result := not (LCh in [#1..#8, EOFChar, '<']);
+    while not (LCh in [#1..#8, EOFChar, '<']) do
     begin
       while LCh = '&' do
         GetEntity(LCToken, CodePage);
@@ -898,23 +898,23 @@ begin
       repeat
         SaveIndex := SIndex;
         // Collect all leading white spaces.
-        if LCh in [' ', #13, #10, #9] then
+        if LCh in [' ', #13, #10, Tab] then
         begin
           if not LinkSearch then
             Buffer.Add(' ', SaveIndex);
           // Skip other white spaces.
           repeat
             GetCh;
-          until not (LCh in [' ', #13, #10, #9]);
+          until not (LCh in [' ', #13, #10, Tab]);
         end;
         // Collect any non-white space characters which are not special.
-        while not (LCh in [#0..#8, EOFChar, '<', '&', ' ', #13, #10, #9]) do
+        while not (LCh in [#1..#8, EOFChar, '<', '&', ' ', #13, #10, Tab]) do
         begin
           if not LinkSearch then
             Buffer.Add(LCh, SIndex);
           GetCh;
         end;
-      until LCh in [#0..#8, EOFChar, '<', '&'];
+      until LCh in [#1..#8, EOFChar, '<', '&'];
       if Buffer.Size > 0 then
       begin
         LCToken.AddString(Buffer, CodePage);
@@ -2124,14 +2124,14 @@ var
       CodePage := PropStack.Last.CodePage;
       Buffer := TCharCollection.Create;
       try
-        Result := not (LCh in [#0..#8, EOFChar, '<', ^M]);
-        while not (LCh in [#0..#8, EOFChar, '<', ^M]) do
+        Result := not (LCh in [#1..#8, EOFChar, '<', ^M]);
+        while not (LCh in [#1..#8, EOFChar, '<', ^M]) do
         begin
           while LCh = '&' do {look for entities}
             GetEntity(S, CodePage);
 
         {Get any normal text, includein spaces}
-          while not (LCh in [#0..#8, EOFChar, '<', '&', ^M]) do
+          while not (LCh in [#1..#8, EOFChar, '<', '&', ^M]) do
           begin
             Buffer.Add(LCh, SIndex);
             GetCh;
@@ -2859,9 +2859,9 @@ begin
       TTEndSy, CodeEndSy, KbdEndSy, SampEndSy, FontEndSy, BigEndSy,
       SmallEndSy, BigSy, SmallSy, ASy, AEndSy, SpanSy, SpanEndSy,
       InputSy, TextAreaSy, TextAreaEndSy, SelectSy, LabelSy, LabelEndSy,
-      ImageSy, FontSy, FontEndSy, BaseFontSy, BRSy, ObjectSy, ObjectEndSy,
-      MapSy, PageSy, ScriptSy, ScriptEndSy, PanelSy, NoBrSy, NoBrEndSy,
-      WbrSy, CommandSy]) do
+      ImageSy, FontSy, BaseFontSy, BRSy, ObjectSy, ObjectEndSy,
+      MapSy, PageSy, ScriptSy, ScriptEndSy, PanelSy, CommandSy])
+  do
     if Sy <> CommandSy then
       DoCommonSy
     else

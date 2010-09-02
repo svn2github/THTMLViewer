@@ -68,7 +68,12 @@ function vwSetPrinter(NewPrinter: TvwPrinter): TvwPrinter;
 implementation
 
 uses
-  Consts, SysUtils, Forms;
+{$ifdef FreePascal}
+  RtlConsts,
+{$else}
+  Consts,
+{$endif}
+  SysUtils, Forms;
 
 var
   FPrinter: TvwPrinter;

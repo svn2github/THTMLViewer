@@ -67,14 +67,15 @@ interface
 uses
   Windows, Messages, Classes, Graphics, Controls, ExtCtrls,
   HtmlUn2, StyleUn, HtmlGif2
+{$ifdef FreePascal}, Interfaces {$endif}
 {$IFDEF UseTNT}
   , TntStdCtrls
 {$ELSE UseTNT}
-{$IFDEF UseElPack}
+  {$IFDEF UseElPack}
   , ElListBox, ElCombos, ElEdits, ElPopBtn
-{$ELSE UseElPack}
-  , StdCtrls
-{$ENDIF UseElPack}
+  {$ELSE UseElPack}
+    , StdCtrls
+  {$ENDIF UseElPack}
 {$ENDIF UseTNT};
 
 type
@@ -2370,7 +2371,6 @@ var
   DC: HDC;
   Img: TBitmap;
   W, H: integer;
-  BMHandle: HBitmap;
   PrintTransparent: boolean;
 begin
   DC := Canvas.Handle;
@@ -2451,8 +2451,7 @@ begin
         PrintTransparentBitmap3(Canvas, XX, Y, W, H, TBitmap(ddImage), ddMask, 0, TBitmap(ddImage).Height)
       else if ddImage is TBitmap then
       begin {printing, not transparent}
-        BMHandle := TBitmap(ddImage).Handle;
-        PrintBitmap(Canvas, XX, Y, W, H, BMHandle);
+        PrintBitmap(Canvas, XX, Y, W, H, TBitmap(ddImage));
       end
 {$IFNDEF NoMetafile}
       else if ddImage is ThtMetaFile then
@@ -3546,7 +3545,7 @@ begin
           PaintTo(PaintBitmap.Canvas.Handle, 0, 0);
           PaintBitmap.Canvas.UnLock;
         end;
-        PrintBitmap(Canvas, X1, Y1, Width, Height, PaintBitmap.Handle);
+        PrintBitmap(Canvas, X1, Y1, Width, Height, PaintBitmap);
       except end;
     end
     else
@@ -5497,7 +5496,7 @@ begin
             if HasBackgroundColor then
             begin
               DrawGpImage(FullBg.Canvas.Handle, TgpImage(TiledImage), 0, 0);
-              PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG.Handle);
+              PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG);
             end
             else
               PrintGpImageDirect(Canvas.Handle, TgpImage(TiledImage), PL, PT,
@@ -5506,13 +5505,13 @@ begin
           else
           {$ENDIF !NoGDIPlus}
           if NoMask then {printing}
-            PrintBitmap(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage).Handle)
+            PrintBitmap(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage))
           else if HasBackgroundColor then
           begin
             BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcInvert);
             BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TiledMask.Canvas.Handle, 0, IT, SRCAND);
             BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SRCPaint);
-            PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG.Handle);
+            PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG);
           end
           else
             PrintTransparentBitmap3(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage), TiledMask, IT, IH)
@@ -7797,7 +7796,7 @@ begin
         if Cell.BkGnd then
         begin
           DrawGpImage(FullBg.Canvas.Handle, TgpImage(TiledImage), 0, 0);
-          PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG.Handle);
+          PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG);
         end
         else
           PrintGpImageDirect(Canvas.Handle, TgpImage(TiledImage), PL, PT,
@@ -7806,14 +7805,14 @@ begin
       else
       {$ENDIF !NoGDIPlus}
       if NoMask then
-        PrintBitmap(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage).Handle)
+        PrintBitmap(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage))
       else if Cell.BkGnd then
       begin
         InitFullBG(PR - PL, IH);
         BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcInvert);
         BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TiledMask.Canvas.Handle, 0, IT, SRCAND);
         BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SRCPaint);
-        PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG.Handle);
+        PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG);
       end
       else
         PrintTransparentBitmap3(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage), TiledMask, IT, IH);
@@ -11841,7 +11840,7 @@ var
           if FO.TheFont.bgColor = clNone then
           begin
             Color := Canvas.Font.Color;
-            if Color and $80000000 = $80000000 then
+            if Color < 0 then
               Color := GetSysColor(Color and $FFFFFF)
             else
               Color := Color and $FFFFFF;
@@ -11868,17 +11867,17 @@ var
             (GetDeviceCaps(Canvas.Handle, NumColors) in [0..2]) then
           begin
             Color := Canvas.Font.Color;
-            if Color and $80000000 = $80000000 then
+            if Color < 0 then
               Color := GetSysColor(Color);
-            if Color and $FFFFFF <> $FFFFFF then
+            if Color < 0 then
               Canvas.Font.Color := clBlack; {Print black}
           end;
           if not ParentSectionlist.PrintTableBackground then
           begin
             Color := Canvas.Font.Color;
-            if Color and $80000000 = $80000000 then
+            if Color < 0 then
               Color := GetSysColor(Color);
-            if (Color and $E0E0 = $E0E0) then
+            if (Color and $E0E0) = $E0E0 then
               Canvas.Font.Color := $2A0A0A0; {too near white or yellow, make it gray}
           end;
         end;
@@ -12560,8 +12559,10 @@ begin
     BorderStyle := bsSingle;
     Color := clWhite;
     FVisible := True;
+{$ifndef FreePascal}
     Ctl3D := False;
     ParentCtl3D := False;
+{$endif}
     ParentFont := False;
     VertAlign := ABottom; {default}
     HorzAlign := ANone;
@@ -12750,7 +12751,7 @@ begin
           with Opanel do
             SetBounds(Left, Top, ImageWidth, ImageHeight);
           PanelPrintEvent(OSender, OPanel, Bitmap);
-          PrintBitmap(ACanvas, X1, Y1, ImageWidth, ImageHeight, Bitmap.Handle);
+          PrintBitmap(ACanvas, X1, Y1, ImageWidth, ImageHeight, Bitmap);
         finally
           with Opanel do
             SetBounds(Left, Top, OldWidth, OldHeight);
