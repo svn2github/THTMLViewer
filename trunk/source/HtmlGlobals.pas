@@ -39,7 +39,7 @@ interface
 
 uses
   Windows,
-{$ifdef FreePascal}
+{$ifdef FPC}
   RtlConsts,
 {$else}
   Consts,
@@ -51,7 +51,7 @@ type
   UnicodeString = WideString;
 {$ENDIF !Unicode}
 
-{$ifdef FreePascal}
+{$ifdef LCL}
 const
   HWND_MESSAGE = HWND(-3);
 
@@ -209,9 +209,9 @@ end;
 // -----------
 // Copies a HPALETTE.
 //
-// Copied from D3 graphics.pas.
-// This is declared private in some old versions of Delphi 2 and is missing
-// in FreePascalso we have to implement it here to support those versions.
+// Copied from D3 graphics.pas. This is declared private in some old versions
+// of Delphi 2 and is missing in Lazarus Component Library (LCL), so we have
+// to implement it here to support those versions.
 //
 // Parameters:
 // Palette	The palette to copy.

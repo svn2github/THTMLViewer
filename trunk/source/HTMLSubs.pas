@@ -67,7 +67,7 @@ interface
 uses
   Windows, Messages, Classes, Graphics, Controls, ExtCtrls,
   HtmlUn2, StyleUn, HtmlGif2
-{$ifdef FreePascal}, Interfaces {$endif}
+{$ifdef LCL}, Interfaces {$endif}
 {$IFDEF UseTNT}
   , TntStdCtrls
 {$ELSE UseTNT}
@@ -12559,7 +12559,7 @@ begin
     BorderStyle := bsSingle;
     Color := clWhite;
     FVisible := True;
-{$ifndef FreePascal}
+{$ifndef LCL}
     Ctl3D := False;
     ParentCtl3D := False;
 {$endif}

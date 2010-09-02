@@ -1,35 +1,46 @@
 unit ImgForm;
 
+{$include ..\..\source\htmlcons.inc}
+
 interface
 
 uses
-  Wintypes, Winprocs, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  ExtCtrls;
+  SysUtils, Classes, Graphics, Controls, Forms, Dialogs, ExtCtrls, Math
+{$ifdef LCL}
+  , LResources
+{$endif}
+  ;
 
 type
   TImageForm = class(TForm)
+  published
     Image1: TImage;
-    procedure FormShow(Sender: TObject);
   private
-    { Private declarations }
+    procedure setBitmap(const Value: TBitmap);
   public
-    { Public declarations }
-    ImageFormBitmap: TBitmap;
+    property Bitmap: TBitmap write setBitmap;
   end;
-
-var
-  ImageForm: TImageForm;
 
 implementation
 
+{$ifdef LCL}
+{$else}
 {$R *.DFM}
+{$endif}
 
-procedure TImageForm.FormShow(Sender: TObject);
+procedure TImageForm.setBitmap(const Value: TBitmap);
+var
+  OldWidth, OldHeight: Integer;
 begin
-Image1.Picture.Bitmap := ImageFormBitmap;
-Width := Image1.Width + 30;  {makes for better fit}
-ClientHeight := Image1.Height;
-ClientWidth := Image1.Width;
+  OldWidth  := Image1.Width;
+  OldHeight := Image1.Height;
+  Image1.Picture.Bitmap := Value;
+  Left := Max(Left + (OldWidth - Image1.Width) div 2, 0);
+  Top  := Max(Top + (OldHeight - Image1.Height) div 2, 0);
 end;
 
+{$ifdef LCL}
+initialization
+{$I ImgForm.lrs}
+{$endif}
 end.

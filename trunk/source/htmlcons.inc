@@ -25,9 +25,7 @@ Since Delphi 6 the version number can be found in the system constant System.Com
 }
 
 {$ifdef FPC}
-  {$define FreePascal}
   {$define LCL}
-
   {$MODE Delphi}
 
   {$define FPC_TODO}

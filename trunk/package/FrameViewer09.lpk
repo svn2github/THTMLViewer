@@ -3,7 +3,7 @@
   <Package Version="3">
     <PathDelim Value="\"/>
     <Name Value="FrameViewer09"/>
-    <AutoUpdate Value="OnRebuildingAll"/>
+    <AutoUpdate Value="Manually"/>
     <CompilerOptions>
       <Version Value="8"/>
       <PathDelim Value="\"/>

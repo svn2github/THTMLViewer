@@ -33,7 +33,7 @@ unit HTMLUn2;
 interface
 uses
   Windows, SysUtils, Classes, Graphics, ClipBrd
-  {$ifdef FreePascal}, Interfaces, IntfGraphics, FpImage{$endif},
+  {$ifdef LCL}, Interfaces, IntfGraphics, FpImage{$endif},
   StyleUn {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
 
 const
@@ -1980,12 +1980,12 @@ begin
         jpImage.LoadFromStream(Stream);
         if ColorBits <= 8 then
         begin
-          jpImage.PixelFormat := {$ifdef FreePascal} pf8bit {$else} jf8bit {$endif};
+          jpImage.PixelFormat := {$ifdef LCL} pf8bit {$else} jf8bit {$endif};
           if not jpImage.GrayScale and (ColorBits = 8) then
             jpImage.Palette := CopyPalette(ThePalette);
         end
         else
-          jpImage.PixelFormat := {$ifdef FreePascal} pf24bit {$else} jf24bit {$endif};
+          jpImage.PixelFormat := {$ifdef LCL} pf24bit {$else} jf24bit {$endif};
         Result.Assign(jpImage);
       finally
         jpImage.Free;

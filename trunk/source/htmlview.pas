@@ -34,7 +34,7 @@ interface
 
 uses
   Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls,
-{$ifdef FreePascal}
+{$ifdef LCL}
   Interfaces,
   LMessages,
 {$endif}
@@ -114,7 +114,7 @@ type
     procedure SetPosition(Value: integer);
     procedure SetMin(Value: Integer);
     procedure SetMax(Value: Integer);
-{$ifdef FreePascal}
+{$ifdef LCL}
     procedure CNVScroll(var Message: TLMVScroll); message LM_VSCROLL;
 {$else}
     procedure CNVScroll(var Message: TWMVScroll); message CN_VSCROLL;
@@ -655,7 +655,7 @@ begin
   BorderPanel.BevelInner := bvNone;
   BorderPanel.BevelOuter := bvNone;
   BorderPanel.Align := alClient;
-{$ifndef FreePascal}
+{$ifndef LCL}
   BorderPanel.Ctl3D := False;
   BorderPanel.ParentCtl3D := False;
 {$ifdef delphi7_plus}
@@ -672,7 +672,7 @@ begin
   PaintPanel.Left := 1;
   PaintPanel.BevelOuter := bvNone;
   PaintPanel.BevelInner := bvNone;
-{$ifndef FreePascal}
+{$ifndef LCL}
   PaintPanel.ctl3D := False;
 {$endif}
 
@@ -3068,7 +3068,7 @@ end;
 type
   EExcessiveSizeError = class(Exception);
 
-{$ifndef FreePascal}
+{$ifndef LCL}
 
 function ThtmlViewer.MakeMetaFile(YTop, FormatWidth, Width, Height: integer): TMetaFile;
 var
@@ -5465,7 +5465,7 @@ begin
   SetParams(FPosition, FPage, FMin, Value);
 end;
 
-{$ifdef FreePascal}
+{$ifdef LCL}
 procedure T32ScrollBar.CNVScroll(var Message: TLMVScroll);
 {$else}
 procedure T32ScrollBar.CNVScroll(var Message: TWMVScroll);

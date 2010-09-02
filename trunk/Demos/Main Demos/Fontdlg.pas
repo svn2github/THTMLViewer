@@ -1,10 +1,16 @@
 unit Fontdlg;
 
+{$include ..\..\source\htmlcons.inc}
+
 interface
 
 uses
-  SysUtils, Windows, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, StdCtrls, ColorGrd, Htmlview, Spin;
+  SysUtils, Classes, Graphics, Controls,
+  Forms, Dialogs, StdCtrls, Spin, ColorGrd, 
+{$ifdef LCL}
+  LResources,
+{$endif}
+  Htmlview;
 
 type
   TFontForm = class(TForm)
@@ -17,7 +23,7 @@ type
     ResetButton: TButton;
     FontSizeEdit: TSpinEdit;
     Label1: TLabel;
-    Label2: TLabel;
+    Label2: TLabel;        
     Label3: TLabel;
     Label4: TLabel;
     Label5: TLabel;
@@ -61,7 +67,11 @@ var
 
 implementation
 
+{$ifdef LCL}
+{$else}
 {$R *.DFM}
+{$endif}
+
 const
   ViewText: string =
      '<center><h1>Heading</h1></center>'+
@@ -78,13 +88,6 @@ begin
 FontViewer.LoadFromBuffer(@ViewText[1], Length(ViewText), '');
 end;
 
-procedure TFontForm.FormCreate(Sender: TObject);
-begin
-FontListBox.Items := Screen.Fonts;
-GetColorValues(AddItem);
-LoadAgain;
-end;
-
 procedure TFontForm.AddItem(const Value: string);
 var
   Color: TColor;
@@ -92,6 +95,17 @@ begin
 Color := StringToColor(Value);
 if (Color >= 0) or (Color = -16) or (Color = -6) or (Color = -2) then
   BackListBox.Items.Add(Value);
+end;
+
+procedure TFontForm.FormCreate(Sender: TObject);
+begin
+FontListBox.Items := Screen.Fonts;
+{$ifdef LCL}
+GetColorValues(AddItem);
+{$else}
+GetColorValues(AddItem);
+{$endif}
+LoadAgain;
 end;
 
 function TFontForm.GetFontName: TFontName;
@@ -202,4 +216,8 @@ else if Sender = FontSizeEdit then
   FontSize := FontSizeEdit.Value;
 end;
 
+{$ifdef LCL}
+initialization
+{$I FontDlg.lrs}
+{$endif}
 end.

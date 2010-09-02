@@ -68,7 +68,7 @@ function vwSetPrinter(NewPrinter: TvwPrinter): TvwPrinter;
 implementation
 
 uses
-{$ifdef FreePascal}
+{$ifdef FPC}
   RtlConsts,
 {$else}
   Consts,

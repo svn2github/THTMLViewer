@@ -17,7 +17,7 @@ unit MetaFilePrinter;
 interface
 
 uses
-  Windows, Classes, Graphics, Printers{$ifdef FreePascal}, Interfaces{$endif};
+  Windows, Classes, Graphics, Printers{$ifdef LCL}, Interfaces{$endif};
 
 type
 
@@ -491,7 +491,7 @@ begin
   if Printer.Printers.Count = 0 then
     raise Exception.Create('Printer not available');
 
-{$ifdef FreePascal}
+{$ifdef LCL}
   FPPIX := Printer.XDPI;
   FPPIY := Printer.YDPI;
   FPaperWidth := Printer.PageWidth;

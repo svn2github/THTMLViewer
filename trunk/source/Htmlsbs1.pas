@@ -32,7 +32,7 @@ unit Htmlsbs1;
 
 interface
 uses
-  Windows, Classes, Graphics{$ifdef FreePascal}, Interfaces{$endif}, Controls, HtmlUn2, HtmlSubs, StyleUn;
+  Windows, Classes, Graphics{$ifdef LCL}, Interfaces{$endif}, Controls, HtmlUn2, HtmlSubs, StyleUn;
 
 type
 

@@ -1,10 +1,15 @@
 unit Submit;
 
+{$include ..\..\source\htmlcons.inc}
+
 interface
 
 uses
-  SysUtils, WinTypes, WinProcs, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, StdCtrls;
+  SysUtils, Messages, Classes, Graphics, Controls, Forms, Dialogs, StdCtrls
+{$ifdef LCL}
+  , LResources
+{$endif}
+  ;
 
 type
   TSubmitForm = class(TForm)
@@ -27,11 +32,19 @@ var
 
 implementation
 
+{$ifdef LCL}
+{$else}
 {$R *.DFM}
+{$endif}
 
 procedure TSubmitForm.Button1Click(Sender: TObject);
 begin
 Close;
 end;
 
+{$ifdef LCL}
+initialization
+{$I Submit.lrs}
+{$else}
+{$endif}
 end.

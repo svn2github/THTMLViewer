@@ -15,6 +15,9 @@
 {$endif}
 
 unit FDemUnit;
+
+{$include ..\..\source\htmlcons.inc}
+
 {A program to demonstrate the TFrameViewer component}
 
 interface
@@ -22,53 +25,61 @@ interface
 uses
   Windows, SysUtils, Messages, Classes, Graphics, Controls, Forms, Dialogs,
   ExtCtrls, StdCtrls, Menus, MMSystem, Clipbrd, ShellAPI, FontDlg, HTMLAbt,
-  MPlayer, {$ifdef UseXpMan} XpMan, {$endif} ComCtrls,
+{$ifdef LCL}
+  LResources, FPImage,
+{$else}
+  MPlayer, PreviewForm,
+{$endif}
+  {$ifdef UseXpMan} XpMan, {$endif} ComCtrls,
 
-  FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, HTMLView, Submit, ImgForm, PreviewForm;
+  FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, HTMLView, Submit, ImgForm;
 
 const
   MaxHistories = 6;  {size of History list}
 
   type
   TForm1 = class(TForm)
-    MainMenu1: TMainMenu;
-    File1: TMenuItem;
-    Open1: TMenuItem;
-    N1: TMenuItem;
-    Exit1: TMenuItem;
-    OpenDialog: TOpenDialog;                 
-    Edit1: TMenuItem;
-    Find1: TMenuItem;
-    Panel2: TPanel;
-    Copy1: TMenuItem;
-    N2: TMenuItem;
-    SelectAll1: TMenuItem;
-    FindDialog: TFindDialog;
-    Options1: TMenuItem;
-    Showimages: TMenuItem;
     About1: TMenuItem;
-    HistoryMenuItem: TMenuItem;
-    PrintDialog: TPrintDialog;
-    Print1: TMenuItem;
+    BackButton: TButton;
+    Copy1: TMenuItem;
+    CopyImagetoclipboard: TMenuItem;
+    Edit1: TMenuItem;
+    Edit2: TEdit;
+    Exit1: TMenuItem;
+    File1: TMenuItem;
+    Find1: TMenuItem;
+    FindDialog: TFindDialog;
     Fonts: TMenuItem;
     FrameViewer: TFrameViewer;
-    Panel1: TPanel;
-    ReloadButton: TButton;
     FwdButton: TButton;
-    BackButton: TButton;
-    Edit2: TEdit;
-    PopupMenu: TPopupMenu;
-    CopyImagetoclipboard: TMenuItem;
-    MediaPlayer: TMediaPlayer;
-    ViewImage: TMenuItem;
+    HistoryMenuItem: TMenuItem;
+    MainMenu1: TMainMenu;
+    N1: TMenuItem;
+    N2: TMenuItem;
     N3: TMenuItem;
+    Open1: TMenuItem;
+    OpenDialog: TOpenDialog;
     OpenInNewWindow: TMenuItem;
-    PrintPreview1: TMenuItem;
-    Timer1: TTimer;
-    ProgressBar: TProgressBar;
-    SetPrintScale: TMenuItem;
-    PrinterSetupDialog: TPrinterSetupDialog;
+    Options1: TMenuItem;
+    Panel1: TPanel;
+    Panel2: TPanel;
+    PopupMenu: TPopupMenu;
+    Print1: TMenuItem;
     PrinterSetup: TMenuItem;
+    PrintPreview1: TMenuItem;
+    ProgressBar: TProgressBar;
+    ReloadButton: TButton;
+    SelectAll1: TMenuItem;
+    SetPrintScale: TMenuItem;
+    Showimages: TMenuItem;
+    Timer1: TTimer;
+    ViewImage: TMenuItem;
+{$ifdef LCL}
+{$else}
+    MediaPlayer: TMediaPlayer;
+    PrintDialog: TPrintDialog;
+    PrinterSetupDialog: TPrinterSetupDialog;
+{$endif}
     procedure FormCreate(Sender: TObject);
     procedure Open1Click(Sender: TObject);
     procedure Exit1Click(Sender: TObject);
@@ -148,7 +159,10 @@ var
 
 implementation
 
+{$ifdef LCL}
+{$else}
 {$R *.DFM}
+{$endif}
 
 procedure TForm1.FormCreate(Sender: TObject);
 var
@@ -436,12 +450,15 @@ end;
 
 procedure TForm1.Print1Click(Sender: TObject);
 begin
-with PrintDialog do
-  if Execute then
-    if PrintRange = prAllPages then
-      FrameViewer.Print(1, 9999)
-    else
-      FrameViewer.Print(FromPage, ToPage);
+{$ifdef LCL}
+{$else}
+  with PrintDialog do
+    if Execute then
+      if PrintRange = prAllPages then
+        FrameViewer.Print(1, 9999)
+      else
+        FrameViewer.Print(FromPage, ToPage);
+{$endif}
 end;
 
 procedure TForm1.File1Click(Sender: TObject);
@@ -554,12 +571,12 @@ var
   S: string[200];
   Count: integer;
 begin
-Count := DragQueryFile(Message.WParam, 0, @S[1], 200);
-Length(S) := Count;
-DragFinish(Message.WParam);
-if Count >0 then
-  FrameViewer.LoadFromFile(S);
-Message.Result := 0;
+  Count := DragQueryFile(Message.WParam, 0, @S[1], 200);
+  SetLength(S, Count);
+  DragFinish(Message.WParam);
+  if Count >0 then
+    FrameViewer.LoadFromFile(S);
+  Message.Result := 0;
 end;
 
 procedure TForm1.CopyImagetoclipboardClick(Sender: TObject);
@@ -574,7 +591,7 @@ begin
 AForm := TImageForm.Create(Self);
 with AForm do
   begin
-  ImageFormBitmap := FoundObject.Bitmap;
+  Bitmap := FoundObject.Bitmap;
   Caption := '';
   Show;
   end;
@@ -582,52 +599,58 @@ end;
 
 procedure TForm1.MediaPlayerNotify(Sender: TObject);
 begin
-try
-  With MediaPlayer do
-    if NotifyValue = nvSuccessful then
-      begin
-      if MediaCount > 0 then
+{$ifdef LCL}
+{$else}
+  try
+    With MediaPlayer do
+      if NotifyValue = nvSuccessful then
         begin
-        Play;
-        Dec(MediaCount);
-        end
-      else
-        Begin
-        Close;
-        ThePlayer := Nil;
+        if MediaCount > 0 then
+          begin
+          Play;
+          Dec(MediaCount);
+          end
+        else
+          Begin
+          Close;
+          ThePlayer := Nil;
+          end;
         end;
-      end;
-except
+  except
   end;
+{$endif}
 end;
 
 procedure TForm1.SoundRequest(Sender: TObject; const SRC: String;
   Loop: Integer; Terminate: Boolean);
 begin
-try
-  with MediaPlayer do
-    if Terminate then
-      begin
-      if (Sender = ThePlayer) then
+{$ifdef LCL}
+{$else}
+  try
+    with MediaPlayer do
+      if Terminate then
         begin
-        Close;
-        ThePlayer := Nil;
+        if (Sender = ThePlayer) then
+          begin
+          Close;
+          ThePlayer := Nil;
+          end;
+        end
+      else if ThePlayer = Nil then
+        begin
+        if Sender is ThtmlViewer then
+          Filename := ThtmlViewer(Sender).HTMLExpandFilename(SRC)
+        else Filename := (Sender as TFrameViewer).HTMLExpandFilename(SRC);
+        Notify := True;
+        Open;
+        ThePlayer := Sender;
+        if Loop < 0 then MediaCount := 9999
+          else if Loop = 0 then MediaCount := 1
+          else MediaCount := Loop;
         end;
-      end
-    else if ThePlayer = Nil then
-      begin
-      if Sender is ThtmlViewer then
-        Filename := ThtmlViewer(Sender).HTMLExpandFilename(SRC)
-      else Filename := (Sender as TFrameViewer).HTMLExpandFilename(SRC);
-      Notify := True;
-      Open;
-      ThePlayer := Sender;
-      if Loop < 0 then MediaCount := 9999
-        else if Loop = 0 then MediaCount := 1
-        else MediaCount := Loop;
-      end;
-except
+  except
   end;
+{$endif}
 end;
 
 procedure TForm1.FrameViewerObjectClick(Sender, Obj: TObject;
@@ -762,27 +785,35 @@ end;
 
 procedure TForm1.PrinterSetupClick(Sender: TObject);
 begin
-PrinterSetupDialog.Execute;
+{$ifdef LCL}
+{$else}
+  PrinterSetupDialog.Execute;
+{$endif}
 end;
 
 procedure TForm1.PrintPreview1Click(Sender: TObject);
+{$ifdef LCL}
+begin
+end;
+{$else}
 var
   pf: TPreviewForm;
   Viewer: ThtmlViewer;
   Abort: boolean;
 begin
-Viewer := FrameViewer.ActiveViewer;
-if Assigned(Viewer) then
-   begin
-   pf := TPreviewForm.CreateIt(Self, Viewer, Abort);
-   try
-     if not Abort then
-       pf.ShowModal;
-   finally
-     pf.Free;
-     end;
-   end;
+  Viewer := FrameViewer.ActiveViewer;
+  if Assigned(Viewer) then
+  begin
+    pf := TPreviewForm.CreateIt(Self, Viewer, Abort);
+    try
+      if not Abort then
+        pf.ShowModal;
+    finally
+      pf.Free;
+    end;
+  end;
 end;
+{$endif}
 
 procedure TForm1.FrameViewerMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
 var
@@ -939,4 +970,8 @@ S := ReplaceStr(S, '#right', 'Page '+IntToStr(NumPage));
 HFViewer.LoadFromString(S);
 end;
 
+initialization
+{$ifdef LCL}
+{$I FDemUnit.lrs}
+{$endif}
 end.
