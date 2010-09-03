@@ -5,23 +5,20 @@
 {*                                                           *}
 {*************************************************************}
 
-{$ifDef ver150}  {Delphi 7}
-{$Define Delphi7_Plus}
-{$endif}
-{$ifDef ver170}  {Delphi 2005}
-{$Define Delphi7_Plus}
-{$endif}
-{$ifDef ver180}  {Delphi 2006}
-{$Define Delphi7_Plus}     {9.4}
-{$endif}
-
 unit PreviewForm;
+
+{$include ..\..\source\htmlcons.inc}
 
 interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls, ExtCtrls, Buttons, MetaFilePrinter, HTMLView, PrintStatusForm;
+  StdCtrls, ExtCtrls, Buttons, MetaFilePrinter,
+{$ifdef LCL}
+  LResources,
+{$else}
+{$endif}
+  HTMLView, PrintStatusForm;
 
 const
    crZoom = 40;
@@ -58,7 +55,9 @@ type
     PB1: TPaintBox;
     PagePanel2: TPanel;
     PB2: TPaintBox;
+{$ifndef FPC_TODO_PRINTING}
     PrintDialog1: TPrintDialog;
+{$endif}
     FitPageBut: TSpeedButton;
     FitWidthBut: TSpeedButton;
     Bevel1: TBevel;
@@ -121,7 +120,10 @@ implementation
 uses
    Gopage;
 
+{$ifdef LCL}
+{$else}
 {$R *.DFM}
+{$endif}
 {$R GRID.RES}
 
 constructor TPreviewForm.CreateIt(AOwner: TComponent; AViewer: ThtmlViewer;
@@ -472,19 +474,21 @@ var
   StatusForm: TPrnStatusForm;
   Dummy: boolean;
 begin
-with PrintDialog1 do
-  begin
-  MaxPage  := 9999;
-  ToPage   := 1;
-  Options  := [poPageNums];
-  StatusForm := TPrnStatusForm.Create(Self);
-  if Execute then
-    if PrintRange = prAllPages then
-      StatusForm.DoPrint(Viewer, FromPage, 9999, Dummy)
-    else
-      StatusForm.DoPrint(Viewer, FromPage, ToPage, Dummy);
-  StatusForm.Free;
+{$ifndef FPC_TODO_PRINTING}
+  with PrintDialog1 do
+    begin
+    MaxPage  := 9999;
+    ToPage   := 1;
+    Options  := [poPageNums];
+    StatusForm := TPrnStatusForm.Create(Self);
+    if Execute then
+      if PrintRange = prAllPages then
+        StatusForm.DoPrint(Viewer, FromPage, 9999, Dummy)
+      else
+        StatusForm.DoPrint(Viewer, FromPage, ToPage, Dummy);
+    StatusForm.Free;
   end;
+{$endif}
 end;
 
 procedure TPreviewForm.PageNumSpeedClick(Sender: TObject);
@@ -531,4 +535,9 @@ if GridBut.down then
   end;
 end;
 
+initialization
+{$ifdef LCL}
+{$include PreviewForm.lrs}
+{$else}
+{$endif}
 end.

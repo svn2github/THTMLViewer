@@ -38,9 +38,8 @@ uses
   Interfaces,
   LMessages,
 {$endif}
-{$ifndef FPC_TODO_PRINTING}
-  MetafilePrinter, vwPrint,
-{$endif}
+  MetafilePrinter,
+  vwPrint,
   HtmlGlobals, HTMLUn2, ReadHTML, HTMLSubs, StyleUn;
 
 const
@@ -130,9 +129,7 @@ type
 
   THTMLViewer = class(TWinControl)
   private
-{$ifndef FPC_TODO_PRINTING}
     vwP, OldPrinter: TvwPrinter;
-{$endif}
     fScaleX, fScaleY: single;
     FCodePage: integer;
     FOnImageRequested: TGottenImageEvent;
@@ -217,9 +214,7 @@ type
     FOnPrintHeader, FOnPrintFooter: TPagePrinted;
     FOnPrintHTMLHeader, FOnPrintHTMLFooter: ThtmlPagePrinted;
     FPage: integer;
-{$ifndef FPC_TODO_PRINTING}
     FOnPageEvent: TPageEvent;
-{$endif}
     FOnMouseDouble: TMouseEvent;
     HotSpotAction: boolean;
     FMarginHeight, FMarginWidth: integer;
@@ -413,7 +408,6 @@ type
     procedure LoadImageFile(const FileName: string);
     procedure LoadTextStrings(Strings: TStrings);
     procedure LoadStream(const URL: string; AStream: TMemoryStream; ft: ThtmlFileType);
-{$ifndef FPC_TODO_PRINTING}
     procedure OpenPrint;
     procedure ClosePrint;
     procedure AbortPrint;
@@ -424,7 +418,6 @@ type
     procedure NumPrinterPages(MFPrinter: TMetaFilePrinter; out Width, Height: Integer); overload;
     function PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: boolean = False): integer; virtual;
 //BG, 01.12.2006: end of modification
-{$endif}
     function PositionTo(Dest: string): boolean;
     function Find(const S: WideString; MatchCase: boolean): boolean;
     function FindEx(const S: WideString; MatchCase, Reverse: boolean): boolean;
@@ -488,9 +481,7 @@ type
     property NameList: TStringList read GetNameList;
     property LinkList: TList read GetLinkList;
     property SectionList: TSectionList read FSectionList;
-{$ifndef FPC_TODO_PRINTING}
     property OnPageEvent: TPageEvent read FOnPageEvent write FOnPageEvent;
-{$endif}
     property OnExpandName: TExpandNameEvent read FOnExpandName write SetOnExpandName;
     property FormData: TFreeList read GetFormData write SetFormData;
     property DocumentSource: string read FDocumentSource;
@@ -3302,7 +3293,7 @@ begin
   end;
 end;
 
-{$ifndef FPC_TODO_PRINTING}
+{-$ifndef FPC_TODO_PRINTING}
 procedure ThtmlViewer.Print(FromPage, ToPage: integer);
 var
   ARect, CRect: TRect;
@@ -3490,22 +3481,28 @@ begin
 
         { calculate the amount of space that is non-printable }
 
+{$ifdef LCL}
+          LowerRightPagePoint.X := Printer.PaperSize.PaperRect.WorkRect.Right;
+          LowerRightPagePoint.Y := Printer.PaperSize.PaperRect.WorkRect.Bottom;
+          UpperLeftPagePoint.X := Printer.PaperSize.PaperRect.WorkRect.Left;
+          UpperLeftPagePoint.Y := Printer.PaperSize.PaperRect.WorkRect.Top;
+{$else}
         { get PHYSICAL page width }
           LowerRightPagePoint.X := GetDeviceCaps(Printer.Handle, PhysicalWidth);
           LowerRightPagePoint.Y := GetDeviceCaps(Printer.Handle, PhysicalHeight);
+        { get upper left physical offset for the printer... ->
+          printable area <> paper size }
+          UpperLeftPagePoint.X := GetDeviceCaps(Printer.Handle, PhysicalOffsetX);
+          UpperLeftPagePoint.Y := GetDeviceCaps(Printer.Handle, PhysicalOffsetY);
 
-              { now compute a complete unprintable area rectangle
-               (composed of 2*width, 2*height) in pixels...}
+        { now compute a complete unprintable area rectangle
+         (composed of 2*width, 2*height) in pixels...}
           with LowerRightPagePoint do
           begin
             Y := Y - Printer.PageHeight;
             X := X - Printer.PageWidth;
           end;
 
-        { get upper left physical offset for the printer... ->
-          printable area <> paper size }
-          UpperLeftPagePoint.X := GetDeviceCaps(Printer.Handle, PhysicalOffsetX);
-          UpperLeftPagePoint.Y := GetDeviceCaps(Printer.Handle, PhysicalOffsetY);
 
         { now that we know the TOP and LEFT offset we finally can
           compute the BOTTOM and RIGHT offset: }
@@ -3521,6 +3518,7 @@ begin
             if y < 0 then
               y := 0; { assume no bottom printing offset }
           end;
+{$endif}
         { which results in LowerRightPoint containing the BOTTOM
           and RIGHT unprintable
           area offset; using these we modify the (logical, true)
@@ -4299,8 +4297,6 @@ begin
     Result := FPage;
   end;
 end;
-
-{$endif}
 
 procedure ThtmlViewer.BackgroundChange(Sender: TObject);
 begin

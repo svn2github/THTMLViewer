@@ -4,8 +4,8 @@ LazarusResources.Add('TGoPageForm','FORMDATA',[
   +'age Number'#12'ClientHeight'#2't'#11'ClientWidth'#3#231#0#5'Color'#7#9'clBt'
   +'nFace'#12'Font.Charset'#7#15'DEFAULT_CHARSET'#10'Font.Color'#7#7'clBlack'#11
   +'Font.Height'#2#245#9'Font.Name'#6#6'Tahoma'#10'Font.Style'#11#6'fsBold'#0#14
-  +'OldCreateOrder'#9#8'Position'#7#14'poScreenCenter'#13'PixelsPerInch'#2'`'#10
-  +'TextHeight'#2#13#0#6'TBevel'#6'Bevel1'#4'Left'#2#11#3'Top'#2#8#5'Width'#3
+  +'OldCreateOrder'#9#8'Position'#7#14'poScreenCenter'#13'PixelsPerInch'#2'`'
+  +#6'TBevel'#6'Bevel1'#4'Left'#2#11#3'Top'#2#8#5'Width'#3
   +#209#0#6'Height'#2'9'#5'Shape'#7#7'bsFrame'#9'IsControl'#9#0#0#7'TBitBtn'#5
   +'OKBtn'#4'Left'#2'#'#3'Top'#2'L'#5'Width'#2'M'#6'Height'#2#27#12'Font.Charse'
   +'t'#7#15'DEFAULT_CHARSET'#10'Font.Color'#7#7'clBlack'#11'Font.Height'#2#245#9

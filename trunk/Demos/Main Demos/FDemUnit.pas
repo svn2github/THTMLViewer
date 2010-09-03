@@ -26,12 +26,12 @@ uses
   Windows, SysUtils, Messages, Classes, Graphics, Controls, Forms, Dialogs,
   ExtCtrls, StdCtrls, Menus, MMSystem, Clipbrd, ShellAPI, FontDlg, HTMLAbt,
 {$ifdef LCL}
-  LResources, FPImage,
+  LclIntf, LclType, LResources, FPImage,
 {$else}
-  MPlayer, PreviewForm,
+  MPlayer,
 {$endif}
+  PreviewForm,
   {$ifdef UseXpMan} XpMan, {$endif} ComCtrls,
-
   FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, HTMLView, Submit, ImgForm;
 
 const
@@ -331,6 +331,12 @@ var
   S: string;
   I: integer;
 begin
+{$ifdef LCL}
+  Fonts.Visible := False;
+  Print1.Visible := False;
+  PrinterSetup.Visible := False;
+  PrintPreview1.Visible := False;
+{$endif}
 if (ParamCount >= 1) then
   begin            {Parameter is file to load}
   S := CmdLine;
@@ -440,11 +446,11 @@ end;
 
 procedure TForm1.About1Click(Sender: TObject);
 begin
-AboutBox := TAboutBox.CreateIt(Self, 'FrameDem', 'TFrameViewer');
-try
-  AboutBox.ShowModal;
-finally
-  AboutBox.Free;
+  with TAboutBox.CreateIt(Self, 'FrameDem', 'TFrameViewer') do
+  try
+    ShowModal;
+  finally
+    Free;
   end;
 end;
 

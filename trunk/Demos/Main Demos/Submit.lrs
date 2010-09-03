@@ -4,7 +4,7 @@ LazarusResources.Add('TSubmitForm','FORMDATA',[
   +'bmit Results'#12'ClientHeight'#3#17#1#11'ClientWidth'#3#171#1#5'Color'#7#9
   +'clBtnFace'#12'Font.Charset'#7#15'DEFAULT_CHARSET'#10'Font.Color'#7#12'clWin'
   +'dowText'#11'Font.Height'#2#243#9'Font.Name'#6#6'System'#10'Font.Style'#11#0
-  +#14'OldCreateOrder'#9#13'PixelsPerInch'#2'`'#10'TextHeight'#2#16#0#6'TLabel'
+  +#14'OldCreateOrder'#9#13'PixelsPerInch'#2'`'#0#6'TLabel'
   +#6'Label1'#4'Left'#2#16#3'Top'#2#19#5'Width'#2'+'#6'Height'#2#16#7'Caption'#6
   +#7'Action:'#0#0#6'TLabel'#6'Label2'#4'Left'#2#9#3'Top'#2'+'#5'Width'#2'4'#6
   +'Height'#2#16#7'Caption'#6#7'Method:'#0#0#6'TLabel'#6'Label3'#4'Left'#2#18#3

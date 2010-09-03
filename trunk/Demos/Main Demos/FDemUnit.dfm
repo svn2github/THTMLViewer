@@ -2,7 +2,7 @@ object Form1: TForm1
   Left = 135
   Top = 398
   Caption = 'Frame Demo'
-  ClientHeight = 252
+  ClientHeight = 272
   ClientWidth = 494
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -20,13 +20,14 @@ object Form1: TForm1
   TextHeight = 16
   object Panel2: TPanel
     Left = 0
-    Top = 229
+    Top = 249
     Width = 494
     Height = 23
     Align = alBottom
     Alignment = taLeftJustify
     BevelInner = bvLowered
     TabOrder = 0
+    ExplicitTop = 229
     object ProgressBar: TProgressBar
       Left = 342
       Top = 2
@@ -41,7 +42,7 @@ object Form1: TForm1
     Left = 0
     Top = 25
     Width = 494
-    Height = 204
+    Height = 224
     CharSet = DEFAULT_CHARSET
     DefBackground = clWindow
     DefFontName = 'Times New Roman'
@@ -73,6 +74,7 @@ object Form1: TForm1
     TabOrder = 1
     OnMouseMove = FrameViewerMouseMove
     OnFormSubmit = SubmitEvent
+    ExplicitHeight = 204
   end
   object Panel1: TPanel
     Left = 0

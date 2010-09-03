@@ -100,11 +100,8 @@ end;
 procedure TFontForm.FormCreate(Sender: TObject);
 begin
 FontListBox.Items := Screen.Fonts;
-{$ifdef LCL}
 GetColorValues(AddItem);
-{$else}
 GetColorValues(AddItem);
-{$endif}
 LoadAgain;
 end;
 
@@ -216,8 +213,8 @@ else if Sender = FontSizeEdit then
   FontSize := FontSizeEdit.Value;
 end;
 
-{$ifdef LCL}
 initialization
+{$ifdef LCL}
 {$I FontDlg.lrs}
 {$endif}
 end.

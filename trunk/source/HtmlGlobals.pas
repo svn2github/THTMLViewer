@@ -6,7 +6,7 @@
 {
 Copyright (c) 1995-2008 by L. David Baldwin
 
-Changes: Copyright (c) 2009 by Bernd Gabriel
+Changes: Copyright (c) 2009-2010 by Bernd Gabriel
 2009-09-09: Created this unit to avoid using units recursively.
   - moved some stuff from HtmlUn2 to HtmlGlobal
 

@@ -19,6 +19,8 @@ uses
   Windows, Classes, Graphics, Printers;
 
 type
+  TvwPrinterState = (psNoHandle, psHandleIC, psHandleDC);
+
   TvwPrinter = class(TObject)
   private
     FCanvas: TCanvas;
@@ -26,11 +28,11 @@ type
     FTitle: string;
     FPrinting: Boolean;
     FAborted: Boolean;
-    State: TPrinterState;
+    State: TvwPrinterState;
     DC: HDC;
     DevMode: PDeviceMode;
     DeviceMode: THandle;
-    procedure SetState(Value: TPrinterState);
+    procedure SetState(Value: TvwPrinterState);
     function GetCanvas: TCanvas;
     function GetHandle: HDC;
     function GetPageHeight: Integer;
@@ -166,7 +168,7 @@ begin
     Result := 0;
 end;
 
-procedure TvwPrinter.SetState(Value: TPrinterState);
+procedure TvwPrinter.SetState(Value: TvwPrinterState);
 type
   TCreateHandleFunc = function(DriverName, DeviceName, Output: PChar;
     InitData: PDeviceMode): HDC stdcall;
@@ -203,6 +205,7 @@ begin
     end;
     if Assigned(CreateHandleFunc) then
     begin
+{$ifndef FPC_TODO_PRINTING}
       Printers.Printer.GetPrinter(Device, Driver, Port, TmpDeviceMode);
       if DeviceMode <> 0 then
       begin
@@ -222,6 +225,7 @@ begin
         RaiseError(SInvalidPrinter);
       if FCanvas <> nil then
         FCanvas.Handle := DC;
+{$endif}
     end;
     State := Value;
   end;

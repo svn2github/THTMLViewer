@@ -1,85 +1,85 @@
 object FontForm: TFontForm
   Left = 1012
   Top = 247
-  Anchors = [akRight, akBottom]
   BorderIcons = [biSystemMenu]
   Caption = 'Edit Default Font and Colors'
   ClientHeight = 421
-  ClientWidth = 509
+  ClientWidth = 530
   Color = clBtnFace
   Constraints.MinHeight = 455
-  Constraints.MinWidth = 455
+  Constraints.MinWidth = 538
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -13
   Font.Name = 'System'
   Font.Style = []
   OldCreateOrder = True
-  ScreenSnap = True
+  Position = poMainFormCenter
   ShowHint = True
   OnCreate = FormCreate
   OnShow = FormShow
   DesignSize = (
-    509
+    530
     421)
   PixelsPerInch = 96
   TextHeight = 16
   object Label1: TLabel
-    Left = 9
-    Top = 276
+    Left = 7
+    Top = 271
     Width = 66
     Height = 16
     Anchors = [akLeft, akBottom]
     Caption = '&Font Color'
     FocusControl = FontColorGrid
-    ExplicitTop = 225
+    ExplicitTop = 273
   end
   object Label2: TLabel
-    Left = 88
-    Top = 277
+    Left = 85
+    Top = 271
     Width = 65
     Height = 16
     Anchors = [akLeft, akBottom]
     Caption = '&Link Color'
     FocusControl = HotSpotColorGrid
-    ExplicitTop = 226
+    ExplicitTop = 273
   end
   object Label3: TLabel
     Left = 8
-    Top = 376
+    Top = 374
     Width = 61
     Height = 16
     Anchors = [akLeft, akBottom]
     Caption = 'Font &Size'
     FocusControl = FontSizeEdit
-    ExplicitTop = 325
+    ExplicitTop = 376
   end
   object Label4: TLabel
-    Left = 170
-    Top = 276
+    Left = 169
+    Top = 271
     Width = 70
     Height = 16
     Anchors = [akLeft, akBottom]
     Caption = 'Font &Name'
     FocusControl = FontListBox
-    ExplicitTop = 225
+    ExplicitTop = 273
   end
   object Label5: TLabel
-    Left = 309
-    Top = 276
+    Left = 328
+    Top = 271
     Width = 77
     Height = 16
-    Anchors = [akLeft, akBottom]
+    Anchors = [akRight, akBottom]
     Caption = '&Background'
     FocusControl = BackListBox
-    ExplicitTop = 278
+    ExplicitLeft = 309
+    ExplicitTop = 273
   end
   object FontListBox: TListBox
     Left = 169
-    Top = 295
-    Width = 128
+    Top = 293
+    Width = 148
     Height = 115
-    Anchors = [akLeft, akBottom]
+    Anchors = [akLeft, akRight, akBottom]
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clBlack
     Font.Height = -11
@@ -92,11 +92,12 @@ object FontForm: TFontForm
     Sorted = True
     TabOrder = 0
     OnClick = ListBoxClicks
-    ExplicitTop = 297
+    ExplicitTop = 296
+    ExplicitWidth = 128
   end
   object FontColorGrid: TColorGrid
-    Left = 7
-    Top = 295
+    Left = 8
+    Top = 293
     Width = 72
     Height = 72
     Anchors = [akLeft, akBottom]
@@ -108,11 +109,11 @@ object FontForm: TFontForm
     TabOrder = 2
     TabStop = True
     OnChange = FontColorGridChange
-    ExplicitTop = 244
+    ExplicitTop = 295
   end
   object HotSpotColorGrid: TColorGrid
     Left = 85
-    Top = 295
+    Top = 293
     Width = 72
     Height = 72
     Anchors = [akLeft, akBottom]
@@ -123,14 +124,14 @@ object FontForm: TFontForm
     TabOrder = 3
     TabStop = True
     OnChange = HotSpotColorGridChange
-    ExplicitTop = 244
+    ExplicitTop = 295
   end
   object BackListBox: TListBox
-    Left = 309
-    Top = 294
+    Left = 328
+    Top = 292
     Width = 108
     Height = 115
-    Anchors = [akLeft, akBottom]
+    Anchors = [akRight, akBottom]
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clBlack
     Font.Height = -11
@@ -140,11 +141,12 @@ object FontForm: TFontForm
     ParentFont = False
     TabOrder = 1
     OnClick = ListBoxClicks
-    ExplicitTop = 296
+    ExplicitLeft = 309
+    ExplicitTop = 294
   end
   object OKButton: TButton
-    Left = 428
-    Top = 355
+    Left = 447
+    Top = 353
     Width = 75
     Height = 25
     Anchors = [akRight, akBottom]
@@ -152,36 +154,36 @@ object FontForm: TFontForm
     Default = True
     ModalResult = 1
     TabOrder = 5
-    ExplicitLeft = 362
-    ExplicitTop = 304
+    ExplicitLeft = 428
+    ExplicitTop = 355
   end
   object Cancel: TButton
-    Left = 428
-    Top = 384
+    Left = 447
+    Top = 382
     Width = 75
     Height = 25
     Anchors = [akRight, akBottom]
     Caption = 'Cancel'
     ModalResult = 2
     TabOrder = 7
-    ExplicitLeft = 362
-    ExplicitTop = 333
+    ExplicitLeft = 428
+    ExplicitTop = 384
   end
   object ResetButton: TButton
-    Left = 428
-    Top = 326
+    Left = 447
+    Top = 324
     Width = 75
     Height = 25
     Anchors = [akRight, akBottom]
     Caption = '&Reset'
     TabOrder = 6
     OnClick = ResetButtonClick
-    ExplicitLeft = 362
-    ExplicitTop = 275
+    ExplicitLeft = 428
+    ExplicitTop = 326
   end
   object FontSizeEdit: TSpinEdit
     Left = 85
-    Top = 373
+    Top = 371
     Width = 65
     Height = 26
     Anchors = [akLeft, akBottom]
@@ -190,13 +192,13 @@ object FontForm: TFontForm
     TabOrder = 4
     Value = 12
     OnChange = ListBoxClicks
-    ExplicitTop = 322
+    ExplicitTop = 373
   end
   object FontViewer: THTMLViewer
     Left = 8
     Top = 8
-    Width = 493
-    Height = 259
+    Width = 513
+    Height = 256
     ViewImages = False
     TabOrder = 8
     Anchors = [akLeft, akTop, akRight, akBottom]
@@ -213,7 +215,7 @@ object FontForm: TFontForm
     PrintMarginBottom = 2.000000000000000000
     PrintScale = 1.000000000000000000
     htOptions = []
-    ExplicitWidth = 443
-    ExplicitHeight = 208
+    ExplicitWidth = 493
+    ExplicitHeight = 259
   end
 end

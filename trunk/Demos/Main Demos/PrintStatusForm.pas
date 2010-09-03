@@ -4,7 +4,12 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls, Buttons, HTMLView, MetaFilePrinter;
+  StdCtrls, Buttons,
+{$ifdef LCL}
+  LResources,
+{$else}
+{$endif}
+  HTMLView, MetaFilePrinter;
 
 type
   TPrnStatusForm = class(TForm)
@@ -31,22 +36,28 @@ var
 
 implementation
 
+{$ifdef LCL}
+{$else}
 {$R *.DFM}
-
+{$endif}
 
 procedure TPrnStatusForm.DoPreview(AViewer: ThtmlViewer; AMFPrinter: TMetaFilePrinter;
               var Abort: boolean);
 begin
-Viewer := AViewer;
-MFPrinter := AMFPrinter;
-Viewer.OnPageEvent := PageEvent;
-try                                   
-  Show;
-  Viewer.PrintPreview(MFPrinter);
-  Hide;
-  Abort := Canceled;
-finally
-  Viewer.OnPageEvent := Nil;      
+  Viewer := AViewer;
+  MFPrinter := AMFPrinter;
+{$ifdef FPC}
+  Viewer.OnPageEvent := @PageEvent;
+{$else}
+  Viewer.OnPageEvent := PageEvent;
+{$endif}
+  try
+    Show;
+    Viewer.PrintPreview(MFPrinter);
+    Hide;
+    Abort := Canceled;
+  finally
+    Viewer.OnPageEvent := Nil;
   end;
 end;
 
@@ -56,8 +67,12 @@ begin
 Viewer := AViewer;
 FromPage := FromPg;
 ToPage := ToPg;
-Viewer.OnPageEvent := PageEvent;
-try                                   
+{$ifdef FPC}
+  Viewer.OnPageEvent := @PageEvent;
+{$else}
+  Viewer.OnPageEvent := PageEvent;
+{$endif}
+try
   Show;
   Viewer.Print(FromPage, ToPage);          
   Hide;
@@ -84,4 +99,9 @@ begin
 Canceled := True;
 end;
 
+initialization
+{$ifdef LCL}
+{$include PrintStatusForm.lrs}
+{$else}
+{$endif}
 end.
