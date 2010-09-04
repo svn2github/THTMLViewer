@@ -14,6 +14,9 @@
       <UseVersionInfo Value="True"/>
       <CurrentVersionNr Value="10"/>
       <ProjectVersion Value="10.0.0.0"/>
+      <Comments Value="meet us at http://code.google.com/p/thtmlviewer/"/>
+      <CompanyName Value="HtmlViewer Team"/>
+      <ProductName Value="FrameViewer Demo"/>
     </VersionInfo>
     <PublishOptions>
       <Version Value="2"/>
@@ -36,7 +39,7 @@
       <Unit0>
         <Filename Value="FrameDem.dpr"/>
         <IsPartOfProject Value="True"/>
-        <CursorPos X="23" Y="31"/>
+        <CursorPos X="23" Y="32"/>
         <TopLine Value="1"/>
         <EditorIndex Value="8"/>
         <UsageCount Value="39"/>
@@ -46,7 +49,7 @@
         <Filename Value="FDemUnit.pas"/>
         <HasResources Value="True"/>
         <UnitName Value="FDemUnit"/>
-        <CursorPos X="45" Y="352"/>
+        <CursorPos X="22" Y="377"/>
         <TopLine Value="329"/>
         <EditorIndex Value="12"/>
         <UsageCount Value="17"/>
@@ -387,6 +390,9 @@
   <CompilerOptions>
     <Version Value="8"/>
     <PathDelim Value="\"/>
+    <Target>
+      <Filename Value="bin\$(TargetCPU)-$(TargetOS)\FrameDem.exe"/>
+    </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)\"/>
       <OtherUnitFiles Value="..\..\package\lib\$(TargetCPU)-$(TargetOS)\"/>

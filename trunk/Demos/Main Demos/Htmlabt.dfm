@@ -1,10 +1,10 @@
 object AboutBox: TAboutBox
   Left = 286
   Top = 214
+  Width = 375
+  Height = 265
   BorderIcons = [biSystemMenu]
   Caption = 'About'
-  ClientHeight = 231
-  ClientWidth = 367
   Color = clBtnFace
   Constraints.MinHeight = 265
   Constraints.MinWidth = 375
@@ -28,8 +28,6 @@ object AboutBox: TAboutBox
     Anchors = [akRight, akBottom]
     TabOrder = 0
     Kind = bkOK
-    ExplicitLeft = 225
-    ExplicitTop = 147
   end
   object Viewer: THTMLViewer
     Left = 8
@@ -47,12 +45,11 @@ object AboutBox: TAboutBox
     NoSelect = True
     ScrollBars = ssNone
     CharSet = DEFAULT_CHARSET
-    PrintMarginLeft = 2.000000000000000000
-    PrintMarginRight = 2.000000000000000000
-    PrintMarginTop = 2.000000000000000000
-    PrintMarginBottom = 2.000000000000000000
-    PrintScale = 1.000000000000000000
+    PrintMarginLeft = 2
+    PrintMarginRight = 2
+    PrintMarginTop = 2
+    PrintMarginBottom = 2
+    PrintScale = 1
     htOptions = []
-    ExplicitHeight = 201
   end
 end
