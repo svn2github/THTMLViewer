@@ -370,10 +370,10 @@ begin
       Viewer.Base := MasterSet.FBase; {only effective if no Base to be read}
       try
         if Assigned(MasterSet.FrameViewer.FOnGetPostRequestEx) then
-          MasterSet.FrameViewer.FOnGetPostRequestEx(Self, True, Source, '', '', '', False,
+          MasterSet.FrameViewer.FOnGetPostRequestEx(Self, True, Source, '', '', '', True,
             Dummy, TheStreamType, TheStream)
         else
-          MasterSet.FrameViewer.FOnGetPostRequest(Self, True, Source, '', False,
+          MasterSet.FrameViewer.FOnGetPostRequest(Self, True, Source, '', True,
             Dummy, TheStreamType, TheStream);
         Viewer.LoadStream(Source, TheStream, TheStreamType);
         if APosition < 0 then

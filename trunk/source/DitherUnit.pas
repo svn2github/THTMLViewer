@@ -3,9 +3,9 @@
 {*                  DitherUnit.PAS                             *}
 {*                                                             *}
 {*   Thanks to Anders Melander, anders@melander.dk, for the    *}
-{*   color dithering code in this module.  This code was       *)
-(*   extracted from his excellent TGifImage.pas unit.          *)
-(*                                                             *)
+{*   color dithering code in this module.  This code was       *}
+{*   extracted from his excellent TGifImage.pas unit.          *}
+{*                                                             *}
 {*                                                             *}
 {*              Bugs introduced by Dave Baldwin                *}
 {***************************************************************}

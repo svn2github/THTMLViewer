@@ -497,7 +497,7 @@ type
     DrawXX, DrawWidth: integer;
     DrawY: integer;
     Spaces, Extra: integer;
-    BorderList: TFreeList; {List of inline borders {BorderRec's) in this Line}
+    BorderList: TFreeList; {List of inline borders (BorderRec's) in this Line}
     FirstDraw: boolean; {set if border processing needs to be done when first drawn}
     FirstX: integer; {x value at FirstDraw}
     Shy: boolean;
