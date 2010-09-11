@@ -311,7 +311,7 @@ begin
   begin
     if (url[1] = '/') then
     begin
-            { Relative path without protocol specified }
+            { Absolute path without protocol specified }
       proto := 'http';
       p := 1;
       if (Length(url) > 1) and (url[2] <> '/') then

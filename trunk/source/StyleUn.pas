@@ -449,11 +449,12 @@ procedure TProperties.Inherit(Tag: string; Source: TProperties);
 {copy the properties that are inheritable}
 var
   I: PropIndices;
-  Span, HBF: boolean;
+  Span, HBF: Boolean;
+  isTable: Boolean;
 begin
   Span := Source.PropTag = 'span';
-  HBF := (Source.PropTag = 'thead') or (Source.PropTag = 'tbody')
-    or (Source.PropTag = 'tfoot');
+  HBF := (Source.PropTag = 'thead') or (Source.PropTag = 'tbody') or (Source.PropTag = 'tfoot');
+  isTable := Tag = 'table';
   for I := Low(I) to High(I) do
     if Span and (I <> BorderStyle) then {Borderstyle already acted on}
       Props[I] := Source.Props[I]
@@ -462,16 +463,19 @@ begin
       Props[I] := Source.Props[I]; {tr gets them all}
       Originals[I] := Source.Originals[I];
     end
-    else if (I = WordWrap) and (Tag = 'table') then {table doesn't inherit word wrap}
+    else if (I = WordWrap) and isTable then {table doesn't inherit word wrap}
       Props[WordWrap] := 'normal'
     else
       case I of
-        MarginTop..LeftPos:
+        MarginTop..BorderLeftStyle,
+        Width, Height,
+        TopPos..LeftPos:
           Props[I] := IntNull;
-        BackgroundColor, BorderColor, BorderStyle,
-          Clear, Float, BackgroundImage, BackgroundPosition, BackgroundRepeat, BackgroundAttachment,
-          Position, PageBreakBefore, PageBreakAfter, PageBreakInside, BorderCollapse,
-          OverFlow, piDisplay:
+        BackgroundColor, BackgroundImage, BackgroundPosition,
+        BackgroundRepeat, BackgroundAttachment,
+        BorderColor, BorderStyle, BorderCollapse,
+        PageBreakBefore, PageBreakAfter, PageBreakInside,
+        Clear, Float, Position, OverFlow, piDisplay:
           ; {do nothing}
       else
         Props[I] := Source.Props[I];
@@ -1311,7 +1315,6 @@ procedure TProperties.Combine(Styles: TStyleList;
    Style= attribute.}
   var
     OldSize: double;
-    IX: integer;
     NoHoverVisited: boolean;
 
     procedure Merge(Source: TProperties);
@@ -1551,6 +1554,16 @@ procedure TProperties.Combine(Styles: TStyleList;
       end;
     end;
 
+    //BG, 09.09.2010: extracted from below
+    procedure MergeContextuals(Style: String);
+    var
+      IX: Integer;
+    begin
+      Styles.Find(Style, IX); //place to start
+      while (IX < Styles.Count) and (Pos(Style, Styles[IX]) = 1) and CheckForContextual(IX) do
+        Inc(IX);
+    end;
+
   begin
   {$IFDEF Quirk}
     if (Tag = 'td') or (Tag = 'th') then
@@ -1576,51 +1589,53 @@ procedure TProperties.Combine(Styles: TStyleList;
       MergeItems(':' + Pseudo);
 
     if (AClass <> '') and NoHoverVisited then
+    begin
       MergeItems('.' + AClass);
-
-    if (AClass <> '') and NoHoverVisited then
       MergeItems(Tag + '.' + AClass);
+    end;
 
     if Pseudo <> '' then
+    begin
       MergeItems(Tag + ':' + Pseudo);
-
-    if (AClass <> '') and (PSeudo <> '') then
-      MergeItems('.' + AClass + ':' + Pseudo);
-
-    if (AClass <> '') and (Pseudo <> '') then
-      MergeItems(Tag + '.' + AClass + ':' + Pseudo);
+      if AClass <> '' then
+      begin
+        MergeItems('.' + AClass + ':' + Pseudo);
+        MergeItems(Tag + '.' + AClass + ':' + Pseudo);
+      end;
+    end;
 
     if AnID <> '' then
     begin
       MergeItems('#' + AnID);
       MergeItems(Tag + '#' + AnID);
-      if (AClass <> '') then
+      if AClass <> '' then
         MergeItems('.' + AClass + '#' + AnID);
-      if (Pseudo <> '') then
+      if Pseudo <> '' then
       begin
         MergeItems('#' + AnID + ':' + Pseudo);
         MergeItems(Tag + '#' + AnID + ':' + Pseudo);
       end;
-      if (AClass <> '') then
+      if AClass <> '' then
+      begin
         MergeItems(Tag + '.' + AClass + '#' + AnID);
-      MergeItems('.' + AClass + '#' + AnID + ':' + Pseudo);
-      MergeItems(Tag + '.' + AClass + '#' + AnID + ':' + Pseudo);
+        if Pseudo <> '' then
+        begin
+          MergeItems('.' + AClass + '#' + AnID + ':' + Pseudo);
+          MergeItems(Tag + '.' + AClass + '#' + AnID + ':' + Pseudo);
+        end;
+      end;
     end;
 
   {process the entries in Styles to see if they are contextual selectors}
-    Styles.Find(Tag, IX); //place to start
-    while (IX < Styles.Count) and (Pos(Tag, Styles[IX]) = 1) and CheckForContextual(IX) do
-      Inc(IX);
-
-    Styles.Find('.' + AClass, IX); //place to start
-    while (IX < Styles.Count) and (Pos('.' + AClass, Styles[IX]) = 1) and CheckForContextual(IX) do
-      Inc(IX);
-
-    Styles.Find(':' + PSeudo, IX); //place to start
-    while (IX < Styles.Count) and (Pos(':' + PSeudo, Styles[IX]) = 1) and CheckForContextual(IX) do
-      Inc(IX);
-
-    if Assigned(AProp) then //the Style= attribute
+    MergeContextuals(Tag + ' ');
+    if AClass <> '' then
+      MergeContextuals('.' + AClass + ' ');
+    if PSeudo <> '' then
+      MergeContextuals(':' + PSeudo + ' ');
+    if AnID <> '' then
+      MergeContextuals('#' + AnID + ' ');
+      
+    if AProp <> nil then //the Style= attribute
       Merge(AProp);
 
     if not ((VarType(Props[FontSize]) = VarDouble) or
