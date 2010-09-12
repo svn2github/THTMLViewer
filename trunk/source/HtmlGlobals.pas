@@ -1,4 +1,3 @@
-
 {Version 10.1}
 {*********************************************************}
 {*                     HtmlGlobals.pas                   *}
@@ -38,7 +37,7 @@ unit HtmlGlobals;
 interface
 
 uses
-  Windows,
+  Windows, 
 {$ifdef FPC}
   RtlConsts,
 {$else}
@@ -409,6 +408,8 @@ begin
 end;
 {$endif}
 
+
+{ initialization }
 
 var
   DC: HDC;

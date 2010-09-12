@@ -34,6 +34,9 @@ function DosToHtmlNoSharp(FName: string): string;
 {convert a Dos style filename to one for HTML.  Does not add the file:///.
  use where "#" is not being used as a local position but rather is part of filename.}
 
+function HTMLToDos(FName: string): string;
+{convert an HTML style filename to one for Dos}
+
 procedure ParseURL(const url: string; var Proto, User, Pass, Host, Port, Path: string);
 {François PIETTE's URL parsing procedure}
 
@@ -423,6 +426,68 @@ begin
     Delete(FName, I, 1);
     Insert('%23', FName, I);
     I := Pos('#', FName);
+  end;
+  Result := FName;
+end;
+
+function HTMLToDos(FName: string): string;
+{convert an HTML style filename to one for Dos}
+var
+  I: integer;
+
+  procedure Replace(Old, New: char);
+  var
+    I: integer;
+  begin
+    I := Pos(Old, FName);
+    while I > 0 do
+    begin
+      FName[I] := New;
+      I := Pos(Old, FName);
+    end;
+  end;
+
+  procedure ReplaceEscapeChars;
+  var
+    S: string;
+    I: integer;
+  begin
+    I := Pos('%', FName);
+    while (I > 1) and (I <= Length(FName) - 2) do
+    begin
+      S := '$' + FName[I + 1] + FName[I + 2];
+      try
+        FName[I] := chr(StrToInt(S));
+        Delete(FName, I + 1, 2);
+      except {ignore exception}
+        Exit;
+      end;
+      I := Pos('%', FName);
+    end;
+  end;
+
+begin
+  ReplaceEscapeChars;
+  I := pos('/', FName);
+  if I <> 0 then
+  begin
+    I := Pos('file:///', Lowercase(FName));
+    if I > 0 then
+      System.Delete(FName, I, 8)
+    else
+    begin
+      I := Pos('file://', Lowercase(FName));
+      if I > 0 then
+        System.Delete(FName, I, 7)
+      else
+      begin
+        I := Pos('file:/', Lowercase(FName));
+        if I > 0 then
+          System.Delete(FName, I, 6);
+      end;
+    end;
+    Replace('|', ':');
+    Replace('/', '\');
   end;
   Result := FName;
 end;

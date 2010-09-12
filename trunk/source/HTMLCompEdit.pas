@@ -64,7 +64,7 @@ begin
   MessageDlg(
     GetComponent.ClassName + ', Version (V) ' + VersionNo + #13#13 +
     'Copyright (C) 1995-2008 by L. David Baldwin'#13#13 +
-    'Copyright (C) 2008-2009 by the HtmlViewer Project Team'#13#13 +
+    'Copyright (C) 2008-2010 by the HtmlViewer Project Team'#13#13 +
     '        Patrick van Logchem'#13 +
     '        Sebastian Zierer'#13 +
     '        Arvid Winkelsdorf'#13 +

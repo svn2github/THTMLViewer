@@ -81,49 +81,6 @@ uses
 
 type
   LoadStyleType = (lsFile, lsString, lsInclude);
-  TIncludeType = procedure(Sender: TObject; const Command: string; Params: TStrings; var IString: string) of object;
-  TSoundType = procedure(Sender: TObject; const SRC: string; Loop: integer; Terminate: boolean) of object;
-  TMetaType = procedure(Sender: TObject; const HttpEq, Name, Content: string) of object;
-  TLinkType = procedure(Sender: TObject; const Rel, Rev, Href: string) of object;
-
-  TGetStreamEvent = procedure(Sender: TObject; const SRC: string; var Stream: TMemoryStream) of object;
-
-  TFrameViewerBase = class(TWinControl)
-  private
-    FOnInclude: TIncludeType;
-    FOnLink: TLinkType;
-    FOnScript: TScriptEvent;
-    FOnSoundRequest: TSoundType;
-    procedure wmerase(var msg: TMessage); message WM_ERASEBKGND;
-  protected
-    function CreateSubFrameSet(FrameSet: TObject): TObject; virtual; abstract;
-    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string); virtual; abstract;
-    procedure DoAttributes(FrameSet: TObject; Attr: TAttributeList); virtual; abstract;
-    procedure EndFrameSet(FrameSet: TObject); virtual; abstract;
-    procedure SetOnInclude(Handler: TIncludeType); virtual;
-    procedure SetOnLink(Handler: TLinkType); virtual;
-    procedure SetOnScript(Handler: TScriptEvent); virtual;
-    procedure SetOnSoundRequest(Handler: TSoundType); virtual;
-    property OnInclude: TIncludeType read FOnInclude write SetOnInclude;
-    property OnLink: TLinkType read FOnLink write SetOnLink;
-    property OnScript: TScriptEvent read FOnScript write SetOnScript;
-    property OnSoundRequest: TSoundType read FOnSoundRequest write SetOnSoundRequest;
-  end;
-
-  TPropStack = class(TFreeList)
-  private
-    function GetProp(Index: integer): TProperties;
-  public
-    property AnItem[Index: integer]: TProperties read GetProp; default;
-    function Last: TProperties;
-  end;
-
-var
-  PropStack: TPropStack;
-  Title: UnicodeString;
-  Base: string;
-  BaseTarget: string;
-  NoBreak: boolean; {set when in <NoBr>}
 
 procedure ParseHTMLString(const S: string; ASectionList: TList;
   AIncludeEvent: TIncludeType;
@@ -133,7 +90,7 @@ procedure ParseTextString(const S: string; ASectionList: TList);
 procedure FrameParseString(FrameViewer: TFrameViewerBase; FrameSet: TObject;
   ALoadStyle: LoadStyleType; const FName, S: string; AMetaEvent: TMetaType);
 function IsFrameString(ALoadStyle: LoadStyleType; const FName, S: string;
-  FrameViewer: TObject): boolean;
+  FrameViewer: TFrameViewerBase): boolean;
 function TranslateCharset(const Content: string; var Charset: TFontCharset): boolean;
 procedure InitializeFontSizes(Size: integer);
 procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties);
@@ -153,7 +110,6 @@ var
   Sy: Symb;
   Section: TSection;
   SectionList: TCellBasic;
-  MasterList: TSectionList;
   CurrentURLTarget: TURLTarget;
   InHref: boolean;
   Attributes: TAttributeList;
@@ -166,7 +122,6 @@ var
   Entities: TStringList;
   InComment: boolean;
   LinkSearch: boolean;
-  SIndex: integer;
   IsUTF8: boolean;
 
 
@@ -228,7 +183,7 @@ var
   IBuff, IBuffEnd: PChar;
   SIBuff: string;
   IncludeEvent: TIncludeType;
-  CallingObject: TObject;
+  CallingObject: TViewerBase;
   SaveLoadStyle: LoadStyleType;
   SoundEvent: TSoundType;
   MetaEvent: TMetaType;
@@ -304,7 +259,7 @@ begin
         begin
           Result := Buff^;
           Inc(Buff);
-          Inc(SIndex);
+          Inc(PropStack.SIndex);
         end
         else
           Result := EOFChar;
@@ -325,9 +280,9 @@ begin
   else
     Result := #0; {to prevent warning msg}
   end;
-  if (Integer(Buff) and $FFF = 0) {about every 4000 chars}
-    and not LinkSearch and Assigned(MasterList) and (DocS <> '') then
-    ThtmlViewer(CallingObject).htProgress(((Buff - PChar(DocS)) * MasterList.ProgressStart) div (BuffEnd - PChar(DocS)));
+  if (Cardinal(Buff) and $FFF = 0) {about every 4000 chars}
+    and not LinkSearch and Assigned(PropStack.MasterList) and (DocS <> '') then
+    THtmlViewerBase(CallingObject).htProgress(((Buff - PChar(DocS)) * PropStack.MasterList.ProgressStart) div (BuffEnd - PChar(DocS)));
 end;
 
 {----------------GetchBasic; }
@@ -784,8 +739,8 @@ begin
   if not GetQuotedStr(S, Val, Sym in [TitleSy, AltSy], Sym) then {either it's a quoted string or a number}
     if not GetValue(S, Val) then
       GetSomething(S); {in case quotes left off string}
-  if (Sym = IDSy) and (S <> '') and Assigned(MasterList) and not LinkSearch then
-    MasterList.IDNameList.AddChPosObject(S, SIndex);
+  if (Sym = IDSy) and (S <> '') and Assigned(PropStack.MasterList) and not LinkSearch then
+    PropStack.MasterList.IDNameList.AddChPosObject(S, PropStack.SIndex);
 end;
 
 {-------------GetTag}
@@ -808,8 +763,8 @@ begin
   end
   else
     Result := True;
-  Save := SIndex;
-  TagIndex := SIndex;
+  Save := PropStack.SIndex;
+  TagIndex := PropStack.SIndex;
   Compare := '';
   GetCh;
   if Ch = '/' then
@@ -896,7 +851,7 @@ begin
 
       // Get any normal text.
       repeat
-        SaveIndex := SIndex;
+        SaveIndex := PropStack.SIndex;
         // Collect all leading white spaces.
         if LCh in [' ', #13, #10, Tab] then
         begin
@@ -911,7 +866,7 @@ begin
         while not (LCh in [#1..#8, EOFChar, '<', '&', ' ', #13, #10, Tab]) do
         begin
           if not LinkSearch then
-            Buffer.Add(LCh, SIndex);
+            Buffer.Add(LCh, PropStack.SIndex);
           GetCh;
         end;
       until LCh in [#1..#8, EOFChar, '<', '&'];
@@ -946,40 +901,35 @@ end;
 
 { Add a TProperties to the PropStack. }
 procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties);
-var
-  NewProp: TProperties;
 begin
-  NewProp := TProperties.Create;
-  NewProp.Inherit(Tag, PropStack.Last);
-  NewProp.Combine(MasterList.Styles, Tag, AClass, AnID, APseudo, ATitle, AProp, PropStack.Count - 1);
-  PropStack.Add(NewProp);
+  PropStack.PushNewProp(Tag, AClass, AnID, APseudo, ATitle, AProp);
 end;
 
 procedure PopProp;
 {pop and free a TProperties from the Prop stack}
 begin
-  if PropStackIndex > 0 then
-    PropStack.Delete(PropStackIndex);
+  PropStack.PopProp;
 end;
 
 procedure PopAProp(const Tag: string);
 {pop and free a TProperties from the Prop stack.  It should be on top but in
  case of a nesting error, find it anyway}
-var
-  I, J: integer;
+//var
+//  I, J: integer;
 begin
-  for I := PropStackIndex downto 1 do
-    if PropStack[I].Proptag = Tag then
-    begin
-      if PropStack[I].GetBorderStyle <> bssNone then
-      {this would be the end of an inline border}
-        MasterList.ProcessInlines(SIndex, PropStack[I], False);
-      PropStack.Delete(I);
-      if I > 1 then {update any stack items which follow the deleted one}
-        for J := I to PropStackIndex do
-          PropStack[J].Update(PropStack[J - 1], MasterList.Styles, J);
-      Break;
-    end;
+//  for I := PropStackIndex downto 1 do
+//    if PropStack[I].Proptag = Tag then
+//    begin
+//      if PropStack[I].GetBorderStyle <> bssNone then
+//      {this would be the end of an inline border}
+//        PropStack.MasterList.ProcessInlines(PropStack.SIndex, PropStack[I], False);
+//      PropStack.Delete(I);
+//      if I > 1 then {update any stack items which follow the deleted one}
+//        for J := I to PropStackIndex do
+//          PropStack[J].Update(PropStack[J - 1], PropStack.MasterList.Styles, J);
+//      Break;
+//    end;
+  PropStack.PopAProp(Tag);
 end;
 
 procedure DoTextArea(TxtArea: TTextAreaFormControlObj);
@@ -1117,13 +1067,13 @@ procedure DoAEnd; {do the </a>}
 begin
   if InHref then {see if we're in an href}
   begin
-    CurrentUrlTarget.SetLast(ThtmlViewer(CallingObject).LinkList, SIndex);
+    CurrentUrlTarget.SetLast(ThtmlViewer(CallingObject).LinkList, PropStack.SIndex);
     CurrentUrlTarget.Clear;
     InHref := False;
   end;
   PopAProp('a');
   if Assigned(Section) then
-    Section.HRef(AEndSy, MasterList, CurrentUrlTarget, nil, PropStack.Last);
+    Section.HRef(AEndSy, PropStack.MasterList, CurrentUrlTarget, nil, PropStack.Last);
 end;
 
 procedure DoDivEtc(Sym: Symb; const TermSet: SymbSet);
@@ -1137,11 +1087,11 @@ begin
         PushNewProp('div', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
         CheckForAlign;
 
-        DivBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+        DivBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
         SectionList.Add(DivBlock, TagIndex);
         SectionList := DivBlock.MyCell;
 
-        Section := TSection.Create(MasterList, nil, PropStack.Last,
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
           CurrentUrlTarget, SectionList, True);
         Next;
         DoBody([DivEndSy] + TermSet);
@@ -1154,7 +1104,7 @@ begin
         end;
         SectionList := DivBlock.OwnerCell;
 
-        Section := TSection.Create(MasterList, nil, PropStack.Last,
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
           CurrentUrlTarget, SectionList, True);
         if Sy = DivEndSy then
           Next;
@@ -1177,11 +1127,11 @@ begin
         SectionList.Add(Section, TagIndex);
         Section := nil;
         PushNewProp('form', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-        FormBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+        FormBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
         SectionList.Add(FormBlock, TagIndex);
         SectionList := FormBlock.MyCell;
 
-        CurrentForm := ThtmlForm.Create(MasterList, Attributes);
+        CurrentForm := ThtmlForm.Create(PropStack.MasterList, Attributes);
 
         Next;
         DoBody(TermSet + [FormEndSy, FormSy]);
@@ -1477,13 +1427,13 @@ begin
   else
     SetJustify := NoJustify;
   PushNewProp('table', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-  Table := ThtmlTable.Create(MasterList, Attributes, PropStack.Last);
-  NewBlock := TTableBlock.Create(MasterList, PropStack.Last,
+  Table := ThtmlTable.Create(PropStack.MasterList, Attributes, PropStack.Last);
+  NewBlock := TTableBlock.Create(PropStack.MasterList, PropStack.Last,
     SaveSectionList, Table, Attributes, TableLevel);
   if (NewBlock.Justify <> Centered) and not (NewBlock.FloatLR in [ALeft, ARight]) then
     NewBlock.Justify := SetJustify;
   NewBlock.MyCell.Add(Table, TagIndex); {the only item in the cell}
-  CombineBlock := TTableAndCaptionBlock.Create(MasterList, PropStack.Last,
+  CombineBlock := TTableAndCaptionBlock.Create(PropStack.MasterList, PropStack.Last,
     SaveSectionList, Attributes, NewBlock); {will be needed if Caption found}
   CM := nil;
   ColOK := True; {OK to add <col> info}
@@ -1570,7 +1520,7 @@ begin
                   PropStack.Last.Props[S] := Table.BorderColor;
               end;
             end;
-            CellObj := TCellObj.Create(MasterList, VAlign, Attributes, PropStack.Last);
+            CellObj := TCellObj.Create(PropStack.MasterList, VAlign, Attributes, PropStack.Last);
             SectionList := CellObj.Cell;
             if ((CellObj.WidthAttr = 0) or CellObj.AsPercent) and Attributes.Find(NoWrapSy, T) then
               NoBreak := True {this seems to be what IExplorer does}
@@ -1591,7 +1541,7 @@ begin
               TopCaption := Lowercase(T.Name) <> 'bottom';
             PushNewProp('caption', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
             if not Assigned(CaptionBlock) then
-              CaptionBlock := TBlock.Create(MasterList, PropStack.Last,
+              CaptionBlock := TBlock.Create(PropStack.MasterList, PropStack.Last,
                 SaveSectionList, Attributes);
             SectionList := CaptionBlock.MyCell;
             Next;
@@ -1793,7 +1743,7 @@ begin
       Next;
     end;
     if Sy = MapEndSy then
-      MasterList.MapList.Add(Item)
+      PropStack.MasterList.MapList.Add(Item)
     else
       Item.Free;
   except
@@ -1927,7 +1877,7 @@ var
   begin
     C := LCh;
     N := Buff - PChar(DocS);
-    IX := SIndex;
+    IX := PropStack.SIndex;
   end;
 
   procedure Next1;
@@ -1944,7 +1894,7 @@ begin
       SL := Attributes.CreateStringList;
       Result := True;
       if not Assigned(Section) then
-        Section := TSection.Create(MasterList, nil, PropStack.Last,
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
           CurrentUrlTarget, SectionList, True);
       PushNewProp(SymbToStr(Sy), Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
       Prop := PropStack.Last;
@@ -1976,7 +1926,7 @@ begin
       if WantPanel then
       begin
         if Prop.GetBorderStyle <> bssNone then {start of inline border}
-          MasterList.ProcessInlines(SIndex, Prop, True);
+          PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
         Section.AddPanel1(PO, TagIndex);
         PopAProp('object');
         while not (Sy in [ObjectEndSy, EofSy]) do
@@ -1984,7 +1934,7 @@ begin
       end
       else
       begin
-        MasterList.PanelList.Remove(PO);
+        PropStack.MasterList.PanelList.Remove(PO);
         PopAProp('object');
         PO.Free;
       end;
@@ -2078,7 +2028,7 @@ var
     Prop := TProperties(PropStack.Last);
     Prop.SetFontBG;
     if Prop.GetBorderStyle <> bssNone then {start of inline border}
-      MasterList.ProcessInlines(SIndex, Prop, True);
+      PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
     if Colr in FontResults then
     begin
       PropStack.Last.Assign(NewColor or PalRelative, StyleUn.Color);
@@ -2133,7 +2083,7 @@ var
         {Get any normal text, includein spaces}
           while not (LCh in [#1..#8, EOFChar, '<', '&', ^M]) do
           begin
-            Buffer.Add(LCh, SIndex);
+            Buffer.Add(LCh, PropStack.SIndex);
             GetCh;
           end;
           if Buffer.Size > 0 then
@@ -2184,7 +2134,7 @@ var
       Section.AddTokenObj(S);
       S.Clear;
       SectionList.Add(Section, TagIndex);
-      Section := TPreFormated.Create(MasterList, nil, PropStack.Last,
+      Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
         CurrentUrlTarget, SectionList, False);
     end;
 
@@ -2197,10 +2147,10 @@ var
       SectionList.Add(Section, TagIndex);
       PushNewProp('pre', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
       InitialStackIndex := PropStackIndex;
-      PreBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+      PreBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
       SectionList.Add(PreBlock, TagIndex);
       SectionList := PreBlock.MyCell;
-      Section := TPreformated.Create(MasterList, nil, PropStack.Last,
+      Section := TPreformated.Create(PropStack.MasterList, nil, PropStack.Last,
         CurrentUrlTarget, SectionList, True);
       Done := False;
       while not Done do
@@ -2210,7 +2160,7 @@ var
               Next;
               case Sy of
                 TextSy: {this would be an isolated '<'}
-                  S.AddUnicodeChar('<', SIndex);
+                  S.AddUnicodeChar('<', PropStack.SIndex);
                 BRSy:
                   begin
                     Section.AddTokenObj(S);
@@ -2220,9 +2170,9 @@ var
                     PushNewProp('br', Attributes.TheClass, '', '', '', Attributes.TheStyle);
                     PropStack.Last.GetPageBreaks(Before, After, Intact);
                     if Before or After then
-                      SectionList.Add(TPage.Create(MasterList, PropStack.Last), TagIndex);
+                      SectionList.Add(TPage.Create(PropStack.MasterList, PropStack.Last), TagIndex);
                     PopAProp('br');
-                    Section := TPreFormated.Create(MasterList, nil, PropStack.Last,
+                    Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
                       CurrentUrlTarget, SectionList, False);
                     if Ch = ^M then
                       GetCh;
@@ -2245,10 +2195,10 @@ var
                     if Ch = ^M then
                       GetCh;
                     PushNewProp('p', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-                    PBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+                    PBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
                     SectionList.Add(PBlock, TagIndex);
                     SectionList := PBlock.MyCell;
-                    Section := TPreFormated.Create(MasterList, nil, PropStack.Last,
+                    Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
                       CurrentUrlTarget, SectionList, True);
                     InP := True;
                   end;
@@ -2257,7 +2207,7 @@ var
                     if InP then
                     begin
                       PEnd;
-                      Section := TPreFormated.Create(MasterList, nil, PropStack.Last,
+                      Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
                         CurrentUrlTarget, SectionList, True);
                     end;
                   end;
@@ -2281,7 +2231,7 @@ var
                           Prop := TProperties(PropStack.Last);
                           Prop.SetFontBG;
                           if Prop.GetBorderStyle <> bssNone then {start of inline border}
-                            MasterList.ProcessInlines(SIndex, Prop, True);
+                            PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
                         end;
                       BEndSy, IEndSy, StrongEndSy, EmEndSy, CiteEndSy, VarEndSy, UEndSy,
                         SEndSy, StrikeEndSy, SpanEndSy,
@@ -2323,9 +2273,9 @@ var
                             DoAEnd;
                           InHref := True;
                           if Attributes.Find(TargetSy, T) then
-                            CurrentUrlTarget.Assign(Name, T.Name, Attributes, SIndex)
+                            CurrentUrlTarget.Assign(Name, T.Name, Attributes, PropStack.SIndex)
                           else
-                            CurrentUrlTarget.Assign(Name, '', Attributes, SIndex);
+                            CurrentUrlTarget.Assign(Name, '', Attributes, PropStack.SIndex);
                           if Attributes.Find(TabIndexSy, T) then
                             CurrentUrlTarget.TabIndex := T.Value;
                           Link := 'link';
@@ -2336,7 +2286,7 @@ var
                     Prop := TProperties(PropStack.Last);
                     Prop.SetFontBG;
                     if Prop.GetBorderStyle <> bssNone then {start of inline border}
-                      MasterList.ProcessInlines(SIndex, Prop, True);
+                      PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
                     Section.ChangeFont(PropStack.Last);
 
                     if Attributes.Find(NameSy, T) then
@@ -2345,11 +2295,11 @@ var
                  {Author may have added '#' by mistake}
                       if (Length(Tmp) > 0) and (Tmp[1] = '#') then
                         Delete(Tmp, 1, 1);
-                      MasterList.IDNameList.AddChPosObject(Tmp, SIndex);
+                      PropStack.MasterList.IDNameList.AddChPosObject(Tmp, PropStack.SIndex);
                       Section.AnchorName := True;
                     end;
                     if FoundHRef then
-                      Section.HRef(HRefSy, MasterList, CurrentUrlTarget, Attributes, PropStack.Last);
+                      Section.HRef(HRefSy, PropStack.MasterList, CurrentUrlTarget, Attributes, PropStack.Last);
                   end;
                 AEndSy:
                   begin
@@ -2381,12 +2331,12 @@ var
                     S.Clear;
                     C := LCh;
                     N := Buff - PChar(DocS);
-                    IX := SIndex;
+                    IX := PropStack.SIndex;
                     DoObjectTag(C, N, IX);
                     LCh := C;
                     Ch := UpCase(LCh);
                     Buff := PChar(DocS) + N;
-                    SIndex := IX;
+                    PropStack.SIndex := IX;
                     if Ch = ^M then
                       GetCh;
                   end;
@@ -2395,8 +2345,8 @@ var
                     Section.AddTokenObj(S);
                     S.Clear;
                     SectionList.Add(Section, TagIndex);
-                    SectionList.Add(TPage.Create(MasterList, PropStack.Last), TagIndex);
-                    Section := TPreFormated.Create(MasterList, nil, PropStack.Last,
+                    SectionList.Add(TPage.Create(PropStack.MasterList, PropStack.Last), TagIndex);
+                    Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
                       CurrentUrlTarget, SectionList, False);
                   end;
                 InputSy, SelectSy:
@@ -2404,7 +2354,7 @@ var
                     SaveSy := Sy;
                     Section.AddTokenObj(S);
                     PushNewProp(SymbToStr(Sy), Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-                    FormControl := Section.AddFormControl(Sy, MasterList,
+                    FormControl := Section.AddFormControl(Sy, PropStack.MasterList,
                       Attributes, SectionList, TagIndex, PropStack.Last);
                     FormControl.ProcessProperties(PropStack.Last);
                     if Sy = SelectSy then
@@ -2416,7 +2366,7 @@ var
                   begin
                     Section.AddTokenObj(S);
                     PushNewProp('textarea', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-                    TxtArea := Section.AddFormControl(TextAreaSy, MasterList,
+                    TxtArea := Section.AddFormControl(TextAreaSy, PropStack.MasterList,
                       Attributes, SectionList, TagIndex, PropStack.Last) as TTextAreaFormControlObj;
                     DoTextArea(TxtArea);
                     TxtArea.ProcessProperties(PropStack.Last);
@@ -2437,11 +2387,11 @@ var
                     end;
 
                     PushNewProp('form', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-                    FormBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+                    FormBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
                     SectionList.Add(FormBlock, TagIndex);
                     SectionList := FormBlock.MyCell;
-                    CurrentForm := ThtmlForm.Create(MasterList, Attributes);
-                    Section := TPreFormated.Create(MasterList, nil, PropStack.Last,
+                    CurrentForm := ThtmlForm.Create(PropStack.MasterList, Attributes);
+                    Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
                       CurrentUrlTarget, SectionList, True);
                     InForm := True;
                   end;
@@ -2452,11 +2402,11 @@ var
                     if InForm then
                       FormEnd;
                     if not Assigned(Section) then
-                      Section := TPreFormated.Create(MasterList, nil, PropStack.Last,
+                      Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
                         CurrentUrlTarget, SectionList, True);
                   end;
                 MapSy: DoMap;
-                ScriptSy: DoScript(MasterList.ScriptEvent);
+                ScriptSy: DoScript(PropStack.MasterList.ScriptEvent);
               end;
             end;
           ^M:
@@ -2494,7 +2444,7 @@ begin
         begin {don't create a section for a single space}
           if (LCToken.Leng >= 1) and (LCToken.S <> ' ') then
           begin
-            Section := TSection.Create(MasterList, nil, PropStack.Last,
+            Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
               CurrentUrlTarget, SectionList, True);
             Section.AddTokenObj(LCToken);
           end;
@@ -2506,12 +2456,12 @@ begin
     ImageSy, PanelSy:
       begin
         if not Assigned(Section) then
-          Section := TSection.Create(MasterList, nil, PropStack.Last,
+          Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
             CurrentUrlTarget, SectionList, True);
         PushNewProp(SymbToStr(Sy), Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
         Prop := PropStack.Last;
         if Prop.GetBorderStyle <> bssNone then {start of inline border}
-          MasterList.ProcessInlines(SIndex, Prop, True);
+          PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
         if Sy = ImageSy then
           IO := Section.AddImage(Attributes, SectionList, TagIndex)
         else
@@ -2531,11 +2481,11 @@ begin
     InputSy, SelectSy:
       begin
         if not Assigned(Section) then
-          Section := TSection.Create(MasterList, nil, PropStack.Last,
+          Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
             CurrentUrlTarget, SectionList, True);
         SaveSy := Sy;
         PushNewProp(SymbToStr(Sy), Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-        FormControl := Section.AddFormControl(Sy, MasterList, Attributes,
+        FormControl := Section.AddFormControl(Sy, PropStack.MasterList, Attributes,
           SectionList, TagIndex, PropStack.Last);
         if Sy = SelectSy then
           GetOptions(FormControl as TListBoxFormControlObj);
@@ -2546,10 +2496,10 @@ begin
     TextAreaSy:
       begin
         if not Assigned(Section) then
-          Section := TSection.Create(MasterList, nil, PropStack.Last,
+          Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
             CurrentUrlTarget, SectionList, True);
         PushNewProp('textarea', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
-        TxtArea := Section.AddFormControl(TextAreaSy, MasterList,
+        TxtArea := Section.AddFormControl(TextAreaSy, PropStack.MasterList,
           Attributes, SectionList, TagIndex,
           PropStack.Last) as TTextAreaFormControlObj;
         DoTextArea(TxtArea);
@@ -2563,7 +2513,7 @@ begin
       begin
         SectionList.Add(Section, TagIndex);
         Section := nil;
-        Page := TPage.Create(MasterList, PropStack.Last);
+        Page := TPage.Create(PropStack.MasterList, PropStack.Last);
         SectionList.Add(Page, TagIndex);
         Next;
       end;
@@ -2593,7 +2543,7 @@ begin
               Prop := TProperties(PropStack.Last);
               Prop.SetFontBG;
               if Prop.GetBorderStyle <> bssNone then {start of inline border}
-                MasterList.ProcessInlines(SIndex, Prop, True);
+                PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
             end;
           BEndSy, IEndSy, StrongEndSy, EmEndSy, CiteEndSy, VarEndSy, UEndSy, SEndSy, StrikeEndSy:
             PopAProp(EndSymbToStr(Sy));
@@ -2613,13 +2563,13 @@ begin
           SubSy, SupSy, BigSy, SmallSy:
             begin
               if not Assigned(Section) then
-                Section := TSection.Create(MasterList, nil, PropStack.Last,
+                Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
                   CurrentUrlTarget, SectionList, True);
               PushNewProp(SymbToStr(Sy), Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
               Prop := TProperties(PropStack.Last);
               Prop.SetFontBG;
               if Prop.GetBorderStyle <> bssNone then
-                MasterList.ProcessInlines(SIndex, Prop, True);
+                PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
             end;
         end;
 
@@ -2637,7 +2587,7 @@ begin
               Prop := TProperties(PropStack.Last);
               Prop.SetFontBG;
               if Prop.GetBorderStyle <> bssNone then
-                MasterList.ProcessInlines(SIndex, Prop, True);
+                PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
             end;
           CodeEndSy, TTEndSy, KbdEndSy, SampEndSy, SpanEndSy, LabelEndSy:
             PopAProp(EndSymbToStr(Sy));
@@ -2673,9 +2623,9 @@ begin
                 DoAEnd;
               InHref := True;
               if Attributes.Find(TargetSy, T) then
-                CurrentUrlTarget.Assign(Name, T.Name, Attributes, SIndex)
+                CurrentUrlTarget.Assign(Name, T.Name, Attributes, PropStack.SIndex)
               else
-                CurrentUrlTarget.Assign(Name, '', Attributes, SIndex);
+                CurrentUrlTarget.Assign(Name, '', Attributes, PropStack.SIndex);
               if Attributes.Find(TabIndexSy, T) then
                 CurrentUrlTarget.TabIndex := T.Value;
               Link := 'link';
@@ -2685,9 +2635,9 @@ begin
         Prop := TProperties(PropStack.Last);
         Prop.SetFontBG;
         if Prop.GetBorderStyle <> bssNone then {start of inline border}
-          MasterList.ProcessInlines(SIndex, Prop, True);
+          PropStack.MasterList.ProcessInlines(PropStack.SIndex, Prop, True);
         if not Assigned(Section) then
-          Section := TSection.Create(MasterList, nil, PropStack.Last,
+          Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
             CurrentUrlTarget, SectionList, True)
         else
           Section.ChangeFont(PropStack.Last);
@@ -2698,11 +2648,11 @@ begin
       {Author may have added '#' by mistake}
           if (Length(Tmp) > 0) and (Tmp[1] = '#') then
             Delete(Tmp, 1, 1);
-          MasterList.IDNameList.AddChPosObject(Tmp, SIndex);
+          PropStack.MasterList.IDNameList.AddChPosObject(Tmp, PropStack.SIndex);
           Section.AnchorName := True;
         end;
         if FoundHRef then
-          Section.HRef(HRefSy, MasterList, CurrentUrlTarget, Attributes, PropStack.Last);
+          Section.HRef(HRefSy, PropStack.MasterList, CurrentUrlTarget, Attributes, PropStack.Last);
         Next;
       end;
     AEndSy:
@@ -2724,11 +2674,11 @@ begin
           PropStack.Last.Assign('center', TextAlign);
           Next;
         end;
-        HeadingBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+        HeadingBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
         SectionList.Add(HeadingBlock, TagIndex);
         SectionList := HeadingBlock.MyCell;
 
-        Section := TSection.Create(MasterList, Attributes, PropStack.Last,
+        Section := TSection.Create(PropStack.MasterList, Attributes, PropStack.Last,
           CurrentUrlTarget, SectionList, True);
         Done := False;
         while not Done do
@@ -2766,8 +2716,8 @@ begin
         SectionList.Add(Section, TagIndex);
         PushNewProp('hr', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
       {Create Horzline first as it effects the PropStack}
-        HorzLine := THorzLine.Create(MasterList, Attributes, PropStack.Last);
-        HRBlock := THRBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+        HorzLine := THorzLine.Create(PropStack.MasterList, Attributes, PropStack.Last);
+        HRBlock := THRBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
         HRBlock.MyHRule := Horzline;
         HRBlock.Align := Horzline.Align;
         SectionList.Add(HRBlock, TagIndex);
@@ -2798,7 +2748,7 @@ begin
     MapSy: DoMap;
     ScriptSy:
       begin
-        DoScript(MasterList.ScriptEvent);
+        DoScript(PropStack.MasterList.ScriptEvent);
         Next;
       end;
 
@@ -2847,7 +2797,7 @@ begin
   if LastAlign <> '' then
     PropStack.Last.Assign(LastAlign, TextAlign);
 
-  NewBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+  NewBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
   SectionList.Add(NewBlock, TagIndex);
   SectionList := NewBlock.MyCell;
 
@@ -2889,7 +2839,7 @@ begin
   begin
     if Assigned(Section) then
       SectionList.Add(Section, TagIndex);
-    Section := TSection.Create(MasterList, Attributes, PropStack.Last,
+    Section := TSection.Create(PropStack.MasterList, Attributes, PropStack.Last,
       CurrentUrlTarget, SectionList, False);
     PushNewProp('br', Attributes.TheClass, '', '', '', Attributes.TheStyle);
     PropStack.Last.GetPageBreaks(Before, After, Intact);
@@ -2897,22 +2847,22 @@ begin
     if Before or After then
     begin
       SectionList.Add(Section, TagIndex);
-      SectionList.Add(TPage.Create(MasterList, PropStack.Last), TagIndex);
-      Section := TSection.Create(MasterList, Attributes, PropStack.Last, CurrentUrlTarget, SectionList, False);
+      SectionList.Add(TPage.Create(PropStack.MasterList, PropStack.Last), TagIndex);
+      Section := TSection.Create(PropStack.MasterList, Attributes, PropStack.Last, CurrentUrlTarget, SectionList, False);
     end;
   end
   else
   begin
     if not Assigned(Section) then
-      Section := TSection.Create(MasterList, Attributes, PropStack.Last, CurrentUrlTarget, SectionList, False);
+      Section := TSection.Create(PropStack.MasterList, Attributes, PropStack.Last, CurrentUrlTarget, SectionList, False);
     Section.AddChar(#8, TagIndex);
     SectionList.Add(Section, TagIndex);
     PushNewProp('br', Attributes.TheClass, '', '', '', Attributes.TheStyle);
     PropStack.Last.GetPageBreaks(Before, After, Intact);
     PopAProp('br');
     if Before or After then
-      SectionList.Add(TPage.Create(MasterList, PropStack.Last), TagIndex);
-    Section := TSection.Create(MasterList, Attributes, PropStack.Last, CurrentUrlTarget, SectionList, False);
+      SectionList.Add(TPage.Create(PropStack.MasterList, PropStack.Last), TagIndex);
+    Section := TSection.Create(PropStack.MasterList, Attributes, PropStack.Last, CurrentUrlTarget, SectionList, False);
   end;
   Next;
 end;
@@ -2931,9 +2881,9 @@ begin
   if IsFirst then
   begin
     SectionList.Add(Section, TagIndex);
-    LiBlock := TBlockLI.Create(MasterList, PropStack.Last, SectionList, BlockType, Plain, Index, LineCount, ListLevel, Attributes);
+    LiBlock := TBlockLI.Create(PropStack.MasterList, PropStack.Last, SectionList, BlockType, Plain, Index, LineCount, ListLevel, Attributes);
     SectionList.Add(LiBlock, TagIndex);
-    LiSection := TSection.Create(MasterList, nil, PropStack.Last, CurrentUrlTarget, LiBlock.MyCell, True);
+    LiSection := TSection.Create(PropStack.MasterList, nil, PropStack.Last, CurrentUrlTarget, LiBlock.MyCell, True);
   end;
   SectionList := LiBlock.MyCell;
   Section := LISection;
@@ -3025,7 +2975,7 @@ begin
   PushNewProp(SymbToStr(Sym), Attributes.TheClass, Attributes.TheID, '',
     Attributes.TheTitle, Attributes.TheStyle);
 
-  NewBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+  NewBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
   NewBlock.IsListBlock := not (Sym in [AddressSy, BlockquoteSy, DLSy]);
   SectionList.Add(NewBlock, TagIndex);
   SectionList := NewBlock.MyCell;
@@ -3174,6 +3124,7 @@ begin
   i := 1;
   WhichByte := 0;
   j := 0; {prevent warning}
+  Result := '';
   while i <= Len do
   begin
     C := chr(ord(E[i]) and $7F);
@@ -3445,7 +3396,7 @@ begin
         slS := AdjustLineBreaks(slS); {put in uniform CRLF format}
         slI := 1;
         C := slGet;
-        DoStyle(MasterList.Styles, C, slGet, Path, True);
+        DoStyle(PropStack.MasterList.Styles, C, slGet, Path, True);
       end;
       Stream.Free;
       slS := '';
@@ -3491,7 +3442,7 @@ begin
         begin
           if (BodyBlock.MyCell.Count = 0) and (TableLevel = 0) then {make sure we're at beginning}
           begin
-            MasterList.ClearLists;
+            PropStack.MasterList.ClearLists;
             if Assigned(Section) then
             begin
               Section.CheckFree;
@@ -3512,15 +3463,15 @@ begin
                       PropStack.Last.Assign(Val or PalRelative, BackgroundColor);
                   LinkSy:
                     if ColorFromString(Name, False, Val) then
-                      MasterList.Styles.ModifyLinkColor('link', Val);
+                      PropStack.MasterList.Styles.ModifyLinkColor('link', Val);
                   VLinkSy:
                     if ColorFromString(Name, False, Val) then
-                      MasterList.Styles.ModifyLinkColor('visited', Val);
+                      PropStack.MasterList.Styles.ModifyLinkColor('visited', Val);
                   OLinkSy:
                     if ColorFromString(Name, False, Val) then
                     begin
-                      MasterList.Styles.ModifyLinkColor('hover', Val);
-                      MasterList.LinksActive := True;
+                      PropStack.MasterList.Styles.ModifyLinkColor('hover', Val);
+                      PropStack.MasterList.LinksActive := True;
                     end;
                   MarginWidthSy, LeftMarginSy:
                     AMarginWidth := Min(Max(0, Value), 200);
@@ -3531,7 +3482,7 @@ begin
                       PropStack.Last.Assign('fixed', BackgroundAttachment);
                 end;
 {$IFDEF Quirk}
-            MasterList.Styles.FixupTableColor(PropStack.Last);
+            PropStack.MasterList.Styles.FixupTableColor(PropStack.Last);
 {$ENDIF}
             PropStack.Last.Assign(AMarginWidth, MarginLeft);
             PropStack.Last.Assign(AMarginWidth, MarginRight);
@@ -3540,11 +3491,11 @@ begin
 
             SectionList := BodyBlock.OwnerCell;
             SectionList.Remove(BodyBlock);
-            BodyBlock := TBodyBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+            BodyBlock := TBodyBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
             SectionList.Add(BodyBlock, TagIndex);
             SectionList := BodyBlock.MyCell;
 
-            Section := TSection.Create(MasterList, nil, PropStack.Last, nil, SectionList, True);
+            Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last, nil, SectionList, True);
           end;
           Next;
         end;
@@ -3576,7 +3527,7 @@ begin
         DoStyleLink;
       StyleSy:
         begin
-          DoStyle(MasterList.Styles, LCh, GetChBasic, '', False);
+          DoStyle(PropStack.MasterList.Styles, LCh, GetChBasic, '', False);
           Ch := UpCase(LCh); {LCh is returned so next char is available}
           Next;
         end;
@@ -3619,7 +3570,7 @@ begin
         end;
       ScriptSy:
         begin
-          DoScript(FrameViewer.FOnScript);
+          DoScript(FrameViewer.OnScript);
           Next;
         end;
     end;
@@ -3659,13 +3610,13 @@ var
 begin
   LoadStyle := lsString;
   SectionList := TSectionList(ASectionList);
-  MasterList := TSectionList(SectionList);
+  PropStack.MasterList := TSectionList(SectionList);
   CallingObject := TSectionList(ASectionList).TheOwner;
   IncludeEvent := AIncludeEvent;
   PropStack.Clear;
   PropStack.Add(TProperties.Create);
-  PropStack[0].CopyDefault(MasterList.Styles.DefProp);
-  SIndex := -1;
+  PropStack[0].CopyDefault(PropStack.MasterList.Styles.DefProp);
+  PropStack.SIndex := -1;
 
   HaveTranslated := False;
   IsUTF8 := False;
@@ -3684,7 +3635,7 @@ begin
   begin
     PropStack[0].AssignUTF8;
     Delete(DocS, 1, 3);
-    SIndex := 2;
+    PropStack.SIndex := 2;
     IsUTF8 := True;
   end
   else
@@ -3700,7 +3651,7 @@ begin
   BuffEnd := Buff + Length(DocS);
   IBuff := nil;
 
-  BodyBlock := TBodyBlock.Create(MasterList, PropStack[0], SectionList, nil);
+  BodyBlock := TBodyBlock.Create(PropStack.MasterList, PropStack[0], SectionList, nil);
   SectionList.Add(BodyBlock, TagIndex);
   SectionList := BodyBlock.MyCell;
 
@@ -3713,7 +3664,7 @@ begin
   BaseTarget := '';
   CurrentStyle := [];
   CurrentForm := nil;
-  Section := TSection.Create(MasterList, nil, PropStack.Last, nil, SectionList, True);
+  Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last, nil, SectionList, True);
   Attributes := TAttributeList.Create;
   InScript := False;
   NoBreak := False;
@@ -3741,7 +3692,7 @@ begin
 
   try
 {$IFNDEF NoTabLink}
-    SaveSIndex := SIndex;
+    SaveSIndex := PropStack.SIndex;
     LinkSearch := True;
     SoundEvent := nil;
     MetaEvent := nil;
@@ -3764,7 +3715,7 @@ begin
     except
     end;
   {reset a few things}
-    SIndex := SaveSIndex;
+    PropStack.SIndex := SaveSIndex;
     Buff := PChar(DocS);
 {$ENDIF}
 
@@ -3805,7 +3756,7 @@ var
     Section.AddTokenObj(S);
     S.Clear;
     SectionList.Add(Section, TagIndex);
-    Section := TPreFormated.Create(MasterList, nil, PropStack.Last,
+    Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
       CurrentUrlTarget, SectionList, False);
   end;
 
@@ -3814,10 +3765,10 @@ begin
   try
     SectionList.Add(Section, TagIndex);
     PushNewProp('pre', Attributes.TheClass, Attributes.TheID, '', '', Attributes.TheStyle);
-    PreBlock := TBlock.Create(MasterList, PropStack.Last, SectionList, Attributes);
+    PreBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
     SectionList.Add(PreBlock, TagIndex);
     SectionList := PreBlock.MyCell;
-    Section := TPreformated.Create(MasterList, nil, PropStack.Last,
+    Section := TPreformated.Create(PropStack.MasterList, nil, PropStack.Last,
       CurrentUrlTarget, SectionList, False);
     Done := False;
     while not Done do
@@ -3827,7 +3778,7 @@ begin
         EofChar: Done := True;
       else
         begin {all other chars}
-          S.AddUnicodeChar(WideChar(LCh), SIndex);
+          S.AddUnicodeChar(WideChar(LCh), PropStack.SIndex);
           if S.Leng > 200 then
           begin
             Section.AddTokenObj(S);
@@ -3893,7 +3844,7 @@ var
         TitleSy: DoTitle;
         BgSoundSy: DoSound;
         ScriptSy:
-          begin DoScript(FrameViewer.FOnScript); Next; end;
+          begin DoScript(FrameViewer.OnScript); Next; end;
         NoFramesSy:
           begin
             repeat
@@ -3913,14 +3864,14 @@ var
   end;
 
 begin
-  MasterList := nil;
+  PropStack.MasterList := nil;
   if (ALoadStyle <> lsFile) and (S = '') then
     Exit;
   CallingObject := FrameViewer;
-  IncludeEvent := FrameViewer.FOnInclude;
-  SoundEvent := FrameViewer.FOnSoundRequest;
+  IncludeEvent := FrameViewer.OnInclude;
+  SoundEvent := FrameViewer.OnSoundRequest;
   MetaEvent := AMetaEvent;
-  LinkEvent := FrameViewer.FOnLink;
+  LinkEvent := FrameViewer.OnLink;
   Attributes := TAttributeList.Create;
   Title := '';
   Base := '';
@@ -3970,7 +3921,7 @@ end;
 {----------------IsFrameString}
 
 function IsFrameString(ALoadStyle: LoadStyleType; const FName, S: string;
-  FrameViewer: TObject): boolean;
+  FrameViewer: TFrameViewerBase): boolean;
 var
   AStrings: TStringList;
 
@@ -4005,7 +3956,7 @@ var
   end;
 
 begin
-  MasterList := nil;
+  PropStack.MasterList := nil;
   LoadStyle := lsString;
   Result := False;
   if (ALoadStyle <> lsFile) and (S = '') then
@@ -4047,49 +3998,6 @@ begin
   end;
 end;
 
-{ TFrameViewerBase }
-
-//-- BG ---------------------------------------------------------- 05.01.2010 --
-procedure TFrameViewerBase.SetOnInclude(Handler: TIncludeType);
-begin
-  FOnInclude := Handler;
-end;
-
-//-- BG ---------------------------------------------------------- 05.01.2010 --
-procedure TFrameViewerBase.SetOnLink(Handler: TLinkType);
-begin
-  FOnLink := Handler;
-end;
-
-//-- BG ---------------------------------------------------------- 05.01.2010 --
-procedure TFrameViewerBase.SetOnScript(Handler: TScriptEvent);
-begin
-  FOnScript := Handler;
-end;
-
-//-- BG ---------------------------------------------------------- 05.01.2010 --
-procedure TFrameViewerBase.SetOnSoundRequest(Handler: TSoundType);
-begin
-  FOnSoundRequest := Handler;
-end;
-
-procedure TFrameViewerBase.wmerase(var msg: TMessage);
-begin
-  msg.result := 1;
-end;
-
-{ TPropStack }
-
-function TPropStack.GetProp(Index: integer): TProperties;
-begin
-  Result := Items[Index];
-end;
-
-function TPropStack.Last: TProperties;
-begin
-  Result := Items[Count - 1];
-end;
-
 {----------------GetEntity}
 
 procedure GetEntity(T: TokenObj; CodePage: integer);
@@ -4129,7 +4037,7 @@ begin
     begin
     // A mask character. This introduces special characters and must be followed
     // by a '#' char or one of the predefined (named) entities.
-      SaveIndex := SIndex;
+      SaveIndex := PropStack.SIndex;
       GetCh;
       case LCh of
         '#': // Numeric value.
@@ -4190,7 +4098,7 @@ begin
           // Pick up the entity name.
           while (Ch in ['A'..'Z', '0'..'9']) and (N <= 10) do
           begin
-            Entity.Add(LCh, SIndex);
+            Entity.Add(LCh, PropStack.SIndex);
             GetCh;
             Inc(N);
           end;
@@ -4722,7 +4630,7 @@ end;
 initialization
 
   LCToken := TokenObj.Create;
-  PropStack := TPropStack.Create;
+  PropStack := THtmlPropStack.Create;
   SortEntities;
 
 finalization

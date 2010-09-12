@@ -33,20 +33,19 @@ unit StylePars;
 interface
 
 uses
-  StyleUn;
+  Classes, Graphics, SysUtils,
+  HtmlGlobals, UrlSubs, StyleUn;
+
 
 type
   CharFunction = function: Char;
 
-procedure DoStyle(Styles: TStyleList; var C: char; GC: CharFunction;
-  const APath: string; FromLink: boolean);
+procedure DoStyle(Styles: TStyleList; var C: char; GC: CharFunction; const APath: string; FromLink: boolean);
 procedure ParsePropertyStr(const PropertyStr: string; var Propty: TProperties);
 function SortContextualItems(S: string): string;
 
 implementation
 
-uses
-  SysUtils, Classes, Graphics, UrlSubs, HtmlUn2;
 
 const
   NeedPound = True;

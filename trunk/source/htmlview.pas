@@ -24,6 +24,36 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Note that the source modules, HTMLGIF1.PAS, PNGZLIB1.PAS, DITHERUNIT.PAS, and
 URLCON.PAS are covered by separate copyright notices located in those modules.
+
+********************************************************************************
+
+Bernd Gabriel, 12.09.2010: reducing circular dependencies between the core units.
+
+Before reducing circular dependencies this was the old unit hierarchy:
+
+  Level 1) GDIPL2A, HtmlGif1, HtmlGlobals, UrlSubs, vwPrint
+  Level 2) DitherUnit, HtmlGif2, MetaFilePrinter
+  Level 3) HtmlSbs1, HtmlSubs, HtmlUn2, HtmlView, ReadHtml, StylePars, StyleUn
+  Level 4) FramView
+  Level 5) FramBrwz
+  Level 6) FrameViewerReg, HtmlCompEdit
+
+In Level 3 nearly all units were using each other.
+
+After reducing circular dependencies this is the new unit hierarchy:
+
+  Level 1) GDIPL2A, HtmlGif1, HtmlGlobals, UrlSubs, vwPrint
+  Level 2) DitherUnit, HtmlGif2, MetaFilePrinter, StyleUn
+  Level 3) StylePars
+  Level 4) HtmlUn2
+  Level 5) HtmlSbs1, HtmlSubs
+  Level 6) HtmlView, ReadHtml
+  Level 7) FramView
+  Level 8) FramBrwz
+  Level 9) FrameViewerReg, HtmlCompEdit
+  
+Only two mutually usages remain: HtmlSbs1/HtmlSubs and HtmlView/ReadHtml.
+These will be removed later.
 }
 
 {$I htmlcons.inc}
@@ -38,9 +68,14 @@ uses
   Interfaces,
   LMessages,
 {$endif}
+  UrlSubs,
   MetafilePrinter,
   vwPrint,
-  HtmlGlobals, HTMLUn2, ReadHTML, HTMLSubs, StyleUn;
+  HtmlGlobals,
+  HTMLUn2,
+  ReadHTML,
+  HTMLSubs,
+  StyleUn;
 
 const
   wm_FormSubmit = wm_User + 100;
@@ -100,9 +135,9 @@ type
     procedure WMEraseBkgnd(var Message: TWMEraseBkgnd); message WM_EraseBkgnd;
     procedure WMLButtonDblClk(var Message: TWMMouse); message WM_LButtonDblClk;
     procedure DoBackground(ACanvas: TCanvas);
-    constructor CreateIt(AOwner: TComponent; Viewer: ThtmlViewer);
     property OnPaint: TNotifyEvent read FOnPaint write FOnPaint;
   public
+    constructor CreateIt(AOwner: TComponent; Viewer: ThtmlViewer);
     procedure Paint; override;
   end;
 
@@ -125,9 +160,9 @@ type
     procedure SetParams(APosition, APage, AMin, AMax: Integer);
   end;
 
-  ThtmlFileType = (HTMLType, TextType, ImgType, OtherType);
+  THtmlFileType = (HTMLType, TextType, ImgType, OtherType);
 
-  THTMLViewer = class(TWinControl)
+  THTMLViewer = class(THtmlViewerBase)
   private
     vwP, OldPrinter: TvwPrinter;
     fScaleX, fScaleY: single;
@@ -279,7 +314,7 @@ type
     procedure SetOnBitmapRequest(Handler: TGetBitmapEvent);
     procedure SetOnImageRequest(Handler: TGetImageEvent);
     procedure SetOnImageRequested(Handler: TGottenImageEvent);
-    procedure SetOnScript(Handler: TScriptEvent);
+    procedure SetOnScript(Handler: TScriptEvent); override;
     procedure SetOnFormSubmit(Handler: TFormSubmitEvent);
     function GetOurPalette: HPalette;
     procedure SetOurPalette(Value: HPalette);
@@ -347,8 +382,6 @@ type
     procedure DoLogic;
     procedure DoScrollBars;
     procedure SetupAndLogic;
-    function GetURL(X, Y: integer; var UrlTarg: TUrlTarget;
-      var FormControl: TImageFormControlObj; var ATitle: string): guResultType;
     function GetPalette: HPALETTE; override;
     procedure HTMLPaint(Sender: TObject); virtual;
     procedure HTMLMouseDown(Sender: TObject; Button: TMouseButton;
@@ -378,7 +411,6 @@ type
     FrameOwner: TObject;
     VScrollBar: T32ScrollBar;
     HScrollBar: TScrollBar;
-    TablePartRec: TTablePartRec;
     Visited: TStringList; {visited URLs}
 
     procedure AddVisitedLink(const S: string);
@@ -387,7 +419,8 @@ type
     procedure TriggerUrlAction;
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function HTMLExpandFilename(const Filename: string): string; virtual;
+    function HtmlExpandFilename(const Filename: string): string; override;
+    function ShowFocusRect: Boolean; override;
     procedure LoadFromFile(const FileName: string);
     procedure LoadTextFromString(const S: string);
 {$IFDEF ver120_plus} {Delphi 4 and higher}
@@ -442,7 +475,7 @@ type
     procedure ReplaceImage(const NameID: string; NewImage: TStream);
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
     procedure Reformat;
-    procedure htProgress(Percent: Integer);
+    procedure htProgress(Percent: Integer); override;
     procedure htProgressEnd;
     procedure htProgressInit;
     function FullDisplaySize(FormatWidth: integer): TSize;
@@ -451,10 +484,12 @@ type
     function MakeMetaFile(YTop, FormatWidth, Width, Height: integer): TMetaFile;
     function MakePagedMetaFiles(Width, Height: integer): TList;
 {$endif}
-    procedure ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
+    procedure ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); override;
     function GetCharAtPos(Pos: integer; var Ch: WideChar;
       var Font: TFont): boolean;
     function GetTextByIndices(AStart, ALast: integer): WideString;
+    function GetURL(X, Y: integer; var UrlTarg: TUrlTarget;
+      var FormControl: TIDObject {TImageFormControlObj}; var ATitle: string): guResultType;
 
     property DocumentTitle: string read GetTitle;
     property URL: string read FURL write FURL;
@@ -745,12 +780,12 @@ end;
 
 procedure THtmlViewer.SetupAndLogic;
 begin
-  FTitle := ReadHTML.Title;
-  if ReadHTML.Base <> '' then
-    FBase := ReadHTML.Base
+  FTitle := HtmlSubs.Title;
+  if HtmlSubs.Base <> '' then
+    FBase := HtmlSubs.Base
   else
     FBase := FBaseEx;
-  FBaseTarget := ReadHTML.BaseTarget;
+  FBaseTarget := HtmlSubs.BaseTarget;
   if Assigned(FOnParseEnd) then
     FOnParseEnd(Self);
   try
@@ -1519,7 +1554,7 @@ var
   YR: integer;
   InText: boolean;
   Dummy: TUrlTarget;
-  DummyFC: TImageFormControlObj;
+  DummyFC: TIDObject {TImageFormControlObj};
   DummyTitle: string;
 begin
   inherited MouseDown(Button, Shift, X, Y);
@@ -1603,7 +1638,7 @@ end;
 procedure ThtmlViewer.ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
 var
   Dummy: TUrlTarget;
-  DummyFC: TImageFormControlObj;
+  DummyFC: TIDObject {TImageFormControlObj};
 begin
   if Sender is TFormControlObj then
     with TFormControlObj(Sender), TheControl do
@@ -1649,7 +1684,7 @@ procedure ThtmlViewer.HTMLMouseMove(Sender: TObject; Shift: TShiftState; X,
 var
   UrlTarget: TUrlTarget;
   Url, Target: string;
-  FormControl: TImageFormControlObj;
+  FormControl: TIDObject {TImageFormControlObj};
   Obj: TObject;
   IX, IY: integer;
   XR, CaretHt: integer;
@@ -1726,7 +1761,7 @@ procedure ThtmlViewer.HTMLMouseUp(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: Integer);
 var
   UrlTarget: TUrlTarget;
-  FormControl: TImageFormControlObj;
+  FormControl: TIDObject {TImageFormControlObj};
   Obj: TObject;
   IX, IY: integer;
   InImage, TmpLeft: boolean;
@@ -1794,7 +1829,7 @@ begin
     begin
       guResult := GetURL(X, Y, UrlTarget, FormControl, FTitleAttr);
       if guControl in guResult then
-        FormControl.ImageClick(nil)
+        TImageFormControlObj(FormControl).ImageClick(nil)
       else if guUrl in guResult then
       begin
         FURL := UrlTarget.Url;
@@ -2033,11 +2068,11 @@ begin
         if LeftButtonDown then
         begin
           if Pt.Y < -15 then
-            Pos := Position - SmallChange * 8
+            Pos := Position - Integer(SmallChange * 8)
           else if Pt.Y <= 0 then
             Pos := Position - SmallChange
           else if Pt.Y > Self.Height + 15 then
-            Pos := Position + SmallChange * 8
+            Pos := Position + Integer(SmallChange * 8)
           else
             Pos := Position + SmallChange;
         end
@@ -2099,7 +2134,7 @@ begin
 end;
 
 function ThtmlViewer.GetURL(X, Y: integer; var UrlTarg: TUrlTarget;
-  var FormControl: TImageFormControlObj; var ATitle: string): guResultType;
+  var FormControl: TIDObject {TImageFormControlObj}; var ATitle: string): guResultType;
 begin
   Result := FSectionList.GetURL(PaintPanel.Canvas, X, Y + FSectionList.YOff,
     UrlTarg, FormControl, ATitle);
@@ -2618,6 +2653,12 @@ begin
         Visited.Delete(I);
     end;
   end;
+end;
+
+//-- BG ---------------------------------------------------------- 12.09.2010 --
+function THTMLViewer.ShowFocusRect: Boolean;
+begin
+  Result := not(htNoFocusRect in htOptions);
 end;
 
 function ThtmlViewer.GetCursor: TCursor;

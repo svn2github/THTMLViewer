@@ -732,9 +732,9 @@ begin
     EndFrameSet;
     CalcSizes(Self);
     Frame.LoadFiles;
-    FTitle := ReadHTML.Title;
-    FBase := ReadHTML.Base;
-    FBaseTarget := ReadHTML.BaseTarget;
+    FTitle := HtmlSubs.Title;
+    FBase := HtmlSubs.Base;
+    FBaseTarget := HtmlSubs.BaseTarget;
   end;
 end;
 

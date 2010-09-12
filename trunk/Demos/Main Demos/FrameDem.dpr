@@ -6,9 +6,8 @@ program FrameDem;
 uses
   Forms,
 {$ifdef LCL}
-  Interfaces,
+  Interfaces, LResources,
   ColorGrd in 'ColorGrd.pas' {TColorGrid},
-{$else}
 {$endif}
   PrintStatusForm in 'PRINTSTATUSFORM.PAS' {PrnStatusForm},
   Gopage in 'GOPAGE.PAS' {GoPageForm},
@@ -24,6 +23,9 @@ uses
 {$IFDEF WINDOWS}{$R FrameDem.rc}{$ENDIF}
 
 begin
+{$ifdef LCL}
+  {$I FrameDem.lrs}
+{$endif}
   Application.Initialize;
   Application.CreateForm(TForm1, Form1);
   Application.CreateForm(TSubmitForm, SubmitForm);

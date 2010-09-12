@@ -32,7 +32,7 @@ uses
 {$endif}
   PreviewForm,
   {$ifdef UseXpMan} XpMan, {$endif} ComCtrls,
-  FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, HTMLView, Submit, ImgForm;
+  UrlSubs, FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, HTMLView, Submit, ImgForm;
 
 const
   MaxHistories = 6;  {size of History list}

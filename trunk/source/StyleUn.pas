@@ -33,7 +33,10 @@ unit StyleUn;
 interface
 
 uses
-  Classes{$ifdef LCL}, Interfaces{$endif}, Graphics;
+  Windows, Classes, Graphics, SysUtils, Math, Forms, Contnrs,
+  {$ifdef LCL}Interfaces, {$endif}
+  {$IFDEF Delphi6_Plus}Variants, {$ENDIF}
+  HtmlGlobals;
 
 const
   IntNull = -12345678;
@@ -139,9 +142,11 @@ const
 
 type
   TStyleList = class;
+  TPropStack = class;
 
   TProperties = class(TObject)
   private
+    PropStack: TPropStack;
     TheFont: TMyFont;
     InLink: boolean;
     DefFontname: string;
@@ -160,7 +165,8 @@ type
     FIArray: TFontInfoArray;
     ID: integer;
 
-    constructor Create;
+    constructor Create; overload; // for use in style list only
+    constructor Create(PropStack: TPropStack); overload; // for use in property stack
     destructor Destroy; override;
     procedure Copy(Source: TProperties);
     procedure CopyDefault(Source: TProperties);
@@ -206,24 +212,31 @@ type
 
   TStyleList = class(TStringList)
   private
-    MasterList: TObject;
     SeqNo: integer;
   public
     DefProp: TProperties;
-    constructor Create(AMasterList: TObject);
+    constructor Create;
     destructor Destroy; override;
     procedure Clear; override;
     function GetSeqNo: string;
     procedure Initialize(const FontName, PreFontName: string;
       PointSize: integer; AColor, AHotspot, AVisitedColor, AActiveColor: TColor;
       LinkUnderline: boolean; ACharSet: TFontCharSet; MarginHeight, MarginWidth: integer);
-    procedure AddModifyProp(const Selector, Prop, Value: string);
+    procedure AddModifyProp(const Selector, Prop, Value: string); virtual; abstract;
     function AddObject(const S: string; AObject: TObject): Integer; override;
     function AddDuplicate(const Tag: string; Prop: TProperties): TProperties;
     procedure ModifyLinkColor(Psuedo: string; AColor: TColor);
 {$IFDEF Quirk}
     procedure FixupTableColor(BodyProp: TProperties);
 {$ENDIF}
+  end;
+
+  TPropStack = class(TObjectList)
+  private
+    function GetProp(Index: Integer): TProperties;
+  public
+    function Last: TProperties;
+    property Items[Index: integer]: TProperties read GetProp; default;
   end;
 
 const
@@ -264,6 +277,8 @@ function ReadFontName(S: string): string;
 
 function AlignmentFromString(S: string): AlignmentType;
 
+function FindPropIndex(const PropWord: string; var PropIndex: PropIndices): boolean;
+
 {$IFNDEF Ver130}
 {$IFNDEF Delphi6_Plus}
 procedure FreeAndNil(var Obj);
@@ -271,10 +286,6 @@ procedure FreeAndNil(var Obj);
 {$ENDIF}
 
 implementation
-
-uses
-  Windows, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}SysUtils, Math, Forms,
-  HtmlGlobals, HtmlSubs, ReadHtml;
 
 var
   DefPointSize: double;
@@ -413,6 +424,13 @@ begin
   for I := MarginTop to LeftPos do
     Props[I] := IntNull;
   Props[ZIndex] := 0;
+end;
+
+//-- BG ---------------------------------------------------------- 12.09.2010 --
+constructor TProperties.Create(PropStack: TPropStack);
+begin
+  Create;
+  self.PropStack := PropStack;
 end;
 
 destructor TProperties.Destroy;
@@ -1560,8 +1578,12 @@ procedure TProperties.Combine(Styles: TStyleList;
       IX: Integer;
     begin
       Styles.Find(Style, IX); //place to start
-      while (IX < Styles.Count) and (Pos(Style, Styles[IX]) = 1) and CheckForContextual(IX) do
-        Inc(IX);
+      try
+        while (IX < Styles.Count) and (Pos(Style, Styles[IX]) = 1) and CheckForContextual(IX) do
+          Inc(IX);
+      except
+        raise;
+      end;
     end;
 
   begin
@@ -1897,7 +1919,7 @@ procedure TProperties.CalcLinkFontInfo(Styles: TStyleList; I: integer);
 
   procedure InsertNewProp(N: integer; const Pseudo: string);
   begin
-    PropStack.Insert(N, TProperties.Create);
+    PropStack.Insert(N, TProperties.Create(PropStack));
     PropStack[N].Inherit('', PropStack[N - 1]);
     PropStack[N].Combine(Styles, PropTag, PropClass, PropID, Pseudo, PropTitle, PropStyle, N - 1);
   end;
@@ -2023,10 +2045,11 @@ begin
     AddPropertyByIndex(Index, PropValue);
 end;
 
-constructor TStyleList.Create(AMasterList: TObject);
+{ TStyleList }
+
+constructor TStyleList.Create;
 begin
   inherited Create;
-  MasterList := AMasterList;
   Sorted := True;
   Duplicates := dupAccept;
   SeqNo := 10;
@@ -2052,119 +2075,6 @@ function TStyleList.GetSeqNo: string;
 begin {used to help sort contextual items by entry sequence}
   Result := IntToStr(SeqNo);
   Inc(SeqNo);
-end;
-
-{----------------TStyleList.AddModifyProp}
-
-procedure TStyleList.AddModifyProp(const Selector, Prop, Value: string);
-{strings are all lowercase here}
-var
-  I: integer;
-  PropIndex: PropIndices;
-  Propty: TProperties;
-  NewColor: TColor;
-  NewProp: boolean;
-begin
-  if FindPropIndex(Prop, PropIndex) then
-  begin
-    if not Find(Selector, I) then
-    begin
-      NewProp := True;
-      Propty := TProperties.Create {newly created property}
-    end
-    else
-    begin
-      Propty := TProperties(Objects[I]); {modify existing property}
-      NewProp := False;
-    end;
-    case PropIndex of
-      Color:
-        if ColorFromString(Value, False, NewColor) then
-        begin
-          if Selector = ':link' then
-          begin {changed the defaults to be the same as link}
-            ModifyLinkColor('hover', NewColor);
-            ModifyLinkColor('visited', NewColor);
-          end
-          else if Selector = ':visited' then
-            ModifyLinkColor('hover', NewColor);
-          Propty.Props[PropIndex] := NewColor;
-        end;
-      BorderColor:
-        if ColorFromString(Value, False, NewColor) then
-        begin
-          Propty.Props[BorderColor] := NewColor;
-          Propty.Props[BorderLeftColor] := NewColor;
-          Propty.Props[BorderTopColor] := NewColor;
-          Propty.Props[BorderRightColor] := NewColor;
-          Propty.Props[BorderBottomColor] := NewColor;
-        end;
-      BorderTopColor..BorderLeftColor:
-        if ColorFromString(Value, False, NewColor) then
-          Propty.Props[PropIndex] := NewColor;
-      BackgroundColor:
-        if ColorFromString(Value, False, NewColor) then
-          Propty.Props[PropIndex] := NewColor
-        else
-          Propty.Props[PropIndex] := clNone;
-      Visibility:
-        begin
-          if Value = 'visible' then
-            Propty.Props[Visibility] := viVisible
-          else if Value = 'hidden' then
-            Propty.Props[Visibility] := viHidden;
-        end;
-      TextTransform:
-        begin
-          if Value = 'uppercase' then
-            Propty.Props[TextTransform] := txUpper
-          else if Value = 'lowercase' then
-            Propty.Props[TextTransform] := txLower
-          else
-            Propty.Props[TextTransform] := txNone;
-        end;
-      WordWrap:
-        if Value = 'break-word' then
-          Propty.Props[WordWrap] := Value
-        else
-          Propty.Props[WordWrap] := 'normal';
-      FontVariant:
-        if Value = 'small-caps' then
-          Propty.Props[FontVariant] := Value
-        else if Value = 'normal' then
-          Propty.Props[FontVariant] := 'normal';
-      BorderTopStyle..BorderLeftStyle:
-        begin
-          if Value <> 'none' then
-            Propty.Props[BorderStyle] := Value;
-          Propty.Props[PropIndex] := Value;
-        end;
-      BorderStyle:
-        begin
-          Propty.Props[BorderStyle] := Value;
-          Propty.Props[BorderTopStyle] := Value;
-          Propty.Props[BorderRightStyle] := Value;
-          Propty.Props[BorderBottomStyle] := Value;
-          Propty.Props[BorderLeftStyle] := Value;
-        end;
-      LineHeight:
-        Propty.Props[PropIndex] := Value;
-    else
-      Propty.Props[PropIndex] := Value;
-    end;
-    if NewProp then
-      AddObject(Selector, Propty); {it's a newly created property}
-    if Pos(':hover', Selector) > 0 then
-      TSectionList(MasterList).LinksActive := True;
-    if Selector = 'a' then
-    begin
-      AddModifyProp('::link', Prop, Value); {also applies to ::link}
-    end;
-{$IFDEF Quirk}
-    if (Selector = 'body') and (PropIndex = Color) then
-      FixupTableColor(Propty);
-{$ENDIF}
-  end;
 end;
 
 {$IFDEF Quirk}
@@ -2197,7 +2107,7 @@ end;
 
 function TStyleList.AddDuplicate(const Tag: string; Prop: TProperties): TProperties;
 begin
-  Result := TProperties.Create;
+  Result := TProperties.Create(Prop.PropStack);
   Result.Copy(Prop);
   AddObject(Tag, Result);
 end;
@@ -2496,6 +2406,19 @@ begin
     AddObject('h' + IntToStr(HIndex), Properties);
   end;
 end;
+
+{ TPropStack }
+
+function TPropStack.GetProp(Index: integer): TProperties;
+begin
+  Result := TProperties(inherited Items[Index]);
+end;
+
+function TPropStack.Last: TProperties;
+begin
+  Result := Items[Count - 1];
+end;
+
 
 const
   NumColors = 176;

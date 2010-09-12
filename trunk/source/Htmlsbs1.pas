@@ -31,6 +31,7 @@ URLCON.PAS are covered by separate copyright notices located in those modules.
 unit Htmlsbs1;
 
 interface
+
 uses
   Windows, Classes, Graphics{$ifdef LCL}, Interfaces{$endif}, Controls, HtmlUn2, HtmlSubs, StyleUn;
 
@@ -146,8 +147,7 @@ type
 implementation
 
 uses
-  SysUtils, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}Forms, StdCtrls, Math,
-  ReadHtml, HtmlView;
+  SysUtils, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}Forms, StdCtrls, Math;
 
 destructor TOptionObj.Destroy;
 begin
@@ -201,7 +201,7 @@ constructor TListBoxFormControlObj.Create(AMasterList: TSectionList;
 var
   T: TAttribute;
   Multiple: boolean;
-  PntPanel: TPaintPanel;
+  PntPanel: TWinControl; //TPaintPanel;
   Tmp: TMyFont;
 begin
   inherited Create(AMasterList, Position, L);
@@ -213,7 +213,7 @@ begin
   else
     LBSize := -1;
   Longest := 3; {the minimum size}
-  PntPanel := TPaintPanel(AMasterList.PPanel);
+  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
   FControl := ThtListbox.Create(PntPanel);
   with ThtListbox(FControl) do
   begin
@@ -474,12 +474,12 @@ end;
 constructor TComboFormControlObj.Create(AMasterList: TSectionList;
   Position: integer; L: TAttributeList; Prop: TProperties);
 var
-  PntPanel: TPaintPanel;
+  PntPanel: TWinControl; //TPaintPanel;
   Tmp: TMyFont;
 begin
   inherited Create(AMasterList, Position, L, Prop);
   CodePage := Prop.CodePage;
-  PntPanel := TPaintPanel(AMasterList.PPanel);
+  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
   PntPanel.RemoveControl(FControl);
   FControl.Free; {don't want the inherited one}
   FControl := ThtCombobox.Create(PntPanel);
@@ -634,7 +634,7 @@ end;
 constructor TTextAreaFormControlObj.Create(AMasterList: TSectionList;
   Position: integer; L: TAttributeList; Prop: TProperties);
 var
-  PntPanel: TPaintPanel;
+  PntPanel: TWinControl; //TPaintPanel;
   I: integer;
   SB: TScrollStyle;
   Tmp: TMyFont;
@@ -663,7 +663,7 @@ begin
           end;
       end;
 
-  PntPanel := TPaintPanel(AMasterList.PPanel);
+  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
   FControl := ThtMemo.Create(PntPanel);
   with ThtMemo(FControl) do
   begin

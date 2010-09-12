@@ -32,9 +32,10 @@ unit HTMLUn2;
 
 interface
 uses
-  Windows, SysUtils, Classes, Graphics, ClipBrd
-  {$ifdef LCL}, Interfaces, IntfGraphics, FpImage{$endif},
-  StyleUn {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
+  Windows, SysUtils, Classes, Graphics, ClipBrd, Controls, Messages, Variants,
+  {$ifdef LCL}Interfaces, IntfGraphics, FpImage, {$endif}
+  {$IFNDEF NoGDIPlus}GDIPL2A, {$ENDIF}
+  UrlSubs, StyleUn, HtmlGlobals, HtmlGif2;
 
 const
   VersionNo = '10.01';
@@ -50,6 +51,9 @@ const
   FmCtl = WideChar(#2);
   ImgPan = WideChar(#4);
   BrkCh = WideChar(#8);
+//BG, 11.09.2010: moved to this unit to reduce circular dependencies:
+  ImageSpace = 3; {extra space for left, right images}
+  ListIndent = 35;
 
 {$IFNDEF DOTNET}
 {$IFNDEF FPC}
@@ -73,8 +77,8 @@ type
 
 type
   TgpObject = TObject;
-  TScriptEvent = procedure(Sender: TObject; const Name, Language,
-    Script: string) of object;
+  TSectionBaseList = class;
+  TFloatingObj = class;
 
   { Like TList but frees it's items. Use only descendents of TObject! }
   TFreeList = class(TList)
@@ -273,26 +277,30 @@ type
     Float: boolean; {set if Floating block boundary}
   end;
 
-  IndentManagerBasic = class(TObject)
+  TIndentManager = class(TObject)
+  public
     Width, ClipWidth: Integer;
     L, R: TFreeList; {holds info (IndentRec's) on left and right indents}
     CurrentID: TObject; {the current level (a TBlock pointer)}
     LfEdge, RtEdge: integer; {current extreme edges}
-
+  public
     constructor Create;
     destructor Destroy; override;
-    procedure Clear;
-    procedure Reset(Lf, Rt: integer);
-    procedure UpdateTable(Y: integer; IW: integer; IH: integer; Justify: JustifyType);
+    function GetNextLeftXY(var Y: Integer; X, ThisWidth, MaxWidth, MinIndex: Integer): Integer;
+    function GetNextWiderY(Y: integer): integer;
+    function ImageBottom: integer;
     function LeftIndent(Y: integer): integer;
     function RightSide(Y: integer): integer;
-    function ImageBottom: integer;
-    procedure GetClearY(var CL, CR: integer);
-    function GetNextWiderY(Y: integer): integer;
     function SetLeftIndent(XLeft, Y: integer): integer;
     function SetRightIndent(XRight, Y: integer): integer;
+    procedure Clear;
     procedure FreeLeftIndentRec(I: integer);
     procedure FreeRightIndentRec(I: integer);
+    procedure GetClearY(var CL, CR: integer);
+    procedure Reset(Lf, Rt: integer);
+    procedure Update(Y: integer; Img: TFloatingObj);
+    procedure UpdateBlock(Y: integer; IW: integer; IH: integer; Justify: AlignmentType);
+    procedure UpdateTable(Y: integer; IW: integer; IH: integer; Justify: JustifyType);
   end;
 
   AllocRec = class(TObject)
@@ -358,16 +366,16 @@ type
   TChPosObj = class(TIDObject)
   private
     ChPos: integer;
-    List: TList;
+    List: TSectionBaseList;
   protected
     function GetYPosition: integer; override;
   end;
 
   TIDNameList = class(TStringList)
   private
-    OwnerList: TList;
+    OwnerList: TSectionBaseList;
   public
-    constructor Create(List: TList);
+    constructor Create(List: TSectionBaseList);
     destructor Destroy; override;
     procedure Clear; override;
     function AddObject(const S: string; AObject: TObject): Integer; override;
@@ -396,6 +404,159 @@ type
   htColorArray = packed array[0..3] of TColor;
   htBorderStyleArray = packed array[0..3] of BorderStyleType;
 
+//BG, 11.09.2010: moved to this unit to reduce circular dependencies:
+
+  guResultType = set of (guUrl, guControl, guTitle);
+
+  TFontObjBase = class(TObject) {font information}
+  public
+    UrlTarget: TUrlTarget;
+  end;
+
+  TFloatingObj = class(TIDObject)
+  public
+    Pos: integer; {0..Len  index of image position}
+    ImageHeight, {does not include VSpace}
+      ImageWidth: integer;
+//BG, 17.01.2010: separate vertical and horizontal alignment:
+//    ObjAlign: AlignmentType;
+    VertAlign: AlignmentType;
+    HorzAlign: AlignmentType;
+    Indent: integer;
+    HSpaceL, HSpaceR, VSpaceT, VSpaceB: integer; {horizontal, vertical extra space}
+    SpecWidth: integer; {as specified by <img or panel> tag}
+    SpecHeight: integer; {as specified by <img or panel> tag}
+    PercentWidth: boolean; {if width is percent}
+    PercentHeight: boolean; {if height is percent}
+    ImageTitle: string;
+    FAlt: AnsiString; {the alt= attribute}
+    FAltW: WideString;
+
+    function GetYPosition: integer; override;
+  public
+    ImageKnown: boolean; {know size of image}
+    DrawYY: integer;
+    DrawXX: integer;
+    NoBorder: boolean; {set if don't want blue border}
+    BorderSize: integer;
+    constructor CreateCopy(T: TFloatingObj);
+    procedure DrawLogic(SectionList: TSectionBaseList; Canvas: TCanvas;
+      FO: TFontObjBase; AvailableWidth, AvailableHeight: integer); virtual; abstract;
+    procedure ProcessProperties(Prop: TProperties);
+    property Alt: AnsiString read FAlt;
+  end;
+
+  TBlockBase = class;
+
+  TSectionBase = class(TIDObject) {abstract base for document sections}
+  private
+    FDisplay: TPropDisplay;
+    FMyBlock: TBlockBase;
+    FParentSectionList: TSectionBaseList; {what list it's in}
+  protected
+    function GetYPosition: integer; override;
+  public
+    SectionHeight: integer; {pixel height of section}
+    DrawHeight: integer; {floating image may overhang}
+    StartCurs: integer;
+    Len: integer;
+    ZIndex: integer;
+    ContentTop, ContentBot, ContentLeft: integer;
+    DrawTop, DrawBot, YDraw: integer;
+
+    constructor Create(AMasterList: TSectionBaseList; ADisplay: TPropDisplay); overload;
+    constructor Create(AMasterList: TSectionBaseList; AProp: TProperties); overload;
+    constructor CreateCopy(AMasterList: TSectionBaseList; T: TSectionBase); virtual;
+    function CursorToXY(Canvas: TCanvas; Cursor: integer; var X: integer; var Y: integer): boolean; virtual;
+    function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: integer): integer; virtual;
+    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: integer;
+      IMgr: TIndentManager; var MaxWidth: integer; var Curs: integer): integer; virtual;
+    function FindCursor(Canvas: TCanvas; X: integer; Y: integer; var XR: integer; var YR: integer;
+      var CaretHt: integer; var Intext: boolean): integer; virtual;
+    function FindDocPos(SourcePos: integer; Prev: boolean): integer; virtual;
+    function FindSourcePos(DocPos: integer): integer; virtual;
+    function FindString(From: integer; const ToFind: WideString; MatchCase: boolean): integer; virtual;
+    function FindStringR(From: integer; const ToFind: WideString; MatchCase: boolean): integer; virtual;
+    function GetChAtPos(Pos: integer; var Ch: WideChar; var Obj: TObject): boolean; virtual;
+    function GetURL(Canvas: TCanvas; X: integer; Y: integer; var UrlTarg: TUrlTarget;
+      var FormControl: TIDObject{TImageFormControlObj}; var ATitle: string): guResultType; virtual;
+    function PtInObject(X: integer; Y: integer; var Obj: TObject; var IX, IY: integer): boolean; virtual;
+    procedure AddSectionsToList; virtual;
+    procedure CopyToClipboard; virtual;
+    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: integer); virtual;
+    procedure SetParent(List: TSectionBaseList);
+    property Display: TPropDisplay read FDisplay write FDisplay;
+    property MyBlock: TBlockBase read FMyBlock write FMyBlock;
+    property ParentSectionList: TSectionBaseList read FParentSectionList;
+  end;
+
+  TBlockBase = class(TSectionBase)
+  end;
+
+  TSectionBaseList = class(TFreeList)
+  private
+    function getItem(Index: Integer): TSectionBase;
+  protected
+    procedure AddSectionsToPositionList(Sections: TSectionBase); virtual;
+  public
+    function CursorToXY(Canvas: TCanvas; Cursor: integer; var X: integer; var Y: integer): boolean; virtual;
+    function FindDocPos(SourcePos: integer; Prev: boolean): integer; virtual;
+    property Items[Index: Integer]: TSectionBase read getItem; default;
+  end;
+
+  TGetStreamEvent = procedure(Sender: TObject; const SRC: string; var Stream: TMemoryStream) of object;
+  TIncludeType = procedure(Sender: TObject; const Command: string; Params: TStrings; var IString: string) of object;
+  TLinkType = procedure(Sender: TObject; const Rel, Rev, Href: string) of object;
+  TMetaType = procedure(Sender: TObject; const HttpEq, Name, Content: string) of object;
+  TScriptEvent = procedure(Sender: TObject; const Name, Language, Script: string) of object;
+  TSoundType = procedure(Sender: TObject; const SRC: string; Loop: integer; Terminate: boolean) of object;
+
+  TViewerBase = class(TWinControl)
+  private
+    FOnInclude: TIncludeType;
+    FOnLink: TLinkType;
+    FOnScript: TScriptEvent;
+    FOnSoundRequest: TSoundType;
+  protected
+    procedure SetOnInclude(Handler: TIncludeType); virtual;
+    procedure SetOnLink(Handler: TLinkType); virtual;
+    procedure SetOnScript(Handler: TScriptEvent); virtual;
+    procedure SetOnSoundRequest(Handler: TSoundType); virtual;
+  public
+    property OnInclude: TIncludeType read FOnInclude write SetOnInclude;
+    property OnLink: TLinkType read FOnLink write SetOnLink;
+    property OnScript: TScriptEvent read FOnScript write SetOnScript;
+    property OnSoundRequest: TSoundType read FOnSoundRequest write SetOnSoundRequest;
+  end;
+
+  TablePartType = (Normal, DoHead, DoBody1, DoBody2, DoBody3, DoFoot);
+  TTablePartRec = class
+    TablePart: TablePartType;
+    PartStart: integer;
+    PartHeight: integer;
+    FootHeight: integer;
+  end;
+
+  THtmlViewerBase = class(TViewerBase)
+  public
+    TablePartRec: TTablePartRec;
+    procedure htProgress(Percent: Integer); virtual; abstract;
+    procedure ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); virtual; abstract;
+    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
+    function HtmlExpandFilename(const Filename: string): string; virtual; abstract;
+    function ShowFocusRect: Boolean; virtual; abstract;
+  end;
+
+  TFrameViewerBase = class(TViewerBase)
+  private
+    procedure wmerase(var msg: TMessage); message WM_ERASEBKGND;
+  public
+    function CreateSubFrameSet(FrameSet: TObject): TObject; virtual; abstract;
+    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string); virtual; abstract;
+    procedure DoAttributes(FrameSet: TObject; Attr: TAttributeList); virtual; abstract;
+    procedure EndFrameSet(FrameSet: TObject); virtual; abstract;
+  end;
+
 var
   DefBitMap, ErrorBitMap, ErrorBitmapMask: TBitMap;
   WaitStream: TMemoryStream;
@@ -419,7 +580,6 @@ procedure GetClippingRgn(Canvas: TCanvas; ARect: TRect; Printing: boolean;
 
 function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
   var Mask: TBitmap): TgpObject;
-function HTMLToDos(FName: string): string;
   {convert an HTML style filename to one for Dos}
 function HTMLServerToDos(FName, Root: string): string;
 
@@ -436,16 +596,6 @@ procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: integer; Color: TColor)
 procedure FormControlRect(Canvas: TCanvas; X1: integer;
   Y1: integer; X2: integer; Y2: integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
 function GetXExtent(DC: HDC; P: PWideChar; N: integer): integer;
-
-procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-  Y1: integer; X2: integer; Y2: integer; Raised: boolean; W: integer); 
-procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas; X1: integer;
-  Y1: integer; X2: integer; Y2: integer; Light, Dark: TColor; Raised: boolean;
-  W: integer); overload;
-procedure RaisedRectColor(Canvas: TCanvas;
-  const ORect, IRect: TRect;
-  const Colors: htColorArray;
-  Styles: htBorderStyleArray); overload;
 
 function EnlargeImage(Image: TGpObject; W, H: integer): TBitmap;
 procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: integer; Bitmap: TBitmap);
@@ -469,8 +619,8 @@ procedure StretchPrintGpImageOnColor(Canvas: TCanvas; Image: TGpImage;
 function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
 function htColors(C0, C1, C2, C3: TColor): htColorArray;
 function htRaisedColors(Light, Dark: TColor; Raised: Boolean): htColorArray; overload;
-function htRaisedColors(SectionList: TFreeList; Canvas: TCanvas; Raised: Boolean): htColorArray; overload;
-procedure GetRaisedColors(SectionList: TFreeList; Canvas: TCanvas; out Light, Dark: TColor);
+//function htRaisedColors(SectionList: TFreeList; Canvas: TCanvas; Raised: Boolean): htColorArray; overload;
+//procedure GetRaisedColors(SectionList: TSectionBaseList; Canvas: TCanvas; out Light, Dark: TColor);
 procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
   S: htBorderStyleArray; BGround: TColor; Print: boolean);
 
@@ -482,12 +632,11 @@ function GetImageWidth(Image: TGpObject): integer;
 implementation
 
 uses
-  HtmlGlobals,  Forms {$ifndef FPC_TODO}, jpeg{$endif}, DitherUnit, Math,
-  {$IFDEF UNICODE}
-  PngImage,
-  {$ENDIF}
-  htmlsubs,
-  HtmlGif2, StylePars;
+  Forms, Math,
+  {$ifndef FPC_TODO}jpeg, {$endif}
+  {$IFDEF UNICODE} PngImage, {$ENDIF}
+  DitherUnit,
+  StylePars;
 
 type
   EGDIPlus = class(Exception);
@@ -814,68 +963,6 @@ begin
     if Result[1] = '\' then
       Result := Root + Result;
   end;
-end;
-
-function HTMLToDos(FName: string): string;
-{convert an HTML style filename to one for Dos}
-var
-  I: integer;
-
-  procedure Replace(Old, New: char);
-  var
-    I: integer;
-  begin
-    I := Pos(Old, FName);
-    while I > 0 do
-    begin
-      FName[I] := New;
-      I := Pos(Old, FName);
-    end;
-  end;
-
-  procedure ReplaceEscapeChars;
-  var
-    S: string;
-    I: integer;
-  begin
-    I := Pos('%', FName);
-    while (I > 1) and (I <= Length(FName) - 2) do
-    begin
-      S := '$' + FName[I + 1] + FName[I + 2];
-      try
-        FName[I] := chr(StrToInt(S));
-        Delete(FName, I + 1, 2);
-      except {ignore exception}
-        Exit;
-      end;
-      I := Pos('%', FName);
-    end;
-  end;
-
-begin
-  ReplaceEscapeChars;
-  I := pos('/', FName);
-  if I <> 0 then
-  begin
-    I := Pos('file:///', Lowercase(FName));
-    if I > 0 then
-      System.Delete(FName, I, 8)
-    else
-    begin
-      I := Pos('file://', Lowercase(FName));
-      if I > 0 then
-        System.Delete(FName, I, 7)
-      else
-      begin
-        I := Pos('file:/', Lowercase(FName));
-        if I > 0 then
-          System.Delete(FName, I, 6);
-      end;
-    end;
-    Replace('|', ':');
-    Replace('/', '\');
-  end;
-  Result := FName;
 end;
 
 function WideTrim(const S: WideString): WideString;
@@ -1370,8 +1457,8 @@ begin
   utText.Last := ALast;
   if (List.Count > 0) then
     for I := List.Count - 1 downto 0 do
-      if (ID = TFontObj(List[I]).UrlTarget.ID) then
-        TFontObj(List[I]).UrlTarget.utText.Last := ALast
+      if (ID = TFontObjBase(List[I]).UrlTarget.ID) then
+        TFontObjBase(List[I]).UrlTarget.utText.Last := ALast
       else
         Break;
 end;
@@ -2403,39 +2490,110 @@ begin
   end;
 end;
 
-{----------------IndentManagerBasic.Create}
+{----------------TIndentManager.Create}
 
-constructor IndentManagerBasic.Create;
+constructor TIndentManager.Create;
 begin
   inherited Create;
   R := TFreeList.Create;
   L := TFreeList.Create;
 end;
 
-destructor IndentManagerBasic.Destroy;
+destructor TIndentManager.Destroy;
 begin
   R.Free;
   L.Free;
   inherited Destroy;
 end;
 
-procedure IndentManagerBasic.Clear;
+procedure TIndentManager.Clear;
 begin
   R.Clear;
   L.Clear;
   CurrentID := nil;
 end;
 
-{----------------IndentManagerBasic.Reset}
+{----------------TIndentManager.Reset}
 
-procedure IndentManagerBasic.Reset(Lf, Rt: integer);
+procedure TIndentManager.Reset(Lf, Rt: integer);
 begin
   LfEdge := Lf;
   RtEdge := Rt;
   CurrentID := nil;
 end;
 
-procedure IndentManagerBasic.UpdateTable(Y: integer; IW: integer; IH: integer;
+procedure TIndentManager.Update(Y: integer; Img: TFloatingObj);
+{Given a new floating image, update the edge information.  Fills  Img.Indent,
+ the distance from the left edge to the upper left corner of the image}
+var
+  IH, IW: integer;
+  IR: IndentRec;
+  LIndent: integer;
+begin
+  if Assigned(Img) then
+  begin
+    IW := Img.ImageWidth + Img.HSpaceL + Img.HSpaceR;
+    IH := Img.ImageHeight + Img.VSpaceT + Img.VSpaceB;
+    if (Img.HorzAlign = ALeft) then
+    begin
+      IR := IndentRec.Create;
+      with IR do
+      begin
+        LIndent := LeftIndent(Y);
+        Img.Indent := LIndent - LfEdge + Img.HSpaceL;
+        X := LIndent - LfEdge + IW;
+        YT := Y;
+        YB := Y + IH;
+        L.Add(IR);
+      end;
+    end
+    else if (Img.HorzAlign = ARight) then
+    begin
+      IR := IndentRec.Create;
+      with IR do
+      begin
+        X := RightSide(Y) - IW;
+        Img.Indent := X + Img.HSpaceL;
+        YT := Y;
+        YB := Y + IH;
+        R.Add(IR);
+      end;
+    end;
+  end;
+end;
+
+procedure TIndentManager.UpdateBlock(Y: integer; IW: integer; IH: integer;
+  Justify: AlignmentType);
+{For a floating block, update the edge information. }
+var
+  IR: IndentRec;
+begin
+  IR := IndentRec.Create;
+  if (Justify = ALeft) then
+  begin
+    with IR do
+    begin
+      X := -LfEdge + IW;
+      YT := Y;
+      YB := Y + IH;
+      Float := True; //ID := CurrentID;
+      L.Add(IR);
+    end;
+  end
+  else if (Justify = ARight) then
+  begin
+    with IR do
+    begin
+      X := RightSide(Y) - IW;
+      YT := Y;
+      YB := Y + IH;
+      Float := True; //ID := CurrentID;
+      R.Add(IR);
+    end;
+  end;
+end;
+
+procedure TIndentManager.UpdateTable(Y: integer; IW: integer; IH: integer;
   Justify: JustifyType);
 {Given a floating table, update the edge information. }
 var
@@ -2467,7 +2625,7 @@ end;
 const
   BigY = 9999999;
 
-function IndentManagerBasic.LeftIndent(Y: integer): integer;
+function TIndentManager.LeftIndent(Y: integer): integer;
 var
   I: integer;
 begin
@@ -2484,7 +2642,7 @@ begin
   Inc(Result, LfEdge);
 end;
 
-function IndentManagerBasic.RightSide(Y: integer): integer;
+function TIndentManager.RightSide(Y: integer): integer;
 {returns the current right side dimension as measured from the left, a positive
  number}
 var
@@ -2506,7 +2664,7 @@ begin
     Inc(Result, LfEdge);
 end;
 
-function IndentManagerBasic.ImageBottom: integer;
+function TIndentManager.ImageBottom: integer;
 {finds the bottom of the last floating image}
 var
   I: integer;
@@ -2522,7 +2680,7 @@ begin
         Result := YB;
 end;
 
-procedure IndentManagerBasic.GetClearY(var CL, CR: integer);
+procedure TIndentManager.GetClearY(var CL, CR: integer);
 {returns the left and right Y values which will clear image margins}
 var
   I: integer;
@@ -2541,7 +2699,36 @@ begin
   Inc(CR);
 end;
 
-function IndentManagerBasic.GetNextWiderY(Y: integer): integer;
+//-- BG ---------------------------------------------------------- 08.06.2008 --
+function TIndentManager.GetNextLeftXY(var Y: Integer; X, ThisWidth, MaxWidth, MinIndex: Integer): Integer;
+var
+  Index: Integer;
+  Indent: IndentRec;
+  DummyCR: Integer;
+begin
+  if X < 0 then
+  begin
+    dec(X, Auto);
+    inc(MaxWidth, 2 * Auto);
+  end;
+  Index := L.Count - 1;
+  if Index >= MinIndex then
+  begin
+    Indent := IndentRec(L[Index]);
+    // set y to previous used y == y of current line
+    Y := Max(Y, Indent.YT);
+    Result := Max(X, Indent.X);
+  end
+  else
+    Result := Max(X, LeftIndent(Y));
+  if Result + ThisWidth > MaxWidth + X then
+  begin
+    Result := X;
+    GetClearY(Y, DummyCR);
+  end;
+end;
+
+function TIndentManager.GetNextWiderY(Y: integer): integer;
 {returns the next Y value which offers a wider space or Y if none}
 var
   I, CL, CR: integer;
@@ -2564,7 +2751,7 @@ begin
     Result := Min(CL, CR);
 end;
 
-function IndentManagerBasic.SetLeftIndent(XLeft, Y: integer): integer;
+function TIndentManager.SetLeftIndent(XLeft, Y: integer): integer;
 var
   IR: IndentRec;
 begin
@@ -2579,7 +2766,7 @@ begin
   Result := L.Add(IR);
 end;
 
-function IndentManagerBasic.SetRightIndent(XRight, Y: integer): integer;
+function TIndentManager.SetRightIndent(XRight, Y: integer): integer;
 var
   IR: IndentRec;
 begin
@@ -2594,12 +2781,12 @@ begin
   Result := R.Add(IR);
 end;
 
-procedure IndentManagerBasic.FreeLeftIndentRec(I: integer);
+procedure TIndentManager.FreeLeftIndentRec(I: integer);
 begin
   L.Delete(I);
 end;
 
-procedure IndentManagerBasic.FreeRightIndentRec(I: integer);
+procedure TIndentManager.FreeRightIndentRec(I: integer);
 begin
   R.Delete(I);
 end;
@@ -2647,7 +2834,7 @@ end;
 
 {----------------TIDNameList}
 
-constructor TIDNameList.Create(List: TList);
+constructor TIDNameList.Create(List: TSectionBaseList);
 begin
   inherited Create;
   Sorted := True;
@@ -2705,14 +2892,11 @@ function TChPosObj.GetYPosition: integer;
 var
   Pos, X, Y: integer;
 begin
-  with List as TSectionList do
-  begin
-    Pos := FindDocPos(ChPos, False);
-    if CursorToXY(nil, Pos, X, Y) then
-      Result := Y
-    else
-      Result := 0;
-  end;
+  Pos := List.FindDocPos(ChPos, False);
+  if List.CursorToXY(nil, Pos, X, Y) then
+    Result := Y
+  else
+    Result := 0;
 end;
 
 {$IFNDEF NoMetafile}
@@ -3600,33 +3784,6 @@ end;
 
 {$ENDIF NoGDIPlus}
 
-//-- BG ---------------------------------------------------------- 12.06.2010 --
-procedure GetRaisedColors(SectionList: TFreeList; Canvas: TCanvas; out Light, Dark: TColor);
-var
-  White, BlackBorder: boolean;
-begin
-  with SectionList as TSectionList, Canvas do
-  begin
-    White := Printing or ((Background and $FFFFFF = clWhite) or
-      ((Background = clWindow) and (GetSysColor(Color_Window) = $FFFFFF)));
-    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
-      (GetDeviceCaps(Handle, PLANES) = 1);
-  end;
-  if BlackBorder then
-  begin
-    Light := clBlack;
-    Dark := clBlack;
-  end
-  else
-  begin
-    Dark := clBtnShadow;
-    if White then
-      Light := clSilver
-    else
-      Light := clBtnHighLight;
-  end;
-end;
-
 function Points(P0, P1, P2, P3: TPoint): BorderPointArray;
 begin
   Result[0] := P0;
@@ -3650,15 +3807,6 @@ begin
     Result := htColors(Light, Light, Dark, Dark)
   else
     Result := htColors(Dark, Dark, Light, Light);
-end;
-
-//-- BG ---------------------------------------------------------- 12.06.2010 --
-function htRaisedColors(SectionList: TFreeList; Canvas: TCanvas; Raised: Boolean): htColorArray;
-var
-  Light, Dark: TColor;
-begin
-  GetRaisedColors(SectionList, Canvas, Light, Dark);
-  Result := htRaisedColors(Light, Dark, Raised);
 end;
 
 procedure DrawOnePolygon(Canvas: TCanvas; P: BorderPointArray; Color: TColor;
@@ -4033,42 +4181,6 @@ begin
   end;
 end;
 
-//-- BG ---------------------------------------------------------- 12.06.2010 --
-procedure RaisedRectColor(Canvas: TCanvas;
-  const ORect, IRect: TRect;
-  const Colors: htColorArray;
-  Styles: htBorderStyleArray);
-{Draws colored raised or lowered rectangles for table borders}
-begin
-  DrawBorder(Canvas, ORect, IRect, Colors, Styles, clNone, False);
-end;
-
-procedure RaisedRectColor(SectionList: TFreeList; Canvas: TCanvas;
-  X1, Y1, X2, Y2: integer;
-  Light, Dark: TColor;
-  Raised: boolean;
-  W: integer);
-begin
-  RaisedRectColor(Canvas,
-    Rect(X1, Y1, X2, Y2),
-    Rect(X1 + W, Y1 + W, X2 - W, Y2 - W),
-    htRaisedColors(SectionList, Canvas, Raised),
-    htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
-end;
-
-procedure RaisedRect(SectionList: TFreeList; Canvas: TCanvas;
-  X1, Y1, X2, Y2: integer;
-  Raised: boolean;
-  W: integer);
-{Draws raised or lowered rectangles for table borders}
-begin
-  RaisedRectColor(Canvas,
-    Rect(X1, Y1, X2, Y2),
-    Rect(X1 + W, Y1 + W, X2 - W, Y2 - W),
-    htRaisedColors(SectionList, Canvas, Raised),
-    htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
-end;
-
 { TgpObject }
 
 function GetImageHeight(Image: TGpObject): integer;
@@ -4107,6 +4219,329 @@ begin
     raise(EGDIPlus.Create('Not a TBitmap, TGifImage, TMetafile, or TGpImage'));
 end;
 
+{ TViewerBase }
+
+//-- BG ---------------------------------------------------------- 05.01.2010 --
+procedure TViewerBase.SetOnInclude(Handler: TIncludeType);
+begin
+  FOnInclude := Handler;
+end;
+
+//-- BG ---------------------------------------------------------- 05.01.2010 --
+procedure TViewerBase.SetOnLink(Handler: TLinkType);
+begin
+  FOnLink := Handler;
+end;
+
+//-- BG ---------------------------------------------------------- 05.01.2010 --
+procedure TViewerBase.SetOnScript(Handler: TScriptEvent);
+begin
+  FOnScript := Handler;
+end;
+
+//-- BG ---------------------------------------------------------- 05.01.2010 --
+procedure TViewerBase.SetOnSoundRequest(Handler: TSoundType);
+begin
+  FOnSoundRequest := Handler;
+end;
+
+{ THtmlViewerBase }
+
+//-- BG ---------------------------------------------------------- 12.09.2010 --
+procedure THtmlViewerBase.KeyDown(var Key: Word; Shift: TShiftState);
+begin
+  // just to make it public.
+  inherited;
+end;
+
+{ TFrameViewerBase }
+
+procedure TFrameViewerBase.wmerase(var msg: TMessage);
+begin
+  msg.result := 1;
+end;
+
+{----------------TSectionBase.Create}
+
+constructor TSectionBase.Create(AMasterList: TSectionBaseList; ADisplay: TPropDisplay);
+begin
+  inherited Create;
+  FParentSectionList := AMasterList;
+  FDisplay := ADisplay;
+  ContentTop := 999999999; {large number in case it has Display: none; }
+end;
+
+//-- BG ---------------------------------------------------------- 20.09.2009 --
+constructor TSectionBase.Create(AMasterList: TSectionBaseList; AProp: TProperties);
+begin
+  create(AMasterList, AProp.Display);
+end;
+
+constructor TSectionBase.CreateCopy(AMasterList: TSectionBaseList; T: TSectionBase);
+begin
+  inherited Create;
+  FParentSectionList := AMasterList;
+  SectionHeight := T.SectionHeight;
+  ZIndex := T.ZIndex;
+end;
+
+procedure TSectionBase.CopyToClipboard;
+begin
+end;
+
+function TSectionBase.GetYPosition: integer;
+begin
+  Result := ContentTop;
+end;
+
+{ TSectionBase }
+
+function TSectionBase.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: integer; IMgr: TIndentManager;
+  var MaxWidth: integer; var Curs: integer): integer;
+begin
+  StartCurs := Curs;
+  Result := SectionHeight;
+  DrawHeight := SectionHeight;
+  MaxWidth := 0;
+  ContentTop := Y;
+  DrawTop := Y;
+  YDraw := Y;
+  ContentBot := Y + SectionHeight;
+  DrawBot := Y + DrawHeight;
+end;
+
+function TSectionBase.Draw1(Canvas: TCanvas; const ARect: TRect;
+  IMgr: TIndentManager; X, XRef, YRef: integer): integer;
+var
+  Y: integer;
+begin
+  Y := YDraw;
+  Result := Y + SectionHeight;
+end;
+
+function TSectionBase.GetURL(Canvas: TCanvas; X: integer; Y: integer;
+  var UrlTarg: TUrlTarget; var FormControl: TIDObject{TImageFormControlObj};
+  var ATitle: string): guResultType;
+begin
+  Result := [];
+end;
+
+function TSectionBase.PtInObject(X: integer; Y: integer; var Obj: TObject;
+  var IX, IY: integer): boolean;
+begin
+  Result := False;
+end;
+
+function TSectionBase.FindCursor(Canvas: TCanvas; X: integer; Y: integer;
+  var XR: integer; var YR: integer; var CaretHt: integer;
+  var Intext: boolean): integer;
+begin
+  Result := -1;
+end;
+
+function TSectionBase.FindString(From: integer; const ToFind: WideString; MatchCase: boolean): integer;
+begin
+  Result := -1;
+end;
+
+function TSectionBase.FindStringR(From: integer; const ToFind: WideString; MatchCase: boolean): integer;
+begin
+  Result := -1;
+end;
+
+function TSectionBase.FindSourcePos(DocPos: integer): integer;
+begin
+  Result := -1;
+end;
+
+function TSectionBase.FindDocPos(SourcePos: integer; Prev: boolean): integer;
+begin
+  Result := -1;
+end;
+
+function TSectionBase.CursorToXY(Canvas: TCanvas; Cursor: integer; var X: integer;
+  var Y: integer): boolean;
+begin
+  Result := False;
+end;
+
+function TSectionBase.GetChAtPos(Pos: integer; var Ch: WideChar; var Obj: TObject): boolean;
+begin
+  Result := False;
+end;
+
+procedure TSectionBase.SetParent(List: TSectionBaseList);
+begin
+  FParentSectionList := List;
+end;
+
+procedure TSectionBase.MinMaxWidth(Canvas: TCanvas; var Min, Max: integer);
+begin
+  Min := 0; Max := 0;
+end;
+
+procedure TSectionBase.AddSectionsToList;
+begin
+  ParentSectionList.addSectionsToPositionList(Self);
+end;
+
+{ TSectionBaseList }
+
+function TSectionBaseList.CursorToXY(Canvas: TCanvas; Cursor: integer; var X, Y: integer): boolean;
+var
+  I: integer;
+begin
+  Result := False;
+  for I := 0 to Count - 1 do
+  begin
+    Result := Items[I].CursorToXY(Canvas, Cursor, X, Y);
+    if Result then
+      Break;
+  end;
+end;
+
+function TSectionBaseList.FindDocPos(SourcePos: integer; Prev: boolean): integer;
+var
+  I: integer;
+begin
+  Result := -1;
+  if not Prev then
+    for I := 0 to Count - 1 do
+    begin
+      Result := Items[I].FindDocPos(SourcePos, Prev);
+      if Result >= 0 then
+        Break;
+    end
+  else {Prev, iterate backwards}
+    for I := Count - 1 downto 0 do
+    begin
+      Result := Items[I].FindDocPos(SourcePos, Prev);
+      if Result >= 0 then
+        Break;
+    end
+end;
+
+function TSectionBaseList.getItem(Index: Integer): TSectionBase;
+begin
+  Result := inherited Items[Index];
+end;
+
+//-- BG ---------------------------------------------------------- 11.09.2010 --
+procedure TSectionBaseList.AddSectionsToPositionList(Sections: TSectionBase);
+begin
+  // overridden by TSectionList.
+end;
+
+{ TFloatingObj }
+
+constructor TFloatingObj.CreateCopy(T: TFloatingObj);
+begin
+  inherited Create;
+  FAlt := T.FAlt;
+  FAltW := T.FAltW;
+  ImageWidth := T.ImageWidth;
+  ImageHeight := T.ImageHeight;
+  NoBorder := T.NoBorder;
+  BorderSize := T.BorderSize;
+  Indent := T.Indent;
+  VertAlign := T.VertAlign;
+  HorzAlign := T.HorzAlign;
+  HSpaceL := T.HSpaceL;
+  HSpaceR := T.HSpaceR;
+  VSpaceT := T.VSpaceT;
+  VSpaceB := T.VSpaceB;
+  Pos := T.Pos;
+end;
+
+function TFloatingObj.GetYPosition: integer;
+begin
+  Result := DrawYY;
+end;
+
+procedure TFloatingObj.ProcessProperties(Prop: TProperties);
+const
+  DummyHtWd = 200;
+var
+  MargArrayO: TVMarginArray;
+  MargArray: TMarginArray;
+  Align: AlignmentType;
+  EmSize, ExSize: integer;
+begin
+  if Prop.GetVertAlign(Align) then
+    VertAlign := Align;
+  if Prop.GetFloat(Align) and (Align <> ANone) then
+  begin
+    if HSpaceR = 0 then
+    begin {default is different for Align = left/right}
+      HSpaceR := ImageSpace;
+      HSpaceL := ImageSpace;
+    end;
+    HorzAlign := Align;
+  end;
+  if ImageTitle = '' then {a Title attribute will have higher priority than inherited}
+    ImageTitle := Prop.PropTitle;
+  Prop.GetVMarginArray(MargArrayO);
+  EmSize := Prop.EmSize;
+  ExSize := Prop.ExSize;
+  ConvInlineMargArray(MargArrayO, DummyHtWd, DummyHtWd, EmSize, ExSize, MargArray);
+
+  if MargArray[MarginLeft] <> IntNull then
+    HSpaceL := MargArray[MarginLeft];
+  if MargArray[MarginRight] <> IntNull then
+    HSpaceR := MargArray[MarginRight];
+  if MargArray[MarginTop] <> IntNull then
+    VSpaceT := MargArray[MarginTop];
+  if MargArray[MarginBottom] <> IntNull then
+    VSpaceB := MargArray[MarginBottom];
+
+  if Prop.GetBorderStyle <> bssNone then
+  begin
+    Inc(HSpaceL, MargArray[BorderLeftWidth]);
+    Inc(HSpaceR, MargArray[BorderRightWidth]);
+    Inc(VSpaceT, MargArray[BorderTopWidth]);
+    Inc(VSpaceB, MargArray[BorderBottomWidth]);
+  end;
+
+  if MargArray[Width] <> IntNull then
+  begin
+    PercentWidth := False;
+    if MargArray[Width] = Auto then
+      SpecWidth := -1
+    else if (VarIsStr(MargArrayO[Width]))
+      and (System.Pos('%', MargArrayO[Width]) > 0) then
+    begin
+      PercentWidth := True;
+      SpecWidth := MulDiv(MargArray[Width], 100, DummyHtWd);
+    end
+    else
+      SpecWidth := MargArray[Width];
+  end;
+  if MargArray[Height] <> IntNull then
+  begin
+    PercentHeight := False;
+    if MargArray[Height] = Auto then
+      SpecHeight := -1
+    else if (VarIsStr(MargArrayO[Height]))
+      and (System.Pos('%', MargArrayO[Height]) > 0) then
+    begin
+      PercentHeight := True;
+      SpecHeight := MulDiv(MargArray[Height], 100, DummyHtWd);
+    end
+    else
+      SpecHeight := MargArray[Height];
+  end;
+
+  if Prop.GetVertAlign(Align) then
+    VertAlign := Align;
+  if Prop.GetFloat(Align) and (Align <> ANone) then
+    HorzAlign := Align;
+  if Prop.BorderStyleNotBlank then
+  begin
+    NoBorder := True; {will have inline border instead}
+    BorderSize := 0;
+  end;
+end;
+
 initialization
 
 {$IFDEF UseElPack}
@@ -4133,3 +4568,4 @@ initialization
 finalization
   ThisExit;
 end.
+

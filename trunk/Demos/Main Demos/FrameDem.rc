@@ -6,15 +6,15 @@ PRODUCTVERSION 10,0,0,0
  {
   BLOCK "040904E4"
   {
-   VALUE "Comments", "\000"
-   VALUE "CompanyName", "\000"
+   VALUE "Comments", "meet us at http://code.google.com/p/thtmlviewer/\000"
+   VALUE "CompanyName", "HtmlViewer Team\000"
    VALUE "FileDescription", "\000"
    VALUE "FileVersion", "10.0.0.0\000"
    VALUE "InternalName", "\000"
    VALUE "LegalCopyright", "\000"
    VALUE "LegalTrademarks", "\000"
    VALUE "OriginalFilename", "\000"
-   VALUE "ProductName", "\000"
+   VALUE "ProductName", "FrameViewer Demo\000"
    VALUE "ProductVersion", "10.0.0.0\000"
   }
  }

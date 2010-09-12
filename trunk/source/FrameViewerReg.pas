@@ -10,7 +10,7 @@ implementation
 
 procedure Register;
 begin
-  RegisterComponents('PBear HTMLViewer', [THTMLViewer, TFrameViewer, TFrameBrowser]);
+  RegisterComponents('HtmlViewer/FrameViewer', [THTMLViewer, TFrameViewer, TFrameBrowser]);
 end;
 
 end.

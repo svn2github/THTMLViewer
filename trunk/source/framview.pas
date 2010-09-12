@@ -34,7 +34,7 @@ interface
 
 uses
   SysUtils, Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls, Math,
-  HtmlGlobals, Htmlsubs, Htmlview, HTMLUn2, ReadHTML;
+  UrlSubs, HtmlGlobals, Htmlsubs, Htmlview, HTMLUn2, ReadHTML;
 
 type
   {common to TFrameViewer and TFrameBrowser}
@@ -134,7 +134,6 @@ type
     FCurFrameSet: TFrameSetBase; {the TFrameSet being displayed}
     ProcessList: TList; {list of viewers that are processing}
     Visited: TStringList; {visited URLs}
-    function CreateSubFrameSet(FrameSet: TObject): TObject; override;
     function CreateViewer(Owner: TComponent): THtmlViewer;
     function GetActiveBase: string;
     function GetActiveTarget: string;
@@ -158,9 +157,8 @@ type
     function GetSubFrameSetClass: TSubFrameSetClass; virtual; abstract;
     function GetTarget: string;
     function GetTitle: string;
-    function GetViewerClass: THtmlViewerClass; virtual; 
-    function GetViewers: TStrings; 
-    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string); override;
+    function GetViewerClass: THtmlViewerClass; virtual;
+    function GetViewers: TStrings;
     procedure AddVisitedLink(const S: string);
     procedure BeginProcessing;
     procedure BumpHistory(OldFrameSet: TFrameSetBase; OldPos: integer);
@@ -169,10 +167,8 @@ type
     procedure CheckProcessing(Sender: TObject; ProcessingOn: boolean);
     procedure CheckVisitedLinks; virtual; abstract;
     procedure ChkFree(Obj: TObject);
-    procedure DoAttributes(FrameSet: TObject; Attr: TAttributeList); override;
     procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: TStringList); virtual; abstract;
     procedure DoURLRequest(Sender: TObject; const SRC: string; var RStream: TMemoryStream); virtual; abstract;
-    procedure EndFrameSet(FrameSet: TObject); override;
     procedure EndProcessing;
     procedure fvDragDrop(Sender, Source: TObject; X, Y: Integer);
     procedure fvDragOver(Sender, Source: TObject; X, Y: Integer; State: TDragState; var Accept: Boolean);
@@ -183,7 +179,6 @@ type
     procedure SetCaretPos(Value: integer);
     procedure SetColor(Value: TColor);
     procedure SetCursor(Value: TCursor);
-//    procedure SetDither(Value: boolean); 
     procedure SetDragDrop(const Value: TDragDropEvent);
     procedure SetDragOver(const Value: TDragOverEvent);
     procedure SetFontColor(Value: TColor);
@@ -249,18 +244,22 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    function CreateSubFrameSet(FrameSet: TObject): TObject; override;
     function Find(const S: WideString; MatchCase: boolean): boolean;
     function FindEx(const S: WideString; MatchCase, Reverse: boolean): boolean;
     function InsertImage(Viewer: THtmlViewer; const Src: string; Stream: TMemoryStream): boolean;
+    function ViewerFromTarget(const Target: string): THtmlViewer;
 {$ifndef FPC_TODO_PRINTING}
     function NumPrinterPages(var WidthRatio: double): integer; overload;
     function NumPrinterPages: integer; overload;
     procedure Print(FromPage, ToPage: integer);
 {$endif}
-    function ViewerFromTarget(const Target: string): THtmlViewer;
+    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string); override;
     procedure Clear;
     procedure ClearHistory;
     procedure CopyToClipboard;
+    procedure DoAttributes(FrameSet: TObject; Attr: TAttributeList); override;
+    procedure EndFrameSet(FrameSet: TObject); override;
     procedure GoBack;
     procedure GoFwd;
     procedure Reload;
@@ -272,7 +271,6 @@ type
     property CaretPos: integer read GetCaretPos write SetCaretPos;
     property CurrentFile: string read GetCurrentFile;
     property DocumentTitle: string read GetTitle;
-//    property Dither: boolean read FDither write SetDither default True;
     property History: TStrings read FHistory;
     property LinkAttributes: TStringList read FLinkAttributes;
     property LinkText: string read FLinkText;
@@ -710,7 +708,7 @@ begin
           SrcSy:
             begin
               SplitUrl(Trim(Name), S, Destination);
-              Source := ExpandSourceName(ReadHtml.Base, Path, S);
+              Source := ExpandSourceName(HtmlSubs.Base, Path, S);
               OrigSource := S;
             end;
           NameSy: WinName := Name;
@@ -1747,11 +1745,11 @@ begin
   else
     while DimCount > List.Count do {or add Frames if more Dims than Count}
       AddFrame(nil, '');
-  if ReadHTML.Base <> '' then
-    FBase := ReadHTML.Base
+  if HtmlSubs.Base <> '' then
+    FBase := HtmlSubs.Base
   else
     FBase := MasterSet.FrameViewer.FBaseEx;
-  FBaseTarget := ReadHTML.BaseTarget;
+  FBaseTarget := HtmlSubs.BaseTarget;
 end;
 
 {----------------TSubFrameSetBase.InitializeDimensions}
@@ -2325,7 +2323,7 @@ end;
 
 procedure TFrameSetBase.EndFrameSet;
 begin
-  FTitle := ReadHTML.Title;
+  FTitle := HtmlSubs.Title;
   inherited EndFrameSet;
   with ClientRect do
     InitializeDimensions(Left, Top, Right - Left, Bottom - Top);
@@ -2461,8 +2459,8 @@ begin
     EndFrameSet;
     CalcSizes(Self);
     Frame.Loadfiles(EventPointer);
-    FTitle := ReadHTML.Title;
-    FBaseTarget := ReadHTML.BaseTarget;
+    FTitle := HtmlSubs.Title;
+    FBaseTarget := HtmlSubs.BaseTarget;
   end;
 end;
 
