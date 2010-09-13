@@ -1656,9 +1656,15 @@ begin
             else if (S = 'MIDDLE') or (S = 'ABSMIDDLE') then
               VertAlign := AMiddle
             else if S = 'LEFT' then
-              HorzAlign := ALeft
+            begin
+              VertAlign := ANone;
+              HorzAlign := ALeft;
+            end
             else if S = 'RIGHT' then
+            begin
+              VertAlign := ANone;
               HorzAlign := ARight;
+            end;
           end;
         BorderSy:
           begin
@@ -2361,7 +2367,7 @@ begin
 
     DrawXX := X;
     case VertAlign of
-      {ALeft, ARight,} ATop:
+      ATop, ANone:
         DrawYY := TopY + VSpaceT;
       AMiddle:
         DrawYY := MiddleAlignTop;
@@ -2383,7 +2389,7 @@ begin
       Font.Color := FO.TheFont.Color;
     {calc the offset from the image's base to the alt= text baseline}
       case VertAlign of
-        ATop:
+        ATop, ANone:
           begin
             if FAltW <> '' then
               WrapTextW(Canvas, X + 24, TopY + Ofst + VSpaceT, X + AltWidth - 2, TopY + AltHeight - 1 + VSpaceT, FAltW);
@@ -2417,7 +2423,7 @@ begin
         begin
           YY := DrawYY - ParentSectionList.YOff;
           case VertAlign of
-            {ALeft, ARight,} ATop:
+            ATop, ANone:
               WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2, YY + AltHeight - 1, FAltW);
             AMiddle:
               WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2, YY + AltHeight - 1, FAltW);
@@ -2426,7 +2432,7 @@ begin
           end;
         end;
         case VertAlign of {draw border}
-          {ALeft, ARight,} ATop: Rectangle(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
+          {ALeft, ARight,} ATop, ANone: Rectangle(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
           AMiddle: Rectangle(X, MiddleAlignTop, X + ImageWidth, MiddleAlignTop + ImageHeight);
           ABottom, ABaseline: Rectangle(X, YBaseLine - ImageHeight - VSpaceB, X + ImageWidth, YBaseLine - VSpaceB);
         end;
@@ -2443,7 +2449,7 @@ begin
       SaveColor := SetTextColor(Handle, clBlack);
       Brush.Color := clWhite;
       case VertAlign of
-        {ALeft, ARight,} ATop:
+        ATop, ANone:
           ARect := Rect(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
         AMiddle:
           ARect := Rect(X, MiddleAlignTop, X + ImageWidth, MiddleAlignTop + ImageHeight);
@@ -4831,31 +4837,30 @@ begin
 
     TopP := MargArray[TopPos];
     LeftP := MargArray[LeftPos];
-    if Positioning = PosRelative then
-    begin
-      if TopP = Auto then
-        TopP := 0;
-      if LeftP = Auto then
-        LeftP := 0;
-    end
-    else if Positioning = PosAbsolute then
-    begin
-      if TopP = Auto then
-        TopP := 0;
-      if (LeftP = Auto) then
-        if (MargArray[RightPos] <> Auto)
-          and (AutoCount = 0) then
-          LeftP := AWidth - MargArray[RightPos] - MargArray[Width] - MargArray[MarginRight]
-            - MargArray[MarginLeft] - MargArray[PaddingLeft] - MargArray[PaddingRight]
-            - MargArray[BorderLeftWidth] - MargArray[BorderRightWidth]
-        else
+    case Positioning of
+      PosRelative:
+      begin
+        if TopP = Auto then
+          TopP := 0;
+        if LeftP = Auto then
           LeftP := 0;
-    end;
+      end;
 
-    if Positioning = posAbsolute then
-    begin
-      X := LeftP;
-      Y := TopP + YRef;
+      PosAbsolute:
+      begin
+        if TopP = Auto then
+          TopP := 0;
+        if (LeftP = Auto) then
+          if (MargArray[RightPos] <> Auto) and (AutoCount = 0)
+          then
+            LeftP := AWidth - MargArray[RightPos] - MargArray[Width] - MargArray[MarginRight]
+              - MargArray[MarginLeft] - MargArray[PaddingLeft] - MargArray[PaddingRight]
+              - MargArray[BorderLeftWidth] - MargArray[BorderRightWidth]
+          else
+            LeftP := 0;
+        X := LeftP;
+        Y := TopP + YRef;
+      end;
     end;
 
     NewWidth := FindWidth(Canvas, AWidth, AHeight, AutoCount);
@@ -4874,45 +4879,28 @@ begin
     SaveID := IMgr.CurrentID;
     IMgr.CurrentID := Self;
 
-    MiscWidths := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth]
-      + MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth];
+    MiscWidths :=
+      MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth] +
+      MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth];
     TotalWidth := MiscWidths + NewWidth;
 
     YClear := Y + ClearAddon;
-  //BG, 08.06.2008: moved after IMgr.GetNextLeftXY()
-  //if MargArray[MarginTop] > 0 then
-  //  DrawTop := YClear
-  //else
-  //  DrawTop := YClear + MargArray[MarginTop]; {Border top}
-  //BG, 08.06.2008
-    if FloatLR = ALeft then
-    begin
-  //BG, 08.06.2008: line break for floating left aligned blocks
-  //  Indent := Max(X, IMgr.LeftIndent(YClear)) + MargArray[MarginLeft]+MargArray[PaddingLeft]+MargArray[BorderLeftWidth]-X;
-      Indent := IMgr.GetNextLeftXY(YClear, X, NewWidth, AWidth, 0) + MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth] - X;
+    case FloatLR of
+      ALeft:
+        Indent := IMgr.GetNextLeftXY(YClear, X, NewWidth, AWidth, 0) + MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth] - X;
 
-  //BG, 08.06.2008
-    end
-    else if FloatLR = ARight then
-    begin
-      Indent := Min(AWidth, IMgr.RightSide(YClear)) - (MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth]) - NewWidth;
-    end
+      ARight:
+        Indent := Min(AWidth, IMgr.RightSide(YClear)) - (MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth]) - NewWidth;
     else
-    begin
       Indent := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
     end;
-  //BG, 08.06.2008: moved from above: IMgr.GetNextLeftXY() might change YClear
     if MargArray[MarginTop] > 0 then
       DrawTop := YClear
     else
       DrawTop := YClear + MargArray[MarginTop]; {Border top}
-  //BG, 08.06.2008
 
     X := X + Indent;
-  //BG, 08.06.2008: use the maybe advanced YClear instead of repeating initial calculation of YClear:
-  //ContentTop := Y+ClearAddon+MargArray[MarginTop]+MargArray[PaddingTop]+MargArray[BorderTopWidth];
     ContentTop := YClear + MargArray[MarginTop] + MargArray[PaddingTop] + MargArray[BorderTopWidth];
-  //BG, 08.06.2008
 
     LIndex := IMgr.SetLeftIndent(X, ContentTop);
     RIndex := IMgr.SetRightIndent(X + NewWidth, ContentTop);
@@ -11321,7 +11309,7 @@ var
                 begin {there is a border here, find the image dimensions}
                   with TImageObj(Obj) do
                     case VertAlign of
-                      ATop:
+                      ATop, ANone:
                         begin
                           TopP := Y - LR.LineHt + VSpaceT;
                           BottomP := Y - LR.LineHT + ImageHeight + VSpaceT;
@@ -11388,7 +11376,7 @@ var
             begin
               LeftT := CPx + Obj.HSpaceL;
               case Obj.VertAlign of
-                ATop: TopP := Y - YOffset - LR.LineHt + Obj.VSpaceT;
+                ATop, ANone: TopP := Y - YOffset - LR.LineHt + Obj.VSpaceT;
                 AMiddle: TopP := Y - YOffset - FO.tmHeight div 2 - (ImageHeight - Obj.VSpaceT + Obj.VSpaceB) div 2;
                 ABottom, ABaseline: TopP := Y - YOffset - ImageHeight - Descent - Obj.VSpaceB;
               else
