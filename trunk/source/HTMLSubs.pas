@@ -1111,19 +1111,36 @@ var
 
 
 //BG, 12.09.2010: ReadHtml state. TODO: move to a reader class.
+const
+  FontConvBase: array[1..7] of double = (8.0, 10.0, 12.0, 14.0, 18.0, 24.0, 36.0);
+  PreFontConvBase: array[1..7] of double = (7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 30.0);
+
 var
   PropStack: THtmlPropStack;
   Title: UnicodeString;
   Base: string;
   BaseTarget: string;
   NoBreak: boolean; {set when in <NoBr>}
-  
+  FontConv: array[1..7] of double;
+  PreFontConv: array[1..7] of double;
+
 implementation
 
 uses
   SysUtils, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}Forms, Math,
   HtmlSbs1
   {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
+
+procedure InitializeFontSizes(Size: integer);
+var
+  I: integer;
+begin
+  for I := 1 to 7 do
+  begin
+    FontConv[I] := FontConvBase[I] * Size / 12.0;
+    PreFontConv[I] := PreFontConvBase[I] * Size / 12.0;
+  end;
+end;
 
 var
   NLevel: integer; {for debugging}
@@ -6745,7 +6762,7 @@ procedure TSectionList.SetFonts(const Name, PreName: string; ASize: integer;
 begin
   Styles.Initialize(Name, PreName, ASize, AColor, AHotspot, AVisitedColor,
     AActiveColor, LinkUnderLine, ACharSet, MarginHeight, MarginWidth);
-  //XXX InitializeFontSizes(ASize);
+  InitializeFontSizes(ASize);
   PreFontName := PreName;
   HotSpotColor := AHotSpot;
   LinkVisitedColor := AVisitedColor;

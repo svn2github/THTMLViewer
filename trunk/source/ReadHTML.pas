@@ -92,7 +92,6 @@ procedure FrameParseString(FrameViewer: TFrameViewerBase; FrameSet: TObject;
 function IsFrameString(ALoadStyle: LoadStyleType; const FName, S: string;
   FrameViewer: TFrameViewerBase): boolean;
 function TranslateCharset(const Content: string; var Charset: TFontCharset): boolean;
-procedure InitializeFontSizes(Size: integer);
 procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties);
 procedure PopAProp(const Tag: string);
 
@@ -1944,25 +1943,6 @@ begin
   end
   else
     Next1;
-end;
-
-const
-  FontConvBase: array[1..7] of double = (8.0, 10.0, 12.0, 14.0, 18.0, 24.0, 36.0);
-  PreFontConvBase: array[1..7] of double = (7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 30.0);
-
-var
-  FontConv: array[1..7] of double;
-  PreFontConv: array[1..7] of double;
-
-procedure InitializeFontSizes(Size: integer);
-var
-  I: integer;
-begin
-  for I := 1 to 7 do
-  begin
-    FontConv[I] := FontConvBase[I] * Size / 12.0;
-    PreFontConv[I] := PreFontConvBase[I] * Size / 12.0;
-  end;
 end;
 
 {----------------DoCommonSy}
