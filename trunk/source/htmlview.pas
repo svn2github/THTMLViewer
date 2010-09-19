@@ -111,6 +111,7 @@ type
     X, Y: Integer) of object;
   TMetaRefreshType = procedure(Sender: TObject; Delay: integer; const URL: string) of object;
   TParseEvent = procedure(Sender: TObject; var Source: string) of object;
+  TFilenameExpanded = procedure(Sender: TObject; var Filename: string) of object;
 
   THtmlViewerOption = (
     htOverLinksActive, htNoLinkUnderline, htPrintTableBackground,
@@ -272,13 +273,11 @@ type
     FLinkText: WideString;
     FLinkStart: TPoint;
     FWidthRatio: double;
-//BG, 01.12.2006: beg of modification
     FPrintedSize: TPoint;
     FOnPrinted: THTMLViewPrinted;
     FOnPrinting: THTMLViewPrinting;
-//BG, 01.12.2006: end of modification
-
     FOnObjectTag: TObjectTagEvent;
+    FOnFilenameExpanded: TFilenameExpanded; //BG, 19.09.2010: Issue 7: Slow UNC Lookups for Images
 
     function CreateHeaderFooter: ThtmlViewer;
     procedure WMSize(var Message: TWMSize); message WM_SIZE;
@@ -630,15 +629,13 @@ type
     property OnPanelPrint: TPanelPrintEvent read FOnPanelPrint write SetOnPanelPrint;
     property OnDragDrop: TDragDropEvent read GetDragDrop write SetDragDrop;
     property OnDragOver: TDragOverEvent read GetDragOver write SetDragOver;
-    property OnhtStreamRequest: TGetStreamEvent read FOnhtStreamRequest
-      write FOnhtStreamRequest;
+    property OnhtStreamRequest: TGetStreamEvent read FOnhtStreamRequest write FOnhtStreamRequest;
     property OnParseBegin: TParseEvent read FOnParseBegin write FOnParseBegin;
     property OnParseEnd: TNotifyEvent read FOnParseEnd write FOnParseEnd;
-//BG, 01.12.2006: beg of modification
     property OnPrinted: THTMLViewPrinted read FOnPrinted write FOnPrinted;
     property OnPrinting: THTMLViewPrinting read FOnPrinting write FOnPrinting;
-//BG, 01.12.2006: end of modification
     property OnObjectTag: TObjectTagEvent read FOnObjectTag write FOnObjectTag;
+    property OnFilenameExpanded: TFilenameExpanded read FOnFilenameExpanded write FOnFilenameExpanded;
     property Cursor: TCursor read GetCursor write SetCursor default crIBeam;
   end;
 
@@ -2431,8 +2428,7 @@ begin
     Result := Filename
   else
   begin
-    Result := HTMLServerToDos(Trim(Filename), FServerRoot);
-
+    Result := HTMLServerToDos(Filename, FServerRoot);
     if Pos('\', Result) = 1 then
       Result := ExpandFilename(Result)
     else if (Pos(':', Result) <> 2) and (Pos('\\', Result) <> 1) then
@@ -2445,6 +2441,11 @@ begin
       else
         Result := ExpandFilename(ExtractFilePath(FCurrentFile) + Result);
   end;
+
+  //BG, 19.09.2010: Issue 7: Slow UNC Lookups for Images
+  //  An event allows to modify the resulting filename:
+  if assigned(FOnFilenameExpanded) then
+    FOnFilenameExpanded(self, Result);
 end;
 
 {----------------ThtmlViewer.BumpHistory}
