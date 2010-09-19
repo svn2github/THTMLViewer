@@ -1109,20 +1109,12 @@ var
   CurrentForm: ThtmlForm;
   UnicodeControls: boolean;
 
-
-//BG, 12.09.2010: ReadHtml state. TODO: move to a reader class.
-const
-  FontConvBase: array[1..7] of double = (8.0, 10.0, 12.0, 14.0, 18.0, 24.0, 36.0);
-  PreFontConvBase: array[1..7] of double = (7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 30.0);
-
 var
   PropStack: THtmlPropStack;
   Title: UnicodeString;
   Base: string;
   BaseTarget: string;
   NoBreak: boolean; {set when in <NoBr>}
-  FontConv: array[1..7] of double;
-  PreFontConv: array[1..7] of double;
 
 implementation
 
@@ -7520,22 +7512,27 @@ begin
     Exit;
 
   try
-    if NeedDoImageStuff and (BGImage.Image <> DefBitmap) then
+    if NeedDoImageStuff then
     begin
-      if BGImage.Image = ErrorBitmap then {Skip the background image}
-        FreeAndNil(BGImage)
-      else
-      try
-        DoImageStuff(Canvas, Wd - CellSpacing, Ht - CellSpacing,
-          BGImage, PRec, TiledImage, TiledMask, NoMask);
-        if Cell.MasterList.IsCopy and (TiledImage is TBitmap) then
-          TBitmap(TiledImage).HandleType := bmDIB;
-      except {bad image, get rid of it}
-        FreeAndNil(BGImage);
-        FreeAndNil(TiledImage);
-        FreeAndNil(TiledMask);
+      if BGImage = nil then
+        NeedDoImageStuff := False
+      else if BGImage.Image <> DefBitmap then
+      begin
+        if BGImage.Image = ErrorBitmap then {Skip the background image}
+          FreeAndNil(BGImage)
+        else
+        try
+          DoImageStuff(Canvas, Wd - CellSpacing, Ht - CellSpacing,
+            BGImage, PRec, TiledImage, TiledMask, NoMask);
+          if Cell.MasterList.IsCopy and (TiledImage is TBitmap) then
+            TBitmap(TiledImage).HandleType := bmDIB;
+        except {bad image, get rid of it}
+          FreeAndNil(BGImage);
+          FreeAndNil(TiledImage);
+          FreeAndNil(TiledMask);
+        end;
+        NeedDoImageStuff := False;
       end;
-      NeedDoImageStuff := False;
     end;
 
     ImgOK := not NeedDoImageStuff and Assigned(BGImage) and (BGImage.Bitmap <> DefBitmap)
@@ -13019,8 +13016,8 @@ var
 begin
   NewProp := TProperties.Create(self);
   NewProp.Inherit(Tag, Last);
-  NewProp.Combine(MasterList.Styles, Tag, AClass, AnID, APseudo, ATitle, AProps, Count - 1);
   Add(NewProp);
+  NewProp.Combine(MasterList.Styles, Tag, AClass, AnID, APseudo, ATitle, AProps, Count - 1);
 end;
 
 procedure THtmlPropStack.PopProp;
@@ -13069,7 +13066,7 @@ begin
     if not Find(Selector, I) then
     begin
       NewProp := True;
-      Propty := TProperties.Create(nil); {newly created property}
+      Propty := TProperties.Create(); {newly created property}
     end
     else
     begin

@@ -51,6 +51,16 @@ const
   EastEurope8859_2 = 31; {for 8859-2}
   CRLF = #$D#$A;
 
+//BG, 16.09.2010: CSS2.2: same sizes like html font size:
+type
+  TFontSizeIncrement = -6..6;
+const
+  FontConvBase: array[1..7] of double = (8.0, 10.0, 12.0, 14.0, 18.0, 24.0, 36.0);
+  PreFontConvBase: array[1..7] of double = (7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 30.0);
+var
+  FontConv: array[1..7] of double;
+  PreFontConv: array[1..7] of double;
+
 type
   AlignmentType = (ANone, ATop, AMiddle, ABaseline, ABottom, ALeft, ARight, AJustify, ASub, ASuper);
   BorderStyleType = (bssNone, bssSolid, bssInset, bssOutset, bssGroove, bssRidge,
@@ -74,6 +84,7 @@ type
 {$ENDIF}
 
   ThtFontInfo = class
+  public
     iName: string;
     iSize: double;
     iStyle: TFontStyles;
@@ -81,10 +92,12 @@ type
     ibgColor: TColor;
     iCharSet: TFontCharSet;
     iCharExtra: Variant;
+    procedure Assign(Source: ThtFontInfo);
   end;
 
   FIIndex = (LFont, VFont, HLFont, HVFont);
   TFontInfoArray = class
+  public
     Ar: array[LFont..HVFont] of ThtFontInfo;
     constructor Create;
     destructor Destroy; override;
@@ -328,8 +341,7 @@ begin
 end;
 
 function FontSizeConv(const Str: string; OldSize: double): double; forward;
-function LengthConv(const Str: string; Relative: boolean; Base, EmSize, ExSize,
-  Default: integer): integer; forward;
+function LengthConv(const Str: string; Relative: boolean; Base, EmSize, ExSize, Default: integer): integer; forward;
 
 function FindPropIndex(const PropWord: string; var PropIndex: PropIndices): boolean;
 var
@@ -525,8 +537,7 @@ begin
   for Index := Low(Index) to High(Index) do
     if not Originals[Index] then
       Props[Index] := Source.Props[Index];
-  TheFont.Free; {may no longer be good}
-  TheFont := nil;
+  FreeAndNil(TheFont); {may no longer be good}
   if Assigned(FIArray) then
     if Source.Inlink then
       FIArray.Assign(Source.FIArray)
@@ -534,8 +545,7 @@ begin
       CalcLinkFontInfo(Styles, I)
     else
     begin {an <a href> tag has been removed}
-      FIArray.Free;
-      FIArray := nil;
+      FreeAndNil(FIArray);
       Inlink := False;
     end;
 end;
@@ -1371,15 +1381,22 @@ procedure TProperties.Combine(Styles: TStyleList;
                             if S1 <> '' then
                               iName := S1;
                           end;
+
                         FontSize:
                           iSize := FontSizeConv(Props[FontSize], iSize);
-                        Color: iColor := Props[Color];
-                        BackgroundColor: ibgColor := Props[BackgroundColor];
+
+                        Color:
+                          iColor := Props[Color];
+
+                        BackgroundColor:
+                          ibgColor := Props[BackgroundColor];
+
                         FontStyle:
                           if (Props[FontStyle] = 'italic') or (Props[FontStyle] = 'oblique') then
                             iStyle := iStyle + [fsItalic]
                           else if Props[FontStyle] = 'normal' then
                             iStyle := iStyle - [fsItalic];
+
                         FontWeight:
                           if Pos('bold', Props[FontWeight]) > 0 then
                             iStyle := iStyle + [fsBold]
@@ -1391,6 +1408,7 @@ procedure TProperties.Combine(Styles: TStyleList;
                             if Wt >= 600 then
                               iStyle := iStyle + [fsBold];
                           end;
+
                         TextDecoration:
                           if Props[TextDecoration] = 'underline' then
                             iStyle := iStyle + [fsUnderline]
@@ -1398,6 +1416,7 @@ procedure TProperties.Combine(Styles: TStyleList;
                             iStyle := iStyle + [fsStrikeOut]
                           else if Props[TextDecoration] = 'none' then
                             iStyle := iStyle - [fsStrikeOut, fsUnderline];
+                            
                         LetterSpacing:
                           iCharExtra := Props[LetterSpacing];
                       end;
@@ -1656,7 +1675,7 @@ procedure TProperties.Combine(Styles: TStyleList;
       MergeContextuals(':' + PSeudo + ' ');
     if AnID <> '' then
       MergeContextuals('#' + AnID + ' ');
-      
+
     if AProp <> nil then //the Style= attribute
       Merge(AProp);
 
@@ -2144,7 +2163,7 @@ begin
   begin
     DefFontname := FontName;
     Props[FontFamily] := FontName;
-    Props[FontSize] := PointSize * 1.0;
+    Props[FontSize] := PointSize;
     Props[FontStyle] := 'none';
     Props[FontWeight] := 'normal';
     Props[TextAlign] := 'left';
@@ -2646,6 +2665,19 @@ begin
   end;
 end;
 
+{ ThtFontInfo }
+
+procedure ThtFontInfo.Assign(Source: ThtFontInfo);
+begin
+  iName := Source.iName;
+  iSize := Source.iSize;
+  iStyle := Source.iStyle;
+  iColor := Source.iColor;
+  ibgColor := Source.ibgColor;
+  iCharSet := Source.iCharSet;
+  iCharExtra := Source.iCharExtra;
+end;
+
 { TFontInfoArray }
 
 constructor TFontInfoArray.Create;
@@ -2671,15 +2703,7 @@ var
   I: FIIndex;
 begin
   for I := LFont to HVFont do
-  begin
-    Ar[I].iName := Source.Ar[I].iName;
-    Ar[I].iSize := Source.Ar[I].iSize;
-    Ar[I].iStyle := Source.Ar[I].iStyle;
-    Ar[I].iColor := Source.Ar[I].iColor;
-    Ar[I].ibgColor := Source.Ar[I].ibgColor;
-    Ar[I].iCharSet := Source.Ar[I].iCharSet;
-    Ar[I].iCharExtra := Source.Ar[I].iCharExtra;
-  end;
+    Ar[I].Assign(Source.Ar[I]);
 end;
 
 //BG, 14.07.2010:
@@ -2714,7 +2738,64 @@ const
   f_pt = 1.0 / 72.0;
   f_pc = 1.0 / 100.0;
 
-{----------------FontSizeConv}
+function IncFontSize(OldSize: Double; Increment: TFontSizeIncrement): Double;
+var
+  OldIndex, NewIndex: Byte;
+  D1, D2: Double;
+begin
+  // get nearest old font size index
+  OldIndex := 4;
+  D1 := OldSize - FontConv[OldIndex];
+  repeat
+    case Sign(D1) of
+      -1:
+      begin
+        Dec(OldIndex);
+        D2 := OldSize - FontConv[OldIndex];
+        if D2 >= 0 then
+        begin
+          if Abs(D1) < Abs(D2) then
+            Inc(OldIndex);
+          break;
+        end;
+        D1 := D2;
+      end;
+
+      1:
+      begin
+        Inc(OldIndex);
+        D2 := OldSize - FontConv[OldIndex];
+        if D2 <= 0 then
+        begin
+          if Abs(D1) > Abs(D2) then
+            Dec(OldIndex);
+          break;
+        end;
+        D1 := D2;
+      end;
+
+    else
+      break;
+    end;
+  until (OldIndex = 1) or (OldIndex = 7);
+
+  NewIndex := OldIndex + Increment;
+  if NewIndex < 1 then
+  begin
+    Inc(OldIndex, 1 - NewIndex);
+    NewIndex := 1;
+  end
+  else if NewIndex > 7 then
+  begin
+    Dec(OldIndex, NewIndex - 7);
+    NewIndex := 7;
+  end;
+
+  if OldIndex = NewIndex then
+    Result := OldSize
+  else
+    Result := OldSize * FontConv[NewIndex] / FontConv[OldIndex];
+end;
 
 function FontSizeConv(const Str: string; OldSize: double): double;
 {given a font-size string, return the point size}
@@ -2725,48 +2806,52 @@ begin
   if decodeSize(Str, V, U) then
   begin
     if U = 'in' then
-      V := 72.0 * V
+      Result := V * 72.0
     else if U = 'cm' then
-      V := 72.0 * V * f_cm
+      Result := V * 72.0 * f_cm
     else if U = 'mm' then
-      V := 72.0 * V * f_mm
+      Result := V * 72.0 * f_mm
     else if U = 'pt' then
+      Result := V
     else if U = 'px' then
-      V := V * 72.0 / Screen.PixelsPerInch
+      Result := V * 72.0 / Screen.PixelsPerInch
     else if U = 'pc' then
-      V := V * 12.0
+      Result := V * 12.0
     else if U = 'em' then
-      V := V * OldSize
+      Result := V * OldSize
     else if U = 'ex' then
-      V := V * OldSize * 0.5 {1/2 of em}
+      Result := V * OldSize * 0.5 {1/2 of em}
     else if U = '%' then
-      V := V * OldSize * f_pc
+      Result := V * OldSize * f_pc
     else if U = '' then
-      V := V * 72.0 / Screen.PixelsPerInch {pixels by default}
-    else if U = 'smaller' then
-      V := 0.75 * OldSize
-    else if U = 'larger' then
-      V := 1.25 * OldSize
-    else if U = 'xx-small' then
-      V := DefPointSize / 1.5
-    else if U = 'x-small' then
-      V := DefPointSize / 1.2
-    else if U = 'small' then
-      V := DefPointSize
-    else if U = 'medium' then
-      V := DefPointSize * 1.2
-    else if U = 'large' then
-      V := DefPointSize * 1.5
-    else if U = 'x-large' then
-      V := DefPointSize * 2.0
-    else if U = 'xx-large' then
-      V := DefPointSize * 3.0
+      Result := V * 72.0 / Screen.PixelsPerInch {pixels by default}
     else
-      V := DefPointSize; {error, return 12pt}
-    Result := V;
+      Result := DefPointSize; {error, return 12pt}
   end
   else
-    Result := DefPointSize;
+  begin
+    U := Str;
+    if U = 'smaller' then
+      Result := IncFontSize(OldSize, -1) // 0.75 * OldSize
+    else if U = 'larger' then
+      Result := IncFontSize(OldSize,  1) // 1.25 * OldSize
+    else if U = 'xx-small' then
+      Result := FontConv[1]
+    else if U = 'x-small' then
+      Result := FontConv[2]
+    else if U = 'small' then
+      Result := FontConv[3]
+    else if U = 'medium' then
+      Result := FontConv[4]
+    else if U = 'large' then
+      Result := FontConv[5]
+    else if U = 'x-large' then
+      Result := FontConv[6]
+    else if U = 'xx-large' then
+      Result := FontConv[7]
+    else
+      Result := DefPointSize;
+  end;
 end;
 
 {----------------LengthConv}
