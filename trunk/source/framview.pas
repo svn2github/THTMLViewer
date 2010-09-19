@@ -2493,7 +2493,6 @@ begin
         if Assigned(Obj) and (AList.IndexOf(Obj) < 0) then
           AList.Add(Obj);
         frHistory.Delete(0);
-        PositionObj(frPositionHistory[0]).Free;
         frPositionHistory.Delete(0);
       end;
       frHistoryIndex := 0;
