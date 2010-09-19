@@ -40,7 +40,6 @@ contains
   htmlview in '..\source\htmlview.pas',
   readhtml in '..\source\readhtml.pas',
   Htmlsbs1 in '..\source\Htmlsbs1.pas',
-  htmlsubs in '..\source\htmlsubs.pas',
   HTMLUn2 in '..\source\HTMLUn2.pas',
   vwPrint in '..\source\vwPrint.pas',
   MetaFilePrinter in '..\source\MetaFilePrinter.pas',
@@ -54,6 +53,7 @@ contains
   htmlgif1 in '..\source\htmlgif1.pas',
   FrameViewerReg in '..\source\FrameViewerReg.pas',
   GDIPL2A in '..\source\GDIPL2A.pas',
-  HtmlGlobals in '..\source\HtmlGlobals.pas';
+  HtmlGlobals in '..\source\HtmlGlobals.pas',
+  HTMLSubs in '..\source\HTMLSubs.pas';
 
 end.
