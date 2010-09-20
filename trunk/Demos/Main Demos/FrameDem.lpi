@@ -35,14 +35,14 @@
         <PackageName Value="LCL"/>
       </Item1>
     </RequiredPackages>
-    <Units Count="51">
+    <Units Count="33">
       <Unit0>
         <Filename Value="FrameDem.dpr"/>
         <IsPartOfProject Value="True"/>
-        <CursorPos X="74" Y="14"/>
+        <CursorPos X="42" Y="4"/>
         <TopLine Value="1"/>
         <EditorIndex Value="11"/>
-        <UsageCount Value="104"/>
+        <UsageCount Value="156"/>
         <Loaded Value="True"/>
       </Unit0>
       <Unit1>
@@ -52,16 +52,16 @@
         <CursorPos X="9" Y="767"/>
         <TopLine Value="734"/>
         <EditorIndex Value="14"/>
-        <UsageCount Value="49"/>
+        <UsageCount Value="75"/>
         <Loaded Value="True"/>
       </Unit1>
       <Unit2>
-        <Filename Value="..\..\source\htmlsubs.pas"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
         <UnitName Value="Htmlsubs"/>
         <CursorPos X="14" Y="5403"/>
         <TopLine Value="5370"/>
         <EditorIndex Value="5"/>
-        <UsageCount Value="45"/>
+        <UsageCount Value="71"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
       </Unit2>
@@ -73,92 +73,63 @@
         <UnitName Value="PrintStatusForm"/>
         <CursorPos X="1" Y="1"/>
         <TopLine Value="1"/>
-        <UsageCount Value="9"/>
+        <UsageCount Value="4"/>
       </Unit3>
       <Unit4>
         <Filename Value="SUBMIT.PAS"/>
         <UnitName Value="Submit"/>
         <CursorPos X="31" Y="28"/>
         <TopLine Value="1"/>
-        <UsageCount Value="10"/>
+        <UsageCount Value="5"/>
       </Unit4>
       <Unit5>
-        <Filename Value="ImgForm.pas"/>
-        <UnitName Value="ImgForm"/>
-        <CursorPos X="42" Y="20"/>
-        <TopLine Value="1"/>
-        <UsageCount Value="3"/>
-      </Unit5>
-      <Unit6>
         <Filename Value="Fontdlg.pas"/>
         <HasResources Value="True"/>
         <UnitName Value="Fontdlg"/>
         <CursorPos X="5" Y="218"/>
         <TopLine Value="154"/>
-        <UsageCount Value="12"/>
-      </Unit6>
-      <Unit7>
-        <Filename Value="..\..\source\ColorGrd.pas"/>
-        <UnitName Value="ColorGrd"/>
-        <CursorPos X="16" Y="113"/>
-        <TopLine Value="80"/>
-        <UsageCount Value="2"/>
-        <SyntaxHighlighter Value="Delphi"/>
-      </Unit7>
-      <Unit8>
+        <UsageCount Value="7"/>
+      </Unit5>
+      <Unit6>
         <Filename Value="..\..\source\htmlcons.inc"/>
         <CursorPos X="4" Y="34"/>
         <TopLine Value="21"/>
         <EditorIndex Value="0"/>
-        <UsageCount Value="48"/>
+        <UsageCount Value="74"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit8>
-      <Unit9>
-        <Filename Value="ColorGrd.pas"/>
-        <UnitName Value="ColorGrd"/>
-        <CursorPos X="3" Y="131"/>
-        <TopLine Value="129"/>
-        <UsageCount Value="5"/>
-      </Unit9>
-      <Unit10>
+      </Unit6>
+      <Unit7>
         <Filename Value="..\..\source\htmlview.pas"/>
         <UnitName Value="Htmlview"/>
-        <CursorPos X="22" Y="2071"/>
-        <TopLine Value="2038"/>
+        <CursorPos X="1" Y="1"/>
+        <TopLine Value="1"/>
         <EditorIndex Value="8"/>
-        <UsageCount Value="46"/>
+        <UsageCount Value="72"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit10>
-      <Unit11>
+      </Unit7>
+      <Unit8>
         <Filename Value="..\..\source\HtmlGlobals.pas"/>
         <UnitName Value="HtmlGlobals"/>
         <CursorPos X="1" Y="18"/>
         <TopLine Value="1"/>
         <EditorIndex Value="1"/>
-        <UsageCount Value="46"/>
+        <UsageCount Value="72"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit11>
-      <Unit12>
+      </Unit8>
+      <Unit9>
         <Filename Value="..\..\source\vwPrint.pas"/>
         <UnitName Value="vwPrint"/>
         <CursorPos X="1" Y="18"/>
         <TopLine Value="1"/>
         <EditorIndex Value="9"/>
-        <UsageCount Value="46"/>
+        <UsageCount Value="72"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit12>
-      <Unit13>
-        <Filename Value="C:\lazarus\lcl\graphics.pp"/>
-        <UnitName Value="Graphics"/>
-        <CursorPos X="1" Y="1"/>
-        <TopLine Value="1"/>
-        <UsageCount Value="3"/>
-      </Unit13>
-      <Unit14>
+      </Unit9>
+      <Unit10>
         <Filename Value="Htmlabt.pas"/>
         <ComponentName Value="AboutBox"/>
         <HasResources Value="True"/>
@@ -166,272 +137,180 @@
         <UnitName Value="HTMLAbt"/>
         <CursorPos X="86" Y="92"/>
         <TopLine Value="44"/>
-        <UsageCount Value="48"/>
-      </Unit14>
-      <Unit15>
+        <UsageCount Value="43"/>
+      </Unit10>
+      <Unit11>
         <Filename Value="Submit.lrs"/>
         <CursorPos X="1" Y="9"/>
         <TopLine Value="1"/>
         <EditorIndex Value="13"/>
-        <UsageCount Value="44"/>
+        <UsageCount Value="70"/>
         <Loaded Value="True"/>
-      </Unit15>
-      <Unit16>
+      </Unit11>
+      <Unit12>
         <Filename Value="ImgForm.lrs"/>
         <CursorPos X="1" Y="9"/>
         <TopLine Value="1"/>
         <EditorIndex Value="12"/>
-        <UsageCount Value="44"/>
+        <UsageCount Value="70"/>
         <Loaded Value="True"/>
-      </Unit16>
-      <Unit17>
+      </Unit12>
+      <Unit13>
         <Filename Value="PreviewForm.pas"/>
         <UnitName Value="PreviewForm"/>
         <CursorPos X="1" Y="21"/>
         <TopLine Value="21"/>
-        <UsageCount Value="9"/>
-      </Unit17>
-      <Unit18>
-        <Filename Value="C:\lazarus\fpc\2.2.4\source\rtl\win\wininc\ascdef.inc"/>
-        <CursorPos X="10" Y="301"/>
-        <TopLine Value="268"/>
-        <UsageCount Value="3"/>
-      </Unit18>
-      <Unit19>
-        <Filename Value="C:\lazarus\fpc\2.2.4\source\packages\fcl-image\src\fpimage.pp"/>
-        <UnitName Value="FPimage"/>
-        <CursorPos X="3" Y="60"/>
-        <TopLine Value="27"/>
-        <UsageCount Value="3"/>
-      </Unit19>
-      <Unit20>
-        <Filename Value="..\..\source\Htmlsbs1.pas"/>
-        <UnitName Value="Htmlsbs1"/>
-        <CursorPos X="40" Y="35"/>
-        <TopLine Value="2"/>
-        <UsageCount Value="5"/>
-        <SyntaxHighlighter Value="Delphi"/>
-      </Unit20>
-      <Unit21>
-        <Filename Value="C:\lazarus\lcl\interfaces\win32\interfaces.pp"/>
-        <UnitName Value="Interfaces"/>
-        <CursorPos X="1" Y="1"/>
-        <TopLine Value="1"/>
-        <UsageCount Value="3"/>
-      </Unit21>
-      <Unit22>
+        <UsageCount Value="4"/>
+      </Unit13>
+      <Unit14>
         <Filename Value="..\..\source\HTMLUn2.pas"/>
         <UnitName Value="HTMLUn2"/>
         <CursorPos X="3" Y="4486"/>
         <TopLine Value="4453"/>
         <EditorIndex Value="6"/>
-        <UsageCount Value="42"/>
+        <UsageCount Value="68"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit22>
-      <Unit23>
-        <Filename Value="C:\lazarus\fpc\2.2.4\source\rtl\objpas\rtlconsts.pp"/>
-        <UnitName Value="RtlConsts"/>
-        <CursorPos X="8" Y="1"/>
-        <TopLine Value="1"/>
-        <UsageCount Value="5"/>
-      </Unit23>
-      <Unit24>
-        <Filename Value="C:\lazarus\fpc\2.2.4\source\rtl\objpas\rtlconst.inc"/>
-        <CursorPos X="1" Y="1"/>
-        <TopLine Value="1"/>
-        <UsageCount Value="3"/>
-      </Unit24>
-      <Unit25>
+      </Unit14>
+      <Unit15>
         <Filename Value="..\..\source\MetaFilePrinter.pas"/>
         <UnitName Value="MetaFilePrinter"/>
         <CursorPos X="40" Y="413"/>
         <TopLine Value="388"/>
         <EditorIndex Value="3"/>
-        <UsageCount Value="46"/>
+        <UsageCount Value="72"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit25>
-      <Unit26>
+      </Unit15>
+      <Unit16>
         <Filename Value="..\..\source\StyleUn.pas"/>
         <UnitName Value="StyleUn"/>
-        <CursorPos X="20" Y="1254"/>
-        <TopLine Value="1248"/>
+        <CursorPos X="1" Y="1"/>
+        <TopLine Value="1"/>
         <EditorIndex Value="4"/>
-        <UsageCount Value="46"/>
+        <UsageCount Value="72"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit26>
-      <Unit27>
+      </Unit16>
+      <Unit17>
         <Filename Value="FDemUnit.lrs"/>
         <CursorPos X="69" Y="72"/>
         <TopLine Value="7"/>
-        <UsageCount Value="6"/>
-      </Unit27>
-      <Unit28>
-        <Filename Value="C:\lazarus\lcl\printers.pas"/>
-        <UnitName Value="Printers"/>
-        <CursorPos X="3" Y="125"/>
-        <TopLine Value="92"/>
-        <UsageCount Value="4"/>
-      </Unit28>
-      <Unit29>
-        <Filename Value="PrintStatusForm.lrs"/>
-        <CursorPos X="1" Y="3"/>
-        <TopLine Value="1"/>
-        <UsageCount Value="4"/>
-      </Unit29>
-      <Unit30>
+        <UsageCount Value="1"/>
+      </Unit17>
+      <Unit18>
         <Filename Value="Gopage.pas"/>
         <UnitName Value="Gopage"/>
         <CursorPos X="17" Y="55"/>
         <TopLine Value="1"/>
-        <UsageCount Value="6"/>
-      </Unit30>
-      <Unit31>
-        <Filename Value="PreviewForm.lrs"/>
-        <CursorPos X="1" Y="1"/>
-        <TopLine Value="1"/>
-        <UsageCount Value="4"/>
-      </Unit31>
-      <Unit32>
-        <Filename Value="C:\lazarus\lcl\include\customform.inc"/>
-        <CursorPos X="1" Y="1511"/>
-        <TopLine Value="1478"/>
-        <UsageCount Value="4"/>
-      </Unit32>
-      <Unit33>
+        <UsageCount Value="1"/>
+      </Unit18>
+      <Unit19>
         <Filename Value="C:\lazarus\lcl\include\application.inc"/>
         <CursorPos X="54" Y="1955"/>
         <TopLine Value="1918"/>
-        <UsageCount Value="6"/>
-      </Unit33>
-      <Unit34>
-        <Filename Value="FDemUnit.lfm"/>
-        <CursorPos X="4" Y="239"/>
-        <TopLine Value="173"/>
-        <UsageCount Value="4"/>
-        <SyntaxHighlighter Value="LFM"/>
-      </Unit34>
-      <Unit35>
+        <UsageCount Value="1"/>
+      </Unit19>
+      <Unit20>
         <Filename Value="HtmlAbt.lrs"/>
         <CursorPos X="1" Y="21"/>
         <TopLine Value="1"/>
-        <UsageCount Value="43"/>
-      </Unit35>
-      <Unit36>
-        <Filename Value="FontDlg.lrs"/>
-        <CursorPos X="8" Y="50"/>
-        <TopLine Value="1"/>
-        <UsageCount Value="5"/>
-      </Unit36>
-      <Unit37>
+        <UsageCount Value="38"/>
+      </Unit20>
+      <Unit21>
         <Filename Value="GoPage.lrs"/>
         <CursorPos X="4" Y="8"/>
         <TopLine Value="1"/>
-        <UsageCount Value="6"/>
-      </Unit37>
-      <Unit38>
+        <UsageCount Value="1"/>
+      </Unit21>
+      <Unit22>
         <Filename Value="Htmlabt.lfm"/>
         <CursorPos X="1" Y="1"/>
         <TopLine Value="1"/>
-        <UsageCount Value="10"/>
+        <UsageCount Value="5"/>
         <SyntaxHighlighter Value="LFM"/>
-      </Unit38>
-      <Unit39>
-        <Filename Value="C:\lazarus\lcl\controls.pp"/>
-        <UnitName Value="Controls"/>
-        <CursorPos X="45" Y="1274"/>
-        <TopLine Value="1252"/>
-        <UsageCount Value="4"/>
-      </Unit39>
-      <Unit40>
-        <Filename Value="C:\lazarus\lcl\include\wincontrol.inc"/>
-        <CursorPos X="31" Y="6690"/>
-        <TopLine Value="6684"/>
-        <UsageCount Value="4"/>
-      </Unit40>
-      <Unit41>
+      </Unit22>
+      <Unit23>
         <Filename Value="..\..\source\framview.pas"/>
         <UnitName Value="FramView"/>
         <CursorPos X="21" Y="1965"/>
         <TopLine Value="1932"/>
         <EditorIndex Value="2"/>
-        <UsageCount Value="42"/>
+        <UsageCount Value="68"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit41>
-      <Unit42>
+      </Unit23>
+      <Unit24>
         <Filename Value="C:\lazarus\ide\environmentopts.pp"/>
         <UnitName Value="EnvironmentOpts"/>
         <CursorPos X="1" Y="1"/>
         <TopLine Value="1"/>
-        <UsageCount Value="10"/>
-      </Unit42>
-      <Unit43>
+        <UsageCount Value="5"/>
+      </Unit24>
+      <Unit25>
         <Filename Value="..\..\source\DitherUnit.pas"/>
         <UnitName Value="DitherUnit"/>
         <CursorPos X="2" Y="12"/>
         <TopLine Value="1"/>
-        <UsageCount Value="10"/>
+        <UsageCount Value="5"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit43>
-      <Unit44>
+      </Unit25>
+      <Unit26>
         <Filename Value="..\..\source\GDIPL2A.pas"/>
         <UnitName Value="GDIPL2A"/>
         <CursorPos X="38" Y="37"/>
         <TopLine Value="1"/>
         <EditorIndex Value="15"/>
-        <UsageCount Value="10"/>
+        <UsageCount Value="36"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit44>
-      <Unit45>
-        <Filename Value="..\..\source\ReadHTML.pas"/>
+      </Unit26>
+      <Unit27>
+        <Filename Value="..\..\source\Readhtml.pas"/>
         <UnitName Value="Readhtml"/>
-        <CursorPos X="49" Y="4625"/>
-        <TopLine Value="4575"/>
+        <CursorPos X="1" Y="1"/>
+        <TopLine Value="1"/>
         <EditorIndex Value="10"/>
-        <UsageCount Value="10"/>
+        <UsageCount Value="36"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit45>
-      <Unit46>
+      </Unit27>
+      <Unit28>
         <Filename Value="C:\lazarus\lcl\include\winapih.inc"/>
         <CursorPos X="10" Y="119"/>
         <TopLine Value="86"/>
-        <UsageCount Value="10"/>
-      </Unit46>
-      <Unit47>
+        <UsageCount Value="5"/>
+      </Unit28>
+      <Unit29>
         <Filename Value="C:\lazarus\lcl\stdctrls.pp"/>
         <UnitName Value="StdCtrls"/>
         <CursorPos X="35" Y="109"/>
         <TopLine Value="76"/>
-        <UsageCount Value="10"/>
-      </Unit47>
-      <Unit48>
+        <UsageCount Value="5"/>
+      </Unit29>
+      <Unit30>
         <Filename Value="C:\lazarus\lcl\forms.pp"/>
         <UnitName Value="Forms"/>
         <CursorPos X="3" Y="82"/>
         <TopLine Value="49"/>
-        <UsageCount Value="10"/>
-      </Unit48>
-      <Unit49>
+        <UsageCount Value="5"/>
+      </Unit30>
+      <Unit31>
         <Filename Value="C:\lazarus\fpc\2.2.4\source\rtl\inc\systemh.inc"/>
         <CursorPos X="3" Y="218"/>
         <TopLine Value="185"/>
-        <UsageCount Value="10"/>
-      </Unit49>
-      <Unit50>
+        <UsageCount Value="5"/>
+      </Unit31>
+      <Unit32>
         <Filename Value="..\..\source\StylePars.pas"/>
         <UnitName Value="StylePars"/>
         <CursorPos X="5" Y="548"/>
         <TopLine Value="515"/>
         <EditorIndex Value="7"/>
-        <UsageCount Value="10"/>
+        <UsageCount Value="36"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
-      </Unit50>
+      </Unit32>
     </Units>
     <JumpHistory Count="30" HistoryIndex="29">
       <Position1>

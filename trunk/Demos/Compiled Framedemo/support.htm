@@ -1,8 +1,8 @@
 <HTML>
- 
+
 <HEAD>
 <TITLE>Summary of Supported Tags and Attributes</TITLE>
-<LINK REL="stylesheet" TYPE="text/css" HREF="demo.css"> 
+<LINK REL="stylesheet" TYPE="text/css" HREF="demo.css">
 <STYLE TYPE="text/css"> <!--
   .red     {color: red; font-weight: bold;}
   -->
@@ -12,11 +12,11 @@
 
 <BODY CLASS="indent">
 <P CLASS="title">HTML Components</P>
-<P CLASS="subtitle">Version 9.45<BR>
+<P CLASS="subtitle">Version 10<BR>
 <SPAN STYLE="color: #737373; font-size: larger;">Summary of Supported Tags and Attributes</SPAN><BR>
-<SPAN STYLE="color: 373737">Version 9 additions shown in <SPAN CLASS="red">red</SPAN></SPAN><BR>
+<SPAN STYLE="color: 373737">Version 10 additions shown in <SPAN CLASS="red">red</SPAN></SPAN><BR>
 </P>
-<HR STYLE="width:60%;">
+<HR STYLE="width:75%;">
 <TABLE WIDTH="75%" CELLPADDING="2" ALIGN="CENTER">
   <TR>
 	 <TD VALIGN="TOP"><UL>
@@ -57,9 +57,9 @@
    OLINK=<A HREF="#Colors">color</A>
    MARGINWIDTH=n
    MARGINHEIGHT=n
-   <Span class="red">BGPROPERTIES=fixed
+   BGPROPERTIES=fixed
    TOPMARGIN=n
-   LEFTMARGIN=n</span></PRE>
+   LEFTMARGIN=n</PRE>
 
 <P CLASS="heading"><A NAME="Physical">Physical Phrase Markup Tags</A></P>
 <PRE>&lt;B&gt;...&lt;/B&gt;
@@ -109,7 +109,7 @@
 &lt;DIR&gt;...&lt;/DIR&gt;
 &lt;MENU&gt;...&lt;/MENU&gt;
   &lt;LI&gt;...(&lt;/LI&gt;)
-    <span class="red">VALUE=n</span></PRE>
+    VALUE=n</PRE>
 
 <P CLASS="heading"><A NAME="Description">Description List</A></P>
 <PRE>&lt;DL&gt;...&lt;/DL&gt;
@@ -118,7 +118,7 @@
 
 <P CLASS="heading"><A NAME="Tables">Tables</A></P>
 <PRE>&lt;TABLE&gt;...&lt;TABLE&gt;
-   BORDER or BORDER=<span class="red">n</span>
+   BORDER or BORDER=n
    ALIGN=left|center|right
    CELLSPACING=value
    CELLPADDING=value
@@ -131,7 +131,7 @@
    HSPACE=n
    VSPACE=n
    HEIGHT=n|n%
-<span class="red">&lt;COLGROUP&gt;...&lt;/COLGROUP&gt;
+&lt;COLGROUP&gt;...&lt;/COLGROUP&gt;
    VALIGN=top|center|bottom
    ALIGN=left|center|right
    WIDTH=n|n%
@@ -139,39 +139,39 @@
    VALIGN=top|center|bottom
    ALIGN=left|center|right
    WIDTH=n|n%
-   SPAN=n</SPAN>
+   SPAN=n
 &lt;CAPTION&gt;...&lt;/CAPTION&gt;
    ALIGN=top|bottom
 &lt;TR&gt;...&lt;/TR&gt;
    VALIGN=top|center|bottom
    ALIGN=left|center|right
    BGCOLOR=<A HREF="#Colors">color</A>
-   HEIGHT=n<span class="red">|n%</span>
+   HEIGHT=n|n%
 &lt;TH&gt;...&lt;/TH&gt;, &lt;TD&gt;...&lt;/TD&gt;
    ROWSPAN=n
    COLSPAN=n
    WIDTH=n|n%
-   HEIGHT=n<span class="red">|n%</span>
+   HEIGHT=n|n%
    VALIGN=top|center|bottom
    ALIGN=left|center|right
    BGCOLOR=<A HREF="#Colors">color</A>
    NOWRAP
-<span class="red">&lt;THEAD&gt;&lt;TBODY&gt;&lt;TFOOT&gt;</span>   (printing)</PRE>
+&lt;THEAD&gt;&lt;TBODY&gt;&lt;TFOOT&gt;   (printing)</PRE>
 
 <P CLASS="heading"><A NAME="Forms">Forms</A></P>
 <PRE>&lt;FORM&gt;...&lt;/FORM&gt;
    METHOD=post|get
    ACTION=url
 &lt;INPUT&gt;...&lt;/INPUT&gt;
-   TYPE=text|password|submit|reset|radio|checkbox|hidden|image|button|<span class="red">file</span>
+   TYPE=text|password|submit|reset|radio|checkbox|hidden|image|button|file
    NAME=string
    VALUE=string
    SIZE=chars       (text, password)
    MAXLENGTH=chars  (text, password)
    CHECKED          (radio, checkbox)
    ONCLICK=string   (button, radio, checkbox, edit)
-   <span class="red">TABINDEX=n
-   DISABLE</span>
+   TABINDEX=n
+   DISABLE
 &lt;SELECT&gt;...&lt;/SELECT&gt;
    NAME=string
    MULTIPLE
@@ -180,16 +180,16 @@
    &lt;OPTION&gt;...(&lt;/OPTION&gt;)
       SELECTED
       VALUE=string
-   <span class="red">TABINDEX=n
-   DISABLE</span>
+   TABINDEX=n
+   DISABLE
 &lt;TEXTAREA&gt;...&lt;/TEXTAREA&gt;
    NAME=string
    ROWS=n
    COLS=n
    WRAP=off|soft|hard
    OnClick
-   <span class="red">TABINDEX=n
-   DISABLE</span>
+   TABINDEX=n
+   DISABLE
 &lt;OPTION&gt;...&lt;/OPTION&gt;</PRE>
 
 <P CLASS="heading"><A NAME="Character">Character Level Elements</A></P>
@@ -200,16 +200,16 @@
    SRC=image
    ALT=string
    ALIGN=top|middle|bottom|left|right
-   BORDER=<span class="red">n</span>
+   BORDER=n
    WIDTH=n,n%
-   HEIGHT=n,<span class="red">n%</span>
+   HEIGHT=n,n%
    TRANSP   (non-standard, Lower Left pixel defines transparent color
    IMAGEMAP
    USEMAP=url (local URL only)
    HSPACE=n
    VSPACE=n
    ACTIVE
-<span class="red">&lt;OBJECT&gt;...&lt;/OBJECT&gt;
+&lt;OBJECT&gt;...&lt;/OBJECT&gt;
    ALT=string
    ALIGN=top|middle|bottom|left|right
    WIDTH=n,n%
@@ -218,13 +218,13 @@
    VSPACE=n
 &lt;PARAM&gt;
    NAME=string
-   VALUE=string</span></PRE>
+   VALUE=string</PRE>
 
 <P CLASS="heading"><A NAME="Anchors">Anchors</A></P>
 <PRE>&lt;A&gt;...&lt;/A&gt;
    HREF=url
    NAME=string
-   <span class="red">TABINDEX=n</span></PRE>
+   TABINDEX=n</PRE>
 
 <P CLASS="heading"><A NAME="Maps">Client Side Image Maps</A></P>
 <PRE>&lt;MAP&gt;...&lt;/MAP&gt;
@@ -234,7 +234,7 @@
    COORDS=&quot;n1, n2, ...., nn&quot;
    HREF=url
    NOHREF
-   <span class="red">TITLE=title</span>
+   TITLE=title
 </PRE>
 
 <P CLASS="heading"><A NAME="Miscellaneous">Miscellaneous</A></P>
@@ -286,14 +286,14 @@ Mediumslateblue, Mediumspringgreen, Mediumturquoise, Mediumvioletred, Midnightbl
 Moccasin, Navajowhite, Oldlace, Olivedrab, Orange, Orangered, Orchid, Palegoldenrod, Palegreen, Paleturquoise,
 Palevioletred, Papayawhip, Peachpuff, Peru, Pink, Plum, Powderblue, Rosybrown, Royalblue, Saddlebrown, Salmon,
 Sandybrown, Seagreen, Seashell, Sienna, Skyblue, Slateblue, Slategray, Snow, Springgreen, Steelblue, Tan, Thistle,
-Tomato, Turquoise, Violet, Wheat, Whitesmoke, Yellowgreen, 
+Tomato, Turquoise, Violet, Wheat, Whitesmoke, Yellowgreen,
 
-<span class="red">background, activecaption, inactivecaption, menu, window,
+background, activecaption, inactivecaption, menu, window,
 windowframe, menutext, windowtext, captiontext, activeborder,
 inactiveborder, appworkSpace, highlight, hightlighttext, buttonface,
 buttonshadow, graytext, buttontext, inactivecaptiontext, buttonhighlight,
 threeddarkshadow, threedlightshadow, infotext, infobackground, scrollbar,
-threedface, threedhighlight, threedshadow.</span></p>
+threedface, threedhighlight, threedshadow.</p>
 
 </BODY>
 </HTML>

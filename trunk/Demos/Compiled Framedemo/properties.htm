@@ -1,7 +1,8 @@
 <HTML>
- 
+
 <HEAD>
 <TITLE></TITLE>
+<LINK REL="stylesheet" TYPE="text/css" HREF="demo.css">
 <STYLE TYPE="text/css">
   body      {margin-top: 15;}
   body, td, th   {font-size: 10pt; font-family: Arial;}
@@ -17,8 +18,11 @@
 
 <BODY bgcolor="white">
 <DIV ALIGN="center">
-<P CLASS="head"> HTML Components</P>
-<P STYLE="color: #733737; margin-top: 0;"><B>Version 9.45 Cascading Style Sheet Support</B></P>
+  <P CLASS="title">
+    HTML Components
+    <div STYLE="color: #733737; margin-top: 0;"><b>Cascading Style Sheet Support</b></div>
+    <div CLASS="subtitle" STYLE="color: 373737">Version 10 additions shown in <SPAN CLASS="red">red</SPAN></div>
+  </p>
 </DIV>
 <P></P>
 <TABLE WIDTH="90%" BORDER="0" CELLPADDING="2" CELLSPACING="2" ALIGN="CENTER">
@@ -81,7 +85,7 @@
   </TR>
   <TR>
 	 <TD>Background-attachment</TD>
-	 <TD><IMG SRC="smallcheck.gif" ALT="Checkmark" BORDER="0" WIDTH="23" HEIGHT="17"><span class="red">fixed, scroll</span></TD>
+	 <TD><IMG SRC="smallcheck.gif" ALT="Checkmark" BORDER="0" WIDTH="23" HEIGHT="17">fixed, scroll</TD>
 	 <TD>&nbsp;</TD>
   </TR>
   <TR>
@@ -155,8 +159,8 @@
   </TR>
   <TR>
 	 <TD>Display</TD>
-	 <TD>none</TD>
-	 <TD>block, inline, list-item</TD>
+	 <TD>none, <span class="red">inline (&lt;li&gt; only)</span></TD>
+	 <TD>block, inline (all other tags), list-item</TD>
   </TR>
   <TR>
 	 <TD>Float</TD>
@@ -186,7 +190,7 @@
   </TR>
   <TR>
 	 <TD>Font-variant</TD>
-	 <TD><span class="red">normal, small-caps</span></TD>
+	 <TD>normal, small-caps</TD>
 	 <TD>&nbsp;</TD>
   </TR>
   <TR>
@@ -274,7 +278,7 @@
   </TR>
   <TR>
 	 <TD>Vertical-align</TD>
-	 <TD>top, text-top, middle, baseline, bottom, <span class="red">sub, super</span></TD>
+	 <TD>top, text-top, middle, baseline, bottom, sub, super</TD>
 	 <TD>text-bottom&nbsp;</TD>
 	 <TD CLASS="note" WIDTH="50"><A HREF="#note2">Note 2</A></TD>
   </TR>
@@ -309,6 +313,11 @@
 	 <TD>Clip</TD>
 	 <TD>&nbsp;</TD>
 	 <TD><IMG SRC="smallcheck.gif" ALT="Checkmark" BORDER="0" WIDTH="23" HEIGHT="17"></TD>
+  </TR>
+  <TR class="red">
+	 <TD>Empty-cells</TD>
+	 <TD><IMG SRC="smallcheck.gif" ALT="Checkmark" BORDER="0" WIDTH="23" HEIGHT="17"></TD>
+	 <TD>&nbsp;</TD>
   </TR>
   <TR>
 	 <TD>Left</TD>
