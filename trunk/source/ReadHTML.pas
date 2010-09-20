@@ -1754,9 +1754,7 @@ end;
 
 procedure DoScript(Ascript: TScriptEvent);
 var
-  Lang, AName: string;
-  T: TAttribute;
-  S, Text: string;
+  Text: string;
 
   procedure Next1;
     {Special Next routine to get the next token}
@@ -1821,42 +1819,56 @@ var
     end;
   end;
 
-begin {on entry, do not have the next character for <script>}
-  try
-    if Assigned(AScript) then
-    begin
-      InScript := True;
+var
+  Lang, Name: string;
+  T: TAttribute;
+  S, Src: string;
+begin
+  {on entry, do not have the next character for <script>}
+  if Assigned(AScript) then
+  begin
+    InScript := True;
+    try
       GetCh; {get character here with Inscript set to allow immediate comment}
-      if Attributes.Find(LanguageSy, T) then
+
+      if Attributes.Find(TypeSy, T) then
+        Lang := T.Name
+      else if Attributes.Find(LanguageSy, T) then
         Lang := T.Name
       else
         Lang := '';
+
       if Attributes.Find(NameSy, T) then
-        AName := T.Name
+        Name := T.Name
       else
-        AName := '';
+        Name := '';
+
+      if Attributes.Find(SrcSy, T) then
+        Src := T.Name
+      else
+        Src := '';
 
       S := '';
       Next1;
       while (Sy <> ScriptEndSy) and (Sy <> EofSy) do
       begin
         if Sy = EolSy then
-          S := S + ^M + ^J
+          S := S + ^M^J
         else
           S := S + Text;
         Next1;
       end;
-      AScript(CallingObject, AName, Lang, S);
-    end
-    else
-    begin
-      GetCh; {make up for not having next character on entry}
-      repeat
-        Next1;
-      until Sy in [ScriptEndSy, EofSy];
+      AScript(CallingObject, Name, Lang, Src, S);
+    finally
+      InScript := False;
     end;
-  finally
-    InScript := False;
+  end
+  else
+  begin
+    GetCh; {make up for not having next character on entry}
+    repeat
+      Next1;
+    until Sy in [ScriptEndSy, EofSy];
   end;
 end;
 

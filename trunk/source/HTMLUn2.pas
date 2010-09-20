@@ -508,7 +508,7 @@ type
   TIncludeType = procedure(Sender: TObject; const Command: string; Params: TStrings; var IString: string) of object;
   TLinkType = procedure(Sender: TObject; const Rel, Rev, Href: string) of object;
   TMetaType = procedure(Sender: TObject; const HttpEq, Name, Content: string) of object;
-  TScriptEvent = procedure(Sender: TObject; const Name, Language, Script: string) of object;
+  TScriptEvent = procedure(Sender: TObject; const Name, ContentType, Src, Script: string) of object;
   TSoundType = procedure(Sender: TObject; const SRC: string; Loop: integer; Terminate: boolean) of object;
 
   TViewerBase = class(TWinControl)
