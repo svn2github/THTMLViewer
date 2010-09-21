@@ -4780,7 +4780,7 @@ var
   ScrollWidth, YClear: integer;
   LIndex, RIndex: integer;
   SaveID: TObject;
-  TotalWidth, MiscWidths: integer;
+  TotalWidth, LeftWidths, RightWidths, MiscWidths: integer;
   AutoCount: integer;
   BlockHeight: integer;
   IB, Xin: Integer;
@@ -4830,7 +4830,7 @@ begin
     TopP := MargArray[TopPos];
     LeftP := MargArray[LeftPos];
     case Positioning of
-      PosRelative:
+      posRelative:
       begin
         if TopP = Auto then
           TopP := 0;
@@ -4838,16 +4838,15 @@ begin
           LeftP := 0;
       end;
 
-      PosAbsolute:
+      posAbsolute:
       begin
         if TopP = Auto then
           TopP := 0;
         if (LeftP = Auto) then
-          if (MargArray[RightPos] <> Auto) and (AutoCount = 0)
-          then
-            LeftP := AWidth - MargArray[RightPos] - MargArray[Width] - MargArray[MarginRight]
-              - MargArray[MarginLeft] - MargArray[PaddingLeft] - MargArray[PaddingRight]
-              - MargArray[BorderLeftWidth] - MargArray[BorderRightWidth]
+          if (MargArray[RightPos] <> Auto) and (AutoCount = 0) then
+            LeftP := AWidth - MargArray[RightPos] - MargArray[Width]
+              - MargArray[MarginLeft] - MargArray[PaddingLeft] - MargArray[BorderLeftWidth]
+              - MargArray[MarginRight] - MargArray[PaddingRight] - MargArray[BorderRightWidth]
           else
             LeftP := 0;
         X := LeftP;
@@ -4857,34 +4856,36 @@ begin
 
     NewWidth := FindWidth(Canvas, AWidth, AHeight, AutoCount);
 
-    if Positioning <> posAbsolute then
-      MyCell.IMgr := IMgr as TIndentManager
+    case Positioning of
+      posAbsolute:
+      begin
+        RefIMgr := IMgr;
+        IMgr := MyCell.IMgr;
+        IMgr.Clear;
+        IMgr.Reset(0, NewWidth);
+        IMgr.Width := NewWidth;
+      end
     else
-    begin
-      RefIMgr := IMgr as TIndentManager;
-      IMgr := MyCell.IMgr;
-      IMgr.Clear;
-      IMgr.Reset(0, NewWidth);
-      IMgr.Width := NewWidth;
+      MyCell.IMgr := IMgr;
     end;
 
     SaveID := IMgr.CurrentID;
     IMgr.CurrentID := Self;
 
-    MiscWidths :=
-      MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth] +
-      MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth];
+    LeftWidths := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
+    RightWidths := MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth];
+    MiscWidths := LeftWidths + RightWidths;
     TotalWidth := MiscWidths + NewWidth;
 
     YClear := Y + ClearAddon;
     case FloatLR of
       ALeft:
-        Indent := IMgr.GetNextLeftXY(YClear, X, NewWidth, AWidth, 0) + MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth] - X;
+        Indent := IMgr.GetNextLeftXY(YClear, X, NewWidth, AWidth, 0) + LeftWidths - X;
 
       ARight:
-        Indent := Min(AWidth, IMgr.RightSide(YClear)) - (MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth]) - NewWidth;
+        Indent := Min(AWidth, IMgr.RightSide(YClear)) - RightWidths - NewWidth;
     else
-      Indent := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
+      Indent := LeftWidths;
     end;
     if MargArray[MarginTop] > 0 then
       DrawTop := YClear
@@ -4918,7 +4919,7 @@ begin
     if Positioning in [posAbsolute, posRelative] then
       MaxWidth := ScrollWidth + MiscWidths - MargArray[MarginRight] + LeftP - Xin
     else
-      MaxWidth := ScrollWidth + MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth] + Indent;
+      MaxWidth := ScrollWidth + RightWidths + Indent;
 
     if Positioning = posRelative then
       ClientContentBot := Max(ContentTop, MyCell.tcContentBot - TopP)
@@ -4959,22 +4960,18 @@ begin
     IMgr.FreeRightIndentRec(RIndex);
     if (FloatLR in [ALeft, ARight]) or (Positioning = posAbsolute) then
     begin
-      if Positioning = posAbsolute then
-        DrawHeight := 0
+      case Positioning of
+        posAbsolute:
+          DrawHeight := 0
       else
         DrawHeight := SectionHeight;
-      if FloatLR = ALeft then
-  //BG, 08.06.2008:
-  //    IMgr.UpdateBlock(Y, X+NewWidth + MargArray[MarginRight]+
-  //            MargArray[PaddingRight]+MargArray[BorderRightWidth], DrawBot-Y, FloatLR)
-        IMgr.UpdateBlock(DrawTop, X + NewWidth + MargArray[MarginRight] +
-          MargArray[PaddingRight] + MargArray[BorderRightWidth], DrawBot - DrawTop, FloatLR)
-  //BG, 08.06.2008
-      else if FloatLR = ARight then
-  //BG, 08.06.2008:
-  //    IMgr.UpdateBlock(Y, TotalWidth, DrawBot-Y, FloatLR);
-        IMgr.UpdateBlock(DrawTop, TotalWidth, DrawBot - DrawTop, FloatLR);
-  //BG, 08.06.2008
+      end;
+      case FloatLR of
+        ALeft:
+          IMgr.UpdateBlock(DrawTop, X + NewWidth + RightWidths, DrawBot - DrawTop, FloatLR);
+        ARight:
+          IMgr.UpdateBlock(DrawTop, TotalWidth, DrawBot - DrawTop, FloatLR);
+      end;
       SectionHeight := 0;
       Result := 0;
     end
@@ -10426,9 +10423,18 @@ begin
     Inc(Result);
 end;
 
-function WrapChar(C: WideChar): boolean;
+function WrapChar(C: WideChar): Boolean;
 begin
   Result := Ord(C) >= $3000;
+end;
+
+//BG, 20.09.2010:
+function CanWrap(C: WideChar): Boolean;
+begin
+  if C in [WideChar(' '), WideChar('-'), WideChar('?'), ImgPan, FmCtl, BrkCh] then
+    Result := True
+  else
+    Result := WrapChar(C);
 end;
 
 {----------------TSection.MinMaxWidth}
@@ -10515,7 +10521,7 @@ begin
     while P^ <> #0 do
     {find the next string of chars that can't be wrapped}
     begin
-      if WrapChar(P1^) and (Brk[I] = 'y') then
+      if CanWrap(P1^) and (Brk[I] = 'y') then
       begin
         Inc(P1);
         Inc(I);
@@ -10527,9 +10533,7 @@ begin
             Inc(P1);
             Inc(I);
           end;
-        until (P1^ = #0) or
-          ((((P1^ in [WideChar(' '), WideChar('-'), WideChar('?'), ImgPan, FmCtl, BrkCh]) or WrapChar(P1^))
-          and (Brk[I] = 'y')) or (Brk[I - 1] in ['a', 's']));
+        until (P1^ = #0) or (CanWrap(P1^) and (Brk[I] = 'y')) or (Brk[I - 1] in ['a', 's']);
         SoftHyphen := Brk[I - 1] = 's';
         if P1^ in [WideChar('-'), WideChar('?')] then
         begin
@@ -12602,7 +12606,7 @@ begin
   I := 0;
   while I < TheCount do
   begin
-    SB := TSectionBase(Items[I]);
+    SB := Items[I];
     Tmp := SB.DrawLogic(Canvas, X, Y + H, XRef, YRef, Width, AHeight, BlHt, IMgr, Sw, Curs);
     H := H + Tmp;
     if Owner.HideOverflow then
