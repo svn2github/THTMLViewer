@@ -7,7 +7,6 @@ uses
   Forms,
 {$ifdef LCL}
   Interfaces, LResources,
-  ColorGrd in 'ColorGrd.pas' {TColorGrid},
 {$endif}
   PrintStatusForm in 'PRINTSTATUSFORM.PAS' {PrnStatusForm},
   Gopage in 'GOPAGE.PAS' {GoPageForm},

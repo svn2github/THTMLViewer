@@ -282,6 +282,7 @@ procedure ConvMargArrayForCellPadding(const VM: TVMarginArray; EmSize,
 procedure ConvInlineMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize,
   ExSize: Integer; {BStyle: BorderStyleType;} var M: TMarginArray);
 
+function SortedColors: TStringList;
 function ColorFromString(S: string; NeedPound: boolean; var Color: TColor): boolean;
 
 function ReadURL(Item: Variant): string;
@@ -2517,7 +2518,7 @@ const
 var
   ColorStrings: TStringList;
 
-procedure SortColors;
+function SortedColors: TStringList;
 var
   I: integer;
 begin
@@ -2529,6 +2530,7 @@ begin
       ColorStrings.AddObject(Colors[I], Pointer(ColorValues[I]));
     ColorStrings.Sort;
   end;
+  Result := ColorStrings;
 end;
 
 function ColorFromString(S: string; NeedPound: boolean; var Color: TColor): boolean;
@@ -2607,10 +2609,9 @@ begin
   I := Pos('rgb', S);
   if (I = 0) and (S[1] <> '#') then
   begin
-    SortColors;
-    if ColorStrings.Find(S, I) then
+    if SortedColors.Find(S, I) then
     begin
-      Color := TColor(ColorStrings.Objects[I]);
+      Color := TColor(SortedColors.Objects[I]);
       Result := True;
       LastS := S;
       LastColor := Color;

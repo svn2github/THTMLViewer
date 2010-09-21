@@ -28,8 +28,6 @@
     <DCC_Description>Fast Function Factory - Components</DCC_Description>
     <DCC_AssertionsAtRuntime>False</DCC_AssertionsAtRuntime>
     <DCC_ExeOutput>bin\Delphi2007</DCC_ExeOutput>
-    <DCC_DebugInformation>False</DCC_DebugInformation>
-    <DCC_LocalDebugSymbols>False</DCC_LocalDebugSymbols>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <Version>7.0</Version>

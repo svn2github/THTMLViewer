@@ -17,9 +17,9 @@ interface
 
 uses
   SysUtils, WinTypes, WinProcs, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, ExtCtrls, Menus, Htmlview, StdCtrls,
-  Clipbrd, HTMLsubs, ShellAPI, MMSystem, MPlayer, ComCtrls,
-  {$ifdef UseXpMan} XpMan, {$endif} Gauges;
+  Forms, Dialogs, ExtCtrls, Menus, StdCtrls, Clipbrd, ShellAPI, MMSystem, MPlayer, ComCtrls,
+  {$ifdef UseXpMan} XpMan, {$endif} Gauges,
+  ReadHtml, Htmlview, HTMLsubs, UrlSubs, HTMLUn2, StyleUn, HtmlAbt;
 
 const
   MaxHistories = 6;  {size of History list}
@@ -118,6 +118,7 @@ type
       NumPage: Integer; LastPage: Boolean; var XL, XR: Integer;
       var StopPrinting: Boolean);
     procedure PrinterSetup1Click(Sender: TObject);
+    procedure ViewerScript(Sender: TObject; const Name, ContentType, Src, Script: string);
   private
     { Private declarations }
     Histories: array[0..MaxHistories-1] of TMenuItem;
@@ -128,7 +129,8 @@ type
     TimerCount: integer;
     OldTitle: string;
     HintWindow: THintWindow;
-    HintVisible: boolean;   
+    HintVisible: boolean;
+    NLS: string;
 
     procedure wmDropFiles(var Message: TMessage); message wm_DropFiles;
     procedure CloseAll;
@@ -142,7 +144,7 @@ var
 implementation
 
 uses
-  PreviewForm, HTMLun2, HTMLabt, Submit, ImgForm, FontDlg;
+  PreviewForm, Submit, ImgForm, FontDlg;
 
 {$R *.DFM}
 
@@ -194,7 +196,7 @@ if (ParamCount >= 1) then
     Delete(S, I, 1);
     I := Pos('"', S);
     end;
-  Viewer.LoadFromFile(HtmlToDos(Trim(S)));
+  Viewer.LoadFromFile(Viewer.HtmlExpandFilename(S));
   end;
 end;
 
@@ -250,12 +252,15 @@ Handled := False;
 I := Pos('IDEXPAND_', Uppercase(URL));
 if I=1 then
   begin
-  ID := Copy(URL, 10, Length(URL)-9);
-  Viewer.IDDisplay[ID+'Plus'] := not Viewer.IDDisplay[ID+'Plus'];
-  Viewer.IDDisplay[ID+'Minus'] := not Viewer.IDDisplay[ID+'Minus'];
-  Viewer.Reformat;
-  Handled := True;
-  Exit;
+    ID := Copy(URL, 10, Length(URL)-9);
+    if Viewer.IDDisplay[ID+'Minus'] = High(TPropDisplay) then
+      Viewer.IDDisplay[ID+'Minus'] := Low(TPropDisplay)
+    else
+      Viewer.IDDisplay[ID+'Minus'] := Succ(Viewer.IDDisplay[ID+'Minus']);
+    Viewer.IDDisplay[ID+'Plus'] := Viewer.IDDisplay[ID+'Minus'];
+    Viewer.Reformat;
+    Handled := True;
+    Exit;
   end;
 
 I := Pos(':', URL);
@@ -428,12 +433,12 @@ end;
 
 procedure TForm1.About1Click(Sender: TObject);
 begin
-AboutBox := TAboutBox.CreateIt(Self, 'HTMLDemo', 'ThtmlViewer');
-try
-  AboutBox.ShowModal;
-finally
-  AboutBox.Free;
-  end;
+  with TAboutBox.CreateIt(Self, 'HTMLDemo', 'ThtmlViewer') do
+    try
+      ShowModal;
+    finally
+      Free;
+    end;
 end;
 
 
@@ -613,7 +618,7 @@ begin
 AForm := TImageForm.Create(Self);
 with AForm do
   begin
-  ImageFormBitmap := FoundObject.Bitmap;
+  Bitmap := FoundObject.Bitmap;
   Caption := '';
   Show;
   end;
@@ -869,6 +874,11 @@ case Stage of
     ProgressBar.Visible := False;
   end;
 ProgressBar.Update;
+end;
+
+procedure TForm1.ViewerScript(Sender: TObject; const Name, ContentType, Src, Script: string);
+begin
+  NLS := Name + '::' + ContentType + '::' + Src + '::'#10#13 + Script;
 end;
 
 {HTML for print header and footer}

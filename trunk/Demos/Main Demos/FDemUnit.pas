@@ -173,16 +173,16 @@ Top := Top div 2;
 Width := (Screen.Width * 8) div 10;
 Height := (Screen.Height * 6) div 8;
 
-////< Temporary fix, for as long as the TFrameViewer component isn't registered :
-//  if Assigned(FrameViewer) then
-//    ShowMessage('Remove debug code')
-//  else
-//  begin
-//    FrameViewer := TFrameViewer.Create(Self);
-//    FrameViewer.Parent := Self;
-//    FrameViewer.Align := alClient;
-//  end;
-////>
+{//< Temporary fix, for as long as the TFrameViewer component isn't registered :
+  if Assigned(FrameViewer) then
+    ShowMessage('Remove debug code')
+  else
+  begin
+    FrameViewer := TFrameViewer.Create(Self);
+    FrameViewer.Parent := Self;
+    FrameViewer.Align := alClient;
+  end;
+//>}
 
 FrameViewer.HistoryMaxCount := MaxHistories;  {defines size of history list}
 
@@ -332,7 +332,6 @@ var
   I: integer;
 begin
 {$ifdef LCL}
-  Fonts.Visible := False;
   Print1.Visible := False;
   PrinterSetup.Visible := False;
   PrintPreview1.Visible := False;

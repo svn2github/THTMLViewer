@@ -1,9 +1,9 @@
 object Form1: TForm1
   Left = 135
   Top = 398
+  Width = 502
+  Height = 326
   Caption = 'Frame Demo'
-  ClientHeight = 272
-  ClientWidth = 494
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -33,6 +33,8 @@ object Form1: TForm1
       Width = 150
       Height = 19
       Align = alRight
+      Min = 0
+      Max = 100
       TabOrder = 0
       Visible = False
     end
@@ -64,11 +66,11 @@ object Form1: TForm1
     OnProgress = FrameViewerProgress
     OnRightClick = FrameViewerRightClick
     OnSoundRequest = SoundRequest
-    PrintMarginBottom = 3.000000000000000000
-    PrintMarginLeft = 2.000000000000000000
-    PrintMarginRight = 2.000000000000000000
-    PrintMarginTop = 2.000000000000000000
-    PrintScale = 1.000000000000000000
+    PrintMarginBottom = 3
+    PrintMarginLeft = 2
+    PrintMarginRight = 2
+    PrintMarginTop = 2
+    PrintScale = 1
     Align = alClient
     TabOrder = 1
     OnMouseMove = FrameViewerMouseMove
