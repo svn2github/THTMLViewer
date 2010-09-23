@@ -3,7 +3,7 @@
 {*                     FRAMVIEW.PAS                      *}
 {*********************************************************}
 {
-Copyright (c) 1995-2008 by L. David Baldwin
+Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -174,6 +174,7 @@ type
     procedure fvDragOver(Sender, Source: TObject; X, Y: Integer; State: TDragState; var Accept: Boolean);
     procedure HotSpotClick(Sender: TObject; const AnURL: string;var Handled: boolean); virtual; abstract;
     procedure HotSpotCovered(Sender: TObject; const SRC: string); virtual; abstract;
+    procedure LoadFromStringInternal(const Source, Name, Dest: string);
     procedure SetActiveColor(Value: TColor);
     procedure SetBase(Value: string);
     procedure SetCaretPos(Value: integer);
@@ -262,6 +263,7 @@ type
     procedure EndFrameSet(FrameSet: TObject); override;
     procedure GoBack;
     procedure GoFwd;
+    procedure LoadFromString(const Source: String; const Name: string = ''; const Dest: string = '');
     procedure Reload;
     procedure Repaint; override;
     procedure SelectAll;
@@ -525,6 +527,7 @@ type
     procedure EndFrameSet; override;
     procedure Clear; override;
     procedure CalcSizes(Sender: TObject);
+    procedure LoadFromString(const Source, Name, Dest: string);
     procedure Repaint; override;
     property FrameViewer: TFvBase read FFrameViewer;
   end;
@@ -621,20 +624,13 @@ type
   end;
 
 function ImageFile(const S: string): boolean;
-var
-  Ext: string;
 begin
-  Ext := Lowercase(ExtractFileExt(S));
-  Result := (Ext = '.gif') or (Ext = '.jpg') or (Ext = '.jpeg') or (Ext = '.bmp')
-    or (Ext = '.png');
+  Result := IsImageExt(Lowercase(ExtractFileExt(S)));
 end;
 
 function TexFile(const S: string): boolean;
-var
-  Ext: string;
 begin
-  Ext := Lowercase(ExtractFileExt(S));
-  Result := (Ext = '.txt');
+  Result := IsTextExt(Lowercase(ExtractFileExt(S)));
 end;
 
 {----------------FileToString}
@@ -904,11 +900,11 @@ begin
     S := HTMLServerToDos(S, MasterSet.FrameViewer.ServerRoot);
     if Pos(':', S) = 0 then
     begin
-      if Base <> '' then {a Base was found}
+      if Base <> '' then
         if CompareText(Base, 'DosPath') = 0 then
           S := ExpandFilename(S)
         else
-          S := ExtractFilePath(HTMLToDos(Base)) + S
+          S := CombineDos(HTMLToDos(Base), S)
       else
         S := Path + S;
     end;
@@ -923,7 +919,6 @@ var
   Upper, Lower, Image, Tex: boolean;
   Msg: string;
   EV: EventRec;
-  Event: boolean;
 begin
   if ((Source <> '') or Assigned(PEV)) and (MasterSet.NestLevel < 4) then
   begin
@@ -936,13 +931,19 @@ begin
     begin
       if Assigned(PEV) then
       begin
-        Event := True;
         EV := PEV^;
       end
+      else if copy(Source, 1, 9) = 'source://' then
+      begin
+        EV.LStyle := lsString;
+        EV.AString := copy(Source, 10, MaxInt);
+        EV.NewName := Source;
+      end
       else
-        Event := MasterSet.TriggerEvent(Source, @EV);
-      if not Event then
-        EV.NewName := MasterSet.FrameViewer.HTMLExpandFilename(Source);
+      begin
+        if not MasterSet.TriggerEvent(Source, @EV) then
+          EV.NewName := MasterSet.FrameViewer.HTMLExpandFilename(Source);
+      end;
     end;
     Inc(MasterSet.NestLevel);
     try
@@ -981,9 +982,8 @@ begin
         else
         begin
           case EV.LStyle of
-            lsFile: Viewer.LoadFromFile(EV.NewName + Destination);
-            lsString:
-              Viewer.LoadFromString(EV.AString, Source);
+            lsFile:   Viewer.LoadFromFile(EV.NewName + Destination);
+            lsString: Viewer.LoadFromString(EV.AString, Source);
           end;
           if EV.LStyle <> lsFile then
             Viewer.PositionTo(Destination);
@@ -2251,8 +2251,10 @@ var
 begin
   with PEV^ do
   begin
-    Result := False; LStyle := lsFile;
-    Buffer := nil; BuffSize := 0;
+    Result := False;
+    LStyle := lsFile;
+    Buffer := nil;
+    BuffSize := 0;
     AName := '';
     AString := '';
     Stream := nil;
@@ -2410,7 +2412,6 @@ var
   EV: EventRec;
   EventPointer: PEventRec;
   Img, Tex: boolean;
-
 begin
   Clear;
   NestLevel := 0;
@@ -2459,6 +2460,61 @@ begin
     EndFrameSet;
     CalcSizes(Self);
     Frame.Loadfiles(EventPointer);
+    FTitle := HtmlSubs.Title;
+    FBaseTarget := HtmlSubs.BaseTarget;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 23.09.2010 --
+procedure TFrameSetBase.LoadFromString(const Source, Name, Dest: string);
+var
+  I: integer;
+  Item: TFrameBase;
+  Frame: TfvFrame;
+  Lower, Upper: boolean;
+  EV: EventRec;
+  PEV: PEventRec;
+begin
+  Clear;
+  NestLevel := 0;
+  EV.LStyle := lsString;
+  EV.AString := Source;
+  if Name <> '' then
+    EV.NewName := Name
+  else
+    EV.NewName := 'source://' + Source;
+  FCurrentFile := EV.NewName;
+  FRefreshDelay := 0;
+  if IsFrameString(EV.LStyle, EV.NewName, EV.AString, MasterSet.FrameViewer) then
+  begin {it's a Frameset html file}
+    FrameParseString(MasterSet.FrameViewer, Self, EV.LStyle, EV.NewName, EV.AString, HandleMeta);
+    for I := 0 to List.Count - 1 do
+    begin
+      Item := TFrameBase(List.Items[I]);
+      Item.LoadFiles();
+    end;
+    CalcSizes(Self);
+    CheckNoresize(Lower, Upper);
+    if FRefreshDelay > 0 then
+      SetRefreshTimer;
+  end
+  else
+  begin {it's a non frame file}
+    Frame := TfvFrame(AddFrame(nil, ''));
+    if RequestEvent then
+    begin
+      Frame.Source := Source;
+      PEV := @EV;
+    end
+    else
+    begin
+      Frame.Source := EV.NewName;
+      PEV := nil;
+    end;
+    Frame.Destination := Dest;
+    EndFrameSet;
+    CalcSizes(Self);
+    Frame.Loadfiles(PEV);
     FTitle := HtmlSubs.Title;
     FBaseTarget := HtmlSubs.BaseTarget;
   end;
@@ -4678,6 +4734,107 @@ begin
     Result := AViewer.FindEx(S, MatchCase, Reverse)
   else
     Result := False;
+end;
+
+//-- BG ---------------------------------------------------------- 23.09.2010 --
+procedure TFVBase.LoadFromString(const Source, Name, Dest: string);
+begin
+  if not Processing then
+    LoadFromStringInternal(Source, Name, Dest);
+end;
+
+//-- BG ---------------------------------------------------------- 23.09.2010 --
+procedure TFVBase.LoadFromStringInternal(const Source, Name, Dest: string);
+var
+  OldFrameSet: TFrameSetBase;
+  OldFile, S: string;
+  OldPos: integer;
+  Tmp: TObject;
+  SameName: boolean;
+{$IFDEF Windows}
+  Dummy: integer;
+{$ENDIF}
+begin
+  BeginProcessing;
+{$IFDEF windows}
+  Dummy :=
+{$ENDIF}
+  IOResult; {remove any pending file errors}
+  try
+    OldFile := CurFrameSet.FCurrentFile;
+    ProcessList.Clear;
+    if Assigned(OnSoundRequest) then
+      OnSoundRequest(Self, '', 0, True);
+    if Name <> '' then
+      S := Name
+    else
+      S := 'source://' + Source;
+    SameName := CompareText(OldFile, S) = 0;
+    if not SameName then
+    begin
+      OldFrameSet := CurFrameSet;
+      FCurFrameSet := GetFrameSetClass.Create(Self);
+      CurFrameSet.Align := alClient;
+      CurFrameSet.visible := False;
+      InsertControl(CurFrameSet);
+      CurFrameSet.SendToBack;
+      CurFrameSet.Visible := True;
+
+      try
+        CurFrameSet.LoadFromString(Source, Name, Dest);
+      except
+        RemoveControl(CurFrameSet);
+        CurFrameSet.Free;
+        FCurFrameSet := OldFrameSet;
+        raise;
+      end;
+
+      OldPos := 0;
+      if (OldFrameSet.Viewers.Count = 1) then
+      begin
+        Tmp := OldFrameSet.Viewers[0];
+        if Tmp is THtmlViewer then
+          OldPos := THtmlViewer(Tmp).Position;
+      end;
+      OldFrameSet.UnloadFiles;
+      CurFrameSet.Visible := True;
+      if Visible then
+      begin
+        SendMessage(Handle, wm_SetRedraw, 0, 0);
+        try
+          CurFrameSet.BringToFront;
+        finally
+          SendMessage(Handle, wm_SetRedraw, 1, 0);
+          Repaint;
+        end;
+        CurFrameSet.Repaint;
+      end;
+      RemoveControl(OldFrameSet);
+      BumpHistory(OldFrameSet, OldPos);
+    end
+    else
+    begin {Same Name}
+      OldPos := 0;
+      if (CurFrameSet.Viewers.Count = 1) then
+      begin
+        Tmp := CurFrameSet.Viewers[0];
+        if Tmp is THtmlViewer then
+          OldPos := THtmlViewer(Tmp).Position;
+      end;
+      SendMessage(Handle, wm_SetRedraw, 0, 0);
+      try
+        CurFrameSet.LoadFromString(Source, Name, Dest);
+      finally
+        SendMessage(Handle, wm_SetRedraw, 1, 0);
+        Repaint;
+      end;
+      BumpHistory2(OldPos); {not executed if exception occurs}
+    end;
+    AddVisitedLink(S + Dest);
+    CheckVisitedLinks;
+  finally
+    EndProcessing;
+  end;
 end;
 
 {----------------PositionObj}

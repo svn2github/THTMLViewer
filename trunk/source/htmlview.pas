@@ -3,7 +3,7 @@
 {*                     HTMLVIEW.PAS                      *}
 {*********************************************************}
 {
-Copyright (c) 1995-2008 by L. David Baldwin
+Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -639,6 +639,11 @@ type
     property Cursor: TCursor read GetCursor write SetCursor default crIBeam;
   end;
 
+function IsHtmlExt(const Ext: string): boolean;
+function IsImageExt(const Ext: string): boolean;
+function IsTextExt(const Ext: string): boolean;
+function getFileType(const S: string): THtmlFileType;
+
 implementation
 
 uses
@@ -655,6 +660,40 @@ type
     FormData: TFreeList;
     destructor Destroy; override;
   end;
+
+//-- BG ---------------------------------------------------------- 23.09.2010 --
+function IsHtmlExt(const Ext: string): boolean;
+begin
+  Result := (Ext = '.html') or (Ext = '.css') or (Ext = '.htm');
+end;
+
+//-- BG ---------------------------------------------------------- 23.09.2010 --
+function IsImageExt(const Ext: string): boolean;
+begin
+  Result := (Ext = '.gif') or (Ext = '.jpg') or (Ext = '.jpeg') or (Ext = '.png') or (Ext = '.bmp');
+end;
+
+//-- BG ---------------------------------------------------------- 23.09.2010 --
+function IsTextExt(const Ext: string): boolean;
+begin
+  Result := (Ext = '.txt');
+end;
+
+//-- BG ---------------------------------------------------------- 23.09.2010 --
+function getFileType(const S: string): THtmlFileType;
+var
+  Ext: string;
+begin
+  Ext := LowerCase(ExtractFileExt(S));
+  if IsHtmlExt(Ext) then
+    Result := HTMLType
+  else if IsImageExt(Ext) then
+    Result := ImgType
+  else if IsTextExt(Ext) then
+    Result := TextType
+  else
+    Result := OtherType;
+end;
 
 constructor THTMLViewer.Create(AOwner: TComponent);
 begin
@@ -1430,7 +1469,6 @@ end;
 procedure ThtmlViewer.URLAction;
 var
   S, Dest: string;
-  Ext: string;
   I: integer;
   OldPos: integer;
 
@@ -1458,23 +1496,26 @@ begin
       else
         Dest := ''; {no local destination}
       S := HTMLExpandFileName(S);
-      Ext := Uppercase(ExtractFileExt(S));
-      if (Ext = '.HTM') or (Ext = '.HTML') then
-      begin {an html file}
-        if S <> FCurrentFile then
-        begin
-          LoadFromFile(S + Dest);
-          AddVisitedLink(S + Dest);
-        end
-        else if PositionTo(Dest) then {file already loaded, change position}
-        begin
-          BumpHistory(FCurrentFile, FTitle, OldPos, nil, HTMLType);
-          AddVisitedLink(S + Dest);
-        end;
-      end
-      else if (Ext = '.BMP') or (Ext = '.GIF') or (Ext = '.JPG') or (Ext = '.JPEG')
-        or (Ext = '.PNG') then
-        LoadImageFile(S);
+      case GetFileType(S) of
+
+        HTMLType:
+          if S <> FCurrentFile then
+          begin
+            LoadFromFile(S + Dest);
+            AddVisitedLink(S + Dest);
+          end
+          else if PositionTo(Dest) then {file already loaded, change position}
+          begin
+            BumpHistory(FCurrentFile, FTitle, OldPos, nil, HTMLType);
+            AddVisitedLink(S + Dest);
+          end;
+
+        ImgType:
+          LoadImageFile(S);
+
+        TextType:
+          LoadTextFile(S);
+      end;
     end;
     {Note: Self may not be valid here}
   end;
@@ -2420,8 +2461,6 @@ begin
 end;
 
 function ThtmlViewer.HTMLExpandFilename(const Filename: string): string;
-var
-  Tmp: string;
 begin
   {pass http: and other protocols except for file:///}
   if (Pos('://', Filename) > 1) and (Pos('file://', Lowercase(Filename)) = 0) then
@@ -2434,10 +2473,7 @@ begin
     else if (Pos(':', Result) <> 2) and (Pos('\\', Result) <> 1) then
       if CompareText(FBase, 'DosPath') = 0 then {let Dos find the path}
       else if FBase <> '' then
-      begin
-        Tmp := ExtractFilePath(HTMLToDos(FBase));
-        Result := ExpandFilename(Tmp + Result)
-      end
+        Result := CombineDos(HTMLToDos(FBase), Result)
       else
         Result := ExpandFilename(ExtractFilePath(FCurrentFile) + Result);
   end;

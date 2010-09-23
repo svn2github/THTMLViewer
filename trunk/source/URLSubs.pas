@@ -5,15 +5,22 @@ interface
 
 {$I htmlcons.inc}
 
-function GetBase(const URL: string): string;
+
+{***************************************************************************************************
+ * URL processing methods
+ **************************************************************************************************}
+
+procedure ParseURL(const url: string; var Proto, User, Pass, Host, Port, Path: string);
+{François PIETTE's URL parsing procedure}
+
+function GetBase(const URL: string): string; deprecated;
+function GetURLBase(const URL: string): string;
 {Given an URL, get the base directory}
 
-function Combine(Base, APath: string): string;
+function Combine(Base, APath: string): string; deprecated;
+function CombineURL(Base, APath: string): string;
 {combine a base and a path taking into account that overlap might exist}
 {needs work for cases where directories might overlap}
-
-function Normalize(const URL: string): string;
-{lowercase, trim, and make sure a '/' terminates a hostname, adds http://}
 
 function IsFullURL(const URL: string): boolean;
 {set if contains a protocol}
@@ -27,6 +34,14 @@ function GetURLExtension(const URL: string): string;
 function GetURLFilenameAndExt(const URL: string): string;
 {returns mixed case after last /}
 
+
+{***************************************************************************************************
+ * both URL and DOS processing methods
+ **************************************************************************************************}
+
+function Normalize(const URL: string): string;
+{lowercase, trim, and make sure a '/' terminates a hostname, adds http://}
+
 function DosToHTML(FName: string): string;
 {convert an Dos style filename to one for HTML.  Does not add the file:///}
 
@@ -37,40 +52,73 @@ function DosToHtmlNoSharp(FName: string): string;
 function HTMLToDos(FName: string): string;
 {convert an HTML style filename to one for Dos}
 
-procedure ParseURL(const url: string; var Proto, User, Pass, Host, Port, Path: string);
-{François PIETTE's URL parsing procedure}
 
+{***************************************************************************************************
+ * DOS processing methods
+ **************************************************************************************************}
+
+function CombineDos(const Base, Path: string): string;
+{combine a base and a path}
+
+
+{**************************************************************************************************}
 implementation
 
 uses
   SysUtils, Math;
 
-{----------------GetBase}
+{----------------GetURLBase}
 
-function GetBase(const URL: string): string;
+function GetURLBase(const URL: string): string;
 {Given an URL, get the base directory}
 var
-  I, J, LastSlash: integer;
-  S: string;
+  I, J, Q: integer;
 begin
-  S := Trim(URL);
-  J := Pos('?', S);
-  if J > 0 then
-    S := Copy(S, 1, J - 1); {remove Query}
-  J := Pos('//', S);
-  LastSlash := 0;
-  for I := J + 2 to Length(S) do
-    if S[I] = '/' then
-      LastSlash := I;
-  if LastSlash = 0 then
-    Result := S + '/'
-  else
-    Result := Copy(S, 1, LastSlash);
+  Result := Trim(URL);
+  Q := Pos('?', Result);
+  if Q = 0 then
+    Q := Length(Result);
+  J := Pos('//', Result);
+  if (J = 0) or (J > Q) then
+    J := 1;
+  for I := Q downto J do
+    if Result[I] = '/' then
+    begin
+      SetLength(Result, I);
+      Exit;
+    end;
+  Result := Result + '/';
+end;
+
+function GetBase(const URL: string): string;
+begin
+  Result := GetURLBase(URL);
 end;
 
 {----------------Combine}
+function CombineDos(const Base, Path: string): string;
+var
+  L: Integer;
+begin
+  L := Length(Base);
+  if (L > 0) and (Base[L] = '\') then
+    if (Length(Path) > 0) and (Path[1] = '\') then
+      Result := Copy(Base, 1, L - 1) + Path
+    else
+      Result := Base + Path
+  else
+    if (Length(Path) > 0) and (Path[1] = '\') then
+      Result := Base + Path
+    else
+      Result := Base + '\' + Path;
+end;
 
 function Combine(Base, APath: string): string;
+begin
+  Result := CombineURL(Base, APath);
+end;
+
+function CombineURL(Base, APath: string): string;
 {combine a base and a path taking into account that overlap might exist}
 {needs work for cases where directories might overlap}
 var

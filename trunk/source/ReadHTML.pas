@@ -8,7 +8,7 @@
 {*                                                       *}
 {*********************************************************}
 {
-Copyright (c) 1995-2008 by L. David Baldwin
+Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -3355,7 +3355,7 @@ begin
         if Assigned(Viewer.OnExpandName) then
         begin {must be using TFrameBrowser}
           Viewer.OnExpandName(Viewer, Url, Url);
-          Path := GetBase(Url);
+          Path := GetURLBase(Url);
           Request(Viewer, Url, RStream);
           if Assigned(RStream) then
             Stream.LoadFromStream(RStream);

@@ -3,7 +3,7 @@
 {*                     FRAMBRWZ.PAS                      *}
 {*********************************************************}
 {
-Copyright (c) 1995-2008 by L. David Baldwin
+Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -105,6 +105,14 @@ type
     function CurbrFrameSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif} {the TbrFrameSet being displayed}
     function HotSpotClickHandled(const FullUrl: string): boolean;
     procedure LoadURLInternal(const URL, Query, EncType, Referer: string; IsGet, Reload: boolean);
+    procedure PostRequest(
+      Sender: TObject;
+      IsGet: boolean;
+      const Source, Query, EncType, Referer: string;
+      Reload: boolean;
+      out NewURL: string;
+      out DocType: ThtmlFileType;
+      out Stream: TMemoryStream);
   protected
     function GetFrameSetClass: TFrameSetClass; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
@@ -177,10 +185,10 @@ function TbrFrame.ExpandSourceName(Base, Path: string; S: string): string;
 begin
   S := ConvDosToHTML(S);
   if Pos(':/', S) <> 0 then
-    URLBase := URLSubs.GetBase(S) {get new base}
+    URLBase := UrlSubs.GetURLBase(S) {get new base}
   else if Base <> '' then
   begin
-    S := Combine(Base, S);
+    S := CombineURL(Base, S);
     URLBase := Base;
   end
   else
@@ -189,7 +197,7 @@ begin
       URLBase := (LOwner as TbrFrameSet).URLBase
     else
       URLBase := (LOwner as TbrSubFrameSet).URLBase;
-    S := Combine(URLBase, S);
+    S := CombineURL(URLBase, S);
   end;
   Result := S
 end;
@@ -224,7 +232,7 @@ begin
   if URL = '' then
     NextFile := Source
   else if not IsFullURL(URL) then
-    NextFile := Combine(URLBase, URL) //URLBase + URL
+    NextFile := CombineURL(URLBase, URL) //URLBase + URL
   else
     NextFile := URL;
   if not Assigned(RefreshTimer) then
@@ -242,7 +250,7 @@ begin
   if Unloaded then
     Exit;
   if not IsFullUrl(NextFile) then
-    NextFile := Combine(UrlBase, NextFile);
+    NextFile := CombineURL(UrlBase, NextFile);
   if (MasterSet.Viewers.Count = 1) then {load a new FrameSet}
     MasterSet.FrameViewer.LoadURLInternal(NextFile, '', '', '', True, True)
   else
@@ -274,19 +282,15 @@ begin
     if not Assigned(TheStream) then
     begin
       NewURL := '';
-      if Assigned(MasterSet.FrameViewer.FOnGetPostRequestEx) then
-        MasterSet.FrameViewer.FOnGetPostRequestEX(Self, True, Source, '', '', '', False, NewURL, TheStreamType, TheStream)
-      else
-        MasterSet.FrameViewer.FOnGetPostRequest(Self, True, Source, '', False, NewURL, TheStreamType, TheStream);
+      MasterSet.FrameViewer.PostRequest(Self, True, Source, '', '', '', False, NewURL, TheStreamType, TheStream);
       if NewURL <> '' then
         Source := NewURL;
     end;
-    URLBase := GetBase(Source);
+    URLBase := UrlSubs.GetURLBase(Source);
     Inc(MasterSet.NestLevel);
     try
       TheString := StreamToString(TheStream);
-      if (TheStreamType = HTMLType) and IsFrameString(LsString, '', TheString,
-        MasterSet.FrameViewer) then
+      if (TheStreamType = HTMLType) and IsFrameString(LsString, '', TheString, MasterSet.FrameViewer) then
       begin
         FFrameSet := TbrSubFrameSet.CreateIt(Self, MasterSet);
         FrameSet.Align := alClient;
@@ -369,12 +373,7 @@ begin
     begin
       Viewer.Base := MasterSet.FBase; {only effective if no Base to be read}
       try
-        if Assigned(MasterSet.FrameViewer.FOnGetPostRequestEx) then
-          MasterSet.FrameViewer.FOnGetPostRequestEx(Self, True, Source, '', '', '', True,
-            Dummy, TheStreamType, TheStream)
-        else
-          MasterSet.FrameViewer.FOnGetPostRequest(Self, True, Source, '', True,
-            Dummy, TheStreamType, TheStream);
+        MasterSet.FrameViewer.PostRequest(Self, True, Source, '', '', '', True, Dummy, TheStreamType, TheStream);
         Viewer.LoadStream(Source, TheStream, TheStreamType);
         if APosition < 0 then
           Viewer.Position := ViewerPosition
@@ -415,7 +414,7 @@ begin
   if S = '' then
     S := OldName
   else
-    URLBase := URLSubs.GetBase(S); {get new base}
+    URLBase := UrlSubs.GetURLBase(S); {get new base}
   HS := S;
   SameName := CompareText(S, OldName) = 0;
 {if SameName, will not have to reload anything unless Reload set}
@@ -424,15 +423,11 @@ begin
   begin
     if Assigned(Viewer) and Assigned(MasterSet.FrameViewer.OnViewerClear) then
       MasterSet.FrameViewer.OnViewerClear(Viewer);
-    S1 := '';
-    if Assigned(MasterSet.FrameViewer.OnGetPostRequestEx) then
-      MasterSet.FrameViewer.OnGetPostRequestEx(Self, IsGet, S, Query, EncType, Referer, Reload, S1, TheStreamType, TheStream)
-    else
-      MasterSet.FrameViewer.OnGetPostRequest(Self, IsGet, S, Query, Reload, S1, TheStreamType, TheStream);
+    MasterSet.FrameViewer.PostRequest(Self, IsGet, S, Query, EncType, Referer, Reload, S1, TheStreamType, TheStream);
     if S1 <> '' then
     begin
       S := S1;
-      URLBase := GetBase(S);
+      URLBase := UrlSubs.GetURLBase(S);
     end;
   end;
   Source := S;
@@ -623,9 +618,9 @@ begin
   begin
     Viewer := Sender as ThtmlViewer;
     if Viewer.Base <> '' then
-      Rslt := Combine(GetBase(ConvDosToHTML(Viewer.Base)), S)
+      Rslt := CombineURL(ConvDosToHTML(Viewer.Base), S)
     else
-      Rslt := Combine(UrlBase, S);
+      Rslt := CombineURL(UrlBase, S);
   end
   else
     Rslt := S;
@@ -822,21 +817,18 @@ begin
 
       try
         S1 := '';
-        if Assigned(FOnGetPostRequestEx) then
-          FOnGetPostRequestEx(Self, IsGet, S, Query, EncType, Referer, Reload, S1, StreamType, Stream)
-        else
-          FOnGetPostRequest(Self, IsGet, S, Query, Reload, S1, StreamType, Stream);
+        PostRequest(Self, IsGet, S, Query, EncType, Referer, Reload, S1, StreamType, Stream);
         if not Assigned(Stream) then
           raise(EfvLoadError.Create('Can''t load: ' + S));
         if S1 <> '' then
           S := S1;
 
         if Pos(':', S) <> 0 then
-          CurbrFrameSet.URLBase := URLSubs.GetBase(S)
+          CurbrFrameSet.URLBase := UrlSubs.GetURLBase(S)
         else
         begin
           CurbrFrameSet.URLBase := OldFrameSet.URLBase;
-          S := Combine(CurbrFrameSet.URLBase, S);
+          S := CombineURL(CurbrFrameSet.URLBase, S);
         end;
 
         (CurbrFrameSet as TbrFrameSet).LoadFromBrzFile(Stream, StreamType, S, Dest);
@@ -880,10 +872,7 @@ begin
         if Tmp is ThtmlViewer then
           OldPos := ThtmlViewer(Tmp).Position;
       end;
-      if Assigned(FOnGetPostRequestEx) then
-        FOnGetPostRequestEx(Self, IsGet, S, Query, EncType, Referer, Reload, S1, StreamType, Stream)
-      else
-        FOnGetPostRequest(Self, IsGet, S, Query, Reload, S1, StreamType, Stream);
+      PostRequest(Self, IsGet, S, Query, EncType, Referer, Reload, S1, StreamType, Stream);
       if not Assigned(Stream) then
         raise(EfvLoadError.Create('Can''t locate cache file: ' + S));
 
@@ -891,7 +880,7 @@ begin
       begin
         S := S1;
         if Pos(':', S) <> 0 then
-          CurbrFrameSet.URLBase := URLSubs.GetBase(S);
+          CurbrFrameSet.URLBase := UrlSubs.GetURLBase(S);
       end;
 
       (CurbrFrameSet as TbrFrameSet).LoadFromBrzFile(Stream, StreamType, S, Dest);
@@ -900,6 +889,30 @@ begin
     AddVisitedLink(URL);
   finally
     EndProcessing;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 23.09.2010 --
+// concentrate all FOnGetPostRequet* calls here:
+procedure TFrameBrowser.PostRequest(Sender: TObject; IsGet: boolean; const Source, Query, EncType,
+  Referer: string; Reload: boolean; out NewURL: string; out DocType: ThtmlFileType;
+  out Stream: TMemoryStream);
+begin
+  NewURL := '';
+  DocType := OtherType;
+  Stream := nil;
+  if Assigned(FOnGetPostRequestEx) then
+    FOnGetPostRequestEx(Self, IsGet, Source, Query, EncType, Referer, Reload, NewURL, DocType, Stream)
+  else if Assigned(FOnGetPostRequest) then
+    FOnGetPostRequest(Self, IsGet, Source, Query, Reload, NewURL, DocType, Stream)
+  else if Copy(Source, 1, 7) = 'file://' then
+  begin
+    DocType := getFileType(Source);
+    if DocType <> OtherType then
+    begin
+      Stream := TMemoryStream.Create;
+      Stream.LoadFromFile(HTMLToDos(Source));
+    end;
   end;
 end;
 
@@ -942,9 +955,9 @@ begin
   else if IsFullURL(S) then
     FullUrl := S
   else if Viewer.Base <> '' then
-    FullUrl := Combine(UrlSubs.GetBase(ConvDosToHTML(Viewer.Base)), S)
+    FullUrl := CombineURL(ConvDosToHTML(Viewer.Base), S)
   else
-    FullUrl := Combine((Viewer.FrameOwner as TbrFrame).URLBase, S);
+    FullUrl := CombineURL((Viewer.FrameOwner as TbrFrame).URLBase, S);
 
   Handled := HotSpotClickHandled(FullUrl + Dest);
   if not Handled then
@@ -1014,9 +1027,9 @@ begin
     else
     begin
       if Viewer.Base <> '' then
-        FullUrl := Combine(UrlSubs.GetBase(ConvDosToHTML(Viewer.Base)), S)
+        FullUrl := CombineURL(ConvDosToHTML(Viewer.Base), S)
       else
-        FullUrl := Combine((Viewer.FrameOwner as TbrFrame).URLBase, S);
+        FullUrl := CombineURL((Viewer.FrameOwner as TbrFrame).URLBase, S);
     end;
     FLinkText := Viewer.LinkText;
     FLinkAttributes.Text := Viewer.LinkAttributes.Text;
@@ -1139,7 +1152,7 @@ begin
         if S = '' then
           S := (Viewer.FrameOwner as TbrFrame).Source
         else if not IsFullURL(S) then
-          S := Combine((Viewer.FrameOwner as TbrFrame).URLBase, S);
+          S := CombineURL((Viewer.FrameOwner as TbrFrame).URLBase, S);
         IsGet := CompareText(Method, 'get') = 0;
         if FrameTarget is TbrFrame then
           TbrFrame(FrameTarget).frLoadFromBrzFile(S, Dest, Query, EncType, Viewer.CurrentFile, True, IsGet, True)
@@ -1159,10 +1172,7 @@ var
   NewURL: string;
   DocType: ThtmlFileType;
 begin
-  if Assigned(FOnGetPostRequestEx) then
-    FOnGetPostRequestEx(Sender, True, SRC, '', '', '', False, NewURL, DocType, Stream)
-  else if Assigned(FOnGetPostRequest) then
-    FOnGetPostRequest(Sender, True, SRC, '', False, NewURL, DocType, Stream);
+  PostRequest(Sender, True, SRC, '', '', '', False, NewURL, DocType, Stream);
 end;
 
 {----------------TFrameBrowser.GetViewerUrlBase}
@@ -1205,7 +1215,7 @@ begin
             else if Url[1] = '#' then
               S1 := TbrFrame(Viewer.FrameOwner).Source + Url
             else
-              S1 := Combine(TbrFrame(Viewer.FrameOwner).UrlBase, Url);
+              S1 := CombineURL(TbrFrame(Viewer.FrameOwner).UrlBase, Url);
             if CompareText(S, S1) = 0 then
               Visited := True;
           end;
