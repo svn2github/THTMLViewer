@@ -174,7 +174,7 @@ type
     procedure fvDragOver(Sender, Source: TObject; X, Y: Integer; State: TDragState; var Accept: Boolean);
     procedure HotSpotClick(Sender: TObject; const AnURL: string;var Handled: boolean); virtual; abstract;
     procedure HotSpotCovered(Sender: TObject; const SRC: string); virtual; abstract;
-    procedure LoadFromStringInternal(const Source, Name, Dest: string);
+    procedure LoadFromStringInternal(const Text, Name, Dest: string);
     procedure SetActiveColor(Value: TColor);
     procedure SetBase(Value: string);
     procedure SetCaretPos(Value: integer);
@@ -263,7 +263,8 @@ type
     procedure EndFrameSet(FrameSet: TObject); override;
     procedure GoBack;
     procedure GoFwd;
-    procedure LoadFromString(const Source: String; const Name: string = ''; const Dest: string = '');
+    procedure LoadFromFile(const Name: string); virtual; abstract;
+    procedure LoadFromString(const Text: String; const Name: string = ''; const Dest: string = '');
     procedure Reload;
     procedure Repaint; override;
     procedure SelectAll;
@@ -596,7 +597,7 @@ type
     function HTMLExpandFilename(const Filename: string): string; virtual;
     procedure HotSpotClick(Sender: TObject; const AnURL: string;var Handled: boolean); override;
     procedure Load(const SRC: string);
-    procedure LoadFromFile(const FName: string);
+    procedure LoadFromFile(const FName: string); override;
     procedure LoadImageFile(const FName: string);
     procedure LoadTargetFromFile(const Target, FName: string);
   published
@@ -705,7 +706,7 @@ begin
             begin
               SplitUrl(Trim(Name), S, Destination);
               Source := ExpandSourceName(HtmlSubs.Base, Path, S);
-              OrigSource := S;
+              OrigSource := Source;
             end;
           NameSy: WinName := Name;
           NoResizeSy: NoResize := True;
@@ -4736,15 +4737,16 @@ begin
     Result := False;
 end;
 
+
 //-- BG ---------------------------------------------------------- 23.09.2010 --
-procedure TFVBase.LoadFromString(const Source, Name, Dest: string);
+procedure TFVBase.LoadFromString(const Text, Name, Dest: string);
 begin
   if not Processing then
-    LoadFromStringInternal(Source, Name, Dest);
+    LoadFromStringInternal(Text, Name, Dest);
 end;
 
 //-- BG ---------------------------------------------------------- 23.09.2010 --
-procedure TFVBase.LoadFromStringInternal(const Source, Name, Dest: string);
+procedure TFVBase.LoadFromStringInternal(const Text, Name, Dest: string);
 var
   OldFrameSet: TFrameSetBase;
   OldFile, S: string;
@@ -4768,7 +4770,7 @@ begin
     if Name <> '' then
       S := Name
     else
-      S := 'source://' + Source;
+      S := 'source://' + Text;
     SameName := CompareText(OldFile, S) = 0;
     if not SameName then
     begin
@@ -4781,7 +4783,7 @@ begin
       CurFrameSet.Visible := True;
 
       try
-        CurFrameSet.LoadFromString(Source, Name, Dest);
+        CurFrameSet.LoadFromString(Text, Name, Dest);
       except
         RemoveControl(CurFrameSet);
         CurFrameSet.Free;
@@ -4823,7 +4825,7 @@ begin
       end;
       SendMessage(Handle, wm_SetRedraw, 0, 0);
       try
-        CurFrameSet.LoadFromString(Source, Name, Dest);
+        CurFrameSet.LoadFromString(Text, Name, Dest);
       finally
         SendMessage(Handle, wm_SetRedraw, 1, 0);
         Repaint;

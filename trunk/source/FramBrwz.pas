@@ -104,7 +104,7 @@ type
     InFormSubmit: boolean;
     function CurbrFrameSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif} {the TbrFrameSet being displayed}
     function HotSpotClickHandled(const FullUrl: string): boolean;
-    procedure LoadURLInternal(const URL, Query, EncType, Referer: string; IsGet, Reload: boolean);
+    procedure LoadURLInternal(const URL, Dest, Query, EncType, Referer: string; IsGet, Reload: boolean);
     procedure PostRequest(
       Sender: TObject;
       IsGet: boolean;
@@ -125,6 +125,7 @@ type
     function GetViewerUrlBase(Viewer: ThtmlViewer): string;
     procedure GetPostQuery(const URL, Query, EncType: string; IsGet: boolean);
     procedure HotSpotClick(Sender: TObject; const AnURL: string; var Handled: boolean); override;
+    procedure LoadFromFile(const Name: string); override;
     procedure LoadURL(const URL: string);
     property EncodePostArgs: boolean read FEncodePostArgs write FEncodePostArgs;
   published
@@ -251,13 +252,12 @@ begin
     Exit;
   if not IsFullUrl(NextFile) then
     NextFile := CombineURL(UrlBase, NextFile);
+
+  SplitURL(NextFile, S, D);
   if (MasterSet.Viewers.Count = 1) then {load a new FrameSet}
-    MasterSet.FrameViewer.LoadURLInternal(NextFile, '', '', '', True, True)
+    MasterSet.FrameViewer.LoadURLInternal(S, D, '', '', '', True, True)
   else
-  begin
-    SplitURL(NextFile, S, D);
     frLoadFromBrzFile(S, D, '', '', '', True, True, True);
-  end;
 end;
 
 procedure TbrFrame.CreateViewer;
@@ -429,8 +429,8 @@ begin
       S := S1;
       URLBase := UrlSubs.GetURLBase(S);
     end;
+    Source := S;
   end;
-  Source := S;
 
   try
     TheString := StreamToString(TheStream);
@@ -680,10 +680,15 @@ begin
 end;
 
 procedure TbrFrameSet.RefreshTimerTimer(Sender: Tobject);
+var
+  S, D: string;
 begin
   RefreshTimer.Enabled := False;
-  if (Self = MasterSet.FrameViewer.CurFrameSet) then
-    FrameViewer.LoadURLInternal(NextFile, '', '', '', True, True)
+  if Self = MasterSet.FrameViewer.CurFrameSet then
+  begin
+    SplitURL(NextFile, S, D);
+    FrameViewer.LoadURLInternal(S, D, '', '', '', True, True);
+  end;
 end;
 
 //-- BG ---------------------------------------------------------- 04.01.2010 --
@@ -741,22 +746,36 @@ begin
   FEncodePostArgs := True;
 end;
 
+//-- BG ---------------------------------------------------------- 24.09.2010 --
+procedure TFrameBrowser.LoadFromFile(const Name: string);
+begin
+  LoadUrl('file://' + DosToHTML(Name));
+end;
+
 {----------------TFrameBrowser.LoadURL}
 
 procedure TFrameBrowser.LoadURL(const URL: string);
+var
+  S, D: string;
 begin
   if not Processing then
   begin
-    LoadURLInternal(Normalize(URL), '', '', '', True, False);
+    SplitURL(Normalize(URL), S, D);
+    LoadURLInternal(S, D, '', '', '', True, False);
   end;
 end;
 
 {----------------TFrameBrowser.GetPostQuery}
 
 procedure TFrameBrowser.GetPostQuery(const URL, Query, EncType: string; IsGet: boolean);
+var
+  S, D: string;
 begin
   if not Processing then
-    LoadURLInternal(Normalize(URL), Query, EncType, '', IsGet, True);
+  begin
+    SplitURL(Normalize(URL), S, D);
+    LoadURLInternal(S, D, Query, EncType, '', IsGet, True);
+  end;
 end;
 
 //-- BG ---------------------------------------------------------- 05.01.2010 --
@@ -773,11 +792,11 @@ end;
 
 {----------------TFrameBrowser.LoadURLInternal}
 
-procedure TFrameBrowser.LoadURLInternal(const URL, Query, EncType, Referer: string;
+procedure TFrameBrowser.LoadURLInternal(const URL, Dest, Query, EncType, Referer: string;
   IsGet, Reload: boolean);
 var
   OldFrameSet: TbrFrameSet;
-  OldFile, S, Dest, S1: string;
+  OldFile, S, S1: string;
   OldPos: LongInt;
   Tmp: TObject;
   SameName: boolean;
@@ -788,14 +807,16 @@ var
   StreamType: ThtmlFileType;
   I: integer;
 begin
-  if not Assigned(FOnGetPostRequest) and not Assigned(FOnGetPostRequestEx) then
-    raise(Exception.Create('No OnGetPostRequest or OnGetPostRequestEx event defined'));
+  if not sameText(copy(URL, 1, 7), 'file://') then
+    if not Assigned(FOnGetPostRequest) and not Assigned(FOnGetPostRequestEx) then
+      raise(Exception.Create('No OnGetPostRequest or OnGetPostRequestEx event defined'));
   BeginProcessing;
 {$IFDEF windows}
   Dummy :=
 {$ENDIF}
   IOResult; {remove any pending file errors}
-  SplitURL(URL, S, Dest);
+  //SplitURL(URL, S, Dest);
+  S := URL;
   try
     OldFile := CurbrFrameSet.FCurrentFile;
     ProcessList.Clear;
@@ -886,7 +907,7 @@ begin
       (CurbrFrameSet as TbrFrameSet).LoadFromBrzFile(Stream, StreamType, S, Dest);
       BumpHistory2(OldPos); {not executed if exception occurs}
     end;
-    AddVisitedLink(URL);
+    AddVisitedLink(URL+Dest);
   finally
     EndProcessing;
   end;
@@ -1002,7 +1023,7 @@ begin
       if FrameTarget is TbrFrame then
         TbrFrame(FrameTarget).frLoadFromBrzFile(FullUrl, Dest, '', '', Viewer.CurrentFile, True, True, False)
       else if FrameTarget is TbrFrameSet then
-        Self.LoadURLInternal(FullUrl + Dest, '', '', Viewer.CurrentFile, True, False);
+        LoadURLInternal(FullUrl, Dest, '', '', Viewer.CurrentFile, True, False);
       CheckVisitedLinks;
     finally
       EndProcessing;
@@ -1157,7 +1178,7 @@ begin
         if FrameTarget is TbrFrame then
           TbrFrame(FrameTarget).frLoadFromBrzFile(S, Dest, Query, EncType, Viewer.CurrentFile, True, IsGet, True)
         else if FrameTarget is TbrFrameSet then
-          Self.LoadURLInternal(S + Dest, Query, EncType, Viewer.CurrentFile, IsGet, True);
+          LoadURLInternal(S, Dest, Query, EncType, Viewer.CurrentFile, IsGet, True);
       finally
         EndProcessing;
       end;
