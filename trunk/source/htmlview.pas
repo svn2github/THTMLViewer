@@ -170,7 +170,6 @@ type
     FCodePage: integer;
     FOnImageRequested: TGottenImageEvent;
     function GetCursor: TCursor;
-    procedure SetCursor(Value: TCursor);
   protected
     InCreate: boolean;
     FOnDragDrop: TDragDropEvent;
@@ -287,7 +286,8 @@ type
     procedure Layout;
     procedure SetViewImages(Value: boolean);
     function GetViewImages: boolean;
-    procedure SetColor(Value: TColor);
+    procedure SetCursor(Value: TCursor); {$ifdef LCL} override; {$endif LCL}
+    procedure SetDefBackground(Value: TColor);
     function GetBase: string;
     procedure SetBase(Value: string);
     function GetBaseTarget: string;
@@ -562,7 +562,7 @@ type
 {$ENDIF}
     property Height default 150;
     property Width default 150;
-    property DefBackground: TColor read FBackground write SetColor default clBtnFace;
+    property DefBackground: TColor read FBackground write SetDefBackground default clBtnFace;
     property BorderStyle: THTMLBorderStyle read FBorderStyle write SetBorderStyle;
     property Visible;
     property HistoryMaxCount: integer read FHistoryMaxCount write SetHistoryMaxCount;
@@ -636,7 +636,11 @@ type
     property OnPrinting: THTMLViewPrinting read FOnPrinting write FOnPrinting;
     property OnObjectTag: TObjectTagEvent read FOnObjectTag write FOnObjectTag;
     property OnFilenameExpanded: TFilenameExpanded read FOnFilenameExpanded write FOnFilenameExpanded;
+{$ifdef LCL}
+    property Cursor default crIBeam;
+{$else}
     property Cursor: TCursor read GetCursor write SetCursor default crIBeam;
+{$endif}
   end;
 
 function IsHtmlExt(const Ext: string): boolean;
@@ -2266,7 +2270,7 @@ begin
   Result := FSectionList.ShowImages;
 end;
 
-procedure THTMLViewer.SetColor(Value: TColor);
+procedure THTMLViewer.SetDefBackground(Value: TColor);
 begin
   if FProcessing then
     Exit;
@@ -2708,7 +2712,11 @@ procedure ThtmlViewer.SetCursor(Value: TCursor);
 begin
   if Value = OldThickIBeamCursor then {no longer used}
     Value := crIBeam;
-  inherited Cursor := Value;
+{$ifdef LCL}
+  inherited setCursor(Value);
+{$else}
+  inherited Color := Value;
+{$endif}
 end;
 
 function ThtmlViewer.FullDisplaySize(FormatWidth: integer): TSize;

@@ -178,8 +178,8 @@ type
     procedure SetActiveColor(Value: TColor);
     procedure SetBase(Value: string);
     procedure SetCaretPos(Value: integer);
-    procedure SetColor(Value: TColor);
-    procedure SetCursor(Value: TCursor);
+    procedure SetDefBackground(Value: TColor);
+    procedure SetCursor(Value: TCursor); reintroduce;
     procedure SetDragDrop(const Value: TDragDropEvent);
     procedure SetDragOver(const Value: TDragOverEvent);
     procedure SetFontColor(Value: TColor);
@@ -293,7 +293,7 @@ type
     property CharSet: TFontCharset read FCharSet write SetCharset;
 {$ENDIF}
     property Cursor: TCursor read FCursor write SetCursor default crIBeam;
-    property DefBackground: TColor read FBackground write SetColor default clBtnFace;
+    property DefBackground: TColor read FBackground write SetDefBackground default clBtnFace;
     property DefFontColor: TColor read FFontColor write SetFontColor default clBtnText;
     property DefFontName: TFontName read GetFontName write SetFontName;
     property DefFontSize: integer read FFontSize write SetFontSize default 12;
@@ -4248,9 +4248,9 @@ begin
   end;
 end;
 
-{----------------TFVBase.SetColor}
+{----------------TFVBase.setDefBackground}
 
-procedure TFVBase.SetColor(Value: TColor);
+procedure TFVBase.SetDefBackground(Value: TColor);
 var
   I: integer;
 begin
