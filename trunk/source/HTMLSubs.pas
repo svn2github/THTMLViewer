@@ -1830,35 +1830,17 @@ begin
   Transparent := NotTransp;
   AMask := nil;
   TmpImage := nil;
-  Stream := TMemoryStream.Create;
-  try
-    Stream.LoadFromStream(NewImage);
-    if Assigned(Stream) and (Stream.Size > 0) then
-    begin
-      NonAnimated := True;
-      if KindOfImage(Stream.Memory) in [GIF, Gif89] then
-        TmpImage := CreateAGifFromStream(NonAnimated, Stream);
-      if Assigned(TmpImage) then
-      begin
-        if NonAnimated then
-        begin {else already have animated GIF}
-          Tmp := TGifImage(TmpImage);
-          TmpImage := TBitmap.Create;
-          TBitmap(TmpImage).Assign(Tmp.MaskedBitmap);
-          if Tmp.IsTransparent then
-          begin
-            AMask := TBitmap.Create;
-            AMask.Assign(Tmp.Mask);
-            Transparent := TrGif;
-          end;
-          Tmp.Free;
-        end;
-      end
-      else
-        TmpImage := GetImageAndMaskFromStream(Stream, Transparent, AMask);
+  if NewImage is TMemoryStream then
+  else
+    TmpImage := LoadImageFromStream(TMemoryStream(NewImage), Transparent, AMask);
+  begin
+    Stream := TMemoryStream.Create;
+    try
+      Stream.LoadFromStream(NewImage);
+      TmpImage := LoadImageFromStream(Stream, Transparent, AMask);
+    finally
+      Stream.Free;
     end;
-  finally
-    Stream.Free;
   end;
   if Assigned(TmpImage) then
   begin
@@ -6779,7 +6761,8 @@ var
   Obj: TObject;
   Tmp: TGifImage;
 begin
-  Image := nil; AMask := nil;
+  Image := nil;
+  AMask := nil;
   Error := False;
   Reformat := False;
   UName := Trim(Uppercase(Src));
@@ -6788,30 +6771,7 @@ begin
   if (I = -1) and (J >= 0) then
   begin
     Transparent := NotTransp;
-    if Assigned(Stream) and (Stream.Size > 0) then
-    begin
-      NonAnimated := True;
-      if KindOfImage(Stream.Memory) in [GIF, Gif89] then
-        Image := CreateAGifFromStream(NonAnimated, Stream);
-      if Assigned(Image) then
-      begin
-        if NonAnimated then
-        begin {else already have animated GIF}
-          Tmp := TGifImage(Image);
-          Image := TBitmap.Create;
-          TBitmap(Image).Assign(Tmp.MaskedBitmap);
-          if Tmp.IsTransparent then
-          begin
-            AMask := TBitmap.Create;
-            AMask.Assign(Tmp.Mask);
-            Transparent := TrGif;
-          end;
-          Tmp.Free;
-        end;
-      end
-      else
-        Image := GetImageAndMaskFromStream(Stream, Transparent, AMask);
-    end;
+    Image := LoadImageFromStream(Stream, Transparent, AMask);
     if Assigned(Image) then {put in Cache}
     try
       if Assigned(AMask) then
@@ -6864,44 +6824,8 @@ var
   I: integer;
   Pair: TBitmapItem;
   Tr: Transparency;
-  NonAnimated: boolean;
   Stream: TMemoryStream;
   Color: TColor;
-  Tmp: TGifImage;
-
-  function LoadImageFromFile(const FName: string; var AMask: TBitmap;
-    var Transparent: Transparency): TgpObject;
-  var
-    Tmp: TGifImage;
-  begin {look for the image file}
-    if KindOfImageFile(FName) in [Gif, Gif89] then
-    begin
-      AMask := nil;
-      NonAnimated := True;
-      Result := CreateAGif(FName, NonAnimated);
-      if Assigned(Result) then
-      begin
-        if NonAnimated then
-        begin {else already have animated GIF}
-          Tmp := TGifImage(Result);
-          Result := TBitmap.Create;
-          TBitmap(Result).Assign(Tmp.MaskedBitmap);
-          if Tmp.IsTransparent then
-          begin
-            AMask := TBitmap.Create;
-            AMask.Assign(Tmp.Mask);
-            Transparent := TrGif;
-          end
-          else if Transparent = LLCorner then
-            AMask := GetImageMask(TBitmap(Result), False, 0);
-          Tmp.Free;
-        end;
-      end;
-    end
-    else
-      Result := GetImageAndMaskFromFile(FName, Transparent, AMask);
-  end;
-
 begin
   AMask := nil;
   Delay := False;
@@ -6958,42 +6882,17 @@ begin
           Delay := True
         else if Assigned(Stream) then
           try
-            if Stream.Size > 0 then
-            begin
-              NonAnimated := True;
-              if KindOfImage(Stream.Memory) in [GIF, Gif89] then
-                Result := CreateAGifFromStream(NonAnimated, Stream);
-              if Assigned(Result) then
-              begin
-                if NonAnimated then
-                begin {else already have animated GIF}
-                  Tmp := TGifImage(Result);
-                  Result := TBitmap.Create;
-                  TBitmap(Result).Assign(Tmp.MaskedBitmap);
-                  if Tmp.IsTransparent then
-                  begin
-                    AMask := TBitmap.Create;
-                    AMask.Assign(Tmp.Mask);
-                    Transparent := TrGif;
-                  end
-                  else if Transparent = LLCorner then
-                    AMask := GetImageMask(TBitmap(Result), False, 0);
-                  Tmp.Free;
-                end;
-              end
-              else
-                Result := GetImageAndMaskFromStream(Stream, Transparent, AMask);
-            end;
+            Result := LoadImageFromStream(Stream, Transparent, AMask);
           finally
             if assigned(GottenImage) then
               GottenImage(TheOwner, BMName, Stream);
           end
-        else if not Assigned(Stream) then
-          Result := LoadImageFromFile(TheOwner.HtmlExpandFilename(BMName), AMask, Transparent);
+        else
+          Result := LoadImageFromFile(TheOwner.HtmlExpandFilename(BMName), Transparent, AMask);
       end;
     end
     else
-      Result := LoadImageFromFile(BMName, AMask, Transparent);
+      Result := LoadImageFromFile(BMName, Transparent, AMask);
     if Assigned(Result) then {put in Image List for use later also}
     try
       if Assigned(AMask) then

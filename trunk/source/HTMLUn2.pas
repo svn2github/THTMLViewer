@@ -578,20 +578,21 @@ function PosX(const SubStr, S: string; Offset: integer = 1): Integer;
 procedure GetClippingRgn(Canvas: TCanvas; ARect: TRect; Printing: boolean;
   var Rgn, SaveRgn: HRgn);
 
-function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
-  var Mask: TBitmap): TgpObject;
+function LoadImageFromFile(const FName: string; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+function LoadImageFromStream(Stream: TMemoryStream; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+// unused: function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
+//  var Mask: TBitmap): TgpObject;
+
   {convert an HTML style filename to one for Dos}
 function HTMLServerToDos(FName, Root: string): string;
 
 procedure WrapTextW(Canvas: TCanvas; X1, Y1, X2, Y2: integer; S: WideString);
 
-procedure FinishTransparentBitmap(ahdc: HDC;
-  InImage, Mask: TBitmap; xStart, yStart, W, H: integer);
+procedure FinishTransparentBitmap(ahdc: HDC; InImage, Mask: TBitmap; xStart, yStart, W, H: integer);
 function GetImageMask(Image: TBitmap; ColorValid: boolean; AColor: TColor): TBitmap;
-function GetImageAndMaskFromStream(Stream: TMemoryStream;
-  var Transparent: Transparency; var AMask: TBitmap): TgpObject;
-function KindOfImageFile(FName: string): ImageType;
-function KindOfImage(Start: Pointer): ImageType;
+//function GetImageAndMaskFromStream(Stream: TMemoryStream; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+// unused: function KindOfImageFile(FName: string): ImageType;
+//function KindOfImage(Start: Pointer): ImageType;
 procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: integer; Color: TColor);
 procedure FormControlRect(Canvas: TCanvas; X1: integer;
   Y1: integer; X2: integer; Y2: integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
@@ -1716,23 +1717,23 @@ begin
   end;
 end;
 
-function KindOfImageFile(FName: string): ImageType;
-var
-  Mem: TMemoryStream;
-begin
-  Result := NoImage;
-  if FileExists(FName) then
-  begin
-    Mem := TMemoryStream.Create;
-    try
-      Mem.LoadFromFile(FName);
-      if Mem.Size >= 10 then
-        Result := KindOfImage(Mem.Memory);
-    finally
-      Mem.Free;
-    end;
-  end;
-end;
+//function KindOfImageFile(FName: string): ImageType;
+//var
+//  Mem: TMemoryStream;
+//begin
+//  Result := NoImage;
+//  if FileExists(FName) then
+//  begin
+//    Mem := TMemoryStream.Create;
+//    try
+//      Mem.LoadFromFile(FName);
+//      if Mem.Size >= 10 then
+//        Result := KindOfImage(Mem.Memory);
+//    finally
+//      Mem.Free;
+//    end;
+//  end;
+//end;
 
 function KindOfImage(Start: Pointer): ImageType;
 type
@@ -2010,34 +2011,34 @@ begin
   Result := DIBConvert;
 end;
 
-{----------------GetImageAndMaskFromFile}
-
-function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
-  var Mask: TBitmap): TgpObject;
-var
-  Stream: TMemoryStream;
-begin
-  Result := nil;
-  Mask := nil;
-  if not FileExists(Filename) then
-    Exit;
-  {$IFNDEF NoGDIPlus}
-  if GDIPlusActive and (KindOfImageFile(Filename) = Png) then
-  begin
-    Result := TObject(TGPBitmap.Create(Filename));
-  end
-  else
-  {$ENDIF !NoGDIPlus}
-  begin
-    Stream := TMemoryStream.Create;
-    Stream.LoadFromFile(Filename);
-    try
-      Result := GetImageAndMaskFromStream(Stream, Transparent, Mask);
-    finally
-      Stream.Free;
-    end;
-  end;
-end;
+//{----------------GetImageAndMaskFromFile}
+//
+//function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
+//  var Mask: TBitmap): TgpObject;
+//var
+//  Stream: TMemoryStream;
+//begin
+//  Result := nil;
+//  Mask := nil;
+//  if not FileExists(Filename) then
+//    Exit;
+//  {$IFNDEF NoGDIPlus}
+//  if GDIPlusActive and (KindOfImageFile(Filename) = Png) then
+//  begin
+//    Result := TObject(TGPBitmap.Create(Filename));
+//  end
+//  else
+//  {$ENDIF !NoGDIPlus}
+//  begin
+//    Stream := TMemoryStream.Create;
+//    Stream.LoadFromFile(Filename);
+//    try
+//      Result := GetImageAndMaskFromStream(Stream, Transparent, Mask);
+//    finally
+//      Stream.Free;
+//    end;
+//  end;
+//end;
 
 {----------------GetBitmapAndMaskFromStream}
 
@@ -2246,6 +2247,62 @@ end;
 //    Result := nil;
 //  end;
 //end;
+
+//-- BG ---------------------------------------------------------- 26.09.2010 --
+function LoadImageFromStream(Stream: TMemoryStream; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+// extracted from TSectionList.GetTheBitmap(), TSectionList.InsertImage(), and TSectionList.ReplaceImage()
+var
+  NonAnimated: boolean;
+  Tmp: TGifImage;
+begin
+  Result := nil;
+  if (Stream <> nil) and (Stream.Size > 0) then
+  begin
+    NonAnimated := True;
+    if KindOfImage(Stream.Memory) in [GIF, Gif89] then
+      Result := CreateAGifFromStream(NonAnimated, Stream);
+    if Result <> nil then
+    begin
+      if NonAnimated then
+      begin {else already have animated GIF}
+        Tmp := TGifImage(Result);
+        Result := TBitmap.Create;
+        TBitmap(Result).Assign(Tmp.MaskedBitmap);
+        if Tmp.IsTransparent then
+        begin
+          AMask := TBitmap.Create;
+          AMask.Assign(Tmp.Mask);
+          Transparent := TrGif;
+        end
+        else if Transparent = LLCorner then
+          AMask := GetImageMask(TBitmap(Result), False, 0);
+        Tmp.Free;
+      end;
+    end
+    else
+      Result := GetImageAndMaskFromStream(Stream, Transparent, AMask);
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 26.09.2010 --
+function LoadImageFromFile(const FName: string; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+// extracted from TSectionList.GetTheBitmap() and redesigned.
+// Now the image file is loaded once only (was: 2 to 3 times) and GetImageAndMaskFromFile() is obsolete.
+var
+  Stream: TMemoryStream;
+begin {look for the image file}
+  Result := nil;
+  if FileExists(FName) then
+  begin
+    Stream := TMemoryStream.Create;
+    try
+      Stream.LoadFromFile(FName);
+      Result := LoadImageFromStream(Stream, Transparent, AMask);
+    finally
+      Stream.Free;
+    end;
+  end;
+end;
 
 {----------------FinishTransparentBitmap }
 
