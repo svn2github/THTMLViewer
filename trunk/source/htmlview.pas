@@ -796,6 +796,7 @@ end;
 
 destructor ThtmlViewer.Destroy;
 begin
+  MiddleScrollOn := False;
   if LocalBitmapList then
   begin
     FSectionList.Clear;
