@@ -121,8 +121,7 @@ type
     property Visible: boolean read FVisible write SetVisible default True;
   end;
 
-  TLinkDrawnEvent = procedure(Sender: TObject; Page: integer; const Url, Target: string;
-    ARect: TRect) of object;
+  TLinkDrawnEvent = procedure(Sender: TObject; Page: integer; const Url, Target: string; ARect: TRect) of object;
   TFileBrowseEvent = procedure(Sender, Obj: TObject; var S: string) of object;
   TGetBitmapEvent = procedure(Sender: TObject; const SRC: string; var Bitmap: TBitmap; var Color: TColor) of object;
   TGetImageEvent = procedure(Sender: TObject; const SRC: string; var Stream: TMemoryStream) of object;
@@ -1821,18 +1820,15 @@ end;
 procedure TImageObj.ReplaceImage(NewImage: TStream);
 var
   TmpImage: TGpObject;
-  NonAnimated: boolean;
   AMask: TBitmap;
   Stream: TMemoryStream;
-  Tmp: TGifImage;
   I: integer;
 begin
   Transparent := NotTransp;
   AMask := nil;
-  TmpImage := nil;
   if NewImage is TMemoryStream then
+    TmpImage := LoadImageFromStream(TMemoryStream(NewImage), Transparent, AMask)
   else
-    TmpImage := LoadImageFromStream(TMemoryStream(NewImage), Transparent, AMask);
   begin
     Stream := TMemoryStream.Create;
     try
@@ -3969,7 +3965,6 @@ function TCellBasic.DoLogic(Canvas: TCanvas; Y: integer; Width, AHeight, BlHt: i
 var
   I, Sw, TheCount: integer;
   H, Tmp: integer;
-  SB: TSectionBase;
 begin
   YValue := Y;
   StartCurs := Curs;
@@ -3980,9 +3975,7 @@ begin
   while I < TheCount do
   begin
     try
-      SB := TSectionBase(Items[I]);
-      Tmp := SB.DrawLogic(Canvas, 0, Y + H, 0, 0, Width, AHeight, BlHt, IMgr, Sw, Curs);
-      H := H + Tmp;
+      Inc(H, Items[I].DrawLogic(Canvas, 0, Y + H, 0, 0, Width, AHeight, BlHt, IMgr, Sw, Curs));
       ScrollWidth := Max(ScrollWidth, Sw);
       Inc(I);
     except
@@ -6754,12 +6747,11 @@ var
   UName: string;
   I, J: integer;
   Pair: TBitmapItem;
-  NonAnimated, Rformat, Error: boolean;
+  Rformat, Error: boolean;
   Image: TgpObject;
   AMask: TBitmap;
   Tr, Transparent: Transparency;
   Obj: TObject;
-  Tmp: TGifImage;
 begin
   Image := nil;
   AMask := nil;
