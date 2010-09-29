@@ -3964,7 +3964,7 @@ function TCellBasic.DoLogic(Canvas: TCanvas; Y: integer; Width, AHeight, BlHt: i
  pixel height}
 var
   I, Sw, TheCount: integer;
-  H, Tmp: integer;
+  H: integer;
 begin
   YValue := Y;
   StartCurs := Curs;

@@ -1760,203 +1760,203 @@ begin
     Result := NoImage;
 end;
 
-{$A-} {record field alignment off for this routine}
-
-function IsTransparent(Stream: TStream; var Color: TColor): boolean;
-{Makes some simplifying assumptions that seem to be generally true for single
- images.}
-type
-  RGB = record
-    Red, Green, Blue: byte;
-  end;
-
-  GifHeader = record
-    GIF: array[0..2] of Ansichar;
-    Version: array[0..2] of Ansichar;
-    ScreenWidth, ScreenHeight: Word;
-    Field: Byte;
-    BackGroundColorIndex: byte;
-    AspectRatio: byte;
-  end;
-  ColorArray = array[0..255] of RGB;
-
-var
-  Header: ^GifHeader;
-  X: integer;
-  Colors: ^ColorArray;
-  Buff: array[0..Sizeof(GifHeader) + Sizeof(ColorArray) + 8] of byte;
-  P: PByte;
-  OldPosition: integer;
-
-begin
-  Result := False;
-  Fillchar(Buff, Sizeof(Buff), 0); {in case read comes short}
-  OldPosition := Stream.Position;
-  Stream.Position := 0;
-  Stream.Read(Buff, Sizeof(Buff));
-  Stream.Position := OldPosition;
-
-  Header := @Buff;
-  if KindOfImage(Header) <> Gif89 then
-    Exit;
-  Colors := @Buff[Sizeof(GifHeader)];
-  with Header^ do
-  begin
-    X := 1 shl ((Field and 7) + 1) - 1; {X is last item in color table}
-    if X = 0 then
-      Exit; {no main color table}
-  end;
-  P := PByte(PtrInt(Colors) + (X + 1) * Sizeof(RGB));
-  if (P^ <> $21) or (PByte(PtrInt(P) + 1)^ <> $F9) then
-    Exit; {extension block not found}
-  if (ord(PByteArray(P)[3]) and 1 <> 1) then
-    Exit; {no transparent color specified}
-
-  with Colors^[Ord(PByteArray(P)[6])] do
-    Color := integer(Blue) shl 16 or integer(Green) shl 8 or integer(Red);
-  Result := True;
-end;
-
-{$A+}
-
-
-{$A-} {record field alignment off for this routine}
-
-
-function IsTransparentPng(Stream: TStream; var Color: TColor): boolean;
-type
-  RGB = record
-    Red, Green, Blue: byte;
-  end;
-
-  PngHeader = record
-    width: integer;
-    height: integer;
-    bitDepth: byte;
-    colorType: byte;
-    compression: byte;
-    filter: byte;
-    interlace: byte;
-  end;
-var
-  Header: PngHeader;
-  CRC: integer;
-  OldPosition: integer;
-  pngPalette: array[0..255] of RGB;
-  dataSize: integer;
-  chunkType: array[0..4] of AnsiChar;
-  chunkTypeStr: string;
-  done: Boolean;
-  Ar: array[0..10] of byte;
-  Alpha: array[0..255] of byte;
-  I: integer;
-
-  function IntSwap(data: integer): integer;
-  var
-    byte0: integer;
-    byte1: integer;
-    byte2: integer;
-    byte3: integer;
-  begin
-    byte0 := data and $FF;
-    byte1 := (data shr 8) and $FF;
-    byte2 := (data shr 16) and $FF;
-    byte3 := (data shr 24) and $FF;
-
-    result := (byte0 shl 24) or (byte1 shl 16) or (byte2 shl 8) or byte3;
-  end;
-
-begin
-  result := false;
-  OldPosition := Stream.Position;
-
-  try
-    Stream.Position := 0;
-    Stream.Read(Ar, 8);
-
-    if KindOfImage(@Ar) <> Png then
-    begin
-      Stream.Position := OldPosition;
-      Exit;
-    end;
-
-    Stream.Position := 8; {past the PNG Signature}
-    done := False;
-
-{Read Chunks}
-    repeat
-      Stream.Read(dataSize, 4);
-      dataSize := IntSwap(dataSize);
-      Stream.Read(chunkType, 4);
-      chunkType[4] := #0; {make sure string is NULL terminated}
-      chunkTypeStr := StrPas(chunkType);
-      if chunkTypeStr = 'IHDR' then
-      begin
-        Stream.Read(Header, DataSize);
-        Header.width := IntSwap(Header.width);
-        Header.height := IntSwap(Header.height);
-        Stream.Read(CRC, 4); {read it in case we need to read more}
-        if (Header.colorType < 2) or (Header.colorType > 3) then
-          done := True; {only type 2 and 3 use tRNS}
-      end
-      else if chunkTypeStr = 'PLTE' then
-      begin
-        Stream.Read(pngPalette, DataSize);
-        Stream.Read(CRC, 4); {read it in case we need to read more}
-      end
-      else if chunkTypeStr = 'tRNS' then
-      begin
-        if Header.colorType = 3 then
-        begin
-          {there can be DataSize transparent or partial transparent colors.  We only accept one fully transparent color}
-          Stream.Read(Alpha, DataSize);
-          for I := 0 to DataSize - 1 do
-            if Alpha[I] = 0 then {0 means full transparency}
-            begin
-              with pngPalette[I] do
-                Color := integer(Blue) shl 16 or integer(Green) shl 8 or integer(Red);
-              Result := True;
-              break;
-            end;
-        end
-        else {has to have been 2}
-        begin
-            {for now I am ignoring this since I can't make one}
-        end;
-        done := true; {got everything we need at this point}
-      end
-      else if chunkTypeStr = 'IDAT' then
-        done := True {if this chunk is hit there is no tRNS}
-      else
-        Stream.Position := Stream.Position + dataSize + 4; {additional 4 for the CRC}
-      if Stream.Position >= Stream.Size then
-        Done := True;
-    until done = True;
-  except
-  end;
-
-  Stream.Position := OldPosition;
-end;
-
-{$A+}
-
-function TransparentGIF(const FName: string; var Color: TColor): boolean;
-{Looks at a GIF image file to see if it's a transparent GIF.}
-{Needed for OnBitmapRequest Event handler}
-var
-  Stream: TFileStream;
-begin
-  Result := False;
-  try
-    Stream := TFileStream.Create(FName, fmShareDenyWrite or FmOpenRead);
-    try
-      Result := IsTransparent(Stream, Color);
-    finally
-      Stream.Free;
-    end;
-  except
-  end;
-end;
+//{$A-} {record field alignment off for this routine}
+//
+//function IsTransparent(Stream: TStream; var Color: TColor): boolean;
+//{Makes some simplifying assumptions that seem to be generally true for single
+// images.}
+//type
+//  RGB = record
+//    Red, Green, Blue: byte;
+//  end;
+//
+//  GifHeader = record
+//    GIF: array[0..2] of Ansichar;
+//    Version: array[0..2] of Ansichar;
+//    ScreenWidth, ScreenHeight: Word;
+//    Field: Byte;
+//    BackGroundColorIndex: byte;
+//    AspectRatio: byte;
+//  end;
+//  ColorArray = array[0..255] of RGB;
+//
+//var
+//  Header: ^GifHeader;
+//  X: integer;
+//  Colors: ^ColorArray;
+//  Buff: array[0..Sizeof(GifHeader) + Sizeof(ColorArray) + 8] of byte;
+//  P: PByte;
+//  OldPosition: integer;
+//
+//begin
+//  Result := False;
+//  Fillchar(Buff, Sizeof(Buff), 0); {in case read comes short}
+//  OldPosition := Stream.Position;
+//  Stream.Position := 0;
+//  Stream.Read(Buff, Sizeof(Buff));
+//  Stream.Position := OldPosition;
+//
+//  Header := @Buff;
+//  if KindOfImage(Header) <> Gif89 then
+//    Exit;
+//  Colors := @Buff[Sizeof(GifHeader)];
+//  with Header^ do
+//  begin
+//    X := 1 shl ((Field and 7) + 1) - 1; {X is last item in color table}
+//    if X = 0 then
+//      Exit; {no main color table}
+//  end;
+//  P := PByte(PtrInt(Colors) + (X + 1) * Sizeof(RGB));
+//  if (P^ <> $21) or (PByte(PtrInt(P) + 1)^ <> $F9) then
+//    Exit; {extension block not found}
+//  if (ord(PByteArray(P)[3]) and 1 <> 1) then
+//    Exit; {no transparent color specified}
+//
+//  with Colors^[Ord(PByteArray(P)[6])] do
+//    Color := integer(Blue) shl 16 or integer(Green) shl 8 or integer(Red);
+//  Result := True;
+//end;
+//
+//{$A+}
+//
+//
+//{$A-} {record field alignment off for this routine}
+//
+//
+//function IsTransparentPng(Stream: TStream; var Color: TColor): boolean;
+//type
+//  RGB = record
+//    Red, Green, Blue: byte;
+//  end;
+//
+//  PngHeader = record
+//    width: integer;
+//    height: integer;
+//    bitDepth: byte;
+//    colorType: byte;
+//    compression: byte;
+//    filter: byte;
+//    interlace: byte;
+//  end;
+//var
+//  Header: PngHeader;
+//  CRC: integer;
+//  OldPosition: integer;
+//  pngPalette: array[0..255] of RGB;
+//  dataSize: integer;
+//  chunkType: array[0..4] of AnsiChar;
+//  chunkTypeStr: string;
+//  done: Boolean;
+//  Ar: array[0..10] of byte;
+//  Alpha: array[0..255] of byte;
+//  I: integer;
+//
+//  function IntSwap(data: integer): integer;
+//  var
+//    byte0: integer;
+//    byte1: integer;
+//    byte2: integer;
+//    byte3: integer;
+//  begin
+//    byte0 := data and $FF;
+//    byte1 := (data shr 8) and $FF;
+//    byte2 := (data shr 16) and $FF;
+//    byte3 := (data shr 24) and $FF;
+//
+//    result := (byte0 shl 24) or (byte1 shl 16) or (byte2 shl 8) or byte3;
+//  end;
+//
+//begin
+//  result := false;
+//  OldPosition := Stream.Position;
+//
+//  try
+//    Stream.Position := 0;
+//    Stream.Read(Ar, 8);
+//
+//    if KindOfImage(@Ar) <> Png then
+//    begin
+//      Stream.Position := OldPosition;
+//      Exit;
+//    end;
+//
+//    Stream.Position := 8; {past the PNG Signature}
+//    done := False;
+//
+//{Read Chunks}
+//    repeat
+//      Stream.Read(dataSize, 4);
+//      dataSize := IntSwap(dataSize);
+//      Stream.Read(chunkType, 4);
+//      chunkType[4] := #0; {make sure string is NULL terminated}
+//      chunkTypeStr := StrPas(chunkType);
+//      if chunkTypeStr = 'IHDR' then
+//      begin
+//        Stream.Read(Header, DataSize);
+//        Header.width := IntSwap(Header.width);
+//        Header.height := IntSwap(Header.height);
+//        Stream.Read(CRC, 4); {read it in case we need to read more}
+//        if (Header.colorType < 2) or (Header.colorType > 3) then
+//          done := True; {only type 2 and 3 use tRNS}
+//      end
+//      else if chunkTypeStr = 'PLTE' then
+//      begin
+//        Stream.Read(pngPalette, DataSize);
+//        Stream.Read(CRC, 4); {read it in case we need to read more}
+//      end
+//      else if chunkTypeStr = 'tRNS' then
+//      begin
+//        if Header.colorType = 3 then
+//        begin
+//          {there can be DataSize transparent or partial transparent colors.  We only accept one fully transparent color}
+//          Stream.Read(Alpha, DataSize);
+//          for I := 0 to DataSize - 1 do
+//            if Alpha[I] = 0 then {0 means full transparency}
+//            begin
+//              with pngPalette[I] do
+//                Color := integer(Blue) shl 16 or integer(Green) shl 8 or integer(Red);
+//              Result := True;
+//              break;
+//            end;
+//        end
+//        else {has to have been 2}
+//        begin
+//            {for now I am ignoring this since I can't make one}
+//        end;
+//        done := true; {got everything we need at this point}
+//      end
+//      else if chunkTypeStr = 'IDAT' then
+//        done := True {if this chunk is hit there is no tRNS}
+//      else
+//        Stream.Position := Stream.Position + dataSize + 4; {additional 4 for the CRC}
+//      if Stream.Position >= Stream.Size then
+//        Done := True;
+//    until done = True;
+//  except
+//  end;
+//
+//  Stream.Position := OldPosition;
+//end;
+//
+//{$A+}
+//
+//function TransparentGIF(const FName: string; var Color: TColor): boolean;
+//{Looks at a GIF image file to see if it's a transparent GIF.}
+//{Needed for OnBitmapRequest Event handler}
+//var
+//  Stream: TFileStream;
+//begin
+//  Result := False;
+//  try
+//    Stream := TFileStream.Create(FName, fmShareDenyWrite or FmOpenRead);
+//    try
+//      Result := IsTransparent(Stream, Color);
+//    finally
+//      Stream.Free;
+//    end;
+//  except
+//  end;
+//end;
 
 function ConvertImage(Bitmap: TBitmap): TBitmap;
 {convert bitmap into a form for BitBlt later}
@@ -2045,52 +2045,77 @@ end;
 function GetBitmapAndMaskFromStream(Stream: TMemoryStream;
   var Transparent: Transparency; var AMask: TBitmap): TBitmap;
 var
-  IT: ImageType;
   jpImage: TJpegImage;
+{$ifdef LCL}
+  pngImage: TPortableNetworkGraphic;
+{$endif}
 begin
   Result := nil;
   AMask := nil;
   if not Assigned(Stream) or (Stream.Memory = nil) or (Stream.Size < 20) then
     Exit;
   Stream.Position := 0;
-  IT := KindOfImage(Stream.Memory);
-
-  if not (IT in [Bmp, Jpg, Png]) then
-    Exit;
-
-  Result := TBitmap.Create;
   try
-    if IT = Jpg then
-    begin
-      Transparent := NotTransp;
-      jpImage := TJpegImage.Create;
-      try
-        jpImage.LoadFromStream(Stream);
-        if ColorBits <= 8 then
-        begin
-          jpImage.PixelFormat := {$ifdef LCL} pf8bit {$else} jf8bit {$endif};
-          if not jpImage.GrayScale and (ColorBits = 8) then
-            jpImage.Palette := CopyPalette(ThePalette);
-        end
-        else
-          jpImage.PixelFormat := {$ifdef LCL} pf24bit {$else} jf24bit {$endif};
-        Result.Assign(jpImage);
-      finally
-        jpImage.Free;
+    case KindOfImage(Stream.Memory) of
+      Jpg:
+      begin
+        Transparent := NotTransp;
+        jpImage := TJpegImage.Create;
+        try
+          jpImage.LoadFromStream(Stream);
+          if ColorBits <= 8 then
+          begin
+            jpImage.PixelFormat := {$ifdef LCL} pf8bit {$else} jf8bit {$endif};
+            if not jpImage.GrayScale and (ColorBits = 8) then
+              jpImage.Palette := CopyPalette(ThePalette);
+          end
+          else
+            jpImage.PixelFormat := {$ifdef LCL} pf24bit {$else} jf24bit {$endif};
+          Result := TBitmap.Create;
+          Result.Assign(jpImage);
+        finally
+          jpImage.Free;
+        end;
       end;
-    end
-    else if IT = Png then
-      freeAndNil(Result)
-    else
-    begin
-      Result.LoadFromStream(Stream); {Bitmap}
+
+      Png:
+      begin
+{$ifdef LCL}
+        pngImage := TPortableNetworkGraphic.Create;
+        try
+          Transparent := TrPng;
+          pngImage.LoadFromStream(Stream);
+          if ColorBits <= 8 then
+            pngImage.PixelFormat := pf8bit
+          else
+            pngImage.PixelFormat := pf24bit;
+          Result := TBitmap.Create;
+          Result.Assign(pngImage);
+          pngImage.Mask(clDefault);
+          if pngImage.MaskHandleAllocated then
+          begin
+            AMask := TBitmap.Create;
+            AMask.LoadFromBitmapHandles(pngImage.MaskHandle, 0);
+          end;
+        finally
+          pngImage.Free;
+        end;
+{$endif}
+      end;
+
+      Bmp:
+      begin
+        Result := TBitmap.Create;
+        Result.LoadFromStream(Stream);
+      end;
     end;
+
     if Transparent = LLCorner then
       AMask := GetImageMask(Result, False, 0);
     Result := ConvertImage(Result);
   except
-    Result.Free;
-    Result := nil;
+    freeAndNil(Result);
+    freeAndNil(AMask);
   end;
 end;
 
