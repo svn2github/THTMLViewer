@@ -43,11 +43,16 @@ const
   Auto = -12348765;
   AutoParagraph = -12348766;
   ParagraphSpace = 14; {default spacing between paragraphs, etc.}
+  
 {$IFDEF Delphi6_Plus}
   varInt = [varInteger, varByte, varSmallInt, varShortInt, varWord, varLongWord];
+  varFloat = [varSingle, varDouble, varCurrency];
 {$ELSE}
   varInt = [varInteger];
+  varFloat = [varSingle, varDouble];
 {$ENDIF}
+  varNum = varInt + varFloat;
+
   EastEurope8859_2 = 31; {for 8859-2}
   CRLF = #$D#$A;
 
@@ -1611,7 +1616,7 @@ procedure TProperties.Combine(Styles: TStyleList;
     if (Tag = 'td') or (Tag = 'th') then
       OldSize := DefPointSize
     else
-  {$ENDIF}if (VarType(Props[FontSize]) = VarDouble) and (Props[FontSize] > 0.0) then {should be true}
+  {$ENDIF}if (VarType(Props[FontSize]) in VarNum) and (Props[FontSize] > 0.0) then {should be true}
         OldSize := Props[FontSize]
       else
         OldSize := DefPointSize;
@@ -1669,19 +1674,54 @@ procedure TProperties.Combine(Styles: TStyleList;
     end;
 
   {process the entries in Styles to see if they are contextual selectors}
-    MergeContextuals(Tag + ' ');
-    if AClass <> '' then
+    if NoHoverVisited then
+      MergeContextuals(Tag + ' ');
+
+    if Pseudo <> '' then
+      MergeContextuals(':' + Pseudo + ' ');
+
+    if (AClass <> '') and NoHoverVisited then
+    begin
       MergeContextuals('.' + AClass + ' ');
-    if PSeudo <> '' then
-      MergeContextuals(':' + PSeudo + ' ');
+      MergeContextuals(Tag + '.' + AClass + ' ');
+    end;
+
+    if Pseudo <> '' then
+    begin
+      MergeContextuals(Tag + ':' + Pseudo + ' ');
+      if AClass <> '' then
+      begin
+        MergeContextuals('.' + AClass + ':' + Pseudo + ' ');
+        MergeContextuals(Tag + '.' + AClass + ':' + Pseudo + ' ');
+      end;
+    end;
+
     if AnID <> '' then
+    begin
       MergeContextuals('#' + AnID + ' ');
+      MergeContextuals(Tag + '#' + AnID + ' ');
+      if AClass <> '' then
+        MergeContextuals('.' + AClass + '#' + AnID + ' ');
+      if Pseudo <> '' then
+      begin
+        MergeContextuals('#' + AnID + ':' + Pseudo + ' ');
+        MergeContextuals(Tag + '#' + AnID + ':' + Pseudo + ' ');
+      end;
+      if AClass <> '' then
+      begin
+        MergeContextuals(Tag + '.' + AClass + '#' + AnID + ' ');
+        if Pseudo <> '' then
+        begin
+          MergeContextuals('.' + AClass + '#' + AnID + ':' + Pseudo + ' ');
+          MergeContextuals(Tag + '.' + AClass + '#' + AnID + ':' + Pseudo + ' ');
+        end;
+      end;
+    end;
 
     if AProp <> nil then //the Style= attribute
       Merge(AProp);
 
-    if not ((VarType(Props[FontSize]) = VarDouble) or
-      (VarType(Props[FontSize]) in varInt)) then {if still a string, hasn't been converted}
+    if not (VarType(Props[FontSize]) in varNum) then {if still a string, hasn't been converted}
       Props[FontSize] := FontSizeConv(Props[FontSize], OldSize);
   end;
 
