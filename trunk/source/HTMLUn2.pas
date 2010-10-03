@@ -365,10 +365,12 @@ type
 
   TChPosObj = class(TIDObject)
   private
-    ChPos: integer;
-    List: TSectionBaseList;
+    FChPos: Integer;
+    FList: TSectionBaseList;
   protected
     function GetYPosition: integer; override;
+    property ChPos: Integer read FChPos;
+    property List: TSectionBaseList read FList;
   end;
 
   TIDNameList = class(TStringList)
@@ -2963,8 +2965,8 @@ var
   ChPosObj: TChPosObj;
 begin
   ChPosObj := TChPosObj.Create;
-  ChPosObj.List := OwnerList;
-  ChPosObj.ChPos := Pos;
+  ChPosObj.FList := OwnerList;
+  ChPosObj.FChPos := Pos;
   AddObject(S, ChPosObj);
 end;
 

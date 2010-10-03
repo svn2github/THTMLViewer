@@ -689,15 +689,13 @@ type
 
   TBlockLI = class(TBlock)
   private
-    ListType: ListTypeType;
-    ListNumb: integer;
-    ListStyleType: ListBulletType;
+    FListType: ListTypeType;
+    FListNumb: integer;
+    FListStyleType: ListBulletType;
 
     ListFont: TFont;
     Image: TImageObj;
     FirstLineHt: integer;
-//  protected
-//    function getDisplay: TPropDisplay; override;
   public
     constructor Create(Master: TSectionList; Prop: TProperties; AnOwnerCell: TCellBasic;
       Sy: Symb; APlain: boolean; AIndexType: char;
@@ -707,6 +705,9 @@ type
     function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: integer; IMgr: TIndentManager;
       var MaxWidth: integer; var Curs: integer): integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: integer): integer; override;
+    property ListNumb: integer read FListNumb;
+    property ListStyleType: ListBulletType read FListStyleType;
+    property ListType: ListTypeType read FListType;
   end;
 
   TBodyBlock = class(TBlock)
@@ -5912,45 +5913,47 @@ var
 begin
   inherited Create(Master, Prop, AnOwnerCell, Attributes);
   case Sy of
+
     UlSy, DirSy, MenuSy:
       begin
-        ListType := Unordered;
+        FListType := Unordered;
         if APlain then
-          ListStyleType := lbNone
+          FListStyleType := lbNone
         else
           case ListLevel mod 3 of
-            1: ListStyleType := lbDisc;
-            2: ListStyleType := lbCircle;
-            0: ListStyleType := lbSquare;
+            1: FListStyleType := lbDisc;
+            2: FListStyleType := lbCircle;
+            0: FListStyleType := lbSquare;
           end;
       end;
+
     OLSy:
       begin
-        ListType := Ordered;
+        FListType := Ordered;
         case AIndexType of
-          'a': ListStyleType := lbLowerAlpha;
-          'A': ListStyleType := lbUpperAlpha;
-          'i': ListStyleType := lbLowerRoman;
-          'I': ListStyleType := lbUpperRoman;
+          'a': FListStyleType := lbLowerAlpha;
+          'A': FListStyleType := lbUpperAlpha;
+          'i': FListStyleType := lbLowerRoman;
+          'I': FListStyleType := lbUpperRoman;
         else
-          ListStyleType := lbDecimal;
+          FListStyleType := lbDecimal;
         end;
       end;
-    DLSy: ListType := Definition;
+
+    DLSy:
+      FListType := Definition;
   else
-    begin
-      ListType := liAlone;
-      ListStyleType := lbDisc;
-      if (VarType(MargArrayO[MarginLeft]) in varInt) and
-        ((MargArrayO[MarginLeft] = IntNull) or (MargArrayO[MarginLeft] = 0)) then
-        MargArrayO[MarginLeft] := 16;
-    end;
+    FListType := liAlone;
+    FListStyleType := lbDisc;
+    if (VarType(MargArrayO[MarginLeft]) in varInt) and
+      ((MargArrayO[MarginLeft] = IntNull) or (MargArrayO[MarginLeft] = 0)) then
+      MargArrayO[MarginLeft] := 16;
   end;
-  ListNumb := AListNumb;
+  FListNumb := AListNumb;
 
   Tmp := Prop.GetListStyleType;
   if Tmp <> lbBlank then
-    ListStyleType := Tmp;
+    FListStyleType := Tmp;
   ListFont := TMyFont.Create;
   TmpFont := Prop.GetFont;
   ListFont.Assign(TmpFont);
@@ -5967,9 +5970,9 @@ var
 begin
   inherited CreateCopy(AMasterList, T);
   TT := T as TBlockLI;
-  ListType := TT.ListType;
-  ListNumb := TT.ListNumb;
-  ListStyleType := TT.ListStyleType;
+  FListType := TT.FListType;
+  FListNumb := TT.FListNumb;
+  FListStyleType := TT.FListStyleType;
   if Assigned(TT.Image) then
     Image := TImageObj.CreateCopy(AMasterList, TT.Image);
   ListFont := TMyFont.Create;
