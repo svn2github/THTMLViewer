@@ -274,6 +274,12 @@ const
     'page-break-before', 'page-break-after', 'page-break-inside', 'text-transform',
     'word-wrap', 'font-variant', 'border-collapse', 'overflow', 'display', 'empty-cells');
 
+//BG, 05.10.2010: added:
+function VarIsIntNull(const Value: Variant): Boolean;
+function VarIsAuto(const Value: Variant): Boolean;
+
+function VMargToMarg(const Value: Variant; Relative: boolean; Base, EmSize, ExSize, Default: Integer): Integer;
+
 procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: integer;
   BorderStyle: BorderStyleType; BorderWidth: Integer; var AutoCount: integer; var M: TMarginArray);
 
@@ -1088,6 +1094,34 @@ begin
   M[MarginBottom] := Convert(VM[MarginBottom], BottomAuto);
 end;
 
+//-- BG ---------------------------------------------------------- 05.10.2010 --
+function VarIsIntNull(const Value: Variant): Boolean;
+begin
+  Result := (VarType(Value) in varInt) and (Value = IntNull);
+end;
+
+//-- BG ---------------------------------------------------------- 05.10.2010 --
+function VarIsAuto(const Value: Variant): Boolean;
+begin
+  Result := (VarType(Value) in varInt) and (Value = Auto);
+end;
+
+//-- BG ---------------------------------------------------------- 05.10.2010 --
+function VMargToMarg(const Value: Variant; Relative: boolean; Base, EmSize, ExSize, Default: Integer): Integer;
+begin
+  if VarIsStr(Value) then
+    Result := LengthConv(Value, Relative, Base, EmSize, ExSize, Default)
+  else if VarType(Value) in varInt then
+  begin
+    if Value = IntNull then
+      Result := Default
+    else
+      Result := Value;
+  end
+  else
+    Result := Default;
+end;
+
 {----------------ConvMargArray}
 
 procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: Integer;
@@ -1226,7 +1260,21 @@ begin
           if M[I] = Auto then
             Inc(AutoCount);
         end;
-      MarginTop, MarginBottom: ; {do nothing}
+      MarginTop, MarginBottom:
+//        if VarType(VM[I]) in varInt then
+//          case VM[I] of
+//            AutoParagraph: ; // do nothing
+//
+//            IntNull:
+//              M[I] := 0;
+//          else
+//            M[I] := VM[I];
+//          end
+//        else if VarIsStr(VM[I]) then
+//          M[I] := LengthConv(VM[I], False, BaseHeight, EmSize, ExSize, 0)
+//        else
+//          M[I] := 0
+        ;
     else
       begin
         if VarIsStr(VM[I]) then

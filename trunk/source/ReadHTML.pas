@@ -125,47 +125,49 @@ var
 
 
 const
-  MaxRes = 80;
-  MaxEndRes = 60;
-  ResWords: array[1..MaxRes] of string =
-  ('HTML', 'TITLE', 'BODY', 'HEAD', 'B', 'I', 'H', 'EM', 'STRONG',
-    'U', 'CITE', 'VAR', 'TT', 'CODE', 'KBD', 'SAMP', 'OL', 'UL', 'DIR',
-    'MENU', 'DL',
-    'A', 'ADDRESS', 'BLOCKQUOTE', 'PRE', 'CENTER', 'TABLE', 'TD', 'TH',
-    'CAPTION', 'FORM', 'TEXTAREA', 'SELECT', 'OPTION', 'FONT', 'SUB', 'SUP',
-    'BIG', 'SMALL', 'P', 'MAP', 'FRAMESET', 'NOFRAMES', 'SCRIPT', 'DIV',
-    'S', 'STRIKE', 'TR', 'NOBR', 'STYLE', 'SPAN', 'COLGROUP', 'LABEL',
-    'THEAD', 'TBODY', 'TFOOT', 'OBJECT', 'DD', 'DT',
+  MaxRes = 82;
+  MaxEndRes = 62;
+  ResWords: array[1..MaxRes] of string = (
+    'HTML', 'TITLE', 'BODY', 'HEAD', 'B', 'I', 'H', 'EM', 'STRONG', 'U',
+    'CITE', 'VAR', 'TT', 'CODE', 'KBD', 'SAMP', 'OL', 'UL', 'DIR', 'MENU',
+    'DL', 'A', 'ADDRESS', 'BLOCKQUOTE', 'PRE', 'CENTER', 'TABLE', 'TD', 'TH', 'CAPTION',
+    'FORM', 'TEXTAREA', 'SELECT', 'OPTION', 'FONT', 'SUB', 'SUP', 'BIG', 'SMALL', 'P',
+    'MAP', 'FRAMESET', 'NOFRAMES', 'SCRIPT', 'DIV', 'S', 'STRIKE', 'TR', 'NOBR', 'STYLE',
+    'SPAN', 'COLGROUP', 'LABEL', 'THEAD', 'TBODY', 'TFOOT', 'OBJECT', 'DD', 'DT', 'LI',
+    'FIELDSET', 'LEGEND',
 
-    'LI', 'BR', 'HR', 'IMG', 'BASE', 'BUTTON', 'INPUT',
-    'SELECTED', 'BASEFONT', 'AREA', 'FRAME', 'PAGE', 'BGSOUND', 'WRAP',
-    'META', 'PANEL', 'WBR', 'LINK', 'COL', 'PARAM', 'READONLY');
+    'BR', 'HR', 'IMG', 'BASE', 'BUTTON', 'INPUT', 'SELECTED', 'BASEFONT',
+    'AREA', 'FRAME', 'PAGE', 'BGSOUND', 'WRAP', 'META', 'PANEL', 'WBR', 'LINK', 'COL',
+    'PARAM', 'READONLY');
 
-  ResSy: array[1..MaxRes] of Symb =
-  (htmlSy, TitleSy, BodySy, HeadSy, BSy, ISy, HeadingSy, EmSy, StrongSy,
-    USy, CiteSy, VarSy, TTSy, CodeSy, KbdSy, SampSy, OLSy, ULSy, DirSy,
-    MenuSy, DLSy, ASy, AddressSy, BlockQuoteSy, PreSy, CenterSy, TableSy,
-    TDsy, THSy, CaptionSy, FormSy, TextAreaSy, SelectSy, OptionSy, FontSy,
-    SubSy, SupSy, BigSy, SmallSy, PSy, MapSy, FrameSetSy, NoFramesSy,
-    ScriptSy, DivSy, SSy, StrikeSy, TRSy, NoBrSy, StyleSy, SpanSy, ColGroupSy,
-    LabelSy, THeadSy, TBodySy, TFootSy, ObjectSy, DDSy, DTSy, LISy,
+  ResSy: array[1..MaxRes] of Symb = (
+    htmlSy, TitleSy, BodySy, HeadSy, BSy, ISy, HeadingSy, EmSy, StrongSy, USy,
+    CiteSy, VarSy, TTSy, CodeSy, KbdSy, SampSy, OLSy, ULSy, DirSy, MenuSy,
+    DLSy, ASy, AddressSy, BlockQuoteSy, PreSy, CenterSy, TableSy, TDsy, THSy, CaptionSy,
+    FormSy, TextAreaSy, SelectSy, OptionSy, FontSy, SubSy, SupSy, BigSy, SmallSy, PSy,
+    MapSy, FrameSetSy, NoFramesSy, ScriptSy, DivSy, SSy, StrikeSy, TRSy, NoBrSy, StyleSy,
+    SpanSy, ColGroupSy, LabelSy, THeadSy, TBodySy, TFootSy, ObjectSy, DDSy, DTSy, LISy,
+    FieldsetSy, LegendSy,
 
-    BRSy, HRSy, ImageSy, BaseSy, ButtonSy,
-    InputSy, SelectedSy, BaseFontSy, AreaSy, FrameSy, PageSy, BgSoundSy,
-    WrapSy, MetaSy, PanelSy, WbrSy, LinkSy, ColSy, ParamSy, ReadonlySy);
+    BRSy, HRSy, ImageSy, BaseSy, ButtonSy, InputSy, SelectedSy, BaseFontSy,
+    AreaSy, FrameSy, PageSy, BgSoundSy, WrapSy, MetaSy, PanelSy, WbrSy, LinkSy, ColSy,
+    ParamSy, ReadonlySy);
 
   {keep these in order with those above}
-  EndResSy: array[1..MaxEndRes] of Symb =
-  (HtmlEndSy, TitleEndSy, BodyEndSy, HeadEndSy, BEndSy, IEndSy, HeadingEndSy,
-    EmEndSy, StrongEndSy, UEndSy, CiteEndSy, VarEndSy, TTEndSy, CodeEndSy,
-    KbdEndSy, SampEndSy,
-    OLEndSy, ULEndSy, DirEndSy, MenuEndSy, DLEndSy, AEndSy, AddressEndSy,
-    BlockQuoteEndSy, PreEndSy, CenterEndSy, TableEndSy, TDEndSy, THEndSy,
-    CaptionEndSy, FormEndSy, TextAreaEndSy, SelectEndSy, OptionEndSy, FontEndSy,
-    SubEndSy, SupEndSy, BigEndSy, SmallEndSy, PEndSy, MapEndSy, FrameSetEndSy,
-    NoFramesEndSy, ScriptEndSy, DivEndSy, SEndSy, StrikeEndSy, TREndSy,
-    NoBrEndSy, StyleEndSy, SpanEndSy, ColGroupEndSy, LabelEndSy,
-    THeadEndSy, TBodyEndSy, TFootEndSy, ObjectEndSy, DDEndSy, DTEndSy, LIEndSy);
+  EndResSy: array[1..MaxEndRes] of Symb = (
+    HtmlEndSy, TitleEndSy, BodyEndSy, HeadEndSy, BEndSy,
+    IEndSy, HeadingEndSy, EmEndSy, StrongEndSy, UEndSy,
+    CiteEndSy, VarEndSy, TTEndSy, CodeEndSy, KbdEndSy,
+    SampEndSy, OLEndSy, ULEndSy, DirEndSy, MenuEndSy,
+    DLEndSy, AEndSy, AddressEndSy, BlockQuoteEndSy, PreEndSy,
+    CenterEndSy, TableEndSy, TDEndSy, THEndSy, CaptionEndSy,
+    FormEndSy, TextAreaEndSy, SelectEndSy, OptionEndSy, FontEndSy,
+    SubEndSy, SupEndSy, BigEndSy, SmallEndSy, PEndSy,
+    MapEndSy, FrameSetEndSy, NoFramesEndSy, ScriptEndSy, DivEndSy,
+    SEndSy, StrikeEndSy, TREndSy, NoBrEndSy, StyleEndSy,
+    SpanEndSy, ColGroupEndSy, LabelEndSy, THeadEndSy, TBodyEndSy,
+    TFootEndSy, ObjectEndSy, DDEndSy, DTEndSy, LIEndSy,
+    FieldsetEndSy, LegendEndSy);
 
 type
   EParseError = class(Exception);
@@ -1078,6 +1080,8 @@ end;
 procedure DoDivEtc(Sym: Symb; const TermSet: SymbSet);
 var
   FormBlock, DivBlock: TBlock;
+  FieldsetBlock: TFieldsetBlock;
+  IsFieldsetLegend: Boolean;
 begin
   case Sym of
     DivSy:
@@ -1108,6 +1112,65 @@ begin
         if Sy = DivEndSy then
           Next;
       end;
+      
+    FieldsetSy:
+      begin
+        SectionList.Add(Section, TagIndex);
+        PushNewProp('fieldset', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
+        CheckForAlign;
+
+        FieldsetBlock := TFieldsetBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
+        SectionList.Add(FieldsetBlock, TagIndex);
+        SectionList := FieldsetBlock.MyCell;
+
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
+          CurrentUrlTarget, SectionList, True);
+        Next;
+        DoBody([FieldsetEndSy] + TermSet);
+        SectionList.Add(Section, TagIndex);
+        PopAProp('fieldset');
+        if SectionList.CheckLastBottomMargin then
+        begin
+          FieldsetBlock.MargArray[MarginBottom] := ParagraphSpace;
+          FieldsetBlock.BottomAuto := True;
+        end;
+        SectionList := FieldsetBlock.OwnerCell;
+
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
+          CurrentUrlTarget, SectionList, True);
+        if Sy = FieldsetEndSy then
+          Next;
+      end;
+
+    LegendSy:
+      begin
+        SectionList.Add(Section, TagIndex);
+        PushNewProp('legend', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
+        CheckForAlign;
+
+        FieldsetBlock := nil; // valium for the compiler
+        IsFieldsetLegend := SectionList.Owner is TFieldsetBlock;
+        if IsFieldsetLegend then
+        begin
+          FieldsetBlock := TFieldsetBlock(SectionList.Owner);
+          SectionList := FieldsetBlock.Legend;
+        end;
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
+          CurrentUrlTarget, SectionList, True);
+        Next;
+        DoBody([LegendEndSy] + TermSet);
+        SectionList.Add(Section, TagIndex);
+        PopAProp('legend');
+        if IsFieldsetLegend then
+        begin
+          SectionList := FieldsetBlock.MyCell;
+        end;
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
+          CurrentUrlTarget, SectionList, True);
+        if Sy = LegendEndSy then
+          Next;
+      end;
+
     CenterSy:
       begin
         SectionList.Add(Section, TagIndex);
@@ -2743,7 +2806,6 @@ begin
         DoScript(PropStack.MasterList.ScriptEvent);
         Next;
       end;
-
   else
     begin
       Assert(False, 'DoCommon can''t handle <' + SymbToStr(Sy) + '>');
@@ -2901,7 +2963,7 @@ begin
         else
           Done := True; {else terminate lone <li>s on <p>}
       PEndSy: Next;
-      DivSy, CenterSy, FormSy, AddressSy, BlockquoteSy:
+      DivSy, CenterSy, FormSy, AddressSy, BlockquoteSy, FieldsetSy:
         DoDivEtc(Sy, TermSet);
       OLSy, ULSy, DirSy, MenuSy, DLSy:
         begin
@@ -3512,17 +3574,22 @@ begin
           Next;
         end;
 
-      DivSy, CenterSy, FormSy, BlockQuoteSy, AddressSy: DoDivEtc(Sy, TermSet);
+      DivSy, CenterSy, FormSy, BlockQuoteSy, AddressSy, FieldsetSy, LegendSy:
+        DoDivEtc(Sy, TermSet);
+
       TitleSy:
         DoTitle;
+
       LinkSy:
         DoStyleLink;
+
       StyleSy:
         begin
           DoStyle(PropStack.MasterList.Styles, LCh, GetChBasic, '', False);
           Ch := UpCase(LCh); {LCh is returned so next char is available}
           Next;
         end;
+
       BgSoundSy:
         DoSound;
       MetaSy:

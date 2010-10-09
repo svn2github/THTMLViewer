@@ -305,14 +305,15 @@ end;
 
 procedure TForm1.Open1Click(Sender: TObject);
 begin
-if FrameViewer.CurrentFile <> '' then
-  OpenDialog.InitialDir := ExtractFilePath(FrameViewer.CurrentFile)
-else OpenDialog.InitialDir := ExtractFilePath(ParamStr(0));
-OpenDialog.FilterIndex := 1;
-if OpenDialog.Execute then
+  if FrameViewer.CurrentFile <> '' then
+    OpenDialog.InitialDir := ExtractFilePath(FrameViewer.CurrentFile)
+  else
+    OpenDialog.InitialDir := ExtractFilePath(ParamStr(0));
+  OpenDialog.FilterIndex := 1;
+  if OpenDialog.Execute then
   begin
-  FrameViewer.LoadFromFile(OpenDialog.Filename);
-  Caption := FrameViewer.DocumentTitle;
+    FrameViewer.LoadFromFile(OpenDialog.Filename);
+    Caption := FrameViewer.DocumentTitle;
   end;
 end;
 

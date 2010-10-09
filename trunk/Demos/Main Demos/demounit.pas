@@ -65,6 +65,7 @@ type
     ProgressBar: TProgressBar;
     PrinterSetupDialog: TPrinterSetupDialog;
     PrinterSetup1: TMenuItem;
+    RepaintButton: TButton;
     procedure OpenFileClick(Sender: TObject);
     procedure HotSpotChange(Sender: TObject; const URL: string);
     procedure HotSpotClick(Sender: TObject; const URL: string;
@@ -119,6 +120,7 @@ type
       var StopPrinting: Boolean);
     procedure PrinterSetup1Click(Sender: TObject);
     procedure ViewerScript(Sender: TObject; const Name, ContentType, Src, Script: string);
+    procedure RepaintButtonClick(Sender: TObject);
   private
     { Private declarations }
     Histories: array[0..MaxHistories-1] of TMenuItem;
@@ -475,6 +477,7 @@ if ProcessingOn then
   begin    {disable various buttons and menuitems during processing}
   FwdButton.Enabled := False;
   BackButton.Enabled := False;
+  RepaintButton.Enabled := False;
   ReLoadButton.Enabled := False;
   Print1.Enabled := False;
   PrintPreview.Enabled := False;
@@ -487,6 +490,7 @@ else
   begin
   FwdButton.Enabled := Viewer.HistoryIndex > 0;
   BackButton.Enabled := Viewer.HistoryIndex < Viewer.History.Count-1;
+  RepaintButton.Enabled := Viewer.CurrentFile <> '';
   ReLoadButton.Enabled := Viewer.CurrentFile <> '';
   Print1.Enabled := Viewer.CurrentFile <> '';
   PrintPreview.Enabled := Viewer.CurrentFile <> '';
@@ -926,6 +930,11 @@ begin
 S := ReplaceStr(HFText, '#left', DateToStr(Date));
 S := ReplaceStr(S, '#right', 'Page '+IntToStr(NumPage));
 HFViewer.LoadFromString(S);
+end;
+
+procedure TForm1.RepaintButtonClick(Sender: TObject);
+begin
+  Viewer.Repaint;
 end;
 
 end.
