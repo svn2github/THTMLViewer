@@ -223,6 +223,7 @@ type
     function ShowEmptyCells: Boolean;
     procedure SetFontBG;
     procedure AddPropertyByName(const PropName, PropValue: string);
+    function HasBorder: Boolean;
     function IsOverflowHidden: boolean;
     //BG, 20.09.2009:
     property Display: TPropDisplay read GetDisplay;
@@ -922,6 +923,15 @@ begin
     Result := Props[ZIndex]
   else if VarIsStr(Props[ZIndex]) then
     Result := StrToIntDef(Props[ZIndex], 0);
+end;
+
+//-- BG ---------------------------------------------------------- 15.10.2010 --
+function TProperties.HasBorder: Boolean;
+begin
+  Result := not (VarIsIntNull(Props[BorderTopWidth]) or VarIsEmpty(Props[BorderTopWidth]))
+         or not (VarIsIntNull(Props[BorderRightWidth]) or VarIsEmpty(Props[BorderRightWidth]))
+         or not (VarIsIntNull(Props[BorderBottomWidth]) or VarIsEmpty(Props[BorderBottomWidth]))
+         or not (VarIsIntNull(Props[BorderLeftWidth]) or VarIsEmpty(Props[BorderLeftWidth]));
 end;
 
 //function TProperties.DisplayNone: boolean;

@@ -7887,18 +7887,25 @@ begin
     with TAttribute(Attr[I]) do
       case Which of
         BorderSy:
-          if Name = '' then
-            BorderWidth := 1
-          else
-            BorderWidth := Min(100, Max(0, Value)); {Border=0 is no border}
+          //BG, 15.10.2010: issue 5: set border width only, if style does not set any border width:
+          if not Prop.HasBorder then
+            if Name = '' then
+              BorderWidth := 1
+            else
+              BorderWidth := Min(100, Max(0, Value)); {Border=0 is no border}
+
         CellSpacingSy:
           CellSpacing := Min(40, Max(-1, Value));
+
         CellPaddingSy:
           CellPadding := Min(50, Max(0, Value));
+
         BorderColorSy:
           ColorFromString(Name, False, BorderColor);
+
         BorderColorLightSy:
           ColorFromString(Name, False, BorderColorLight);
+
         BorderColorDarkSy:
           ColorFromString(Name, False, BorderColorDark);
       end;
