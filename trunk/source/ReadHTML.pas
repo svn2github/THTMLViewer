@@ -1553,8 +1553,7 @@ begin
                 PropStack.Last.Assign('center', TextAlign) {th}
               else
                 PropStack.Last.Assign('left', TextAlign); {td}
-//            if (Table.BorderWidth > 0) and (NewBlock.BorderStyle in [bssInset, bssOutset])then
-            if (Attributes.TheStyle = nil) or (Table.BorderWidth > 0) then
+            if (Attributes.TheStyle = nil) and (Table.BorderWidth > 0) then
             begin
               if NewBlock.BorderStyle = bssOutset then
                 CellBorderStyle := bssInset
