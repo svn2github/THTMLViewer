@@ -2261,13 +2261,41 @@ begin
   end;
 end;
 
+//BG, 15.10.2010: issue 28: Borland C++ Builder does not accept an array as a result of a function.
+// Thus move htStyles and htColors from HtmlUn2.pas to HtmlSubs.pas the only unit where they are used
+
+function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
+begin
+  Result[0] := P0;
+  Result[1] := P1;
+  Result[2] := P2;
+  Result[3] := P3;
+end;
+
+function htColors(C0, C1, C2, C3: TColor): htColorArray;
+begin
+  Result[0] := C0;
+  Result[1] := C1;
+  Result[2] := C2;
+  Result[3] := C3;
+end;
+
 //-- BG ---------------------------------------------------------- 12.06.2010 --
-function htRaisedColors(SectionList: TSectionList; Canvas: TCanvas; Raised: Boolean): htColorArray;
+function htRaisedColors(Light, Dark: TColor; Raised: Boolean): htColorArray; overload;
+begin
+  if Raised then
+    Result := htColors(Light, Light, Dark, Dark)
+  else
+    Result := htColors(Dark, Dark, Light, Light);
+end;
+
+//-- BG ---------------------------------------------------------- 12.06.2010 --
+function htRaisedColors(SectionList: TSectionList; Canvas: TCanvas; Raised: Boolean): htColorArray; overload;
 var
   Light, Dark: TColor;
 begin
   GetRaisedColors(SectionList, Canvas, Light, Dark);
-  Result := HtmlUn2.htRaisedColors(Light, Dark, Raised);
+  Result := htRaisedColors(Light, Dark, Raised);
 end;
 
 //-- BG ---------------------------------------------------------- 12.06.2010 --

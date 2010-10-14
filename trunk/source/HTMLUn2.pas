@@ -620,11 +620,6 @@ procedure StretchPrintGpImageOnColor(Canvas: TCanvas; Image: TGpImage;
   DestX, DestY, DestW, DestH: Integer; Color: TColor = clWhite);
 {$ENDIF NoGDIPlus}
 
-function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
-function htColors(C0, C1, C2, C3: TColor): htColorArray;
-function htRaisedColors(Light, Dark: TColor; Raised: Boolean): htColorArray; overload;
-//function htRaisedColors(SectionList: TFreeList; Canvas: TCanvas; Raised: Boolean): htColorArray; overload;
-//procedure GetRaisedColors(SectionList: TSectionBaseList; Canvas: TCanvas; out Light, Dark: TColor);
 procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
   S: htBorderStyleArray; BGround: TColor; Print: boolean);
 
@@ -3794,14 +3789,6 @@ end;
 type
   BorderPointArray = array[0..3] of TPoint;
 
-function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
-begin
-  Result[0] := P0;
-  Result[1] := P1;
-  Result[2] := P2;
-  Result[3] := P3;
-end;
-
 {$IFNDEF NoGDIPlus}
 
 procedure DrawGpImage(Handle: THandle; Image: TGpImage; DestX, DestY: Integer);
@@ -3896,30 +3883,13 @@ end;
 
 {$ENDIF NoGDIPlus}
 
-function Points(P0, P1, P2, P3: TPoint): BorderPointArray;
-begin
-  Result[0] := P0;
-  Result[1] := P1;
-  Result[2] := P2;
-  Result[3] := P3;
-end;
-
-function htColors(C0, C1, C2, C3: TColor): htColorArray;
-begin
-  Result[0] := C0;
-  Result[1] := C1;
-  Result[2] := C2;
-  Result[3] := C3;
-end;
-
-//-- BG ---------------------------------------------------------- 12.06.2010 --
-function htRaisedColors(Light, Dark: TColor; Raised: Boolean): htColorArray;
-begin
-  if Raised then
-    Result := htColors(Light, Light, Dark, Dark)
-  else
-    Result := htColors(Dark, Dark, Light, Light);
-end;
+//function Points(P0, P1, P2, P3: TPoint): BorderPointArray;
+//begin
+//  Result[0] := P0;
+//  Result[1] := P1;
+//  Result[2] := P2;
+//  Result[3] := P3;
+//end;
 
 procedure DrawOnePolygon(Canvas: TCanvas; P: BorderPointArray; Color: TColor;
   Side: byte; Printing: boolean);
