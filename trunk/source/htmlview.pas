@@ -2724,7 +2724,7 @@ begin
 {$ifdef LCL}
   inherited setCursor(Value);
 {$else}
-  inherited Color := Value;
+  inherited Cursor := Value;
 {$endif}
 end;
 
