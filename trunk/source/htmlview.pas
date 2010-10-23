@@ -2104,6 +2104,15 @@ begin
     while MouseScrolling and (LeftButtonDown and ((Pt.Y <= 0) or (Pt.Y > Self.Height)))
       or (MiddleScrollOn and (Abs(Pt.Y - MiddleY) > ScrollGap)) do
     begin
+      //BG, 23.10.2010; Issue 34: Possible to get AV in ThtmlViewer.WMMouseScroll
+      // What steps will reproduce the problem?
+      //  1. Code enters ThtmlViewer.WMMouseScroll (due to scrolling)
+      //  2. That code contains a bad busy-loop and calls to Application.ProcessMessages
+      //  3. The calls to Application.ProcessMessages could cause the component and fields in it to be freed.
+      //  4. Next time in the loop when FSectionList.SetYOffset(Pos) is called FSectionList is nil and it crashes with an AV
+      // Thus stop looping, if document (FSectionList) has been nilled:
+      if FSectionList = nil then
+        break;
       if GetTickCount > Ticks + 100 then
       begin
         Ticks := GetTickCount;
