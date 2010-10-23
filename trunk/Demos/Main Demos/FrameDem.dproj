@@ -11,8 +11,6 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Version>7.0</Version>
     <DCC_WriteableConstants>True</DCC_WriteableConstants>
-    <DCC_IntegerOverflowCheck>True</DCC_IntegerOverflowCheck>
-    <DCC_RangeChecking>True</DCC_RangeChecking>
     <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
     <DCC_MapFile>3</DCC_MapFile>
     <DCC_DcuOutput>lib\Delphi2007</DCC_DcuOutput>

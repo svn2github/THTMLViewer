@@ -2689,7 +2689,7 @@ var
 
 //BG, 26.08.2009: exceptions are very slow
 var
-  Int: Integer;
+  Int, Idx: Integer;
 //BG, 26.08.2009
 begin
   if S = '' then
@@ -2707,9 +2707,9 @@ begin
   I := Pos('rgb', S);
   if (I = 0) and (S[1] <> '#') then
   begin
-    if SortedColors.Find(S, I) then
+    if SortedColors.Find(S, Idx) then
     begin
-      Color := TColor(SortedColors.Objects[I]);
+      Color := TColor(SortedColors.Objects[Idx]);
       Result := True;
       LastS := S;
       LastColor := Color;
