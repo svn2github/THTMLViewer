@@ -4624,6 +4624,8 @@ begin
   end;
 end;
 
+{$R HTML32.Res}
+
 initialization
 
 {$IFDEF UseElPack}

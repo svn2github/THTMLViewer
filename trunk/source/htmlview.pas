@@ -2130,18 +2130,18 @@ begin
         end
         else
         begin {MiddleScrollOn}
-          if Pt.Y - MiddleY < -3 * ScrollGap then
-            Pos := Position - 32
-          else if Pt.Y - MiddleY < -ScrollGap then
-            Pos := Position - 8
-          else if Pt.Y - MiddleY > 3 * ScrollGap then
-            Pos := Position + 32
-          else if Pt.Y - MiddleY > ScrollGap then
-            Pos := Position + 8;
-          if Pos < Position then
-            PaintPanel.Cursor := UpOnlyCursor
-          else if Pos > Position then
+          Pos := Pt.Y - MiddleY;
+          if Pos > 0 then
+          begin
+            Dec(Pos, ScrollGap - 4);
             PaintPanel.Cursor := DownOnlyCursor;
+          end
+          else
+          begin
+            Inc(Pos, ScrollGap - 4);
+            PaintPanel.Cursor := UpOnlyCursor
+          end;
+          Pos := Position + Pos div 4;
         end;
         Pos := Math.Max(0, Math.Min(Pos, FMaxVertical - PaintPanel.Height));
         FSectionList.SetYOffset(Pos);

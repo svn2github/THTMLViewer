@@ -56,7 +56,6 @@ whole document is drawn with the TSectionList.Draw method.
 }
 
 unit Htmlsubs;
-{$R HTML32.Res}
 
 {-$define DO_BLOCK_INLINE}
 {$ifdef DO_BLOCK_INLINE}
