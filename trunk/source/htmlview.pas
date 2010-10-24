@@ -166,12 +166,11 @@ type
   THTMLViewer = class(THtmlViewerBase)
   private
     vwP, OldPrinter: TvwPrinter;
-    fScaleX, fScaleY: single;
+    FScaleX, FScaleY: single;
     FCodePage: integer;
     FOnImageRequested: TGottenImageEvent;
     function GetCursor: TCursor;
   protected
-    InCreate: boolean;
     FOnDragDrop: TDragDropEvent;
     FOnDragOver: TDragOverEvent;
     DontDraw: boolean;
@@ -702,7 +701,6 @@ end;
 constructor THTMLViewer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  InCreate := True;
   ControlStyle := [csAcceptsControls, csCaptureMouse, csClickEvents,
     csSetCaption, csDoubleClicks];
   Height := 150;
@@ -728,20 +726,16 @@ begin
   BorderPanel.ParentBackground := False;
 {$endif}
 {$endif}
-
   BorderPanel.Parent := Self;
 
   PaintPanel := TPaintPanel.CreateIt(Self, Self);
   PaintPanel.ParentFont := False;
   PaintPanel.Parent := Self;
-  PaintPanel.Top := 1;
-  PaintPanel.Left := 1;
   PaintPanel.BevelOuter := bvNone;
   PaintPanel.BevelInner := bvNone;
 {$ifndef LCL}
-  PaintPanel.ctl3D := False;
+  PaintPanel.Ctl3D := False;
 {$endif}
-
   PaintPanel.OnPaint := HTMLPaint;
   PaintPanel.OnMouseDown := HTMLMouseDown;
   PaintPanel.OnMouseMove := HTMLMouseMove;
@@ -762,7 +756,6 @@ begin
   HScrollBar.Visible := False;
   HScrollBar.TabStop := False;
   HScrollBar.Parent := Self;
-  HScrollBar.Width := sbWidth;
 
   FScrollBars := ssBoth;
 
@@ -795,7 +788,11 @@ begin
   HTMLTimer.Interval := 200;
   HTMLTimer.OnTimer := HTMLTimerTimer;
   FLinkAttributes := TStringList.Create;
-  InCreate := False;
+
+{$ifdef LCL}
+  // BG, 24.10.2010: there is no initial WMSize message, thus size child components now:
+  DoScrollBars;
+{$endif}
 end;
 
 destructor ThtmlViewer.Destroy;
@@ -1243,25 +1240,22 @@ var
   VBar, VBar1, HBar: boolean;
   Wid, HWidth, WFactor, WFactor2, VHeight: integer;
   ScrollInfo: TScrollInfo;
-
 begin
   ScrollWidth := Min(ScrollWidth, MaxHScroll);
-  if FBorderStyle = htNone then
+  if (FBorderStyle = htNone) and not (csDesigning in ComponentState) then
   begin
-    WFactor := 0;
-    PaintPanel.Top := 0;
-    PaintPanel.Left := 0;
+    WFactor2 := 0;
     BorderPanel.Visible := False;
   end
   else
   begin
-    WFactor := 1;
-    PaintPanel.Top := 1;
-    PaintPanel.Left := 1;
+    WFactor2 := BorderPanel.Width - BorderPanel.ClientWidth;
     BorderPanel.Visible := False;
     BorderPanel.Visible := True;
   end;
-  WFactor2 := 2 * WFactor;
+  WFactor := WFactor2 div 2;
+  PaintPanel.Top := WFactor;
+  PaintPanel.Left := WFactor;
 
   VBar := False;
   VBar1 := False;
@@ -1315,11 +1309,19 @@ begin
     VScrollBar.Visible := VBar;
 
   HScrollBar.Max := Max(0, HWidth);
-  VScrollBar.SetParams(VScrollBar.Position, PaintPanel.Height + 1, 0, FMaxVertical);
-  ScrollInfo.cbSize := SizeOf(ScrollInfo);
-  ScrollInfo.fMask := SIF_PAGE;
-  ScrollInfo.nPage := Wid;
-  SetScrollInfo(HScrollBar.Handle, SB_CTL, ScrollInfo, TRUE);
+
+  // BG, 24.10.2010: method may be called in Create() before handles can be created, thus skip these handle related parts:
+  if VScrollBar.HandleAllocated then
+  begin
+    VScrollBar.SetParams(VScrollBar.Position, PaintPanel.Height + 1, 0, FMaxVertical);
+  end;
+  if HScrollBar.HandleAllocated then
+  begin
+    ScrollInfo.cbSize := SizeOf(ScrollInfo);
+    ScrollInfo.fMask := SIF_PAGE;
+    ScrollInfo.nPage := Wid;
+    SetScrollInfo(HScrollBar.Handle, SB_CTL, ScrollInfo, TRUE);
+  end;
 end;
 
 {----------------ThtmlViewer.DoLogic}
@@ -1360,7 +1362,7 @@ begin
     if FBorderStyle = htNone then
       WFactor := 0
     else
-      WFactor := 2;
+      WFactor := BorderPanel.Width - BorderPanel.ClientWidth;
     Wid := Width - WFactor;
     if FScrollBars in [ssBoth, ssVertical] then
     begin
@@ -1401,7 +1403,7 @@ end;
 procedure ThtmlViewer.WMSize(var Message: TWMSize);
 begin
   inherited;
-  if InCreate then
+  if not HandleAllocated then
     Exit;
   if not FProcessing then
     Layout
@@ -2116,7 +2118,6 @@ begin
       if GetTickCount > Ticks + 100 then
       begin
         Ticks := GetTickCount;
-        Pos := Position;
         if LeftButtonDown then
         begin
           if Pt.Y < -15 then
@@ -4997,10 +4998,22 @@ end;
 procedure ThtmlViewer.DrawBorder;
 begin
   if (Focused and (FBorderStyle = htFocused)) or (FBorderStyle = htSingle)
-    or (csDesigning in ComponentState) then
-    BorderPanel.BorderStyle := bsSingle
+    or (csDesigning in ComponentState)
+  then
+  begin
+//LCL sets BorderStyle no matter if it changes or not, which ends up in an endless window recreation.
+{$ifdef LCL}
+    if BorderPanel.BorderStyle <> bsSingle then
+{$endif}
+    BorderPanel.BorderStyle := bsSingle;
+  end
   else
+  begin
+{$ifdef LCL}
+    if BorderPanel.BorderStyle <> bsNone then
+{$endif}
     BorderPanel.BorderStyle := bsNone;
+  end;
 end;
 
 procedure ThtmlViewer.DoEnter;

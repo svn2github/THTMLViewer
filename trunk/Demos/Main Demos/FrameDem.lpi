@@ -8,7 +8,7 @@
       <TargetFileExt Value=".exe"/>
       <Icon Value="0"/>
       <UseXPManifest Value="True"/>
-      <ActiveEditorIndexAtStart Value="5"/>
+      <ActiveEditorIndexAtStart Value="3"/>
     </General>
     <VersionInfo>
       <UseVersionInfo Value="True"/>
@@ -41,7 +41,7 @@
         <IsPartOfProject Value="True"/>
         <CursorPos X="1" Y="32"/>
         <TopLine Value="1"/>
-        <UsageCount Value="175"/>
+        <UsageCount Value="177"/>
       </Unit0>
       <Unit1>
         <Filename Value="FDEMUNIT.PAS"/>
@@ -54,7 +54,7 @@
       <Unit2>
         <Filename Value="..\..\source\HTMLSubs.pas"/>
         <UnitName Value="Htmlsubs"/>
-        <CursorPos X="71" Y="13077"/>
+        <CursorPos X="35" Y="13070"/>
         <TopLine Value="13063"/>
         <EditorIndex Value="5"/>
         <UsageCount Value="81"/>
@@ -98,9 +98,11 @@
       <Unit7>
         <Filename Value="..\..\source\htmlview.pas"/>
         <UnitName Value="Htmlview"/>
-        <CursorPos X="49" Y="169"/>
-        <TopLine Value="139"/>
+        <CursorPos X="1" Y="1"/>
+        <TopLine Value="1"/>
+        <EditorIndex Value="6"/>
         <UsageCount Value="82"/>
+        <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
       </Unit7>
       <Unit8>
@@ -220,8 +222,8 @@
       <Unit22>
         <Filename Value="..\..\source\GDIPL2A.pas"/>
         <UnitName Value="GDIPL2A"/>
-        <CursorPos X="75" Y="391"/>
-        <TopLine Value="358"/>
+        <CursorPos X="3" Y="102"/>
+        <TopLine Value="69"/>
         <EditorIndex Value="3"/>
         <UsageCount Value="45"/>
         <Loaded Value="True"/>
@@ -290,7 +292,7 @@
         <UnitName Value="Unit1"/>
         <CursorPos X="1" Y="4"/>
         <TopLine Value="1"/>
-        <UsageCount Value="28"/>
+        <UsageCount Value="30"/>
       </Unit31>
       <Unit32>
         <Filename Value="FontDlg.lrs"/>
@@ -378,11 +380,39 @@
         <UsageCount Value="10"/>
       </Unit44>
     </Units>
-    <JumpHistory Count="1" HistoryIndex="0">
+    <JumpHistory Count="8" HistoryIndex="7">
       <Position1>
         <Filename Value="..\..\source\HTMLSubs.pas"/>
-        <Caret Line="6866" Column="34" TopLine="6833"/>
+        <Caret Line="13070" Column="35" TopLine="13063"/>
       </Position1>
+      <Position2>
+        <Filename Value="..\..\source\htmlview.pas"/>
+        <Caret Line="1373" Column="21" TopLine="1285"/>
+      </Position2>
+      <Position3>
+        <Filename Value="..\..\source\htmlview.pas"/>
+        <Caret Line="1340" Column="1" TopLine="1307"/>
+      </Position3>
+      <Position4>
+        <Filename Value="..\..\source\htmlview.pas"/>
+        <Caret Line="1341" Column="1" TopLine="1308"/>
+      </Position4>
+      <Position5>
+        <Filename Value="..\..\source\htmlview.pas"/>
+        <Caret Line="1342" Column="1" TopLine="1309"/>
+      </Position5>
+      <Position6>
+        <Filename Value="..\..\source\htmlview.pas"/>
+        <Caret Line="35" Column="47" TopLine="1"/>
+      </Position6>
+      <Position7>
+        <Filename Value="..\..\source\htmlview.pas"/>
+        <Caret Line="1322" Column="3" TopLine="1304"/>
+      </Position7>
+      <Position8>
+        <Filename Value="..\..\source\GDIPL2A.pas"/>
+        <Caret Line="391" Column="75" TopLine="358"/>
+      </Position8>
     </JumpHistory>
   </ProjectOptions>
   <CompilerOptions>
@@ -411,7 +441,7 @@
     </Other>
   </CompilerOptions>
   <Debugging>
-    <BreakPoints Count="4">
+    <BreakPoints Count="3">
       <Item1>
         <Source Value="..\..\source\HTMLUn2.pas"/>
         <Line Value="1938"/>
@@ -424,10 +454,6 @@
         <Source Value="..\..\source\HTMLUn2.pas"/>
         <Line Value="1870"/>
       </Item3>
-      <Item4>
-        <Source Value="..\..\source\HTMLSubs.pas"/>
-        <Line Value="13091"/>
-      </Item4>
     </BreakPoints>
     <Watches Count="1">
       <Item1>
