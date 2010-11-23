@@ -1,8 +1,5 @@
-{Version 10.1}
-{*********************************************************}
-{*                     FRAMVIEW.PAS                      *}
-{*********************************************************}
 {
+Version   10.2
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -22,8 +19,8 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Note that the source modules, HTMLGIF1.PAS, PNGZLIB1.PAS, DITHERUNIT.PAS, and
-URLCON.PAS are covered by separate copyright notices located in those modules.
+Note that the source modules HTMLGIF1.PAS and DITHERUNIT.PAS
+are covered by separate copyright notices located in those modules.
 }
 
 {$I htmlcons.inc}
@@ -38,8 +35,7 @@ uses
 
 type
   {common to TFrameViewer and TFrameBrowser}
-  THotSpotTargetClickEvent = procedure(Sender: TObject; const Target, URL: string;
-    var Handled: boolean) of object;
+  THotSpotTargetClickEvent = procedure(Sender: TObject; const Target, URL: string; var Handled: boolean) of object;
   THotSpotTargetEvent = procedure(Sender: TObject; const Target, URL: string) of object;
   TWindowRequestEvent = procedure(Sender: TObject; const Target, URL: string) of object;
   fvOptionEnum = (
@@ -50,17 +46,18 @@ type
   TFrameViewerOptions = set of fvOptionEnum;
 
   {for TFrameViewer}
-  TStreamRequestEvent = procedure(Sender: TObject; const SRC: string; var Stream: TStream) of object;
-  TBufferRequestEvent = procedure(Sender: TObject; const SRC: string; var Buffer: PChar; var BuffSize: integer) of object;
-  TStringsRequestEvent = procedure(Sender: TObject; const SRC: string; var Strings: TStrings) of object;
-  TFileRequestEvent = procedure(Sender: TObject; const SRC: string; var NewName: string) of object;
+
   EfvLoadError = class(Exception);
+  TBufferRequestEvent = procedure(Sender: TObject; const SRC: string; var Buffer: PChar; var BuffSize: integer) of object;
+  TFileRequestEvent = procedure(Sender: TObject; const SRC: string; var NewName: string) of object;
+  TStreamRequestEvent = procedure(Sender: TObject; const SRC: string; var Stream: TStream) of object;
+  TStringsRequestEvent = procedure(Sender: TObject; const SRC: string; var Strings: TStrings) of object;
 
   {common base class for TFrameViewer and TFrameBrowser}
 
-  THtmlViewerClass = class of THtmlViewer;
   TFrameSetBase = class;
   TFrameSetClass = class of TFrameSetBase;
+  THtmlViewerClass = class of THtmlViewer;
   TSubFrameSetBase = class;
   TSubFrameSetClass = class of TSubFrameSetBase;
 
@@ -68,9 +65,7 @@ type
   private
     FBackground: TColor;
     FBitmapList: TStringBitmapList;
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
     FCharset: TFontCharset;
-{$ENDIF}
     FCursor: TCursor;
 //BG, 21.08.2010: has no effect:    FDither: Boolean; 
     FFontColor: TColor;
@@ -233,9 +228,7 @@ type
     procedure SetViewImages(Value: boolean);
     procedure SetVisitedColor(Value: TColor);
     procedure SetVisitedMaxCount(Value: integer);
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
     procedure SetCharset(Value: TFontCharset);
-{$ENDIF}
     property Base: string read GetBase write SetBase;
     property BaseTarget: string read GetBaseTarget;
     property CurFrameSet: TFrameSetBase read FCurFrameSet;
@@ -289,9 +282,7 @@ type
     property FwdButtonEnabled: boolean read GetFwdButtonEnabled;
     property BackButtonEnabled: boolean read GetBackButtonEnabled;
   published
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
     property CharSet: TFontCharset read FCharSet write SetCharset;
-{$ENDIF}
     property Cursor: TCursor read FCursor write SetCursor default crIBeam;
     property DefBackground: TColor read FBackground write SetDefBackground default clBtnFace;
     property DefFontColor: TColor read FFontColor write SetFontColor default clBtnText;
@@ -352,9 +343,7 @@ type
     property VisitedMaxCount: integer read FVisitedMaxCount write SetVisitedMaxCount default 50;
 
     property Align;
-{$IFDEF ver120_plus}
     property Anchors;
-{$ENDIF}
     property Enabled;
     property PopupMenu;
     property ShowHint;
@@ -381,9 +370,7 @@ type
     FOwner: TSubFrameSetBase;
   protected
     UnLoaded: boolean;
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
     LocalCharSet: TFontCharset;
-{$ENDIF}
     procedure FVMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual; abstract;
     procedure FVMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); virtual; abstract;
     procedure FVMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual; abstract;
@@ -681,10 +668,8 @@ var
   S: string;
 begin
   inherited Create(AOwner);
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
   if AOwner is TSubFrameSetBase then
     LocalCharSet := TSubFrameSetBase(AOwner).LocalCharSet;
-{$ENDIF}
   FOwner := AOwner as TSubFrameSetBase;
   FMasterSet := Master;
   BevelInner := bvNone;
@@ -871,9 +856,7 @@ begin
   Viewer.SendToBack;
   Viewer.Visible := True;
   Viewer.Tabstop := True;
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
   Viewer.CharSet := LocalCharset;
-{$ENDIF}
   MasterSet.Viewers.Add(Viewer);
   with MasterSet.FrameViewer do
   begin
@@ -1494,10 +1477,8 @@ constructor TSubFrameSetBase.CreateIt(AOwner: TComponent; Master: TFrameSetBase)
 begin
   inherited Create(AOwner);
   FMasterSet := Master;
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
   if AOwner is TFrameBase then
     LocalCharSet := TSubFrameSetBase(AOwner).LocalCharSet;
-{$ENDIF}
   OuterBorder := 0; {no border for subframesets}
   if Self <> Master then
     BorderSize := Master.BorderSize;
@@ -2099,10 +2080,8 @@ procedure TSubFrameSetBase.HandleMeta(Sender: TObject; const HttpEq, Name, Conte
 var
   DelTime, I: integer;
 begin
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
   if CompareText(HttpEq, 'content-type') = 0 then
     TranslateCharset(Content, LocalCharset);
-{$ENDIF}
 
   with MasterSet.FrameViewer do
   begin
@@ -2170,9 +2149,7 @@ constructor TFrameSetBase.Create(AOwner: TComponent);
 begin
   inherited CreateIt(AOwner, Self);
   FFrameViewer := AOwner as TFvBase;
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
   LocalCharSet := FrameViewer.Charset;
-{$ENDIF}
   if fvNoBorder in FrameViewer.fvOptions then
     BorderSize := 0
   else
@@ -2617,9 +2594,7 @@ begin
   FMarginWidth := 10;
   FMarginHeight := 5;
   FOptions := [fvPrintTableBackground, fvPrintMonochromeBlack];
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
   FCharset := DEFAULT_CHARSET;
-{$ENDIF}
   Visited := TStringList.Create;
 
   FCurFrameSet := GetFrameSetClass.Create(Self);
@@ -4474,8 +4449,6 @@ begin
     AViewer.SelStart := Value;
 end;
 
-{$IFDEF ver100_plus} {Delphi 3,4,5, C++Builder 3, 4}
-
 procedure TFVBase.SetCharset(Value: TFontCharset);
 var
   I: integer;
@@ -4487,7 +4460,6 @@ begin
     FCharset := Value;
   end;
 end;
-{$ENDIF}
 
 procedure TFVBase.SetOnObjectTag(Handler: TObjectTagEvent);
 var

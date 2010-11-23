@@ -1,4 +1,6 @@
-{Version 10.00}
+{
+Version 10.2
+}
 
 {$I HtmlCons.inc}
 

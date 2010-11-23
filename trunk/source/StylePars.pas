@@ -1,8 +1,5 @@
-{Version 10.1}
-{*********************************************************}
-{*                    STYLEPARS.PAS                      *}
-{*********************************************************}
 {
+Version   10.2
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -22,8 +19,8 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Note that the source modules, HTMLGIF1.PAS, PNGZLIB1.PAS, DITHERUNIT.PAS, and
-URLCON.PAS are covered by separate copyright notices located in those modules.
+Note that the source modules HTMLGIF1.PAS and DITHERUNIT.PAS
+are covered by separate copyright notices located in those modules.
 }
 
 {$I htmlcons.inc}
@@ -282,24 +279,9 @@ begin
   end;
 end;
 
-{$IFNDEF ver120_plus}
-{Delphi 3 doesn't like this to be inside DoFont}
-type
-  FontEnum =
-    (italic, oblique, normal, bolder, lighter, bold, smallcaps,
-    larger, smaller, xxsmall, xsmall, small, medium, large,
-    xlarge, xxlarge);
-const
-  FontWords: array[italic..xxlarge] of string =
-  ('italic', 'oblique', 'normal', 'bolder', 'lighter', 'bold', 'small-caps',
-    'larger', 'smaller', 'xx-small', 'x-small', 'small', 'medium', 'large',
-    'x-large', 'xx-large');
-{$ENDIF}
-
 procedure DoFont(Styles: TObject; Selectors: TStringList; Prop, Value: string;
   Process: TProcessProc);
 { do the Font shorthand property specifier }
-{$IFDEF ver120_plus}
 type
   FontEnum =
     (italic, oblique, normal, bolder, lighter, bold, smallcaps,
@@ -310,7 +292,6 @@ const
   ('italic', 'oblique', 'normal', 'bolder', 'lighter', 'bold', 'small-caps',
     'larger', 'smaller', 'xx-small', 'x-small', 'small', 'medium', 'large',
     'x-large', 'xx-large');
-{$ENDIF}
 var
   S: array[0..6] of string;
   Count, I: integer;

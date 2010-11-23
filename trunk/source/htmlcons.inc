@@ -1,4 +1,4 @@
-{Version 10.01}
+{Version 10.02}
 
 { Identify Compiler Version:
 
@@ -22,6 +22,10 @@ Delphi 2            VER90
 Delphi 1            VER80
 
 Since Delphi 6 the version number can be found in the system constant System.CompilerVersion
+
+NOTICE: HtmlViewer no longer supports versions before Delphi 6
+BG, 20.11.2010: HtmlViewer sources use neither ver100_plus nor ver120_plus any more.
+We keep the defines alive for custom code which might still use them.
 }
 
 {$ifdef FPC}

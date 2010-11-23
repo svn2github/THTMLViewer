@@ -1,9 +1,6 @@
-{Version 10.1}
-{*********************************************************}
-{*                     HTMLSBS1.PAS                      *}
-{*********************************************************}
 {
-Copyright (c) 1995-2008 by L. David Baldwin
+Version   10.2
+Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -22,8 +19,8 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Note that the source modules, HTMLGIF1.PAS, PNGZLIB1.PAS, DITHERUNIT.PAS, and
-URLCON.PAS are covered by separate copyright notices located in those modules.
+Note that the source modules HTMLGIF1.PAS and DITHERUNIT.PAS
+are covered by separate copyright notices located in those modules.
 }
 
 {$I htmlcons.inc}
@@ -44,7 +41,6 @@ type
     Attributes: TStringList; {list of <option> attributes}
     destructor Destroy; override;
   end;
-
 
   ThtOptionStringList = class(TStringList)
   private

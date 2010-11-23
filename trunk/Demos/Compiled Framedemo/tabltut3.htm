@@ -19,7 +19,7 @@
   </TR>
 </TABLE>
 <PRE><CODE>
-   &lt;table border&gt;
+   &lt;table border="1"&gt;
    &lt;tr&gt;
      &lt;td&gt;1&lt;/td&gt;
      &lt;td&gt;2&lt;/td&gt;
@@ -41,7 +41,7 @@
   </TR>
 </TABLE>
 <PRE><CODE>
-&lt;table border&gt;
+&lt;table border="1"&gt;
 &lt;tr&gt;
   &lt;td&gt;1&lt;/td&gt;
   &lt;td&gt;2&lt;/td&gt;
@@ -68,7 +68,7 @@
   </TR>
 </TABLE>
 <PRE><CODE>
-&lt;table border&gt;
+&lt;table border="1"&gt;
 &lt;tr&gt;
   &lt;td&gt;1&lt;/td&gt;
   &lt;td&gt;2&lt;/td&gt;
@@ -84,51 +84,102 @@
 &lt;/table&gt;</CODE></PRE>
 
 <H4 CLASS="heading"><A NAME="Headings">Rows and/or Columns may have headings</A></H4>
-<TABLE border="1">
-  <TR>
-	 <TD></TD>
-	 <TH COLSPAN="3">Days of Week</TH>
-  </TR>
-  <TR>
-	 <TD></TD>
-	 <TH>Monday</TH>
-	 <TH>Tuesday</TH>
-	 <TH>Wednesday</TH>
-  </TR>
-  <TR>
-	 <TH>Week 1</TH>
-	 <TD>1</TD>
-	 <TD>2</TD>
-	 <TD>3</TD>
-  </TR>
-  <TR>
-	 <TH>Week 2</TH>
-	 <TD>4</TD>
-	 <TD>5</TD>
-	 <TD>6</TD>
-  </TR>
-</TABLE>
-<PRE><CODE>
-&lt;table border&gt;
-&lt;tr&gt;
-   &lt;td&gt;&lt;/td&gt;
-   &lt;th colspan=3&gt;Days of Week&lt;/th&gt;
-&lt;tr&gt;
-   &lt;td&gt;&lt;/td&gt;
-   &lt;th&gt;Monday&lt;/th&gt;
-   &lt;th&gt;Tuesday&lt;/th&gt;
-   &lt;th&gt;Wednesday&lt;/th&gt;
-&lt;tr&gt;
-   &lt;th&gt;Week 1&lt;/th&gt;
-   &lt;td&gt;1&lt;/td&gt;
-   &lt;td&gt;2&lt;/td&gt;
-   &lt;td&gt;3&lt;/td&gt;
-&lt;tr&gt;
-   &lt;th&gt;Week 2&lt;/th&gt;
-   &lt;td&gt;4&lt;/td&gt;
-   &lt;td&gt;5&lt;/td&gt;
-   &lt;td&gt;6&lt;/td&gt;
-&lt;/table&gt;  </CODE></PRE>
+<table width="100%">
+  <tr>
+    <td>
+      <TABLE border="1">
+        <TR>
+         <TD rowspan="2"></TD>
+         <TH COLSPAN="3">Days of Week</TH>
+        </TR>
+        <TR>
+         <TH>Monday</TH>
+         <TH>Tuesday</TH>
+         <TH>Wednesday</TH>
+        </TR>
+        <TR>
+         <TH>Week 1</TH>
+         <TD>1</TD>
+         <TD>2</TD>
+         <TD>3</TD>
+        </TR>
+        <TR>
+         <TH>Week 2</TH>
+         <TD>4</TD>
+         <TD>5</TD>
+         <TD>6</TD>
+        </TR>
+      </TABLE>
+      <PRE><CODE>
+      &lt;table border="1"&gt;
+      &lt;tr&gt;
+         &lt;td rowspan="2"&gt;&lt;/td&gt;
+         &lt;th colspan="3"&gt;Days of Week&lt;/th&gt;
+      &lt;tr&gt;
+         &lt;th&gt;Monday&lt;/th&gt;
+         &lt;th&gt;Tuesday&lt;/th&gt;
+         &lt;th&gt;Wednesday&lt;/th&gt;
+      &lt;tr&gt;
+         &lt;th&gt;Week 1&lt;/th&gt;
+         &lt;td&gt;1&lt;/td&gt;
+         &lt;td&gt;2&lt;/td&gt;
+         &lt;td&gt;3&lt;/td&gt;
+      &lt;tr&gt;
+         &lt;th&gt;Week 2&lt;/th&gt;
+         &lt;td&gt;4&lt;/td&gt;
+         &lt;td&gt;5&lt;/td&gt;
+         &lt;td&gt;6&lt;/td&gt;
+      &lt;/table&gt;
+      </CODE></PRE>
+    </td>
+    <td>
+      <TABLE border="1" style="empty-cells=show">
+        <TR>
+         <TD rowspan="2"></TD>
+         <TH COLSPAN="3">Days of Week</TH>
+        </TR>
+        <TR>
+         <TH>Monday</TH>
+         <TH>Tuesday</TH>
+         <TH>Wednesday</TH>
+        </TR>
+        <TR>
+         <TH>Week 1</TH>
+         <TD>1</TD>
+         <TD>2</TD>
+         <TD>3</TD>
+        </TR>
+        <TR>
+         <TH>Week 2</TH>
+         <TD>4</TD>
+         <TD>5</TD>
+         <TD>6</TD>
+        </TR>
+      </TABLE>
+      <PRE><CODE>
+      &lt;table border="1" <font color=red>style="empty-cells=show"</font>&gt;
+      &lt;tr&gt;
+         &lt;td rowspan="2"&gt;&lt;/td&gt;
+         &lt;th colspan="3"&gt;Days of Week&lt;/th&gt;
+      &lt;tr&gt;
+         &lt;th&gt;Monday&lt;/th&gt;
+         &lt;th&gt;Tuesday&lt;/th&gt;
+         &lt;th&gt;Wednesday&lt;/th&gt;
+      &lt;tr&gt;
+         &lt;th&gt;Week 1&lt;/th&gt;
+         &lt;td&gt;1&lt;/td&gt;
+         &lt;td&gt;2&lt;/td&gt;
+         &lt;td&gt;3&lt;/td&gt;
+      &lt;tr&gt;
+         &lt;th&gt;Week 2&lt;/th&gt;
+         &lt;td&gt;4&lt;/td&gt;
+         &lt;td&gt;5&lt;/td&gt;
+         &lt;td&gt;6&lt;/td&gt;
+      &lt;/table&gt;
+      </CODE></PRE>
+    </td>
+  </tr>
+</table>
 
 <H4 CLASS="heading"><A NAME="CellAlign">Alignment in cells can be controlled</A></H4>
 <TABLE border="1">
@@ -152,7 +203,7 @@
   </TR>
 </TABLE>
 <PRE><CODE>
-&lt;table border&gt;
+&lt;table border="1"&gt;
 &lt;tr&gt;
    &lt;td&gt;&lt;/td&gt;
    &lt;th colspan=3&gt;Alignment Attributes, Align and VAlign&lt;/th&gt;
@@ -196,7 +247,7 @@ Background colors can be added</A></H4>
   </TR>
 </TABLE>
 <PRE><CODE>
-&lt;table border&gt;
+&lt;table border="1"&gt;
 &lt;tr align=center&gt;
   &lt;td&gt;&lt;img src=&quot;glass.bmp&quot;&gt;&lt;br&gt;
       Images&lt;/td&gt;
@@ -228,7 +279,7 @@ table width and table width as a percentage of window width</A></H4>
   </TR>
 </TABLE>
 <PRE><CODE>
-&lt;table border width=75%&gt;
+&lt;table border="1" width="75%"&gt;
 &lt;tr&gt;
    &lt;td width=20%&gt;20%&lt;/td&gt;
    &lt;td width=50%&gt;50%&lt;/td&gt;
