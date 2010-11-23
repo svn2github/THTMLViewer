@@ -163,17 +163,32 @@ type
 
   THtmlFileType = (HTMLType, TextType, ImgType, OtherType);
 
+  THtmlViewerStateBit = (
+    vsBGFixed,
+    vsDontDraw,
+    vsCreating,
+    vsProcessing,
+    vsHotSpotAction,
+    vsMouseScrolling,
+    vsLeftButtonDown,
+    vsMiddleScrollOn,
+    vsHiliting);
+  THtmlViewerState = set of THtmlViewerStateBit;
+
+
   THTMLViewer = class(THtmlViewerBase)
   private
+    FViewerState: THtmlViewerState;
     vwP, OldPrinter: TvwPrinter;
     FScaleX, FScaleY: single;
     FCodePage: integer;
     FOnImageRequested: TGottenImageEvent;
     function GetCursor: TCursor;
+    function GetViewerStateBit(Index: THtmlViewerStateBit): Boolean;
+    procedure SetViewerStateBit(Index: THtmlViewerStateBit; Value: Boolean);
   protected
     FOnDragDrop: TDragDropEvent;
     FOnDragOver: TDragOverEvent;
-    DontDraw: boolean;
     FTitle: string;
     FURL: string;
     FTarget: string;
@@ -220,7 +235,6 @@ type
     FVisitedMaxCount: integer;
     FBackGround: TColor;
     FFontSize: integer;
-    FProcessing: boolean;
 // These fields are set in SubmitForm and read in WMFormSubmit
     FAction, FFormTarget, FEncType, FMethod: string;
     FStringList: TStringList;
@@ -235,11 +249,7 @@ type
     sbWidth: integer;
     ScrollWidth: integer;
     FMaxVertical: integer;
-    MouseScrolling: boolean;
-    LeftButtonDown: boolean;
-    MiddleScrollOn: boolean;
     MiddleY: integer;
-    Hiliting: boolean;
     FPrintMarginLeft,
       FPrintMarginRight,
       FPrintMarginTop,
@@ -250,7 +260,6 @@ type
     FPage: integer;
     FOnPageEvent: TPageEvent;
     FOnMouseDouble: TMouseEvent;
-    HotSpotAction: boolean;
     FMarginHeight, FMarginWidth: integer;
     FServerRoot: string;
     FSectionList: TSectionList;
@@ -263,7 +272,6 @@ type
     FOnParseBegin: TParseEvent;
     FOnParseEnd: TNotifyEvent;
     FTitleAttr: string;
-    BGFixed: boolean;
     FPrintScale: double;
     NoJump: boolean;
     FOnLinkDrawn: TLinkDrawnEvent;
@@ -502,7 +510,7 @@ type
     property History: TStrings read FHistory;
     property TitleHistory: TStrings read FTitleHistory;
     property HistoryIndex: integer read FHistoryIndex write SetHistoryIndex;
-    property Processing: boolean read FProcessing;
+    property Processing: boolean index vsProcessing read GetViewerStateBit;
     property SelStart: integer read FCaretPos write SetSelStart;
     property SelLength: integer read GetSelLength write SetSelLength;
     property SelText: WideString read GetSelText;
@@ -701,8 +709,8 @@ end;
 constructor THTMLViewer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  ControlStyle := [csAcceptsControls, csCaptureMouse, csClickEvents,
-    csSetCaption, csDoubleClicks];
+  ControlStyle := [csAcceptsControls, csCaptureMouse, csClickEvents, csSetCaption, csDoubleClicks];
+  Include(FViewerState, vsCreating);
   Height := 150;
   Width := 150;
   SetCursor(crIBeam);
@@ -793,11 +801,12 @@ begin
   // BG, 24.10.2010: there is no initial WMSize message, thus size child components now:
   DoScrollBars;
 {$endif}
+  Exclude(FViewerState, vsCreating);
 end;
 
 destructor ThtmlViewer.Destroy;
 begin
-  MiddleScrollOn := False;
+  Exclude(FViewerState, vsMiddleScrollOn);
   if LocalBitmapList then
   begin
     FSectionList.Clear;
@@ -827,14 +836,14 @@ begin
   if Assigned(FOnParseEnd) then
     FOnParseEnd(Self);
   try
-    DontDraw := True;
+    Include(FViewerState, vsDontDraw);
   {Load the background bitmap if any and if ViewImages set}
     FSectionList.GetBackgroundBitmap;
 
     DoLogic;
 
   finally
-    DontDraw := False;
+    Exclude(FViewerState, vsDontDraw);
   end;
 end;
 
@@ -869,7 +878,7 @@ begin
       raise(EInOutError.Create('Can''t locate file: ' + FName));
     FSectionList.ProgressStart := 75;
     htProgressInit;
-    DontDraw := True;
+    Include(FViewerState, vsDontDraw);
     InitLoad;
     CaretPos := 0;
     Sel1 := -1;
@@ -915,7 +924,7 @@ begin
         HScrollBar.Position := 0;
       end;
     {else if same file leave position alone}
-      DontDraw := False;
+      Exclude(FViewerState, vsDontDraw);
       PaintPanel.Invalidate;
     end;
   finally
@@ -936,7 +945,7 @@ var
   (*Stream: TMemoryStream;  //debugging aid
   Indent, Tree: string; *)
 begin
-  if FProcessing then
+  if vsProcessing in FViewerState then
     Exit;
   if Filename <> '' then
   begin
@@ -979,7 +988,7 @@ var
   OldType: ThtmlFileType;
   OldFormData: TFreeList;
 begin
-  if FProcessing then
+  if vsProcessing in FViewerState then
     Exit;
   if Filename <> '' then
   begin
@@ -1011,7 +1020,7 @@ var
   OldFormData: TFreeList;
 
 begin
-  if FProcessing then
+  if vsProcessing in FViewerState then
     Exit;
   if Filename <> '' then
   begin
@@ -1093,7 +1102,7 @@ var
   Dest, FName, OldFile: string;
 
 begin
-  if FProcessing then
+  if vsProcessing in FViewerState then
     Exit;
   SetProcessing(True);
   FRefreshDelay := 0;
@@ -1106,7 +1115,7 @@ begin
   end
   else
     Dest := '';
-  DontDraw := True;
+  Include(FViewerState, vsDontDraw);
   try
     OldFile := FCurrentFile;
     FCurrentFile := ExpandFileName(FName);
@@ -1138,7 +1147,7 @@ begin
   finally
     htProgressEnd;
     SetProcessing(False);
-    DontDraw := False;
+    Exclude(FViewerState, vsDontDraw);
   end;
 end;
 
@@ -1174,11 +1183,11 @@ var
   SaveOnImageRequest: TGetImageEvent;
   SBuffer: string;
 begin
-  if FProcessing or not Assigned(AStream) then
+  if (vsProcessing in FViewerState) or not Assigned(AStream) then
     Exit;
   SetProcessing(True);
   FRefreshDelay := 0;
-  DontDraw := True;
+  Include(FViewerState, vsDontDraw);
   try
     FSectionList.ProgressStart := 75;
     htProgressInit;
@@ -1226,7 +1235,7 @@ begin
     FCurrentFile := URL;
   finally
     htProgressEnd;
-    DontDraw := False;
+    Exclude(FViewerState, vsDontDraw);
     SetProcessing(False);
   end;
   if (FRefreshDelay > 0) and Assigned(FOnMetaRefresh) then
@@ -1357,8 +1366,8 @@ var
   end;
 begin
   HandleNeeded;
+  Include(FViewerState, vsDontDraw);
   try
-    DontDraw := True;
     if FBorderStyle = htNone then
       WFactor := 0
     else
@@ -1384,7 +1393,7 @@ begin
 
     DoScrollbars;
   finally
-    DontDraw := False;
+    Exclude(FViewerState, vsDontDraw);
   end;
 end;
 
@@ -1392,23 +1401,21 @@ procedure ThtmlViewer.HTMLPaint(Sender: TObject);
 var
   ARect: TRect;
 begin
-  if not DontDraw then
-  begin
-    ARect := Rect(0, 1, PaintPanel.Width, PaintPanel.Height);
-    FSectionList.Draw(PaintPanel.Canvas2, ARect, MaxHScroll,
-      -HScrollBar.Position, 0, 0, 0);
-  end;
+  if vsDontDraw in FViewerState then
+    exit;
+  ARect := Rect(0, 1, PaintPanel.Width, PaintPanel.Height);
+  FSectionList.Draw(PaintPanel.Canvas2, ARect, MaxHScroll, -HScrollBar.Position, 0, 0, 0);
 end;
 
 procedure ThtmlViewer.WMSize(var Message: TWMSize);
 begin
   inherited;
-  if not HandleAllocated then
+  if vsCreating in FViewerState then
     Exit;
-  if not FProcessing then
-    Layout
+  if vsProcessing in FViewerState then
+    DoScrollBars
   else
-    DoScrollBars;
+    Layout;
   if FMaxVertical < PaintPanel.Height then
     Position := 0
   else
@@ -1438,7 +1445,7 @@ procedure ThtmlViewer.Layout;
 var
   OldPos: integer;
 begin
-  if FProcessing then
+  if vsProcessing in FViewerState then
     Exit;
   SetProcessing(True);
   try
@@ -1605,25 +1612,24 @@ begin
   inherited MouseDown(Button, Shift, X, Y);
 
   SetFocus;
-  HotSpotAction := False;
-  if MiddleScrollOn then
+  Exclude(FViewerState, vsHotSpotAction);
+  if vsMiddleScrollOn in FViewerState then
   begin
-    MiddleScrollOn := False;
+    Exclude(FViewerState, vsMiddleScrollOn);
+    Exclude(FViewerState, vsMouseScrolling);
     PaintPanel.Cursor := Cursor;
-    MouseScrolling := False;
   end
   else if (Button = mbMiddle) and not (htNoWheelMouse in htOptions) then {comment this out to disable mouse middle button scrolling}
   begin
-    MiddleScrollOn := True;
+    Include(FViewerState, vsMiddleScrollOn);
     MiddleY := Y;
     PaintPanel.Cursor := UpDownCursor;
   end
   else if (Button = mbLeft) then
   begin
-    LeftButtonDown := True;
-    if not (htNoLinkHilite in FOptions)
-      or not (guUrl in GetURL(X, Y, Dummy, DummyFC, DummyTitle)) then
-      HiLiting := True;
+    Include(FViewerState, vsLeftButtonDown);
+    if not (htNoLinkHilite in FOptions) or not (guUrl in GetURL(X, Y, Dummy, DummyFC, DummyTitle)) then
+      Include(FViewerState, vsHiLiting);
     with FSectionList do
     begin
       Sel1 := FindCursor(PaintPanel.Canvas, X, Y + YOff, XR, YR, CaretHt, InText);
@@ -1740,11 +1746,11 @@ var
 begin
   inherited MouseMove(Shift, X, Y);
 
-  if MiddleScrollOn then
+  if vsMiddleScrollOn in FViewerState then
   begin
-    if not MouseScrolling and (Abs(Y - MiddleY) > ScrollGap) then
+    if not (vsMouseScrolling in FViewerState) and (Abs(Y - MiddleY) > ScrollGap) then
     begin
-      MouseScrolling := True;
+      Include(FViewerState, vsMouseScrolling);
       PostMessage(Handle, wm_MouseScroll, 0, 0);
     end;
     Exit;
@@ -1792,10 +1798,9 @@ begin
     if Assigned(FOnHotSpotCovered) then
       FOnHotSpotCovered(Self, URL);
   end;
-  if (ssLeft in Shift) and not MouseScrolling
-    and ((Y <= 0) or (Y >= Self.Height)) then
+  if (ssLeft in Shift) and not (vsMouseScrolling in FViewerState) and ((Y <= 0) or (Y >= Self.Height)) then
   begin
-    MouseScrolling := True;
+    Include(FViewerState, vsMouseScrolling);
     PostMessage(Handle, wm_MouseScroll, 0, 0);
   end;
   if (ssLeft in Shift) and not FNoSelect then
@@ -1817,12 +1822,12 @@ var
   I, ThisID: integer;
   ParentForm: TCustomForm;
 begin
-  if MiddleScrollOn then
+  if vsMiddleScrollOn in FViewerState then
   begin
   {cancel unless it's middle button and has moved}
     if (Button <> mbMiddle) or (Y <> MiddleY) then
     begin
-      MiddleScrollOn := False;
+      Exclude(FViewerState, vsMiddleScrollOn);
       PaintPanel.Cursor := Cursor;
     end;
     Exit;
@@ -1864,12 +1869,12 @@ begin
 
   if (Button = mbLeft) and not (ssShift in Shift) then
   begin
-    MouseScrolling := False;
+    Exclude(FViewerState, vsMouseScrolling);
     DoHilite(X, Y);
-    Hiliting := False;
+    Exclude(FViewerState, vsHiliting);
     FSectionList.LButtonDown(False);
-    TmpLeft := LeftButtonDown;
-    LeftButtonDown := False;
+    TmpLeft := vsLeftButtonDown in FViewerState;
+    Exclude(FViewerState, vsLeftButtonDown);
     if TmpLeft and (FSectionList.SelE <= FSectionList.SelB) then
     begin
       guResult := GetURL(X, Y, UrlTarget, FormControl, FTitleAttr);
@@ -1899,7 +1904,7 @@ begin
               break;
             end;
         UrlTarget.Free;
-        HotSpotAction := True; {prevent double click action}
+        Include(FViewerState, vsHotSpotAction); {prevent double click action}
         URLAction;
       {Note:  Self pointer may not be valid after URLAction call (TFrameViewer, HistoryMaxCount=0)}
       end;
@@ -2046,7 +2051,7 @@ var
   AWord: WideString;
 begin
   FSectionList.LButtonDown(True);
-  if FProcessing or HotSpotAction then
+  if FViewerState * [vsProcessing, vsHotSpotAction] <> [] then
     Exit;
   if not FNoSelect and GetWordAtCursor(Message.XPos, Message.YPos, St, En, AWord) then
   begin
@@ -2066,7 +2071,7 @@ var
   XR, CaretHt: integer;
   InText: boolean;
 begin
-  if Hiliting and (Sel1 >= 0) then
+  if (vsHiliting in FViewerState) and (Sel1 >= 0) then
     with FSectionList do
     begin
       YWin := Min(Max(0, Y), Height);
@@ -2103,8 +2108,10 @@ begin
   with VScrollBar do
   begin
     Pt := PaintPanel.ScreenToClient(Pt);
-    while MouseScrolling and (LeftButtonDown and ((Pt.Y <= 0) or (Pt.Y > Self.Height)))
-      or (MiddleScrollOn and (Abs(Pt.Y - MiddleY) > ScrollGap)) do
+    while (vsMouseScrolling in FViewerState) and
+         ((vsLeftButtonDown in FViewerState) and ((Pt.Y <= 0) or (Pt.Y > Self.Height))) or
+         ((vsMiddleScrollOn in FViewerState) and (Abs(Pt.Y - MiddleY) > ScrollGap))
+    do
     begin
       //BG, 23.10.2010; Issue 34: Possible to get AV in ThtmlViewer.WMMouseScroll
       // What steps will reproduce the problem?
@@ -2118,7 +2125,7 @@ begin
       if GetTickCount > Ticks + 100 then
       begin
         Ticks := GetTickCount;
-        if LeftButtonDown then
+        if vsLeftButtonDown in FViewerState then
         begin
           if Pt.Y < -15 then
             Pos := Position - Integer(SmallChange * 8)
@@ -2158,8 +2165,8 @@ begin
       Application.ProcessMessages;
     end;
   end;
-  MouseScrolling := False;
-  if MiddleScrollOn then
+  Exclude(FViewerState, vsMouseScrolling);
+  if vsMiddleScrollOn in FViewerState then
     PaintPanel.Cursor := UpDownCursor;
 end;
 
@@ -2193,12 +2200,29 @@ begin
     UrlTarg, FormControl, ATitle);
 end;
 
+//-- BG ---------------------------------------------------------- 23.11.2010 --
+function THTMLViewer.GetViewerStateBit(Index: THtmlViewerStateBit): boolean;
+begin
+  Result := Index in FViewerState;
+end;
+
+//-- BG ---------------------------------------------------------- 23.11.2010 --
+procedure THTMLViewer.SetViewerStateBit(Index: THtmlViewerStateBit; Value: Boolean);
+begin
+  if Value then
+    Include(FViewerState, Index)
+  else
+    Exclude(FViewerState, Index);
+end;
+
 procedure THTMLViewer.SetViewImages(Value: boolean);
 var
   OldPos: integer;
   OldCursor: TCursor;
 begin
-  if (Value <> FSectionList.ShowImages) and not FProcessing then
+  if vsProcessing in FViewerState then
+    exit;
+  if Value <> FSectionList.ShowImages then
   begin
     OldCursor := Screen.Cursor;
     try
@@ -2228,7 +2252,7 @@ var
   ReFormat: boolean;
 begin
   Result := False;
-  if FProcessing then
+  if vsProcessing in FViewerState then
     Exit;
   try
     SetProcessing(True);
@@ -2282,7 +2306,7 @@ end;
 
 procedure THTMLViewer.SetDefBackground(Value: TColor);
 begin
-  if FProcessing then
+  if vsProcessing in FViewerState then
     Exit;
   FBackground := Value;
   FSectionList.Background := Value;
@@ -2307,9 +2331,9 @@ var
 begin
   inherited KeyDown(Key, Shift);
 
-  if MiddleScrollOn then
+  if vsMiddleScrollOn in FViewerState then
   begin
-    MiddleScrollOn := False;
+    Exclude(FViewerState, vsMiddleScrollOn);
     PaintPanel.Cursor := Cursor;
     Exit;
   end;
@@ -2359,7 +2383,7 @@ begin
       FSectionList.SetYOffset(Pos);
 
       TheChange := OrigPos - Pos;
-      if not BGFixed and (abs(TheChange) = SmallChange) then
+      if not (vsBGFixed in FViewerState) and (abs(TheChange) = SmallChange) then
       begin {update only the scrolled part}
         ScrollWindow(PaintPanel.Handle, 0, TheChange, nil, nil);
         PaintPanel.Update;
@@ -2568,9 +2592,10 @@ var
   end;
 
 begin
+  if vsProcessing in FViewerState then
+    exit;
   with FHistory do
-    if (Value <> FHistoryIndex) and (Value >= 0) and (Value < Count)
-      and not FProcessing then
+    if (Value <> FHistoryIndex) and (Value >= 0) and (Value < Count) then
     begin
       if FCurrentFile <> '' then
       begin {save the current information}
@@ -3167,7 +3192,7 @@ var
   DocHeight: integer;
 begin
   Result := nil;
-  if FProcessing or (FSectionList.Count = 0) then
+  if (vsProcessing in FViewerState) or (FSectionList.Count = 0) then
     Exit;
   if Height > 4000 then
     raise EExcessiveSizeError.Create('Vertical Height exceeds 4000');
@@ -3218,7 +3243,7 @@ begin
   Done := False;
   Result := nil;
   TablePartRec := nil;
-  if FProcessing or (SectionList.Count = 0) then
+  if (vsProcessing in FViewerState) or (SectionList.Count = 0) then
     Exit;
   CopyList := TSectionList.CreateCopy(SectionList);
   try
@@ -3336,7 +3361,7 @@ var
 
 begin
   Result := nil;
-  if FProcessing or (FSectionList.Count = 0) then
+  if (vsProcessing in FViewerState) or (FSectionList.Count = 0) then
     Exit;
   if Height > 4000 then
     raise EExcessiveSizeError.Create('Vertical Height exceeds 4000');
@@ -3531,7 +3556,7 @@ begin
   if Assigned(FOnPageEvent) then
     FOnPageEvent(Self, 0, Done);
   FPage := 0;
-  if FProcessing or (FSectionList.Count = 0) then
+  if (vsProcessing in FViewerState) or (FSectionList.Count = 0) then
     Exit;
   PrintList := TSectionList.CreateCopy(FSectionList);
   PrintList.SetYOffset(0);
@@ -4080,7 +4105,7 @@ begin
     FOnPageEvent(Self, 0, Done);
   FPage := 0;
   Result := 0;
-  if FProcessing or (SectionList.Count = 0) then
+  if (vsProcessing in FViewerState) or (SectionList.Count = 0) then
     Exit;
   PrintList := TSectionList.CreateCopy(SectionList);
   PrintList.SetYOffset(0);
@@ -4622,7 +4647,7 @@ end;
 procedure ThtmlViewer.Clear;
 {Note: because of Frames do not clear history list here}
 begin
-  if FProcessing then
+  if vsProcessing in FViewerState then
     Exit;
   HTMLTimer.Enabled := False;
   FSectionList.Clear;
@@ -5130,11 +5155,11 @@ end;
 
 procedure ThtmlViewer.SetProcessing(Value: boolean);
 begin
-  if FProcessing <> Value then
+  if (vsProcessing in FViewerState) <> Value then
   begin
-    FProcessing := Value;
+    SetViewerStateBit(vsProcessing, Value);
     if Assigned(FOnProcessing) and not (csLoading in ComponentState) then
-      FOnProcessing(Self, FProcessing);
+      FOnProcessing(Self, vsProcessing in FViewerState);
   end;
 end;
 
@@ -5395,7 +5420,7 @@ var
   ARect: TRect;
   OldPal: HPalette;
 begin
-  if FViewer.DontDraw or (Canvas2 <> nil) then
+  if (vsDontDraw in FViewer.FViewerState) or (Canvas2 <> nil) then
     Exit;
   FViewer.DrawBorder;
   OldPal := 0;
@@ -5461,8 +5486,8 @@ begin
       BW := GetImageWidth(Image);
       BH := GetImageHeight(Image);
       PRec := FSectionList.BackgroundPRec;
-      BGFixed := PRec[1].Fixed;
-      if BGFixed then
+      SetViewerStateBit(vsBGFixed, PRec[1].Fixed);
+      if vsBGFixed in FViewerState then
       begin {fixed background}
         XOff := 0;
         YOff := 0;
@@ -5505,7 +5530,7 @@ begin
     end
     else
     begin {no background image, show color only}
-      BGFixed := False;
+      Exclude(FViewerState, vsBGFixed);
       DrawBackground(ACanvas, ARect, 0, 0, 0, 0, nil, nil, nil, 0, 0, Self.Color);
     end;
   end;
@@ -5615,7 +5640,7 @@ begin
     Self.SetPosition(SPos);
 
     FSectionList.SetYOffset(SPos);
-    if BGFixed then
+    if vsBGFixed in FViewerState then
       PaintPanel.Invalidate
     else
     begin {scroll background}
