@@ -295,7 +295,7 @@ type
     function GetSelLength: Integer;
     function GetSelText: WideString;
     function GetTitle: string;
-    function GetViewerStateBit(Index: THtmlViewerStateBit): Boolean;
+    //function GetViewerStateBit(Index: THtmlViewerStateBit): Boolean;
     function GetViewImages: Boolean;
     function GetWordAtCursor(X, Y: Integer; var St, En: Integer; var AWord: WideString): Boolean;
     procedure BackgroundChange(Sender: TObject);
@@ -413,7 +413,7 @@ type
     function MakeMetaFile(YTop, FormatWidth, Width, Height: Integer): TMetaFile;
     function MakePagedMetaFiles(Width, Height: Integer): TList;
 {$endif}
-    function NumPrinterPages(var WidthRatio: Double): Integer; overload;
+    function NumPrinterPages(out WidthRatio: Double): Integer; overload;
     function NumPrinterPages: Integer; overload;
     function PositionTo(Dest: string): Boolean;
     function PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: Boolean = False): Integer; virtual;
@@ -484,7 +484,7 @@ type
     property OnPageEvent: TPageEvent read FOnPageEvent write FOnPageEvent;
     property Palette: HPalette read GetOurPalette write SetOurPalette;
     property Position: Integer read GetPosition write SetPosition;
-    property Processing: Boolean index vsProcessing read GetViewerStateBit;
+    //property Processing: Boolean index vsProcessing read GetViewerStateBit;
     property SectionList: TSectionList read FSectionList;
     property SelLength: Integer read GetSelLength write SetSelLength;
     property SelStart: Integer read FCaretPos write SetSelStart;
@@ -493,9 +493,9 @@ type
     property TitleAttr: string read FTitleAttr;
     property TitleHistory: TStrings read FTitleHistory;
     property URL: string read FURL write FURL;
+    property ViewerState: THtmlViewerState read FViewerState;
     property VScrollBarPosition: Integer read GetScrollPos write SetScrollPos;
     property VScrollBarRange: Integer read GetScrollBarRange;
-
   published
     property Enabled;
     property TabStop;
@@ -2141,11 +2141,12 @@ begin
     UrlTarg, FormControl, ATitle);
 end;
 
-//-- BG ---------------------------------------------------------- 23.11.2010 --
-function THtmlViewer.GetViewerStateBit(Index: THtmlViewerStateBit): Boolean;
-begin
-  Result := Index in FViewerState;
-end;
+//BG, 25.11.2010: C++Builder fails handling enumeration indexed properties
+////-- BG ---------------------------------------------------------- 23.11.2010 --
+//function THtmlViewer.GetViewerStateBit(Index: THtmlViewerStateBit): Boolean;
+//begin
+//  Result := Index in FViewerState;
+//end;
 
 //-- BG ---------------------------------------------------------- 23.11.2010 --
 procedure THtmlViewer.SetViewerStateBit(Index: THtmlViewerStateBit; Value: Boolean);
@@ -3852,7 +3853,7 @@ begin
   Result := NumPrinterPages(Dummy);
 end;
 
-function THtmlViewer.NumPrinterPages(var WidthRatio: Double): Integer;
+function THtmlViewer.NumPrinterPages(out WidthRatio: Double): Integer;
 var
   MFPrinter: TMetaFilePrinter;
 begin
