@@ -1,34 +1,9 @@
-{Version 10.02}
-
-{ Identify Compiler Version:
-
-Compiler    Version Compiler Defined Symbol
-Delphi 2010   21    VER210
-Delphi 2009   20    VER200
-Delphi 2007   18.5  VER185
-Delphi 2006   18    VER180
-Delphi 2005   17    VER170
-Delphi 8      16    VER160
-Delphi 7      15    VER150
-Delphi 6      14    VER140
-C++Builder 5        VER130 BCB
-Delphi 5            VER130
-C++Builder 4        VER125
-Delphi 4            VER120
-C++Builder 3        VER110
-Delphi 3            VER100
-C++Builder 1        VER93
-Delphi 2            VER90
-Delphi 1            VER80
-
-Since Delphi 6 the version number can be found in the system constant System.CompilerVersion
-
-NOTICE: HtmlViewer no longer supports versions before Delphi 6
-BG, 20.11.2010: HtmlViewer sources use neither ver100_plus nor ver120_plus any more.
-We keep the defines alive for custom code which might still use them.
-}
+{Version 10.2}
 
 {$ifdef FPC}
+
+{ Identify FreePascal/Lazarus Compiler Version }
+
   {$define LCL}
   {$MODE Delphi}
 
@@ -46,6 +21,35 @@ We keep the defines alive for custom code which might still use them.
   {$define ver120_plus}
   {$define Delphi6_Plus}
 {$else}
+
+{ Identify Delphi Compiler Version:
+
+  Compiler    Version Compiler Defined Symbol
+  Delphi 2010   21    VER210
+  Delphi 2009   20    VER200
+  Delphi 2007   18.5  VER185
+  Delphi 2006   18    VER180
+  Delphi 2005   17    VER170
+  Delphi 8      16    VER160
+  Delphi 7      15    VER150
+  Delphi 6      14    VER140
+  C++Builder 5        VER130 BCB
+  Delphi 5            VER130
+  C++Builder 4        VER125
+  Delphi 4            VER120
+  C++Builder 3        VER110
+  Delphi 3            VER100
+  C++Builder 1        VER93
+  Delphi 2            VER90
+  Delphi 1            VER80
+
+  Since Delphi 6 the version number can be found in the system constant System.CompilerVersion
+
+  NOTICE: HtmlViewer no longer supports versions before Delphi 6
+  BG, 20.11.2010: HtmlViewer sources use neither ver100_plus nor ver120_plus any more.
+  We keep the defines alive for custom code which might still use them.
+}
+
   {$define VCL}
   {$ifdef CONDITIONALEXPRESSIONS} {Delphi 6 and up}
     {$define ver100_plus}
@@ -63,6 +67,16 @@ We keep the defines alive for custom code which might still use them.
             {$ifdef ver160}
             {$else}
               {$define Compiler17_Plus}
+              {$ifdef ver170}
+              {$else}
+                {$ifdef ver180}
+                {$else}
+                  {$ifdef ver185}
+                  {$else}
+                    {$define Compiler20_Plus}
+                  {$endif}
+                {$endif}
+              {$endif}
             {$endif}
           {$endif}
         {$endif}

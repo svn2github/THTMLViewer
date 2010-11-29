@@ -100,7 +100,6 @@ type
     FEncodePostArgs: boolean;
     InFormSubmit: boolean;
     function CurbrFrameSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif} {the TbrFrameSet being displayed}
-    function HotSpotClickHandled(const FullUrl: string): boolean;
     procedure LoadURLInternal(const URL, Dest, Query, EncType, Referer: string; IsGet, Reload: boolean);
     procedure PostRequest(
       Sender: TObject;
@@ -151,26 +150,6 @@ begin
       SL.Free;
     end;
   except
-  end;
-end;
-
-{----------------SplitURL}
-
-procedure SplitURL(const Src: string; var FName, Dest: string);
-{Split an URL into filename and Destination}
-var
-  I: integer;
-begin
-  I := Pos('#', Src);
-  if I >= 1 then
-  begin
-    Dest := System.Copy(Src, I, Length(Src) - I + 1); {local destination}
-    FName := System.Copy(Src, 1, I - 1); {the file name}
-  end
-  else
-  begin
-    FName := Src;
-    Dest := ''; {no local destination}
   end;
 end;
 
@@ -250,7 +229,7 @@ begin
   if not IsFullUrl(NextFile) then
     NextFile := CombineURL(UrlBase, NextFile);
 
-  SplitURL(NextFile, S, D);
+  SplitDest(NextFile, S, D);
   if (MasterSet.Viewers.Count = 1) then {load a new FrameSet}
     MasterSet.FrameViewer.LoadURLInternal(S, D, '', '', '', True, True)
   else
@@ -653,7 +632,7 @@ begin
     Exit;
   if Owner is TbrFrame then
   begin
-    SplitURL(NextFile, S, D);
+    SplitDest(NextFile, S, D);
     TbrFrame(Owner).frLoadFromBrzFile(S, D, '', '', '', True, True, True)
   end;
 end;
@@ -683,7 +662,7 @@ begin
   RefreshTimer.Enabled := False;
   if Self = MasterSet.FrameViewer.CurFrameSet then
   begin
-    SplitURL(NextFile, S, D);
+    SplitDest(NextFile, S, D);
     FrameViewer.LoadURLInternal(S, D, '', '', '', True, True);
   end;
 end;
@@ -757,7 +736,7 @@ var
 begin
   if not Processing then
   begin
-    SplitURL(Normalize(URL), S, D);
+    SplitDest(Normalize(URL), S, D);
     LoadURLInternal(S, D, '', '', '', True, False);
   end;
 end;
@@ -770,7 +749,7 @@ var
 begin
   if not Processing then
   begin
-    SplitURL(Normalize(URL), S, D);
+    SplitDest(Normalize(URL), S, D);
     LoadURLInternal(S, D, Query, EncType, '', IsGet, True);
   end;
 end;
@@ -812,7 +791,7 @@ begin
   Dummy :=
 {$ENDIF}
   IOResult; {remove any pending file errors}
-  //SplitURL(URL, S, Dest);
+  //SplitDest(URL, S, Dest);
   S := URL;
   try
     OldFile := CurbrFrameSet.FCurrentFile;
@@ -878,7 +857,6 @@ begin
         CurbrFrameSet.Repaint;
       end;
 
-      RemoveControl(OldFrameSet);
       BumpHistory(OldFrameSet, OldPos);
     end
     else
@@ -934,18 +912,6 @@ begin
   end;
 end;
 
-{----------------TFrameBrowser.HotSpotClickHandled:}
-
-function TFrameBrowser.HotSpotClickHandled(const FullUrl: string): boolean;
-var
-  Handled: boolean;
-begin
-  Handled := False;
-  if Assigned(OnHotSpotTargetClick) then
-    OnHotSpotTargetClick(Self, FTarget, FullUrl, Handled);
-  Result := Handled;
-end;
-
 {----------------TFrameBrowser.HotSpotClick}
 
 procedure TFrameBrowser.HotSpotClick(Sender: TObject; const AnURL: string; var Handled: boolean);
@@ -955,18 +921,17 @@ var
   FrameTarget: TFrameBase;
   S, Dest, FullUrl: string;
 begin
+  Handled := True;
   if Processing then
-  begin
-    Handled := True;
     Exit;
-  end;
+
   Viewer := (Sender as ThtmlViewer);
   FURL := AnURL;
   FTarget := GetActiveTarget;
   FLinkAttributes.Text := Viewer.LinkAttributes.Text;
   FLinkText := Viewer.LinkText;
 
-  SplitUrl(AnUrl, S, Dest);
+  SplitDest(AnUrl, S, Dest);
   S := ConvDosToHTML(S);
   if S = '' then
     FullUrl := (Viewer.FrameOwner as TbrFrame).Source
@@ -977,8 +942,7 @@ begin
   else
     FullUrl := CombineURL((Viewer.FrameOwner as TbrFrame).URLBase, S);
 
-  Handled := HotSpotClickHandled(FullUrl + Dest);
-  if not Handled then
+  if not HotSpotClickHandled(FullUrl + Dest) then
   begin
     Handled := True;
     if (FTarget = '') or (CompareText(FTarget, '_self') = 0) then {no target or _self target}
@@ -1038,7 +1002,7 @@ begin
   if Assigned(OnHotSpotTargetCovered) then
   begin
     Viewer := Sender as ThtmlViewer;
-    SplitUrl(SRC, S, Dest);
+    SplitDest(SRC, S, Dest);
     S := ConvDosToHTML(S); {convert DOS names}
     if IsFullURL(S) or (Src = '') then
       FullUrl := S

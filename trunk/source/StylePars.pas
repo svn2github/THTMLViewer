@@ -616,7 +616,7 @@ var
    number which serves to sort entries by time parsed.}
   var
     I, Cnt: integer;
-    Tmp: string;
+    //Tmp: string;
 
     function DoSort(St: string): string;
     begin
@@ -665,8 +665,8 @@ var
       if S <> '' then
         Result := DoSort(S) + ' ' + Result;
       I := Pos(' ', Result);
-      Str(Cnt, Tmp);
-      Insert(Tmp + Styles.GetSeqNo, Result, I + 1);
+      // Str(Cnt, Tmp);
+      Insert(IntToStr(Cnt) + Styles.GetSeqNo, Result, I + 1);
     end
     else
       Result := DoSort(S);

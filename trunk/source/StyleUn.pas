@@ -2380,7 +2380,7 @@ begin
   with Properties do
   begin
     Props[FontFamily] := PrefontName;
-    Props[FontSize] := '0.833em'; {10.0 / 12.0;}
+    Props[FontSize] := '0.83em'; {10.0 / 12.0;}
   end;
   AddObject('code', Properties);
   AddDuplicate('tt', Properties);
@@ -2401,7 +2401,7 @@ begin
   Properties := TProperties.Create;
   with Properties do
   begin
-    Props[FontSize] := '75%';
+    Props[FontSize] := '0.83em';
     Props[VerticalAlign] := 'super';
   end;
   AddObject('sup', Properties);
@@ -2409,7 +2409,7 @@ begin
   Properties := TProperties.Create;
   with Properties do
   begin
-    Props[FontSize] := '75%';
+    Props[FontSize] := '0.83em';
     Props[VerticalAlign] := 'sub';
   end;
   AddObject('sub', Properties);
@@ -2417,14 +2417,14 @@ begin
   Properties := TProperties.Create;
   with Properties do
   begin
-    Props[FontSize] := '1.25em';
+    Props[FontSize] := '1.17em';
   end;
   AddObject('big', Properties);
 
   Properties := TProperties.Create;
   with Properties do
   begin
-    Props[FontSize] := '0.75em';
+    Props[FontSize] := '0.83em';
   end;
   AddObject('small', Properties);
 

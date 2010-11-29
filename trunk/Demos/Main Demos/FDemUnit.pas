@@ -1,3 +1,28 @@
+{
+Version   10.2
+Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Note that the source modules HTMLGIF1.PAS and DITHERUNIT.PAS
+are covered by separate copyright notices located in those modules.
+}
+
 {$ifdef ver140}
 {$warn Symbol_Platform Off}
 {$endif}
@@ -32,7 +57,7 @@ uses
 {$endif}
   PreviewForm,
   {$ifdef UseXpMan} XpMan, {$endif} ComCtrls,
-  UrlSubs, FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, HTMLView, Submit, ImgForm;
+  UrlSubs, FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, Htmlview, DemoSubs, Submit, ImgForm;
 
 const
   MaxHistories = 6;  {size of History list}
@@ -213,9 +238,9 @@ procedure TForm1.HotSpotTargetClick(Sender: TObject; const Target, URL: string;
 const
   snd_Async = $0001;  { play asynchronously }
 var
-  PC: array[0..255] of char;
-  S, Params: string[255];
-  Ext: string[5];
+  PC: array[0..255] of {$ifdef Compiler20_Plus} WideChar {$else} AnsiChar {$endif};
+  S, Params: string;
+  Ext: string;
   I, J, K: integer;
   Viewer: ThtmlViewer;
   ID: string;
@@ -256,7 +281,7 @@ if (I <= 2) or (J > 0) then
   if K > 0 then
     begin
     Params := Copy(S, K+1, 255); {save any parameters}
-    S[0] := chr(K-1);            {truncate S}
+    setLength(S, K-1);            {truncate S}
     end
   else Params := '';
   S := (Sender as TFrameViewer).HTMLExpandFileName(S);
@@ -269,12 +294,12 @@ if (I <= 2) or (J > 0) then
   else if Ext = '.EXE' then
     begin
     Handled := True;
-    WinExec(StrPCopy(PC, S+' '+Params), sw_Show);
+    StartProcess(S + ' ' + Params, SW_SHOW);
     end
   else if (Ext = '.MID') or (Ext = '.AVI')  then
     begin
     Handled := True;
-    WinExec(StrPCopy(PC, 'MPlayer.exe /play /close '+S), sw_Show);
+    StartProcess('MPlayer.exe /play /close ' + S, SW_SHOW);
     end;
   {else ignore other extensions}
   Edit2.Text := URL;
@@ -410,7 +435,7 @@ procedure TForm1.HistoryChange(Sender: TObject);
 {This event occurs when something changes history list}
 var
   I: integer;
-  Cap: string[80];
+  Cap: string;
 begin
 with Sender as TFrameViewer do
   begin
@@ -554,9 +579,9 @@ end;
 procedure TForm1.WindowRequest(Sender: TObject; const Target,
   URL: string);
 var
-  S, Dest: string[255];
+  S, Dest: string;
   I: integer;
-  PC: array[0..255] of char;
+  PC: array[0..1023] of char;
 begin
 S := URL;
 I := Pos('#', S);
@@ -569,12 +594,12 @@ else
   Dest := '';    {no local destination}
 S := FrameViewer.HTMLExpandFileName(S);
 if FileExists(S) then
-   WinExec(StrPCopy(PC, ParamStr(0)+' "'+S+Dest+'"'), sw_Show);
+   StartProcess(StrPCopy(PC, ParamStr(0)+' "'+S+Dest+'"'), sw_Show);
 end;
 
 procedure TForm1.wmDropFiles(var Message: TMessage);
 var
-  S: string[200];
+  S: string;
   Count: integer;
 begin
   Count := DragQueryFile(Message.WParam, 0, @S[1], 200);
@@ -644,7 +669,7 @@ begin
         end
       else if ThePlayer = Nil then
         begin
-        if Sender is ThtmlViewer then
+        if Sender is THtmlViewer then
           Filename := ThtmlViewer(Sender).HTMLExpandFilename(SRC)
         else Filename := (Sender as TFrameViewer).HTMLExpandFilename(SRC);
         Notify := True;
@@ -786,7 +811,7 @@ procedure TForm1.OpenInNewWindowClick(Sender: TObject);
 var
   PC: array[0..255] of char;
 begin
-WinExec(StrPCopy(PC, ParamStr(0)+' "'+NewWindowFile+'"'), sw_Show);
+  StartProcess(StrPCopy(PC, ParamStr(0)+' "'+NewWindowFile+'"'), sw_Show);
 end;
 
 procedure TForm1.PrinterSetupClick(Sender: TObject);

@@ -8,14 +8,15 @@ uses
 {$ifdef LCL}
   Interfaces, LResources,
 {$endif}
-  PrintStatusForm in 'PRINTSTATUSFORM.PAS' {PrnStatusForm},
-  Gopage in 'GOPAGE.PAS' {GoPageForm},
-  PreviewForm in 'PREVIEWFORM.PAS' {PreviewForm},
-  FDemUnit in 'FDEMUNIT.PAS' {Form1},
-  Fontdlg in 'FONTDLG.PAS' {FontForm},
-  Submit in 'SUBMIT.PAS' {SubmitForm},
-  HTMLAbt in 'HTMLABT.PAS' {AboutBox},
-  ImgForm in 'IMGFORM.PAS' {ImageForm};
+  PRINTSTATUSFORM in 'PRINTSTATUSFORM.PAS' {PrnStatusForm},
+  GOPAGE in 'GOPAGE.PAS' {GoPageForm},
+  PREVIEWFORM in 'PREVIEWFORM.PAS' {PreviewForm},
+  FDEMUNIT in 'FDEMUNIT.PAS' {Form1},
+  FONTDLG in 'FONTDLG.PAS' {FontForm},
+  SUBMIT in 'SUBMIT.PAS' {SubmitForm},
+  Htmlabt in 'Htmlabt.pas' {AboutBox},
+  IMGFORM in 'IMGFORM.PAS' {ImageForm},
+  DemoSubs in 'DemoSubs.pas';
 
 {$R *.RES}
 

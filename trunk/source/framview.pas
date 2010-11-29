@@ -154,6 +154,7 @@ type
     function GetTitle: string;
     function GetViewerClass: THtmlViewerClass; virtual;
     function GetViewers: TStrings;
+    function HotSpotClickHandled(const FullUrl: string): Boolean;
     procedure AddVisitedLink(const S: string);
     procedure BeginProcessing;
     procedure BumpHistory(OldFrameSet: TFrameSetBase; OldPos: integer);
@@ -491,9 +492,9 @@ type
 
   TFrameSetBase = class(TSubFrameSetBase) {only one of these showing, others may be held as History}
   protected
-    FActive: THtmlViewer; {the most recently active viewer}
-    FCurrentFile: string;
-    FFrameViewer: TFvBase; //TFrameViewer;
+    FActive: THtmlViewer;  // the most recently active viewer
+    FCurrentFile: string;  // current filename or URL
+    FFrameViewer: TFvBase;
     FrameNames: TStringList; {list of Window names and their TFrames}
     Frames: TList; {list of all the Frames contained herein}
     FTitle: string;
@@ -572,12 +573,11 @@ type
     function CurFrameSet: TFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
     function GetFrameSetClass: TFrameSetClass; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
-    function HotSpotClickHandled: Boolean;
     procedure CheckVisitedLinks; override;
     procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: TStringList); override;
     procedure DoURLRequest(Sender: TObject; const SRC: string; var RStream: TMemoryStream); override;
     procedure HotSpotCovered(Sender: TObject; const SRC: string); override;
-    procedure LoadFromFileInternal(const FName: string);
+    procedure LoadFromFileInternal(const S, Dest: string);
     procedure SetOnFormSubmit(Handler: TFormSubmitEvent);
   public
     destructor Destroy; override;
@@ -639,26 +639,6 @@ begin
   end;
 end;
 
-{----------------SplitURL}
-
-procedure SplitURL(const Src: string; var FName, Dest: string);
-{Split an URL into filename and Destination}
-var
-  I: integer;
-begin
-  I := Pos('#', Src);
-  if I >= 1 then
-  begin
-    Dest := System.Copy(Src, I, Length(Src) - I + 1); {local destination}
-    FName := System.Copy(Src, 1, I - 1); {the file name}
-  end
-  else
-  begin
-    FName := Src;
-    Dest := ''; {no local destination}
-  end;
-end;
-
 {----------------TViewerFrameBase.CreateIt}
 
 constructor TViewerFrameBase.CreateIt(AOwner: TComponent; L: TAttributeList;
@@ -689,7 +669,7 @@ begin
         case Which of
           SrcSy:
             begin
-              SplitUrl(Trim(Name), S, Destination);
+              SplitDest(Trim(Name), S, Destination);
               Source := ExpandSourceName(HtmlSubs.Base, Path, S);
               OrigSource := Source;
             end;
@@ -768,19 +748,22 @@ begin
 end;
 
 procedure TfvFrame.RefreshTimerTimer(Sender: TObject);
+var
+  S, D: string;
 begin
   RefreshTimer.Enabled := False;
   if Unloaded then
     Exit;
+  SplitDest(NextFile, S, D);
   if (MasterSet.Viewers.Count = 1) then {load a new FrameSet}
   begin
     if CompareText(NextFile, MasterSet.FCurrentFile) = 0 then
       (MasterSet.FrameViewer as TFrameViewer).Reload
     else
-      (MasterSet.FrameViewer as TFrameViewer).LoadFromFileInternal(NextFile);
+      (MasterSet.FrameViewer as TFrameViewer).LoadFromFileInternal(S, D);
   end
   else
-    frLoadFromFile(NextFile, '', True, True); {reload set}
+    frLoadFromFile(S, D, True, True); {reload set}
 end;
 
 procedure TViewerFrameBase.RePaint;
@@ -840,7 +823,6 @@ procedure TViewerFrameBase.CreateViewer;
 begin
 //  FViewer := THtmlViewer.Create(Self); {the Viewer for the frame}
   FViewer := MasterSet.FrameViewer.CreateViewer(Self); {the Viewer for the frame}
-  Viewer.FrameOwner := Self;
   Viewer.Width := ClientWidth;
   Viewer.Height := ClientHeight;
   Viewer.Align := alClient;
@@ -851,10 +833,10 @@ begin
   if NoScroll then
     Viewer.Scrollbars := ssNone;
 //  Viewer.DefBackground := MasterSet.FrameViewer.FBackground;
-  Viewer.Visible := False;
-  InsertControl(Viewer);
-  Viewer.SendToBack;
-  Viewer.Visible := True;
+//  Viewer.Visible := False;
+  Viewer.Parent := Self;
+//  Viewer.SendToBack;
+//  Viewer.Visible := True;
   Viewer.Tabstop := True;
   Viewer.CharSet := LocalCharset;
   MasterSet.Viewers.Add(Viewer);
@@ -2138,7 +2120,7 @@ begin
     Exit;
   if Owner is TViewerFrameBase then
   begin
-    SplitURL(NextFile, S, D);
+    SplitDest(NextFile, S, D);
     TViewerFrameBase(Owner).frLoadFromFile(S, D, True, True);
   end;
 end;
@@ -2396,8 +2378,7 @@ begin
   EV.LStyle := lsFile;
   Img := ImageFile(FName) and not RequestEvent;
   Tex := TexFile(FName) and not RequestEvent;
-  if Img or Tex or
-    not TriggerEvent(FName, @EV) then
+  if Img or Tex or not TriggerEvent(FName, @EV) then
   begin
     EV.NewName := ExpandFileName(FName);
     FCurrentFile := EV.NewName;
@@ -2407,8 +2388,7 @@ begin
     FCurrentFile := FName;
   end;
   FRefreshDelay := 0;
-  if not Img and not Tex
-    and IsFrameString(EV.LStyle, EV.NewName, EV.AString, MasterSet.FrameViewer) then
+  if not Img and not Tex and IsFrameString(EV.LStyle, EV.NewName, EV.AString, MasterSet.FrameViewer) then
   begin {it's a Frameset html file}
     FrameParseString(MasterSet.FrameViewer, Self, EV.LStyle, EV.NewName, EV.AString, HandleMeta);
     for I := 0 to List.Count - 1 do
@@ -2499,10 +2479,15 @@ begin
 end;
 
 procedure TFrameSet.RefreshTimerTimer(Sender: Tobject);
+var
+  S, D: string;
 begin
   RefreshTimer.Enabled := False;
   if (Self = MasterSet.FrameViewer.CurFrameSet) then
-    FrameViewer.LoadFromFileInternal(NextFile);
+  begin
+    SplitDest(NextFile, S, D);
+    FrameViewer.LoadFromFileInternal(S, D);
+  end;
 end;
 
 {----------------TFrameSetBase.ClearForwards}
@@ -2680,26 +2665,23 @@ end;
 
 procedure TFrameViewer.LoadFromFile(const FName: string);
 var
-  S, Dest: string;
+  S, D: string;
 begin
-  if not Processing then
-  begin
-    SplitURL(FName, S, Dest);
-    if not FileExists(S) then
-      raise(EfvLoadError.Create('Can''t locate file: ' + S));
-    LoadFromFileInternal(FName);
-  end;
+  if Processing then
+    exit;
+  SplitDest(FName, S, D);
+  if not FileExists(S) then
+    raise(EfvLoadError.Create('Can''t locate file: ' + S));
+  LoadFromFileInternal(S, D);
 end;
 
 {----------------TFrameViewer.LoadFromFileInternal}
 
-procedure TFrameViewer.LoadFromFileInternal(const FName: string);
+procedure TFrameViewer.LoadFromFileInternal(const S, Dest: string);
 var
   OldFrameSet: TFrameSet;
-  OldFile, S, Dest: string;
   OldPos: integer;
   Tmp: TObject;
-  SameName: boolean;
 {$IFDEF Windows}
   Dummy: integer;
 {$ENDIF}
@@ -2709,87 +2691,67 @@ begin
   Dummy :=
 {$ENDIF}
   IOResult; {remove any pending file errors}
-  SplitURL(FName, S, Dest);
+  SendMessage(Handle, wm_SetRedraw, 0, 0);
   try
-    OldFile := CurFrameSet.FCurrentFile;
     ProcessList.Clear;
     if Assigned(OnSoundRequest) then
       OnSoundRequest(Self, '', 0, True);
-    SameName := CompareText(OldFile, S) = 0;
-    if not SameName then
+    OldPos := 0;
+    if CurFrameSet.Viewers.Count = 1 then
+    begin
+      Tmp := CurFrameSet.Viewers[0];
+      if Tmp is THtmlViewer then
+        OldPos := THtmlViewer(Tmp).Position;
+    end;
+    if CompareText(CurFrameSet.FCurrentFile, S) <> 0 then
     begin
       OldFrameSet := CurFrameSet;
       FCurFrameSet := GetFrameSetClass.Create(Self);
-      CurFrameSet.Align := alClient;
-      CurFrameSet.visible := False;
-      InsertControl(CurFrameSet);
-      CurFrameSet.SendToBack;
-      CurFrameSet.Visible := True;
-
       try
+        CurFrameSet.Align := alClient;
+        CurFrameSet.Parent := Self;
+        CurFrameSet.SendToBack;
         CurFrameSet.LoadFromFile(S, Dest);
+        CurFrameSet.FCurrentFile := S;
       except
-        RemoveControl(CurFrameSet);
         CurFrameSet.Free;
         FCurFrameSet := OldFrameSet;
         raise;
       end;
-
-      OldPos := 0;
-      if (OldFrameSet.Viewers.Count = 1) then
-      begin
-        Tmp := OldFrameSet.Viewers[0];
-        if Tmp is THtmlViewer then
-          OldPos := THtmlViewer(Tmp).Position;
-      end;
+      CurFrameSet.BringToFront;
+      OldFrameSet.Visible := False;
       OldFrameSet.UnloadFiles;
-      CurFrameSet.Visible := True;
-      if Visible then
-      begin
-        SendMessage(Handle, wm_SetRedraw, 0, 0);
-        try
-          CurFrameSet.BringToFront;
-        finally
-          SendMessage(Handle, wm_SetRedraw, 1, 0);
-          Repaint;
-        end;
-        CurFrameSet.Repaint;
-      end;
-      RemoveControl(OldFrameSet);
       BumpHistory(OldFrameSet, OldPos);
     end
     else
     begin {Same Name}
-      OldPos := 0;
-      if (CurFrameSet.Viewers.Count = 1) then
-      begin
-        Tmp := CurFrameSet.Viewers[0];
-        if Tmp is THtmlViewer then
-          OldPos := THtmlViewer(Tmp).Position;
-      end;
-      SendMessage(Handle, wm_SetRedraw, 0, 0);
-      try
-        CurFrameSet.LoadFromFile(S, Dest);
-      finally
-        SendMessage(Handle, wm_SetRedraw, 1, 0);
-        Repaint;
-      end;
+      CurFrameSet.LoadFromFile(S, Dest);
       BumpHistory2(OldPos); {not executed if exception occurs}
     end;
     AddVisitedLink(S + Dest);
     CheckVisitedLinks;
   finally
+    SendMessage(Handle, wm_SetRedraw, 1, 0);
     EndProcessing;
+    Repaint;
   end;
 end;
 
 {----------------TFrameViewer.Load}
 
 procedure TFrameViewer.Load(const SRC: string);
+var
+  S, D: string;
 begin
-  if Assigned(FOnStringsRequest) or Assigned(FOnStreamRequest)
-    or Assigned(FOnBufferRequest) or Assigned(FOnFileRequest) then
-    LoadFromFileInternal(SRC);
+  if Assigned(FOnStringsRequest) or
+     Assigned(FOnStreamRequest) or
+     Assigned(FOnBufferRequest) or
+     Assigned(FOnFileRequest)
+  then
+  begin
+    SplitDest(SRC, S, D);
+    LoadFromFileInternal(S, D);
+  end;
 end;
 
 {----------------TFrameViewer.LoadTargetFromFile}
@@ -2804,36 +2766,33 @@ begin
   if Processing then
     Exit;
 
+  SplitDest(FName, S, Dest);
   if CurFrameSet.FrameNames.Find(Target, I) then
-    FrameTarget := (CurFrameSet.FrameNames.Objects[I] as TViewerFrameBase)
-  else if (Target = '') or (CompareText(Target, '_top') = 0) or
-    (CompareText(Target, '_parent') = 0) or (CompareText(Target, '_self') = 0) then
   begin
-    LoadFromFileInternal(Fname);
-    Exit;
+    FrameTarget := (CurFrameSet.FrameNames.Objects[I] as TViewerFrameBase);
+
+    if not FileExists(S) and not Assigned(OnStreamRequest) then
+      raise(EfvLoadError.Create('Can''t locate file: ' + S));
+
+    BeginProcessing;
+    try
+      if FrameTarget is TViewerFrameBase then
+        TViewerFrameBase(FrameTarget).frLoadFromFile(S, Dest, True, False)
+      else if FrameTarget is TSubFrameSetBase then
+        TSubFrameSetBase(FrameTarget).LoadFromFile(S, Dest);
+    finally
+      EndProcessing;
+    end;
   end
-  else
-  begin {_blank or unknown target}
+  else if (Target = '') or
+    (CompareText(Target, '_top') = 0) or
+    (CompareText(Target, '_parent') = 0) or
+    (CompareText(Target, '_self') = 0)
+  then
+    LoadFromFileInternal(S, Dest)
+  else {_blank or unknown target}
     if Assigned(OnBlankWindowRequest) then
       OnBlankWindowRequest(Self, Target, FName);
-    Exit;
-  end;
-
-  SplitURL(FName, S, Dest);
-
-  if not FileExists(S) and not Assigned(OnStreamRequest) then
-    raise(EfvLoadError.Create('Can''t locate file: ' + S));
-
-  BeginProcessing;
-  try
-    if FrameTarget is TViewerFrameBase then
-      TViewerFrameBase(FrameTarget).frLoadFromFile(S, Dest, True, False)
-    else if FrameTarget is TSubFrameSetBase then
-      TSubFrameSetBase(FrameTarget).LoadFromFile(S, Dest);
-  finally
-    //BG, 05.01.2010: this was the only location, where FProcessing was set to False after the notification.
-    EndProcessing;
-  end;
 end;
 
 {----------------TFrameViewer.LoadImageFile}
@@ -2969,16 +2928,13 @@ begin
     OnSoundRequest(Self, '', 0, True);
 end;
 
-{----------------TFrameViewer.HotSpotClickHandled:}
+{----------------TFVBase.HotSpotClickHandled:}
 
-function TFrameViewer.HotSpotClickHandled: boolean;
-var
-  Handled: boolean;
+function TFVBase.HotSpotClickHandled(const FullUrl: string): boolean;
 begin
-  Handled := False;
+  Result := False;
   if Assigned(OnHotSpotTargetClick) then
-    OnHotSpotTargetClick(Self, FTarget, FURL, Handled);
-  Result := Handled;
+    OnHotSpotTargetClick(Self, FTarget, FURL, Result);
 end;
 
 {----------------TFrameViewer.HotSpotClick}
@@ -2990,44 +2946,22 @@ var
   FrameTarget: TFrameBase;
   S, Dest, Query: string;
 begin
+  Handled := True;
   if Processing then
-  begin
-    Handled := True;
     Exit;
-  end;
+
   Viewer := (Sender as THtmlViewer);
   FURL := AnURL;
   FTarget := GetActiveTarget;
   FLinkAttributes.Text := Viewer.LinkAttributes.Text;
   FLinkText := Viewer.LinkText;
 
-  Handled := HotSpotClickHandled;
-  if not Handled then
+  SplitDest(AnURL, S, Dest);
+  SplitQuery(S, Query);
+  if (S <> '') and not CurFrameSet.RequestEvent then
+    S := Viewer.HTMLExpandFileName(S);
+  if not HotSpotClickHandled(S) then
   begin
-    Handled := True;
-
-    S := AnURL;
-    I := Pos('#', S);
-    if I >= 1 then
-    begin
-      Dest := System.Copy(S, I, Length(S) - I + 1); {local destination}
-      S := System.Copy(S, 1, I - 1); {the file name}
-    end
-    else
-      Dest := ''; {no local destination}
-
-    I := Pos('?', S); {remove any query string}
-    if I >= 1 then
-    begin
-      Query := System.Copy(S, I, Length(S) - I + 1);
-      S := System.Copy(S, 1, I - 1); {the file name}
-    end
-    else
-      Query := '';
-
-    if (S <> '') and not CurFrameSet.RequestEvent then
-      S := Viewer.HTMLExpandFileName(S);
-
     if (FTarget = '') or (CompareText(FTarget, '_self') = 0) then {no target or _self target}
     begin
       FrameTarget := Viewer.FrameOwner as TViewerFrameBase;
@@ -3066,7 +3000,7 @@ begin
       if FrameTarget is TViewerFrameBase then
         TViewerFrameBase(FrameTarget).frLoadFromFile(S, Dest, True, False)
       else if FrameTarget is TFrameSetBase then
-        Self.LoadFromFileInternal(S + Dest)
+        Self.LoadFromFileInternal(S, Dest)
       else if FrameTarget is TSubFrameSetBase then
         TSubFrameSetBase(FrameTarget).LoadFromFile(S, Dest);
       if Query <> '' then
@@ -3223,7 +3157,7 @@ var
   I: integer;
   Obj: TObject;
 begin
-  if (FHistoryMaxCount > 0) and (CurFrameSet.FCurrentFile <> '') then
+  if (FHistoryMaxCount > 0) and (OldFrameSet.FCurrentFile <> '') then
     with FHistory do
     begin
       if (Count > 0) then
@@ -3232,6 +3166,7 @@ begin
         Objects[FHistoryIndex] := OldFrameSet;
         FTitleHistory[FHistoryIndex] := OldFrameSet.FTitle;
         FPosition[FHistoryIndex] := TObject(OldPos);
+        OldFrameSet.Parent := nil;
         OldFrameSet.ClearForwards;
       end
       else
@@ -4783,7 +4718,6 @@ begin
         end;
         CurFrameSet.Repaint;
       end;
-      RemoveControl(OldFrameSet);
       BumpHistory(OldFrameSet, OldPos);
     end
     else

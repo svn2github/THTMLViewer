@@ -133,6 +133,10 @@ function TransparentStretchBlt(DstDC: HDC; DstX, DstY, DstW, DstH: Integer;
   MaskY: Integer): Boolean;
 {$endif}
 
+// UNICODE dependent loading string methods
+function LoadStringFromStream(Stream: TStream): String;
+function LoadStringFromFile(const Name: String): String;
+
 //{$ifdef UnitConstsMissing}
 //const
 //  SOutOfResources	= 'Out of system resources';
@@ -401,6 +405,61 @@ begin
 end;
 {$endif}
 
+function LoadStringFromStream(Stream: TStream): String;
+var
+{$IFDEF UNICODE}
+  BStream: TStringStream;
+{$ELSE}
+  BStream: TMemoryStream;
+{$ENDIF}
+begin
+{$IFDEF UNICODE}
+  BStream := TStringStream.Create('', TEncoding.Default);
+  try
+    BStream.LoadFromStream(Stream);
+    Result := BStream.DataString;
+  finally
+    BStream.Free;
+  end;
+{$ELSE}
+  BStream := TMemoryStream.Create;
+  try
+    BStream.LoadFromStream(Stream);
+    SetLength(Result, BStream.Size);
+    Move(BStream.Memory^, Result[1], BStream.Size);
+  finally
+    BStream.Free;
+  end;
+{$ENDIF}
+end;
+
+function LoadStringFromFile(const Name: String): String;
+var
+{$IFDEF UNICODE}
+  BStream: TStringStream;
+{$ELSE}
+  BStream: TMemoryStream;
+{$ENDIF}
+begin
+{$IFDEF UNICODE}
+  BStream := TStringStream.Create('', TEncoding.Default);
+  try
+    BStream.LoadFromFile(Name);
+    Result := BStream.DataString;
+  finally
+    BStream.Free;
+  end;
+{$ELSE}
+  BStream := TMemoryStream.Create;
+  try
+    BStream.LoadFromFile(Name);
+    SetLength(Result, BStream.Size);
+    Move(BStream.Memory^, Result[1], BStream.Size);
+  finally
+    BStream.Free;
+  end;
+{$ENDIF}
+end;
 
 { initialization }
 

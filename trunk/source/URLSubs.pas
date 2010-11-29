@@ -28,13 +28,23 @@ interface
 
 {$I htmlcons.inc}
 
-
 {***************************************************************************************************
  * URL processing methods
  **************************************************************************************************}
 
 procedure ParseURL(const url: string; var Proto, User, Pass, Host, Port, Path: string);
 {François PIETTE's URL parsing procedure}
+
+procedure SplitString(var Str: string; Sep: Char; out Spall: string);
+{Split Str at first appearance of Sep into Str and Spall. Spall starts with Sep.}
+
+procedure SplitDest(const Src: string; out Name, Dest: string); overload;
+procedure SplitDest(var Src: string; out Dest: string); overload;
+{Split local destination from an URL at first appearance of '#', returns Dest with separating '#'}
+
+procedure SplitQuery(const Src: string; out Name, Query: string); overload;
+procedure SplitQuery(var Src: string; out Query: string); overload;
+{Split query from an URL at first appearance of '?', returns Query with separating '?'}
 
 function GetBase(const URL: string): string; deprecated;
 function GetURLBase(const URL: string): string;
@@ -457,6 +467,45 @@ begin
     User := Copy(s, 1, p - 1);
     Pass := Copy(s, p + 1, Length(s));
   end;
+end;
+
+//-- BG ---------------------------------------------------------- 28.11.2010 --
+procedure SplitString(var Str: string; Sep: Char; out Spall: string);
+// extracted from several locations spread all over the code.
+var
+  I: Integer;
+begin
+  I := Pos(Sep, Str) - 1; // '-1' will be needed in both copy()s and comparing with 0 is faster.
+  if I >= 0 then
+  begin
+    Spall := System.Copy(Str, I + 1, Length(Str) - I);
+    Str   := System.Copy(Str, 1, I);
+  end
+  else
+    Spall := '';
+end;
+
+procedure SplitDest(var Src: string; out Dest: string); overload;
+begin
+  SplitString(Src, '#', Dest);
+end;
+
+procedure SplitDest(const Src: string; out Name, Dest: string); overload;
+{Split an URL into filename and Destination}
+begin
+  Name := Src;
+  SplitString(Name, '#', Dest);
+end;
+
+procedure SplitQuery(var Src: string; out Query: string); overload;
+begin
+  SplitString(Src, '?', Query);
+end;
+
+procedure SplitQuery(const Src: string; out Name, Query: string); overload;
+begin
+  Name := Src;
+  SplitString(Name, '?', Query);
 end;
 
 function DosToHTML(FName: string): string;

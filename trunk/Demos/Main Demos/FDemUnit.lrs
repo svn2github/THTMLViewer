@@ -25,7 +25,7 @@ LazarusResources.Add('TForm1','FORMDATA',[
   +'Navy'#15'HistoryMaxCount'#2#6#7'CharSet'#7#15'DEFAULT_CHARSET'#12'OnProcess'
   +'ing'#7#17'ProcessingHandler'#5'Align'#7#8'alClient'#8'TabOrder'#2#1#11'OnMo'
   +'useMove'#7#20'FrameViewerMouseMove'#12'OnFormSubmit'#7#11'SubmitEvent'#9'fv'
-  +'Options'#11#13'fvMetaRefresh'#17'fvOverLinksActive'#22'fvPrintMonochromeBla'
+  +'Options'#11#13'fvMetaRefresh'#10'fvNoBorder'#17'fvOverLinksActive'#22'fvPrintMonochromeBla'
   +'ck'#22'fvPrintTableBackground'#13'fvShowVScroll'#0#10'OnProgress'#7#19'Fram'
   +'eViewerProgress'#0#0#6'TPanel'#6'Panel1'#4'Left'#2#0#3'Top'#2#0#5'Width'#3
   +#238#1#6'Height'#2#25#5'Align'#7#5'alTop'#10'BevelOuter'#7#6'bvNone'#8'TabOr'

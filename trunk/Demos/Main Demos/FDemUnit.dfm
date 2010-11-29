@@ -27,7 +27,6 @@ object Form1: TForm1
     Alignment = taLeftJustify
     BevelInner = bvLowered
     TabOrder = 0
-    ExplicitTop = 249
     object ProgressBar: TProgressBar
       Left = 342
       Top = 2
@@ -48,7 +47,7 @@ object Form1: TForm1
     DefFontName = 'Times New Roman'
     DefHotSpotColor = clNavy
     DefPreFontName = 'Courier New'
-    fvOptions = [fvMetaRefresh, fvOverLinksActive, fvPrintMonochromeBlack, fvPrintTableBackground, fvShowVScroll]
+    fvOptions = [fvMetaRefresh, fvNoBorder, fvOverLinksActive, fvPrintMonochromeBlack, fvPrintTableBackground, fvShowVScroll]
     HistoryIndex = 0
     HistoryMaxCount = 6
     ImageCacheCount = 6
@@ -74,7 +73,6 @@ object Form1: TForm1
     TabOrder = 1
     OnMouseMove = FrameViewerMouseMove
     OnFormSubmit = SubmitEvent
-    ExplicitHeight = 224
   end
   object Panel1: TPanel
     Left = 0

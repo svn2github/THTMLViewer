@@ -3379,7 +3379,7 @@ end;
 
 procedure DoStyleLink; {handle <link> for stylesheets}
 var
-  Stream: TMemoryStream;
+  Style: String;
   C: char;
   I: integer;
   Url, Rel, Rev: string;
@@ -3405,7 +3405,7 @@ begin
       end;
   if OK and (Url <> '') then
   begin
-    Stream := TMemoryStream.Create;
+    Style := '';
     try
       Viewer := (CallingObject as ThtmlViewer);
       Request := Viewer.OnHtStreamRequest;
@@ -3418,20 +3418,20 @@ begin
           Path := GetURLBase(Url);
           Request(Viewer, Url, RStream);
           if Assigned(RStream) then
-            Stream.LoadFromStream(RStream);
+            Style := LoadStringFromStream(RStream);
         end
         else
         begin
           Path := ''; {for TFrameViewer requests, don't know path}
           Request(Viewer, Url, RStream);
           if Assigned(RStream) then
-            Stream.LoadFromStream(RStream)
+            Style := LoadStringFromStream(RStream)
           else
           begin {try it as a file}
             Url := Viewer.HTMLExpandFilename(Url);
             Path := ExtractFilePath(Url);
             if FileExists(Url) then
-              Stream.LoadFromFile(Url);
+              Style := LoadStringFromFile(Url);
           end;
         end;
       end
@@ -3439,21 +3439,17 @@ begin
       begin
         Url := Viewer.HTMLExpandFilename(Url);
         Path := ExtractFilePath(Url);
-        Stream.LoadFromFile(Url);
+        Style := LoadStringFromFile(Url);
       end;
-      if Stream.Size > 0 then
+      if Style <> '' then
       begin
-        SetLength(slS, Stream.Size div SizeOf(Char));
-        Move(Stream.Memory^, slS[1], Stream.Size); // don't use * SizeOf(Char) here
-        slS := AdjustLineBreaks(slS); {put in uniform CRLF format}
+        slS := AdjustLineBreaks(Style); {put in uniform CRLF format}
         slI := 1;
         C := slGet;
         DoStyle(PropStack.MasterList.Styles, C, slGet, Path, True);
       end;
-      Stream.Free;
       slS := '';
     except
-      Stream.Free;
       slS := '';
     end;
   end;
@@ -3796,6 +3792,7 @@ begin
       SectionList.Add(Section, TagIndex);
     PropStack.Clear;
     CurrentURLTarget.Free;
+    DocS := Format('Length %d, Sections %d', [Length(S), SectionList.Count]);
     DocS := '';
   end; {finally}
 end;

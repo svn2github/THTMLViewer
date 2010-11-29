@@ -680,7 +680,7 @@ begin
 
   PaintPanel := TPaintPanel.CreateIt(Self, Self);
   PaintPanel.ParentFont := False;
-  PaintPanel.Parent := Self;
+  PaintPanel.Parent := self;
   PaintPanel.BevelOuter := bvNone;
   PaintPanel.BevelInner := bvNone;
 {$ifndef LCL}
@@ -803,15 +803,9 @@ begin
     Cursor := crHourGlass;
   end;
   IOResult; {eat up any pending errors}
-  FName := FileName;
-  I := Pos('#', FName);
-  if I > 0 then
-  begin
-    Dest := Copy(FName, I + 1, Length(FName) - I); {positioning information}
-    FName := Copy(FName, 1, I - 1);
-  end
-  else
-    Dest := '';
+  SplitDest(FileName, FName, Dest);
+  if FName <> '' then
+    FName := ExpandFileName(FName);
   FRefreshDelay := 0;
   try
     SetProcessing(True);
@@ -825,7 +819,7 @@ begin
     Sel1 := -1;
     try
       OldFile := FCurrentFile;
-      FCurrentFile := ExpandFileName(FName);
+      FCurrentFile := FName;
       FCurrentFileType := ft;
       if ft in [HTMLType, TextType] then
       begin
@@ -1402,13 +1396,10 @@ begin
 end;
 
 function THtmlViewer.HotSpotClickHandled: Boolean;
-var
-  Handled: Boolean;
 begin
-  Handled := False;
+  Result := False;
   if Assigned(FOnHotSpotClick) then
-    FOnHotSpotClick(Self, URL, Handled);
-  Result := Handled;
+    FOnHotSpotClick(Self, URL, Result);
 end;
 
 procedure THtmlViewer.TriggerUrlAction;
