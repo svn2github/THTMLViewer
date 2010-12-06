@@ -601,10 +601,13 @@ begin
     begin
       if LCh = '&' then
       begin
+{$ifdef UNICODE}
+{$else}
         if (Sym = ValueSy) and UnicodeControls then
           S := S + GetEntityStr(PropStack.Last.CodePage)
         else
-          S := S + GetEntityStr(CP_ACP);
+{$endif}
+          S := S + GetEntityStr(PropStack.Last.CodePage); //CP_ACP);
       end
       else
       begin
@@ -987,10 +990,13 @@ var
     begin GetTag1; Exit; end
     else if LCh = '&' then
     begin
+{$ifdef UNICODE}
+{$else}
       if UnicodeControls then
         Token := Token + GetEntityStr(PropStack.Last.CodePage)
       else
-        Token := Token + GetEntityStr(CP_ACP);
+{$endif}
+        Token := Token + GetEntityStr(PropStack.Last.CodePage); //CP_ACP);
       Sy := CommandSy;
     end
     else if IsText1 then
@@ -3226,7 +3232,9 @@ begin
   end;
 end;
 
-function TranslateCharset(const Content: string; var Charset: TFontCharset): boolean;
+//  The official CharSet definitions:
+//    http://www.iana.org/assignments/character-sets
+//    http://www.iana.org/assignments/ianacharset-mib
 type
   XRec = record S: string; CSet: TFontCharset; end;
 const
@@ -3281,6 +3289,7 @@ const
     (S: '8859-15'; CSet: ANSI_CHARSET), {almost Ansi, but not quite}
     (S: 'tis-620'; CSet: THAI_CHARSET));
 
+function TranslateCharset(const Content: string; var Charset: TFontCharset): boolean;
 var
   I, N: integer;
 begin
@@ -3313,6 +3322,9 @@ var
   T: TAttribute;
   HttpEq, Name, Content: string;
   CharSet: TFontCharset;
+{$ifdef UNICODE}
+  Ansi: AnsiString;
+{$endif}
 begin
   if Attributes.Find(HttpEqSy, T) then
     HttpEq := T.Name
@@ -3331,9 +3343,14 @@ begin
     if TranslateCharset(Content, CharSet) then
       PropStack.Last.AssignCharset(Charset)
     else if Pos('utf-8', Lowercase(Content)) > 0 then
+    begin
       PropStack.Last.AssignUTF8;
+    end;
     if CallingObject is ThtmlViewer then
+    begin
+      ThtmlViewer(CallingObject).Charset := PropStack.Last.Charset;
       ThtmlViewer(CallingObject).CodePage := PropStack.Last.CodePage;
+    end;
   end;
   if Assigned(MetaEvent) then
     MetaEvent(Sender, HttpEq, Name, Content);
@@ -3418,14 +3435,20 @@ begin
           Path := GetURLBase(Url);
           Request(Viewer, Url, RStream);
           if Assigned(RStream) then
+          begin
+            RStream.Position := 0;
             Style := LoadStringFromStream(RStream);
+          end;
         end
         else
         begin
           Path := ''; {for TFrameViewer requests, don't know path}
           Request(Viewer, Url, RStream);
           if Assigned(RStream) then
-            Style := LoadStringFromStream(RStream)
+          begin
+            RStream.Position := 0;
+            Style := LoadStringFromStream(RStream);
+          end
           else
           begin {try it as a file}
             Url := Viewer.HTMLExpandFilename(Url);
@@ -3792,7 +3815,6 @@ begin
       SectionList.Add(Section, TagIndex);
     PropStack.Clear;
     CurrentURLTarget.Free;
-    DocS := Format('Length %d, Sections %d', [Length(S), SectionList.Count]);
     DocS := '';
   end; {finally}
 end;
@@ -3876,8 +3898,6 @@ end;
 
 procedure FrameParseString(FrameViewer: TFrameViewerBase; FrameSet: TObject;
   ALoadStyle: LoadStyleType; const FName, S: string; AMetaEvent: TMetaType);
-var
-  AStrings: TStringList;
 
   procedure Parse;
   var
@@ -3937,15 +3957,7 @@ begin
 
   try
     if ALoadStyle = lsFile then
-    begin
-      AStrings := TStringList.Create;
-      try
-        AStrings.LoadFromFile(FName);
-        DocS := AStrings.Text;
-      finally
-        AStrings.Free;
-      end;
-    end
+      DocS := LoadStringFromFile(FName)
     else
       DocS := S;
     LoadStyle := lsString;
@@ -3961,7 +3973,7 @@ begin
     Buff := PChar(DocS);
     BuffEnd := Buff + Length(DocS);
     try
-      Parse;
+      Parse;                                          
     except {ignore error}
       on E: Exception do
         Assert(False, E.Message);
@@ -3976,8 +3988,6 @@ end;
 
 function IsFrameString(ALoadStyle: LoadStyleType; const FName, S: string;
   FrameViewer: TFrameViewerBase): boolean;
-var
-  AStrings: TStringList;
 
   function Parse: boolean;
   var
@@ -4028,15 +4038,7 @@ begin
 
   try
     if ALoadStyle = lsFile then
-    begin
-      AStrings := TStringList.Create;
-      try
-        AStrings.LoadFromFile(FName);
-        DocS := AStrings.Text;
-      finally
-        AStrings.Free;
-      end;
-    end
+      Docs := LoadStringFromFile(FName)
     else
       DocS := S;
     LoadStyle := lsString;

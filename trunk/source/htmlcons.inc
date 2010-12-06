@@ -25,6 +25,7 @@
 { Identify Delphi Compiler Version:
 
   Compiler    Version Compiler Defined Symbol
+  Delphi XE     22    VER220
   Delphi 2010   21    VER210
   Delphi 2009   20    VER200
   Delphi 2007   18.5  VER185
@@ -215,7 +216,6 @@
         {Defining UseElpack allows the Elpack Unicode controls to be used for
         HTML Form controls in place of the Delphi TEdit, TButton, TListbox,
         TCombobox, and TMemo controls.  See "Using Third Party Controls" below.}
-
 {
 Using Third Party Controls
 

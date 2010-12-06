@@ -271,6 +271,8 @@ begin
   H2 := Abs(Canvas.Font.Height);
   SetTextAlign(Canvas.handle, TA_Left + TA_Top);
   ARect := Rect(X1 + Addon, Y1 + Addon, X1 + LB.Width - 2 * Addon, Y1 + LB.Height - 2 * Addon);
+{$ifdef UNICODE}
+{$else}
   if UnicodeControls then
     for I := LB.TopIndex to Min(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
 {$WARNINGS Off}
@@ -278,6 +280,7 @@ begin
         PWideChar(LB.Items[I]), Length(LB.Items[I]), nil)
 {$WARNINGS On}
   else
+{$endif}
     for I := LB.TopIndex to Min(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
       Canvas.TextRect(ARect, X1 + Addon, Y1 + Addon + (I - LB.TopIndex) * H2, LB.Items[I]);
 end;
@@ -291,7 +294,11 @@ var
   ExtS: TSize;
   S1, S2: string;
 begin
+{$ifdef UNICODE}
+  S1 := WS;
+{$else}
   S1 := WideStringToMultibyte(CodePage, WS);
+{$endif}
   if S1 = '' then
     S1 := ' ';
   Opt := TOptionObj.Create;
@@ -329,9 +336,12 @@ begin
     Items.Clear;
     for I := 0 to TheOptions.Count - 1 do
     begin
+{$ifdef UNICODE}
+{$else}
       if UnicodeControls then
         Items.Add(MultibyteToWidestring(CodePage, TheOptions[I]))
       else
+{$endif}
         Items.Add(TheOptions[I]);
       Tmp := TheOptions.Selected[I];
       if MultiSelect then
@@ -512,9 +522,12 @@ begin
     Items.Clear;
     for I := 0 to TheOptions.Count - 1 do
     begin
+{$ifdef UNICODE}
+{$else}
       if UnicodeControls then
         Items.Add(MultibyteToWideString(CodePage, TheOptions[I]))
       else
+{$endif}
         Items.Add(TheOptions[I]);
       if TheOptions.Selected[I] then
         ItemIndex := I;
@@ -542,12 +555,15 @@ begin
   Canvas.Font := CB.Font;
   SetTextAlign(Canvas.handle, TA_Left + TA_Top);
   ARect := Rect(X1 + 4, Y1 + 4, X1 + CB.Width - 8, Y1 + CB.Height - 3);
+{$ifdef UNICODE}
+{$else}
   if UnicodeControls then
 {$WARNINGS Off}
     ExtTextOutW(Canvas.Handle, X1 + 4, Y1 + 4, ETO_CLIPPED, @ARect,
       PWideChar(CB.Items[CB.ItemIndex]), Length(CB.Items[CB.ItemIndex]), nil)
 {$WARNINGS On}
   else
+{$endif}
     Canvas.TextRect(ARect, X1 + 4, Y1 + 4, CB.Items[CB.ItemIndex]);
 end;
 
@@ -716,6 +732,8 @@ begin
     H2 := Canvas.TextHeight('A');
     SetTextAlign(Canvas.handle, TA_Left + TA_Top);
     ARect := Rect(X1 + Addon, Y1 + Addon, X1 + Width - 2 * Addon, Y1 + Height - 2 * Addon);
+{$ifdef UNICODE}
+{$else}
     if UnicodeControls then
       for I := 0 to Min(Lines.Count - 1, Rows - 1) do
 {$WARNINGS Off}
@@ -723,6 +741,7 @@ begin
           PWideChar(Lines[I]), Length(Lines[I]), nil)
 {$WARNINGS On}
     else
+{$endif}
       for I := 0 to Min(Lines.Count - 1, Rows - 1) do
         Canvas.TextRect(ARect, X1 + Addon, Y1 + Addon + I * H2, Lines[I]);
   end;
@@ -761,9 +780,12 @@ procedure TTextAreaFormControlObj.ResetToValue;
 begin
   with (FControl as ThtMemo) do
   begin
+{$ifdef UNICODE}
+{$else}
     if UnicodeControls then
       Text := MultiByteToWideString(CodePage, TheText)
     else
+{$endif}
       Text := TheText;
     SelStart := 0;
     SelLength := 0;
@@ -780,17 +802,23 @@ begin
     Result := True;
     S := FName + '=';
     if Wrap in [wrOff, wrSoft] then
+{$ifdef UNICODE}
+{$else}
       if UnicodeControls then
         S := S + WideStringToMultibyte(CodePage, (FControl as ThtMemo).Text)
       else
+{$endif}
         S := S + (FControl as ThtMemo).Text
     else
       with (FControl as ThtMemo) do
         for I := 0 to Lines.Count - 1 do
         begin
+{$ifdef UNICODE}
+{$else}
           if UnicodeControls then
             S := S + WideStringToMultibyte(CodePage, Lines[I])
           else
+{$endif}
             S := S + Lines[I];
           if (I < Lines.Count - 1) then
             S := S + CRLF;
@@ -802,9 +830,12 @@ end;
 
 procedure TTextAreaFormControlObj.SetData(Index: integer; const V: string);
 begin
+{$ifdef UNICODE}
+{$else}
   if UnicodeControls then
     (FControl as ThtMemo).Text := MultiByteToWideString(CodePage, V)
   else
+{$endif}
     (FControl as ThtMemo).Text := V;
 end;
 

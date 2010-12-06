@@ -2199,11 +2199,6 @@ end;
 function TFrameSet.TriggerEvent(const Src: string; PEV: PEventRec): boolean;
 var
   AName: string;
-{$IFDEF UNICODE}
-  BStream: TStringStream;
-{$ELSE}
-  BStream: TMemoryStream;
-{$ENDIF}
   Strings: TStrings;
   Stream: TStream;
   Buffer: PChar;
@@ -2236,24 +2231,8 @@ begin
         if Result then
         begin
           LStyle := lsString;
-{$IFDEF UNICODE}
-          BStream := TStringStream.Create('', TEncoding.Default);
-          try
-            BStream.LoadFromStream(Stream);
-            AString := BStream.DataString;
-          finally
-            BStream.Free;
-          end;
-{$ELSE}
-          BStream := TMemoryStream.Create;
-          try
-            BStream.LoadFromStream(Stream);
-            SetLength(AString, BStream.Size);
-            Move(BStream.Memory^, AString[1], BStream.Size);
-          finally
-            BStream.Free;
-          end;
-{$ENDIF}
+          Stream.Position := 0;
+          AString := LoadStringFromStream(Stream);
         end;
       end
       else if Assigned(FOnBufferRequest) then
@@ -2275,7 +2254,8 @@ begin
         begin
           LStyle := lsFile;
           NewName := AName;
-          AString := FileToString(NewName);
+          AString := LoadStringFromFile(NewName);
+          //was: AString := FileToString(NewName);
         end;
       end;
   end;

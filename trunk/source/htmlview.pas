@@ -437,7 +437,7 @@ type
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
     procedure LoadFromFile(const FileName: string);
     procedure LoadFromString(const S: AnsiString; const Reference: string = ''); overload;
-    procedure LoadFromString(const WS: WideString; const Reference: string = ''); overload;
+    procedure LoadFromString(const S: WideString; const Reference: string = ''); overload;
     procedure LoadFromBuffer(Buffer: PChar; BufLenTChars: Integer; const Reference: string = '');
     procedure LoadFromStream(const AStream: TStream; const Reference: string = '');
     procedure LoadStrings(const Strings: TStrings; const Reference: string = '');
@@ -790,12 +790,9 @@ end;
 
 procedure THtmlViewer.LoadFile(const FileName: string; ft: ThtmlFileType);
 var
-  I: Integer;
   Dest, FName, OldFile: string;
   SBuffer: string;
   OldCursor: TCursor;
-  FS: TFileStream;
-  Tmp: AnsiString;
 begin
   with Screen do
   begin
@@ -822,20 +819,13 @@ begin
       FCurrentFile := FName;
       FCurrentFileType := ft;
       if ft in [HTMLType, TextType] then
-      begin
-        FS := TFileStream.Create(FName, fmOpenRead or fmShareDenyWrite);
-        try
-          SetString(Tmp, nil, FS.Size); // Yunqa.de: SetString() is faster than SetLength().
-          FS.ReadBuffer(Tmp[1], FS.Size);
-          FDocumentSource := Tmp;
-        finally
-          FS.Free;
-        end;
-      end
+        FDocumentSource := LoadStringFromFile(FName)
       else
         FDocumentSource := '';
+
       if Assigned(FOnParseBegin) then
         FOnParseBegin(Self, FDocumentSource);
+        
       if ft = HTMLType then
       begin
         if Assigned(FOnSoundRequest) then
@@ -1013,7 +1003,19 @@ begin
 end;
 
 {----------------THtmlViewer.LoadFromString}
+{$ifdef UNICODE}
+procedure THtmlViewer.LoadFromString(const S: AnsiString; const Reference: string);
+begin
+  LoadFromString(MultibyteToWideString(CodePage, S), Reference);
+end;
 
+procedure THtmlViewer.LoadFromString(const S: WideString; const Reference: string);
+begin
+  LoadString(S, Reference, HTMLType);
+  if (FRefreshDelay > 0) and Assigned(FOnMetaRefresh) then
+    FOnMetaRefresh(Self, FRefreshDelay, FRefreshURL);
+end;
+{$else}
 procedure THtmlViewer.LoadFromString(const S: AnsiString; const Reference: string);
 begin
   LoadString(S, Reference, HTMLType);
@@ -1023,11 +1025,12 @@ end;
 
 {$IFDEF Delphi6_Plus}
 
-procedure THtmlViewer.LoadFromString(const WS: WideString; const Reference: string);
+procedure THtmlViewer.LoadFromString(const S: WideString; const Reference: string);
 begin
-  LoadFromString(#$EF + #$BB + #$BF + UTF8Encode(WS), Reference);
+  LoadFromString(#$EF + #$BB + #$BF + UTF8Encode(S), Reference);
 end;
 {$ENDIF}
+{$endif}
 
 {----------------THtmlViewer.LoadString}
 
@@ -1090,20 +1093,13 @@ end;
 
 procedure THtmlViewer.LoadFromStream(const AStream: TStream; const Reference: string);
 var
-  Stream: TMemoryStream;
   S: string;
 begin
-  Stream := TMemoryStream.Create;
-  try
-    Stream.LoadFromStream(AStream);
-    SetLength(S, Stream.Size div SizeOf(Char));
-    Move(Stream.Memory^, S[1], Stream.Size); // don't use * SizeOf(Char) here
-    LoadString(S, Reference, HTMLType);
-    if (FRefreshDelay > 0) and Assigned(FOnMetaRefresh) then
-      FOnMetaRefresh(Self, FRefreshDelay, FRefreshURL);
-  finally
-    Stream.Free;
-  end;
+  AStream.Position := 0;
+  S := LoadStringFromStream(AStream);
+  LoadString(S, Reference, HTMLType);
+  if (FRefreshDelay > 0) and Assigned(FOnMetaRefresh) then
+    FOnMetaRefresh(Self, FRefreshDelay, FRefreshURL);
 end;
 
 procedure THtmlViewer.DoImage(Sender: TObject; const SRC: string; var Stream: TMemoryStream);
@@ -1130,29 +1126,32 @@ begin
     CaretPos := 0;
     Sel1 := -1;
 
+    AStream.Position := 0;
     if ft in [HTMLType, TextType] then
     begin
-      SetLength(FDocumentSource, AStream.Size div SizeOf(Char));
-      Move(AStream.Memory^, FDocumentSource[1], AStream.Size); // don't use * SizeOf(Char) here
+      FDocumentSource := LoadStringFromStream(AStream);
     end
     else
       FDocumentSource := '';
+
     if Assigned(FOnParseBegin) then
       FOnParseBegin(Self, FDocumentSource);
-    if ft = HTMLType then
-    begin
-      if Assigned(FOnSoundRequest) then
-        FOnSoundRequest(Self, '', 0, True);
-      ParseHTMLString(FDocumentSource, FSectionList, FOnInclude, FOnSoundRequest, HandleMeta, FOnLink);
-      SetupAndLogic;
-    end
-    else if ft = TextType then
-    begin
-      ParseTextString(FDocumentSource, FSectionList);
-      SetupAndLogic;
-    end
+
+    case ft of
+      HTMLType:
+      begin
+        if Assigned(FOnSoundRequest) then
+          FOnSoundRequest(Self, '', 0, True);
+        ParseHTMLString(FDocumentSource, FSectionList, FOnInclude, FOnSoundRequest, HandleMeta, FOnLink);
+        SetupAndLogic;
+      end;
+
+      TextType:
+      begin
+        ParseTextString(FDocumentSource, FSectionList);
+        SetupAndLogic;
+      end;
     else
-    begin
       SaveOnImageRequest := OnImageRequest;
       SetOnImageRequest(DoImage);
       FImageStream := AStream;

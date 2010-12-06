@@ -57,7 +57,8 @@ uses
 {$endif}
   PreviewForm,
   {$ifdef UseXpMan} XpMan, {$endif} ComCtrls,
-  UrlSubs, FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, Htmlview, DemoSubs, Submit, ImgForm;
+  UrlSubs, FramView, Readhtml, StyleUn, HTMLsubs, HTMLun2, Htmlview, DemoSubs,
+  Submit, ImgForm, HtmlGlobals;
 
 const
   MaxHistories = 6;  {size of History list}
@@ -720,7 +721,6 @@ procedure TForm1.FrameViewerInclude(Sender: TObject; const Command: String;
 var
   Filename: string;
   I: integer;
-  MS: TMemoryStream;
 begin
 if CompareText(Command, 'Date') = 0 then
   S := DateToStr(Date) { <!--#date --> }
@@ -734,14 +734,8 @@ else if CompareText(Command, 'Include') = 0 then
     if I > 0 then
       begin
       Filename := copy(Params[0],  6, Length(Params[0])-5);
-      MS := TMemoryStream.Create;
       try
-        try
-          MS.LoadFromFile(Filename);
-          SetString(S, PChar(MS.Memory), MS.Size);
-        finally
-          MS.Free;
-          end;
+        S := LoadStringFromFile(Filename);
       except
         end;
       end;

@@ -19,7 +19,7 @@ uses
   SysUtils, WinTypes, WinProcs, Messages, Classes, Graphics, Controls,
   Forms, Dialogs, ExtCtrls, Menus, StdCtrls, Clipbrd, ShellAPI, MMSystem, MPlayer, ComCtrls,
   {$ifdef UseXpMan} XpMan, {$endif} Gauges,
-  ReadHtml, Htmlview, HTMLsubs, UrlSubs, HTMLUn2, StyleUn, HtmlAbt;
+  ReadHtml, Htmlview, HTMLsubs, UrlSubs, HTMLUn2, StyleUn, HtmlAbt, HtmlGlobals;
 
 const
   MaxHistories = 6;  {size of History list}
@@ -669,7 +669,6 @@ procedure TForm1.ViewerInclude(Sender: TObject; const Command: String;
 var
   Filename: string;
   I: integer;
-  MS: TMemoryStream;
 begin
 if CompareText(Command, 'Date') = 0 then
   S := DateToStr(Date) { <!--#date --> }
@@ -683,14 +682,8 @@ else if CompareText(Command, 'Include') = 0 then
     if I > 0 then
       begin
       Filename := copy(Params[0],  6, Length(Params[0])-5);
-      MS := TMemoryStream.Create;
       try
-        try
-          MS.LoadFromFile(Filename);
-          SetString(S, PChar(MS.Memory), MS.Size);
-        finally
-          MS.Free;
-          end;
+        S := LoadStringFromFile(Filename);
       except
         end;
       end;

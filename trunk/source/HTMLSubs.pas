@@ -1124,7 +1124,10 @@ type
 var
   CurrentStyle: TFontStyles; {as set by <b>, <i>, etc.}
   CurrentForm: ThtmlForm;
+{$ifdef UNICODE}
+{$else}
   UnicodeControls: boolean;
+{$endif}
 
 var
   PropStack: THtmlPropStack;
@@ -1639,16 +1642,18 @@ begin
   for I := 0 to L.Count - 1 do
     with TAttribute(L[I]) do
       case Which of
-        SrcSy: Source := Trim(Name);
+        SrcSy:
+          Source := Trim(Name);
+
         AltSy:
           begin
-            FAlt := Name;
-            while (Length(FAlt) > 0) and (FAlt[Length(FAlt)] in [#$D, #$A]) do
-              Delete(FAlt, Length(FAlt), 1);
-            ImageTitle := FAlt; {use Alt as default Title}
-            FAltW := MultibyteToWideString(CodePage, FAlt);
+            SetAlt(CodePage, Name);
+            ImageTitle := Alt;
           end;
-        IsMapSy: IsMap := True;
+
+        IsMapSy:
+          IsMap := True;
+
         UseMapSy:
           begin
             UseMap := True;
@@ -1657,6 +1662,7 @@ begin
               System.Delete(S, 1, 1);
             MapName := S;
           end;
+
         AlignSy:
           begin
             S := UpperCase(Name);
@@ -1675,12 +1681,16 @@ begin
               HorzAlign := ARight;
             end;
           end;
+
         BorderSy:
           begin
             NoBorder := Value = 0;
             BorderSize := Min(Max(0, Value), 10);
           end;
-        TranspSy: Transparent := LLCorner;
+
+        TranspSy:
+          Transparent := LLCorner;
+
         HeightSy: if System.Pos('%', Name) > 0 then
           begin
             if (Value >= 0) and (Value <= 100) then
@@ -1691,7 +1701,9 @@ begin
           end
           else
             SpecHeight := Value;
-        WidthSy: if System.Pos('%', Name) > 0 then
+
+        WidthSy:
+          if System.Pos('%', Name) > 0 then
           begin
             if (Value >= 0) and (Value <= 100) then
             begin
@@ -1701,10 +1713,18 @@ begin
           end
           else
             SpecWidth := Value;
-        HSpaceSy: NewSpace := Min(40, Abs(Value));
-        VSpaceSy: VSpaceT := Min(40, Abs(Value));
-        ActiveSy: FHoverImage := True;
-        NameSy: ParentSectionList.IDNameList.AddObject(Name, Self);
+
+        HSpaceSy:
+          NewSpace := Min(40, Abs(Value));
+
+        VSpaceSy:
+          VSpaceT := Min(40, Abs(Value));
+
+        ActiveSy:
+          FHoverImage := True;
+
+        NameSy:
+          ParentSectionList.IDNameList.AddObject(Name, Self);
       end;
   if L.Find(TitleSy, T) then
     ImageTitle := T.Name; {has higher priority than Alt loaded above}
@@ -1848,6 +1868,7 @@ begin
     TmpImage := LoadImageFromStream(TMemoryStream(NewImage), Transparent, AMask)
   else
   begin
+    // TODO BG, 30.11.2010: do we need this intermediate stream?
     Stream := TMemoryStream.Create;
     try
       Stream.LoadFromStream(NewImage);
@@ -3176,9 +3197,12 @@ begin
     FHeight := Height; {Height can change when font assigned}
     tmAveCharWidth := Tmp.tmAveCharWidth;
     Tmp.Free;
+{$ifdef UNICODE}
+{$else}
     if UnicodeControls then
       Text := MultibyteToWideString(CodePage, Value)
     else
+{$endif}
       Text := Value;
     if L.Find(MaxLengthSy, T) then
       MaxLength := T.Value;
@@ -3203,9 +3227,12 @@ end;
 
 procedure TEditFormControlObj.ResetToValue;
 begin
+{$ifdef UNICODE}
+{$else}
   if UnicodeControls then
     ThtEdit(FControl).Text := MultibyteToWideString(CodePage, Value)
   else
+{$endif}
     ThtEdit(FControl).Text := Value;
 end;
 
@@ -3264,12 +3291,15 @@ begin
     SetBkMode(Canvas.Handle, Windows.Transparent);
     Canvas.Brush.Style := bsClear;
     ARect := Rect(X1 + Addon, Y1, X1 + Width - (Addon div 2), Y1 + Height);
+{$ifdef UNICODE}
+{$else}
     if UnicodeControls then
 {$WARNINGS Off}
       ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + (Height - H2) div 2, ETO_CLIPPED, @ARect,
         PWideChar(Text), Length(Text), nil)
 {$WARNINGS On}
     else
+{$endif}
       Canvas.TextRect(ARect, X1 + Addon, Y1 + (Height - H2) div 2 - 1, Text);
   end
 end;
@@ -3279,9 +3309,12 @@ begin
   if Index = 0 then
   begin
     Result := True;
+{$ifdef UNICODE}
+{$else}
     if UnicodeControls then
       S := FName + '=' + WideStringToMultibyte(CodePage, ThtEdit(FControl).Text)
     else
+{$endif}
       S := FName + '=' + ThtEdit(FControl).Text;
   end
   else
@@ -3290,9 +3323,12 @@ end;
 
 procedure TEditFormControlObj.SetData(Index: Integer; const V: string);
 begin
+{$ifdef UNICODE}
+{$else}
   if UnicodeControls then
     ThtEdit(FControl).Text := MultibyteToWideString(CodePage, V)
   else
+{$endif}
     ThtEdit(FControl).Text := V; ;
 end;
 
@@ -3374,8 +3410,11 @@ begin
     OnClick := Self.ButtonClick;
     if Which = Browse then
       Caption := 'Browse...'
+{$ifdef UNICODE}
+{$else}
     else if UnicodeControls then
       Caption := MultibyteToWideString(Prop.CodePage, Value)
+{$endif}
     else
       Caption := Value;
     OnEnter := EnterEvent;
@@ -11800,9 +11839,9 @@ begin
       ATitle := ImageObj.ImageTitle;
       Include(Result, guTitle);
     end
-    else if ImageObj.FAlt <> '' then
+    else if ImageObj.Alt <> '' then
     begin
-      ATitle := ImageObj.FAlt;
+      ATitle := ImageObj.Alt;
       Include(Result, guTitle);
     end;
     ParentSectionList.ActiveImage := ImageObj;
@@ -12272,11 +12311,8 @@ begin
             end;
           AltSy:
             begin
-              FAlt := Name;
-              while (Length(FAlt) > 0) and (FAlt[Length(FAlt)] in [#$D, #$A]) do
-                Delete(FAlt, Length(FAlt), 1);
-              ImageTitle := FAlt; {use Alt as default Title}
-              FAltW := MultibyteToWideString(CodePage, FAlt);
+              SetAlt(CodePage, Name);
+              ImageTitle := Alt; {use Alt as default Title}
             end;
           TypeSy: AType := Name;
         end;
@@ -13290,4 +13326,15 @@ begin
   end;
 end;
 
+initialization
+{$ifdef UNICODE}
+{$else}
+  {$IFDEF UseElPack}
+    UnicodeControls := True;
+  {$ENDIF}
+
+  {$IFDEF UseTNT}
+    UnicodeControls := not IsWin32Platform;
+  {$ENDIF}
+{$endif}
 end.

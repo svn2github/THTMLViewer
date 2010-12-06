@@ -429,8 +429,13 @@ type
     PercentWidth: boolean; {if width is percent}
     PercentHeight: boolean; {if height is percent}
     ImageTitle: string;
-    FAlt: AnsiString; {the alt= attribute}
+{$ifdef UNICODE}
+    FAlt: AnsiString;
+    FAltW: string; {the alt= attribute}
+{$else}
+    FAlt: string; {the alt= attribute}
     FAltW: WideString;
+{$endif}
 
     function GetYPosition: Integer; override;
   public
@@ -440,10 +445,11 @@ type
     NoBorder: boolean; {set if don't want blue border}
     BorderSize: Integer;
     constructor CreateCopy(T: TFloatingObj);
+    procedure SetAlt(CodePage: Integer; const Value: String);
     procedure DrawLogic(SectionList: TSectionBaseList; Canvas: TCanvas;
       FO: TFontObjBase; AvailableWidth, AvailableHeight: Integer); virtual; abstract;
     procedure ProcessProperties(Prop: TProperties);
-    property Alt: AnsiString read FAlt;
+    property Alt: String read {$ifdef UNICODE} FAltW {$else} FAlt {$endif};
   end;
 
   TBlockBase = class;
@@ -620,7 +626,7 @@ procedure StretchPrintGpImageOnColor(Canvas: TCanvas; Image: TGpImage;
 procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
   S: htBorderStyleArray; BGround: TColor; Print: boolean);
 
-function MultibyteToWideString(CodePage: Integer; const S: Ansistring): WideString;
+function MultibyteToWideString(CodePage: Integer; const S: AnsiString; Len: Integer = -1): WideString;
 function WideStringToMultibyte(CodePage: Integer; W: WideString): Ansistring;
 function GetImageHeight(Image: TGpObject): Integer;
 function GetImageWidth(Image: TGpObject): Integer;
@@ -3186,21 +3192,25 @@ begin
   StringOK := True;
 end;
 
-function MultibyteToWideString(CodePage: Integer; const S: Ansistring): WideString;
+function MultibyteToWideString(CodePage: Integer; const S: AnsiString; Len: Integer): WideString;
 {$IFNDEF UNICODE}
 var
-  NewLen, Len: Integer;
+  NewLen: Integer;
 {$ENDIF}
 begin
 {$IFDEF UNICODE}
-  Result := S;
+  if Len >= 0 then
+    Result := Copy(S, 1, Len)
+  else
+    Result := S;
 {$ELSE}
-  Len := Length(S);
 {$IFDEF Delphi6_Plus}
   if IsWin95 and (CodePage = CP_UTF8) then
   begin
   {Provide initial space. The resulting string will never be longer than the
    UTF-8 encoded string.}
+    if Len = -1 then
+      Len := Length(S);
     SetLength(Result, Len + 1); {add 1 for #0 terminator}
     NewLen := UTF8ToUnicode(PWideChar(Result), Len + 1, PAnsiChar(S), Len) - 1; {subtr 1 as don't want to count null terminator}
   end
@@ -3277,25 +3287,15 @@ var
 
 begin
   Len := S.FCurrentIndex;
-{$IFDEF Delphi6_Plus}
-  if IsWin95 and (CodePage = CP_UTF8) then
-  begin
-    {Provide initial space. The resulting string will never be longer than the
-     UTF-8 encoded string.}
-    SetLength(WS, Len + 1); {add 1 for #0 terminator}
-    NewLen := UTF8ToUnicode(PWideChar(WS), Len + 1, PAnsiChar(AnsiString(S.FChars)), Len) - 1; {subtr 1 as don't want to count null terminator}
-  end
+{$ifdef UNICODE}
+  if Len > 0 then
+    WS := Copy(S.FChars, 1, Len)
   else
-{$ENDIF}
-  begin
-    {Provide initial space. The resulting string will never be longer than the
-     UTF-8 or multibyte encoded string.}
-    SetLength(WS, 2 * Len);
-    NewLen := MultiByteToWideChar(CodePage, 0, PAnsiChar(AnsiString(S.FChars)), Len, PWideChar(WS), Len);
-    if NewLen = 0 then
-      { Invalid code page. Try default.}
-      NewLen := MultiByteToWideChar(CP_ACP, 0, PAnsiChar(AnsiString(S.FChars)), Len, PWideChar(WS), Len);
-  end;
+    WS := S.FChars;
+{$else}
+  WS := MultibyteToWideString(CodePage, S.FChars, Len);
+{$endif}
+  NewLen := Length(WS);
 
   {Store the wide string and character indices.}
   if Len = NewLen then {single byte character set or at least no multibyte conversion}
@@ -4617,17 +4617,25 @@ begin
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 30.11.2010 --
+procedure TFloatingObj.SetAlt(CodePage: Integer; const Value: String);
+begin
+{$ifdef UNICODE}
+  FAltW := Value;
+  while (Length(FAltW) > 0) and (FAltW[Length(FAltW)] in [#$D, #$A]) do
+    Delete(FAltW, Length(FAltW), 1);
+  FAlt := WideStringToMultibyte(CodePage, FAltW);
+{$else}
+  FAlt := Value;
+  while (Length(FAlt) > 0) and (FAlt[Length(FAlt)] in [#$D, #$A]) do
+    Delete(FAlt, Length(FAlt), 1);
+  FAltW := MultibyteToWideString(CodePage, FAlt);
+{$endif}
+end;
+
 {$R HTML32.Res}
 
 initialization
-
-{$IFDEF UseElPack}
-  UnicodeControls := True;
-{$ENDIF}
-
-{$IFDEF UseTNT}
-  UnicodeControls := not IsWin32Platform;
-{$ENDIF}
 
   DefBitMap := TBitmap.Create;
   DefBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(DefaultBitmap));

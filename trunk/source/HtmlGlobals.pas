@@ -407,58 +407,50 @@ end;
 
 function LoadStringFromStream(Stream: TStream): String;
 var
+  ByteCount: Integer;
 {$IFDEF UNICODE}
-  BStream: TStringStream;
-{$ELSE}
-  BStream: TMemoryStream;
+  PreambleSize: Integer;
+  Buffer: TBytes;
+  Encoding: TEncoding;
 {$ENDIF}
 begin
 {$IFDEF UNICODE}
-  BStream := TStringStream.Create('', TEncoding.Default);
-  try
-    BStream.LoadFromStream(Stream);
-    Result := BStream.DataString;
-  finally
-    BStream.Free;
+  ByteCount := Stream.Size - Stream.Position;
+  if ByteCount = 0 then
+  begin
+    Result := '';
+    exit;
   end;
+  SetLength(Buffer, ByteCount);
+  Stream.Read(Buffer[0], ByteCount);
+  Encoding := nil;
+  PreambleSize := TEncoding.GetBufferEncoding(Buffer, Encoding);
+  if Encoding = TEncoding.Default then
+  begin
+    // BG, 04.12.2010: GetBufferEncoding looks for preambles only to detected
+    // encoding, but often there is no header/preamble in UTF-8 streams/files.
+    Result := TEncoding.UTF8.GetString(Buffer, PreambleSize, Length(Buffer) - PreambleSize);
+    if Result <> '' then
+      exit;
+  end;
+  Result := Encoding.GetString(Buffer, PreambleSize, Length(Buffer) - PreambleSize);
 {$ELSE}
-  BStream := TMemoryStream.Create;
-  try
-    BStream.LoadFromStream(Stream);
-    SetLength(Result, BStream.Size);
-    Move(BStream.Memory^, Result[1], BStream.Size);
-  finally
-    BStream.Free;
-  end;
+  ByteCount := Stream.Size - Stream.Position;
+  SetString(Result, nil, ByteCount);
+  Stream.Read(Result[1], ByteCount);
 {$ENDIF}
 end;
 
 function LoadStringFromFile(const Name: String): String;
 var
-{$IFDEF UNICODE}
-  BStream: TStringStream;
-{$ELSE}
-  BStream: TMemoryStream;
-{$ENDIF}
+  Stream: TFileStream;
 begin
-{$IFDEF UNICODE}
-  BStream := TStringStream.Create('', TEncoding.Default);
+  Stream := TFileStream.Create(Name, fmOpenRead or fmShareDenyWrite);
   try
-    BStream.LoadFromFile(Name);
-    Result := BStream.DataString;
+    Result := LoadStringFromStream(Stream);
   finally
-    BStream.Free;
+    Stream.Free;
   end;
-{$ELSE}
-  BStream := TMemoryStream.Create;
-  try
-    BStream.LoadFromFile(Name);
-    SetLength(Result, BStream.Size);
-    Move(BStream.Memory^, Result[1], BStream.Size);
-  finally
-    BStream.Free;
-  end;
-{$ENDIF}
 end;
 
 { initialization }

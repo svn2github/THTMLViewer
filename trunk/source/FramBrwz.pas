@@ -31,7 +31,7 @@ interface
 
 uses
   SysUtils, Windows, Classes, Messages, Controls, ExtCtrls,
-  htmlsubs, htmlview, htmlun2, readHTML, UrlSubs, FramView;
+  HtmlGlobals, HtmlSubs, HtmlView, Htmlun2, ReadHTML, UrlSubs, FramView;
 
 type
   TGetPostRequestEvent = procedure(Sender: TObject; IsGet: boolean; const URL, Query: string;
@@ -136,20 +136,22 @@ const
   Sequence: integer = 10;
 
 function StreamToString(Stream: TStream): string;
-var
-  SL: TStringList;
+//var
+//  SL: TStringList;
 begin
-  Result := '';
   try
-    SL := TStringList.Create;
-    try
-      SL.LoadFromStream(Stream);
-      Result := SL.Text;
-    finally
-      Stream.Position := 0;
-      SL.Free;
-    end;
+//    SL := TStringList.Create;
+//    try
+//      SL.LoadFromStream(Stream);
+//      Result := SL.Text;
+//    finally
+//      Stream.Position := 0;
+//      SL.Free;
+//    end;
+    Stream.Position := 0;
+    Result := LoadStringFromStream(Stream);
   except
+    Result := '';
   end;
 end;
 
@@ -791,7 +793,6 @@ begin
   Dummy :=
 {$ENDIF}
   IOResult; {remove any pending file errors}
-  //SplitDest(URL, S, Dest);
   S := URL;
   try
     OldFile := CurbrFrameSet.FCurrentFile;
