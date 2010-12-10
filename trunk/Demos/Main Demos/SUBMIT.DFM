@@ -10,7 +10,7 @@ object SubmitForm: TSubmitForm
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -13
-  Font.Name = 'System'
+  Font.Name = 'Arial'
   Font.Style = []
   OldCreateOrder = True
   PixelsPerInch = 96
@@ -18,21 +18,21 @@ object SubmitForm: TSubmitForm
   object Label1: TLabel
     Left = 16
     Top = 19
-    Width = 43
+    Width = 41
     Height = 16
     Caption = 'Action:'
   end
   object Label2: TLabel
     Left = 9
     Top = 43
-    Width = 52
+    Width = 47
     Height = 16
     Caption = 'Method:'
   end
   object Label3: TLabel
     Left = 18
     Top = 71
-    Width = 50
+    Width = 44
     Height = 16
     Caption = 'Results'
   end

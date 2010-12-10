@@ -41,7 +41,7 @@ type
     Reload: boolean; var NewURL: string; var DocType: ThtmlFileType; var Stream: TMemoryStream) of object;
     
   TbrFormSubmitEvent = procedure(Sender: TObject; Viewer: ThtmlViewer;
-    const Action, Target, EncType, Method: string; Results: TStringList; var Handled: boolean) of object;
+    const Action, Target, EncType, Method: string; Results: ThtStringList; var Handled: boolean) of object;
 
   TFrameBaseOpener = class(TFrameBase);
 
@@ -114,7 +114,7 @@ type
     function GetSubFrameSetClass: TSubFrameSetClass; override;
     procedure HotSpotCovered(Sender: TObject; const SRC: string); override;
     procedure CheckVisitedLinks; override;
-    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: TStringList); override;
+    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: ThtStringList); override;
     procedure DoURLRequest(Sender: TObject; const SRC: string; var Stream: TMemoryStream); override;
   public
     constructor Create(AOwner: TComponent); override;
@@ -136,19 +136,8 @@ const
   Sequence: integer = 10;
 
 function StreamToString(Stream: TStream): string;
-//var
-//  SL: TStringList;
 begin
   try
-//    SL := TStringList.Create;
-//    try
-//      SL.LoadFromStream(Stream);
-//      Result := SL.Text;
-//    finally
-//      Stream.Position := 0;
-//      SL.Free;
-//    end;
-    Stream.Position := 0;
     Result := LoadStringFromStream(Stream);
   except
     Result := '';
@@ -1029,7 +1018,7 @@ end;
 {----------------TFrameBrowser.DoFormSubmitEvent}
 
 procedure TFrameBrowser.DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType,
-  Method: string; Results: TStringList);
+  Method: string; Results: ThtStringList);
 var
   S, Dest, Query: string;
   FrameTarget: TFrameBase;

@@ -677,7 +677,7 @@ function GetAttribute(var Sym: Symb; var St: string;
 
 const
   MaxAttr = 84;
-  Attrib: array[1..MaxAttr] of string[16] =
+  Attrib: array[1..MaxAttr] of string =
   ('HREF', 'NAME', 'SRC', 'ALT', 'ALIGN', 'TEXT', 'BGCOLOR', 'LINK',
     'BACKGROUND', 'COLSPAN', 'ROWSPAN', 'BORDER', 'CELLPADDING',
     'CELLSPACING', 'VALIGN', 'WIDTH', 'START', 'VALUE', 'TYPE',
@@ -3322,9 +3322,6 @@ var
   T: TAttribute;
   HttpEq, Name, Content: string;
   CharSet: TFontCharset;
-{$ifdef UNICODE}
-  Ansi: AnsiString;
-{$endif}
 begin
   if Attributes.Find(HttpEqSy, T) then
     HttpEq := T.Name
@@ -3435,20 +3432,14 @@ begin
           Path := GetURLBase(Url);
           Request(Viewer, Url, RStream);
           if Assigned(RStream) then
-          begin
-            RStream.Position := 0;
             Style := LoadStringFromStream(RStream);
-          end;
         end
         else
         begin
           Path := ''; {for TFrameViewer requests, don't know path}
           Request(Viewer, Url, RStream);
           if Assigned(RStream) then
-          begin
-            RStream.Position := 0;
-            Style := LoadStringFromStream(RStream);
-          end
+            Style := LoadStringFromStream(RStream)
           else
           begin {try it as a file}
             Url := Viewer.HTMLExpandFilename(Url);

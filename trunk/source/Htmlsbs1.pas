@@ -30,26 +30,27 @@ unit Htmlsbs1;
 interface
 
 uses
-  Windows, Classes, Graphics{$ifdef LCL}, Interfaces{$endif}, Controls, HtmlUn2, HtmlSubs, StyleUn;
+  Windows, Classes, Graphics{$ifdef LCL}, Interfaces{$endif}, Controls,
+  HtmlUn2, HtmlSubs, StyleUn;
 
 type
 
   TOptionObj = class(TObject) {used by TListBoxFormControlObj for <option> information}
   public
-    Value: string; {<option>  Value=  }
+    Value: ThtString; {<option>  Value=  }
     Selected: boolean; {set if Selected found in <option>}
     Attributes: TStringList; {list of <option> attributes}
     destructor Destroy; override;
   end;
 
-  ThtOptionStringList = class(TStringList)
+  ThtOptionStringList = class(ThtStringList)
   private
-    function GetValue(Index: integer): string;
+    function GetValue(Index: integer): ThtString;
     function GetSelected(Index: integer): boolean;
     procedure SetSelected(Index: integer; Value: boolean);
     function GetAttribute(Index: integer; const AttrName: string): string;
   public
-    property Value[Index: integer]: string read GetValue;
+    property Value[Index: integer]: ThtString read GetValue;
     property Selected[Index: integer]: boolean read GetSelected write SetSelected;
     property AttributeValue[Index: integer; const AttrName: string]: string read GetAttribute;
     destructor Destroy; override;
@@ -80,12 +81,11 @@ type
     destructor Destroy; override;
     procedure ProcessProperties(Prop: TProperties); override;
     procedure Draw(Canvas: TCanvas; X1, Y1: integer); override;
-    procedure AddStr(const WS: WideString; Selected: boolean; Attr: TStringList;
-      CodePage: integer);
+    procedure AddStr(const WS: WideString; Selected: boolean; Attr: TStringList; CodePage: integer);
     procedure ResetToValue; override;
     procedure SetHeightWidth(Canvas: TCanvas); override;
-    function GetSubmission(Index: integer; var S: string): boolean; override;
-    procedure SetData(Index: integer; const V: string); override;
+    function GetSubmission(Index: integer; var S: ThtString): boolean; override;
+    procedure SetData(Index: integer; const V: ThtString); override;
   end;
 
   TComboFormControlObj = class(TListBoxFormControlObj)
@@ -105,30 +105,30 @@ type
     procedure Draw(Canvas: TCanvas; X1, Y1: integer); override;
     procedure ResetToValue; override;
     procedure SetHeightWidth(ACanvas: TCanvas); override;
-    function GetSubmission(Index: integer; var S: string): boolean; override;
-    procedure SetData(Index: integer; const V: string); override;
+    function GetSubmission(Index: integer; var S: ThtString): boolean; override;
+    procedure SetData(Index: integer; const V: ThtString); override;
   end;
 
   TTextAreaFormControlObj = class(TFormControlObj)
   private
-    EnterContents: string;
+    EnterContents: ThtString;
   protected
     procedure DoOnChange; override;
     procedure SaveContents; override;
   public
     Wrap: (wrOff, wrSoft, wrHard);
     Rows, Cols: integer;
-    TheText: string;
+    TheText: ThtString;
     constructor Create(AMasterList: TSectionList; Position: integer;
       L: TAttributeList; Prop: TProperties);
     destructor Destroy; override;
     procedure ProcessProperties(Prop: TProperties); override;
     procedure Draw(Canvas: TCanvas; X1, Y1: integer); override;
-    procedure AddStr(const S: string);
+    procedure AddStr(const S: ThtString);
     procedure ResetToValue; override;
     procedure SetHeightWidth(Canvas: TCanvas); override;
-    function GetSubmission(Index: integer; var S: string): boolean; override;
-    procedure SetData(Index: integer; const V: string); override;
+    function GetSubmission(Index: integer; var S: ThtString): boolean; override;
+    procedure SetData(Index: integer; const V: ThtString); override;
   end;
 
   TFormControlList = class(TList) {a list of TFormControlObj's} {not TFreeList}
@@ -151,7 +151,7 @@ begin
   inherited;
 end;
 
-function ThtOptionStringList.GetValue(Index: integer): string;
+function ThtOptionStringList.GetValue(Index: integer): ThtString;
 begin
   if (Index >= 0) and (Index < Count) then
     Result := TOptionObj(Objects[Index]).Value
@@ -271,18 +271,13 @@ begin
   H2 := Abs(Canvas.Font.Height);
   SetTextAlign(Canvas.handle, TA_Left + TA_Top);
   ARect := Rect(X1 + Addon, Y1 + Addon, X1 + LB.Width - 2 * Addon, Y1 + LB.Height - 2 * Addon);
-{$ifdef UNICODE}
+  for I := LB.TopIndex to Min(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
+{$ifdef UseUnicodeControls}
+    ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + Addon + (I - LB.TopIndex) * H2, ETO_CLIPPED, @ARect,
+      PWideChar(LB.Items[I]), Length(LB.Items[I]), nil)
 {$else}
-  if UnicodeControls then
-    for I := LB.TopIndex to Min(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
-{$WARNINGS Off}
-      ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + Addon + (I - LB.TopIndex) * H2, ETO_CLIPPED, @ARect,
-        PWideChar(LB.Items[I]), Length(LB.Items[I]), nil)
-{$WARNINGS On}
-  else
+    Canvas.TextRect(ARect, X1 + Addon, Y1 + Addon + (I - LB.TopIndex) * H2, LB.Items[I]);
 {$endif}
-    for I := LB.TopIndex to Min(LB.Items.Count - 1, LB.TopIndex + LBSize - 1) do
-      Canvas.TextRect(ARect, X1 + Addon, Y1 + Addon + (I - LB.TopIndex) * H2, LB.Items[I]);
 end;
 
 procedure TListBoxFormControlObj.AddStr(const WS: WideString; Selected: boolean;
@@ -292,12 +287,16 @@ var
   DC: HDC;
   OldFont: THandle;
   ExtS: TSize;
-  S1, S2: string;
+  S1, S2: ThtString;
 begin
 {$ifdef UNICODE}
   S1 := WS;
 {$else}
+  {$ifdef UseUnicodeControls}
+  S1 := WS;
+  {$else}
   S1 := WideStringToMultibyte(CodePage, WS);
+  {$endif}
 {$endif}
   if S1 = '' then
     S1 := ' ';
@@ -318,7 +317,11 @@ begin
   DC := GetDC(0);
   try
     OldFont := SelectObject(DC, TheFont.Handle);
+{$ifdef UseUnicodeControls}
+    GetTextExtentPoint32W(DC, PWideChar(S1), Length(S1), ExtS);
+{$else}
     GetTextExtentPoint32(DC, PChar(S1), Length(S1), ExtS);
+{$endif}
     SelectObject(DC, OldFont);
   finally
     ReleaseDC(0, DC);
@@ -336,13 +339,7 @@ begin
     Items.Clear;
     for I := 0 to TheOptions.Count - 1 do
     begin
-{$ifdef UNICODE}
-{$else}
-      if UnicodeControls then
-        Items.Add(MultibyteToWidestring(CodePage, TheOptions[I]))
-      else
-{$endif}
-        Items.Add(TheOptions[I]);
+      Items.Add(TheOptions[I]);
       Tmp := TheOptions.Selected[I];
       if MultiSelect then
         Selected[I] := Tmp
@@ -379,23 +376,18 @@ begin
   end;
 end;
 
-function TListBoxFormControlObj.GetSubmission(Index: integer;
-  var S: string): boolean;
+function TListBoxFormControlObj.GetSubmission(Index: integer; var S: ThtString): boolean;
 begin
   with (FControl as ThtListbox) do
-    if (Index < Items.Count) then
+  begin
+    Result := (Index < Items.Count);
+    if Result then
     begin
-      Result := True;
       S := '';
-      if MultiSelect and Selected[Index] or
-        not MultiSelect and (ItemIndex = Index) then
-      begin
-        S := Self.FName + '=';
-        S := S + TheOptions.Value[Index];
-      end;
-    end
-    else
-      Result := False;
+      if MultiSelect and Selected[Index] or not MultiSelect and (ItemIndex = Index) then
+        S := Self.FName + '=' + TheOptions.Value[Index];
+    end;
+  end;
 end;
 
 procedure TListBoxFormControlObj.SaveContents;
@@ -447,7 +439,7 @@ begin
 end;
 {$ENDIF}
 
-procedure TListBoxFormControlObj.SetData(Index: integer; const V: string);
+procedure TListBoxFormControlObj.SetData(Index: integer; const V: ThtString);
 var
   I: integer;
   LB: ThtListbox;
@@ -463,7 +455,7 @@ begin
         if MultiSelect then
           Selected[I] := False;
     end;
-    if CompareText(V, TheOptions.Value[I]) = 0 then
+    if htCompareText(V, TheOptions.Value[I]) = 0 then
     begin
       with LB do
         if MultiSelect then
@@ -522,13 +514,7 @@ begin
     Items.Clear;
     for I := 0 to TheOptions.Count - 1 do
     begin
-{$ifdef UNICODE}
-{$else}
-      if UnicodeControls then
-        Items.Add(MultibyteToWideString(CodePage, TheOptions[I]))
-      else
-{$endif}
-        Items.Add(TheOptions[I]);
+      Items.Add(TheOptions[I]);
       if TheOptions.Selected[I] then
         ItemIndex := I;
     end;
@@ -555,16 +541,12 @@ begin
   Canvas.Font := CB.Font;
   SetTextAlign(Canvas.handle, TA_Left + TA_Top);
   ARect := Rect(X1 + 4, Y1 + 4, X1 + CB.Width - 8, Y1 + CB.Height - 3);
-{$ifdef UNICODE}
+{$ifdef UseUnicodeControls}
+  ExtTextOutW(Canvas.Handle, X1 + 4, Y1 + 4, ETO_CLIPPED, @ARect,
+    PWideChar(CB.Items[CB.ItemIndex]), Length(CB.Items[CB.ItemIndex]), nil)
 {$else}
-  if UnicodeControls then
-{$WARNINGS Off}
-    ExtTextOutW(Canvas.Handle, X1 + 4, Y1 + 4, ETO_CLIPPED, @ARect,
-      PWideChar(CB.Items[CB.ItemIndex]), Length(CB.Items[CB.ItemIndex]), nil)
-{$WARNINGS On}
-  else
+  Canvas.TextRect(ARect, X1 + 4, Y1 + 4, CB.Items[CB.ItemIndex]);
 {$endif}
-    Canvas.TextRect(ARect, X1 + 4, Y1 + 4, CB.Items[CB.ItemIndex]);
 end;
 
 procedure TComboFormControlObj.SetHeightWidth(ACanvas: TCanvas);
@@ -586,21 +568,16 @@ begin
   end;
 end;
 
-function TComboFormControlObj.GetSubmission(Index: integer;
-  var S: string): boolean;
+function TComboFormControlObj.GetSubmission(Index: integer; var S: ThtString): boolean;
 begin
-  if Index = 0 then
-  begin
-    Result := True;
+  Result := Index = 0;
+  if Result then
     with (FControl as ThtCombobox) do
       if (ItemIndex >= 0) and (ItemIndex <= Items.Count) then
         S := Self.FName + '=' + TheOptions.Value[ItemIndex];
-  end
-  else
-    Result := False;
 end;
 
-procedure TComboFormControlObj.SetData(Index: integer; const V: string);
+procedure TComboFormControlObj.SetData(Index: integer; const V: ThtString);
 var
   CB: ThtCombobox;
   I: integer;
@@ -608,7 +585,7 @@ begin
   CB := FControl as ThtCombobox;
   for I := 0 to TheOptions.Count - 1 do
   begin
-    if CompareText(V, TheOptions.Value[I]) = 0 then
+    if htCompareText(V, TheOptions.Value[I]) = 0 then
       CB.ItemIndex := I;
   end;
 end;
@@ -732,18 +709,13 @@ begin
     H2 := Canvas.TextHeight('A');
     SetTextAlign(Canvas.handle, TA_Left + TA_Top);
     ARect := Rect(X1 + Addon, Y1 + Addon, X1 + Width - 2 * Addon, Y1 + Height - 2 * Addon);
-{$ifdef UNICODE}
+    for I := 0 to Min(Lines.Count - 1, Rows - 1) do
+{$ifdef UseUnicodeControls}
+      ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + Addon + I * H2, ETO_CLIPPED, @ARect,
+        PWideChar(Lines[I]), Length(Lines[I]), nil)
 {$else}
-    if UnicodeControls then
-      for I := 0 to Min(Lines.Count - 1, Rows - 1) do
-{$WARNINGS Off}
-        ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + Addon + I * H2, ETO_CLIPPED, @ARect,
-          PWideChar(Lines[I]), Length(Lines[I]), nil)
-{$WARNINGS On}
-    else
+      Canvas.TextRect(ARect, X1 + Addon, Y1 + Addon + I * H2, Lines[I]);
 {$endif}
-      for I := 0 to Min(Lines.Count - 1, Rows - 1) do
-        Canvas.TextRect(ARect, X1 + Addon, Y1 + Addon + I * H2, Lines[I]);
   end;
 end;
 
@@ -771,7 +743,7 @@ begin
   end;
 end;
 
-procedure TTextAreaFormControlObj.AddStr(const S: string);
+procedure TTextAreaFormControlObj.AddStr(const S: ThtString);
 begin
   TheText := TheText + S;
 end;
@@ -780,63 +752,36 @@ procedure TTextAreaFormControlObj.ResetToValue;
 begin
   with (FControl as ThtMemo) do
   begin
-{$ifdef UNICODE}
-{$else}
-    if UnicodeControls then
-      Text := MultiByteToWideString(CodePage, TheText)
-    else
-{$endif}
-      Text := TheText;
+    Text := TheText;
     SelStart := 0;
     SelLength := 0;
   end;
 end;
 
-function TTextAreaFormControlObj.GetSubmission(Index: integer;
-  var S: string): boolean;
+function TTextAreaFormControlObj.GetSubmission(Index: integer; var S: ThtString): boolean;
 var
   I: integer;
 begin
-  if Index = 0 then
+  Result := Index = 0;
+  if Result then
   begin
-    Result := True;
     S := FName + '=';
     if Wrap in [wrOff, wrSoft] then
-{$ifdef UNICODE}
-{$else}
-      if UnicodeControls then
-        S := S + WideStringToMultibyte(CodePage, (FControl as ThtMemo).Text)
-      else
-{$endif}
-        S := S + (FControl as ThtMemo).Text
+      S := S + (FControl as ThtMemo).Text
     else
       with (FControl as ThtMemo) do
         for I := 0 to Lines.Count - 1 do
         begin
-{$ifdef UNICODE}
-{$else}
-          if UnicodeControls then
-            S := S + WideStringToMultibyte(CodePage, Lines[I])
-          else
-{$endif}
-            S := S + Lines[I];
+          S := S + Lines[I];
           if (I < Lines.Count - 1) then
             S := S + CRLF;
         end;
-  end
-  else
-    Result := False;
+  end;
 end;
 
-procedure TTextAreaFormControlObj.SetData(Index: integer; const V: string);
+procedure TTextAreaFormControlObj.SetData(Index: integer; const V: ThtString);
 begin
-{$ifdef UNICODE}
-{$else}
-  if UnicodeControls then
-    (FControl as ThtMemo).Text := MultiByteToWideString(CodePage, V)
-  else
-{$endif}
-    (FControl as ThtMemo).Text := V;
+  (FControl as ThtMemo).Text := V;
 end;
 
 procedure TTextAreaFormControlObj.SaveContents;

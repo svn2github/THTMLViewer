@@ -63,6 +63,11 @@ uses
 {$ifdef LCL}Interfaces, {$endif}
 {$IFDEF UseTNT}
   TntStdCtrls,
+  {$ifdef Compiler17_Plus}
+    WideStrings,
+  {$else}
+    TntWideStrings,
+  {$endif}
 {$ELSE UseTNT}
   {$IFDEF UseElPack}
   ElListBox, ElCombos, ElEdits, ElPopBtn,
@@ -95,17 +100,23 @@ type
   ThtMemo = TTntMemo;
   ThtCombobox = TTntCombobox;
   ThtListbox = TTntListbox;
+  ThtStringList = TWideStringList;
+  ThtString = WideString;
 {$ELSE}
 {$IFDEF UseElPack}
   ThtButton = TElPopupButton;
   ThtMemo = TElMemo;
   ThtCombobox = TElCombobox;
   ThtListbox = TElListbox;
+  ThtStringList = TWideStringList;
+  ThtString = WideString;
 {$ELSE}
   ThtButton = TButton;
   ThtMemo = TMemo;
   ThtCombobox = TCombobox;
   ThtListbox = TListbox;
+  ThtStringList = TStringList;
+  ThtString = string;
 {$ENDIF}
 {$ENDIF}
 
@@ -121,7 +132,7 @@ type
   TGetBitmapEvent = procedure(Sender: TObject; const SRC: string; var Bitmap: TBitmap; var Color: TColor) of object;
   TGetImageEvent = procedure(Sender: TObject; const SRC: string; var Stream: TMemoryStream) of object;
   TGottenImageEvent = TGetImageEvent;
-  TFormSubmitEvent = procedure(Sender: TObject; const Action, Target, EncType, Method: string; Results: TStringList) of object;
+  TFormSubmitEvent = procedure(Sender: TObject; const Action, Target, EncType, Method: string; Results: ThtStringList) of object;
   TPanelCreateEvent = procedure(Sender: TObject; const AName, AType, SRC: string; Panel: ThvPanel) of object;
   TPanelDestroyEvent = procedure(Sender: TObject; Panel: ThvPanel) of object;
   TPanelPrintEvent = procedure(Sender: TObject; Panel: ThvPanel; const Bitmap: TBitmap) of object;
@@ -297,7 +308,7 @@ type
     procedure DoRadios(Radio: TRadioButtonFormControlObj);
     procedure InsertControl(Ctrl: TFormControlObj);
     procedure ResetControls;
-    function GetFormSubmission: TStringList;
+    function GetFormSubmission: ThtStringList;
     procedure SubmitTheForm(const ButtonSubmission: string);
     procedure SetFormData(SL: TStringList);
     procedure SetSizes(Canvas: TCanvas);
@@ -322,7 +333,8 @@ type
     Pos: Integer; {0..Len  index of control position}
     MasterList: TSectionList;
     MyForm: ThtmlForm;
-    Value, FName, FID: string;
+    Value: ThtString;
+    FName, FID: string;
     FormAlign: AlignmentType;
     HSpaceL, HSpaceR, VSpaceT, VSpaceB, BordT, BordB: Integer;
     FHeight, FWidth: Integer;
@@ -344,8 +356,8 @@ type
     procedure ProcessProperties(Prop: TProperties); virtual;
     procedure Draw(Canvas: TCanvas; X1, Y1: Integer); virtual;
     procedure ResetToValue; virtual;
-    function GetSubmission(Index: Integer; var S: string): boolean; virtual;
-    procedure SetData(Index: Integer; const V: string); virtual;
+    function GetSubmission(Index: Integer; var S: ThtString): boolean; virtual;
+    procedure SetData(Index: Integer; const V: ThtString); virtual;
     procedure SetDataInit; virtual;
     procedure SetHeightWidth(Canvas: TCanvas); virtual;
     procedure EnterEvent(Sender: TObject); {these two would be better private}
@@ -368,12 +380,12 @@ type
     constructor Create(AMasterList: TSectionList; Position: Integer; L: TAttributeList);
     procedure ProcessProperties(Prop: TProperties); override;
     procedure ImageClick(Sender: TObject);
-    function GetSubmission(Index: Integer; var S: string): boolean; override;
+    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
   end;
 
   THiddenFormControlObj = class(TFormControlObj)
-    function GetSubmission(Index: Integer; var S: string): boolean; override;
-    procedure SetData(Index: Integer; const V: string); override;
+    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
+    procedure SetData(Index: Integer; const V: ThtString); override;
   end;
 
   TEditFormControlObj = class(TFormControlObj)
@@ -390,8 +402,8 @@ type
     procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
     procedure ProcessProperties(Prop: TProperties); override;
     procedure ResetToValue; override;
-    function GetSubmission(Index: Integer; var S: string): boolean; override;
-    procedure SetData(Index: Integer; const V: string); override;
+    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
+    procedure SetData(Index: Integer; const V: ThtString); override;
     procedure SetHeightWidth(Canvas: TCanvas); override;
   end;
 
@@ -423,8 +435,8 @@ type
     procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
     procedure RadioClick(Sender: TObject);
     procedure ResetToValue; override;
-    function GetSubmission(Index: Integer; var S: string): boolean; override;
-    procedure SetData(Index: Integer; const V: string); override;
+    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
+    procedure SetData(Index: Integer; const V: ThtString); override;
   end;
 
   TCheckBoxFormControlObj = class(TFormControlObj)
@@ -436,8 +448,8 @@ type
       L: TAttributeList; Prop: TProperties);
     procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
     procedure ResetToValue; override;
-    function GetSubmission(Index: Integer; var S: string): boolean; override;
-    procedure SetData(Index: Integer; const V: string); override;
+    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
+    procedure SetData(Index: Integer; const V: ThtString); override;
     procedure SetDataInit; override;
   protected
     procedure DoOnChange; override;
@@ -1121,6 +1133,8 @@ type
     procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProps: TProperties);
   end;
 
+  function htCompareText(const T1, T2: ThtString): Integer;
+
 var
   CurrentStyle: TFontStyles; {as set by <b>, <i>, etc.}
   CurrentForm: ThtmlForm;
@@ -1142,6 +1156,15 @@ uses
   SysUtils, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}Forms, Math,
   HtmlSbs1
   {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
+
+function htCompareText(const T1, T2: ThtString): Integer;
+begin
+{$ifdef UseUnicodeControls}
+  Result := WideCompareText(T1, T2);
+{$else}
+  Result := CompareText(T1, T2);
+{$endif}
+end;
 
 procedure InitializeFontSizes(Size: Integer);
 var
@@ -2794,12 +2817,12 @@ begin
     end;
 end;
 
-function ThtmlForm.GetFormSubmission: TStringList;
+function ThtmlForm.GetFormSubmission: ThtStringList;
 var
   I, J: Integer;
-  S: string;
+  S: ThtString;
 begin
-  Result := TStringList.Create;
+  Result := ThtStringList.Create;
   for I := 0 to ControlList.Count - 1 do
     with TFormControlObj(ControlList.Items[I]) do
     begin
@@ -2816,12 +2839,12 @@ end;
 procedure ThtmlForm.SubmitTheForm(const ButtonSubmission: string);
 var
   I, J: Integer;
-  SL: TStringList;
-  S: string;
+  SL: ThtStringList;
+  S: ThtString;
 begin
   if Assigned(MasterList.SubmitForm) then
   begin
-    SL := TStringList.Create;
+    SL := ThtStringList.Create;
     for I := 0 to ControlList.Count - 1 do
       with TFormControlObj(ControlList.Items[I]) do
       begin
@@ -3058,7 +3081,7 @@ begin end;
 procedure TFormControlObj.ResetToValue;
 begin end;
 
-function TFormControlObj.GetSubmission(Index: Integer; var S: string): boolean;
+function TFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
   Result := False;
 end;
@@ -3067,7 +3090,7 @@ procedure TFormControlObj.SetDataInit;
 begin
 end;
 
-procedure TFormControlObj.SetData(Index: Integer; const V: string);
+procedure TFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
 end;
 
@@ -3126,10 +3149,10 @@ begin
     MyForm.SubmitTheForm('');
 end;
 
-function TImageFormControlObj.GetSubmission(Index: Integer; var S: string): boolean;
+function TImageFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
-  Result := False;
-  if (Index <= 1) and (XPos >= 0) then
+  Result := (Index <= 1) and (XPos >= 0);
+  if Result then
   begin
     S := '';
     if FName <> '' then
@@ -3141,20 +3164,19 @@ begin
       S := S + 'y=' + IntToStr(YPos);
       XPos := -1;
     end;
-    Result := True;
   end;
 end;
 
 {----------------THiddenFormControlObj.GetSubmission}
 
-function THiddenFormControlObj.GetSubmission(Index: Integer; var S: string): boolean;
+function THiddenFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
   Result := Index = 0;
   if Result then
     S := FName + '=' + Value;
 end;
 
-procedure THiddenFormControlObj.SetData(Index: Integer; const V: string);
+procedure THiddenFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
   Value := V;
 end;
@@ -3227,16 +3249,8 @@ end;
 
 procedure TEditFormControlObj.ResetToValue;
 begin
-{$ifdef UNICODE}
-{$else}
-  if UnicodeControls then
-    ThtEdit(FControl).Text := MultibyteToWideString(CodePage, Value)
-  else
-{$endif}
-    ThtEdit(FControl).Text := Value;
+  ThtEdit(FControl).Text := Value;
 end;
-
-{$IFDEF bloop}
 
 procedure TEditFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
 var
@@ -3259,77 +3273,25 @@ begin
     SetBkMode(Canvas.Handle, Windows.Transparent);
     Canvas.Brush.Style := bsClear;
     ARect := Rect(X1 + Addon, Y1, X1 + Width - (Addon div 2), Y1 + Height);
-    if UnicodeControls then
-{$WARNINGS Off}
+{$ifdef UseUnicodeControls}
       ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + (Height - H2) div 2, ETO_CLIPPED, @ARect,
-        PWideChar(Text), Length(Text), nil)
-{$WARNINGS On}
-    else
+        PWideChar(Text), Length(Text), nil);
+{$else}
       Canvas.TextRect(ARect, X1 + Addon, Y1 + (Height - H2) div 2 - 1, Text);
-  end
-end;
-{$ENDIF}
-
-procedure TEditFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
-var
-  H2, Addon: Integer;
-  ARect: TRect;
-begin
-  if ThtEdit(FControl).BorderStyle <> bsNone then
-    Addon := 4 {normal 3D border}
-  else
-    Addon := 2; {inline border, 3D Border removed}
-  with ThtEdit(FControl) do
-  begin
-    Canvas.Font := Font;
-    H2 := Abs(Font.Height);
-    if BorderStyle <> bsNone then
-      FormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, False, MasterList.PrintMonoBlack, False, Color)
-    else
-      FillRectWhite(Canvas, X1, Y1, X1 + Width, Y1 + Height, Color);
-    SetTextAlign(Canvas.handle, TA_Left);
-    SetBkMode(Canvas.Handle, Windows.Transparent);
-    Canvas.Brush.Style := bsClear;
-    ARect := Rect(X1 + Addon, Y1, X1 + Width - (Addon div 2), Y1 + Height);
-{$ifdef UNICODE}
-{$else}
-    if UnicodeControls then
-{$WARNINGS Off}
-      ExtTextOutW(Canvas.Handle, X1 + Addon, Y1 + (Height - H2) div 2, ETO_CLIPPED, @ARect,
-        PWideChar(Text), Length(Text), nil)
-{$WARNINGS On}
-    else
 {$endif}
-      Canvas.TextRect(ARect, X1 + Addon, Y1 + (Height - H2) div 2 - 1, Text);
   end
 end;
 
-function TEditFormControlObj.GetSubmission(Index: Integer; var S: string): boolean;
+function TEditFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
-  if Index = 0 then
-  begin
-    Result := True;
-{$ifdef UNICODE}
-{$else}
-    if UnicodeControls then
-      S := FName + '=' + WideStringToMultibyte(CodePage, ThtEdit(FControl).Text)
-    else
-{$endif}
-      S := FName + '=' + ThtEdit(FControl).Text;
-  end
-  else
-    Result := False;
+  Result := Index = 0;
+  if Result then
+    S := FName + '=' + ThtEdit(FControl).Text;
 end;
 
-procedure TEditFormControlObj.SetData(Index: Integer; const V: string);
+procedure TEditFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
-{$ifdef UNICODE}
-{$else}
-  if UnicodeControls then
-    ThtEdit(FControl).Text := MultibyteToWideString(CodePage, V)
-  else
-{$endif}
-    ThtEdit(FControl).Text := V; ;
+  ThtEdit(FControl).Text := V;
 end;
 
 procedure TEditFormControlObj.SetHeightWidth(Canvas: TCanvas);
@@ -3410,11 +3372,6 @@ begin
     OnClick := Self.ButtonClick;
     if Which = Browse then
       Caption := 'Browse...'
-{$ifdef UNICODE}
-{$else}
-    else if UnicodeControls then
-      Caption := MultibyteToWideString(Prop.CodePage, Value)
-{$endif}
     else
       Caption := Value;
     OnEnter := EnterEvent;
@@ -3459,8 +3416,7 @@ begin
       FormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, True, MasterList.PrintMonoBlack, False, clWhite);
       H2 := Canvas.TextHeight('A');
       SetTextAlign(Canvas.handle, TA_Center + TA_Top);
-      Canvas.TextRect(Rect(X1, Y1, X1 + Width, Y1 + Height), X1 + (Width div 2),
-        Y1 + (Height - H2) div 2, Value);
+      Canvas.TextRect(Rect(X1, Y1, X1 + Width, Y1 + Height), X1 + (Width div 2), Y1 + (Height - H2) div 2, Value);
     end;
   end;
 end;
@@ -3561,15 +3517,11 @@ begin
   end;
 end;
 
-function TCheckBoxFormControlObj.GetSubmission(Index: Integer; var S: string): boolean;
+function TCheckBoxFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
-  if (Index = 0) and THtmlCheckBox(FControl).Checked then
-  begin
-    Result := True;
+  Result := (Index = 0) and THtmlCheckBox(FControl).Checked;
+  if Result then
     S := FName + '=' + Value;
-  end
-  else
-    Result := False;
 end;
 
 procedure TCheckBoxFormControlObj.SetDataInit;
@@ -3577,9 +3529,9 @@ begin
   THtmlCheckBox(FControl).Checked := False; {not checked unless later data says so}
 end;
 
-procedure TCheckBoxFormControlObj.SetData(Index: Integer; const V: string);
+procedure TCheckBoxFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
-  if CompareText(V, Value) = 0 then
+  if htCompareText(V, Value) = 0 then
     THtmlCheckBox(FControl).Checked := True;
 end;
 
@@ -3744,21 +3696,16 @@ begin
   end;
 end;
 
-function TRadioButtonFormControlObj.GetSubmission(Index: Integer;
-  var S: string): boolean;
+function TRadioButtonFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
-  if (Index = 0) and TFormRadioButton(TheControl).Checked then
-  begin
-    Result := True;
+  Result := (Index = 0) and TFormRadioButton(TheControl).Checked;
+  if Result then
     S := FName + '=' + Value;
-  end
-  else
-    Result := False;
 end;
 
-procedure TRadioButtonFormControlObj.SetData(Index: Integer; const V: string);
+procedure TRadioButtonFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
-  if CompareText(V, Value) = 0 then
+  if htCompareText(V, Value) = 0 then
     TFormRadioButton(TheControl).Checked := True;
 end;
 

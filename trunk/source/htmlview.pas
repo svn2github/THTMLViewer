@@ -257,7 +257,7 @@ type
     Sel1: Integer;
 // These fields are set in SubmitForm and read in WMFormSubmit
     FAction, FFormTarget, FEncType, FMethod: string;
-    FStringList: TStringList;
+    FStringList: ThtStringList;
 //
     function CreateHeaderFooter: THtmlViewer;
     function GetBase: string;
@@ -360,7 +360,7 @@ type
     procedure SetViewImages(Value: Boolean);
     procedure SetVisitedColor(Value: TColor);
     procedure SetVisitedMaxCount(Value: Integer);
-    procedure SubmitForm(Sender: TObject; const Action, Target, EncType, Method: string; Results: TStringList);
+    procedure SubmitForm(Sender: TObject; const Action, Target, EncType, Method: string; Results: ThtStringList);
     procedure UpdateImageCache;
     procedure WMFormSubmit(var Message: TMessage); message WM_FormSubmit;
     procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
@@ -1095,7 +1095,6 @@ procedure THtmlViewer.LoadFromStream(const AStream: TStream; const Reference: st
 var
   S: string;
 begin
-  AStream.Position := 0;
   S := LoadStringFromStream(AStream);
   LoadString(S, Reference, HTMLType);
   if (FRefreshDelay > 0) and Assigned(FOnMetaRefresh) then
@@ -4520,7 +4519,7 @@ begin
 end;
 
 procedure THtmlViewer.SubmitForm(Sender: TObject; const Action, Target, EncType, Method: string;
-  Results: TStringList);
+  Results: ThtStringList);
 begin
   if Assigned(FOnFormSubmit) then
   begin

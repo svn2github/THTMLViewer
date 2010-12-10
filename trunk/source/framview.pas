@@ -163,7 +163,7 @@ type
     procedure CheckProcessing(Sender: TObject; ProcessingOn: boolean);
     procedure CheckVisitedLinks; virtual; abstract;
     procedure ChkFree(Obj: TObject);
-    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: TStringList); virtual; abstract;
+    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: ThtStringList); virtual; abstract;
     procedure DoURLRequest(Sender: TObject; const SRC: string; var RStream: TMemoryStream); virtual; abstract;
     procedure EndProcessing;
     procedure fvDragDrop(Sender, Source: TObject; X, Y: Integer);
@@ -574,7 +574,7 @@ type
     function GetFrameSetClass: TFrameSetClass; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
     procedure CheckVisitedLinks; override;
-    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: TStringList); override;
+    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: ThtStringList); override;
     procedure DoURLRequest(Sender: TObject; const SRC: string; var RStream: TMemoryStream); override;
     procedure HotSpotCovered(Sender: TObject; const SRC: string); override;
     procedure LoadFromFileInternal(const S, Dest: string);
@@ -2231,7 +2231,6 @@ begin
         if Result then
         begin
           LStyle := lsString;
-          Stream.Position := 0;
           AString := LoadStringFromStream(Stream);
         end;
       end
@@ -3674,7 +3673,7 @@ end;
 
 //-- BG ---------------------------------------------------------- 03.01.2010 --
 procedure TFrameViewer.DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType,
-  Method: string; Results: TStringList);
+  Method: string; Results: ThtStringList);
 begin
   if Assigned(FOnFormSubmit) then
     FOnFormSubmit(Sender, Action, Target, EncType, Method, Results);

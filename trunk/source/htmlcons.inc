@@ -216,8 +216,16 @@
         {Defining UseElpack allows the Elpack Unicode controls to be used for
         HTML Form controls in place of the Delphi TEdit, TButton, TListbox,
         TCombobox, and TMemo controls.  See "Using Third Party Controls" below.}
+
+{$ifdef UseTNT}
+  {$define UseUnicodeControls}
+{$endif}
+{$ifdef UseElpack}
+  {$define UseUnicodeControls}
+{$endif}
+
 {
-Using Third Party Controls
+Using Third Party Unicode Controls
 
 Unfortunately, the VCL controls that come with Delphi do not handle Unicode well.
 In fact, in many cases, they do not work well with multibyte fonts either.  For
@@ -240,19 +248,24 @@ time constant, "UseTNT" or "UseElpack".  You can define these in htmlcons.inc or
 in the Project|Options dialog, Directories/Conditionals tab.  Be sure and do a
 complete Build on your application after changing these compile time constants.
 
-htmlsub.pas defines five new symbols to represent the form controls.  These are
-ThtEdit, ThtButton, ThtMemo, ThtCombobox, ThtListbox.  The definitions of
-these symbols change with the set of controls being used.  So, for instance,
-ThtEdit is the same as TEdit for the Delphi controls but becomes TTntEdit when
-UseTNT is defined or TElEdit when UseElpack is defined.  If your application
-accesses the form controls for special purposes, it would be best to use these
-new symbols.  For example code like,
+htmlsubs.pas defines several new symbols to represent the form controls and types
+depending on the set of controls being used. These types are
+ThtEdit, ThtButton, ThtMemo, ThtCombobox, ThtListbox, ThtString and ThtStringList.
+
+The definitions of these symbols change with the set of controls being used.  So,
+for instance, ThtEdit is the same as TEdit for the Delphi controls but becomes
+TTntEdit when UseTNT is defined or TElEdit when UseElpack is defined. And ThtString
+is string for Delphi controls and WideString for the unicode controls.
+
+If your application accesses the form controls for special purposes, you should
+use these new symbols.  For example code like,
 
       if TFormControlObj(Items[I]).TheControl is TEdit then
         TEdit(TFormControlObj(Items[I]).TheControl).Text := ........
 
-might be better written as:
+should become:
 
       if TFormControlObj(Items[I]).TheControl is ThtEdit then
         ThtEdit(TFormControlObj(Items[I]).TheControl).Text := ........
 }
+
