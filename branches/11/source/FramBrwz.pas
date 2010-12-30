@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -31,7 +31,7 @@ interface
 
 uses
   SysUtils, Windows, Classes, Messages, Controls, ExtCtrls,
-  HtmlGlobals, HtmlSubs, HtmlView, Htmlun2, ReadHTML, UrlSubs, FramView;
+  HtmlGlobals, HtmlBuffer, HtmlSubs, HtmlView, Htmlun2, ReadHTML, UrlSubs, FramView;
 
 type
   TGetPostRequestEvent = procedure(Sender: TObject; IsGet: boolean; const URL, Query: ThtString;
@@ -135,15 +135,6 @@ implementation
 const
   Sequence: integer = 10;
 
-function StreamToString(Stream: TStream): ThtString;
-begin
-  try
-    Result := LoadStringFromStream(Stream);
-  except
-    Result := '';
-  end;
-end;
-
 function ConvDosToHTML(const Name: ThtString): ThtString; forward;
 
 {----------------TbrFrame.CreateIt}
@@ -242,7 +233,7 @@ var
   Upper, Lower: boolean;
   Msg: ThtString;
   NewURL: ThtString;
-  TheString: ThtString;
+  Doc: TBuffer;
 begin
   if (Source <> '') and (MasterSet.NestLevel < 4) then
   begin
@@ -256,52 +247,64 @@ begin
     URLBase := UrlSubs.GetURLBase(Source);
     Inc(MasterSet.NestLevel);
     try
-      TheString := StreamToString(TheStream);
-      if (TheStreamType = HTMLType) and IsFrameString(LsString, '', TheString, MasterSet.FrameViewer) then
-      begin
-        FFrameSet := TbrSubFrameSet.CreateIt(Self, MasterSet);
-        FrameSet.Align := alClient;
-        FrameSet.Visible := False;
-        InsertControl(FrameSet);
-        FrameSet.SendToBack;
-        FrameSet.Visible := True;
-        FrameParseString(MasterSet.FrameViewer, FrameSet, lsString, '', TheString, FrameSet.HandleMeta);
-        Self.BevelOuter := bvNone;
-        frBumpHistory1(Source, 0);
-        with FrameSet do
+      try
+        if TheStream <> nil then
         begin
-          for I := 0 to List.Count - 1 do
+          TheStream.Position := 0;
+          Doc := TBuffer.Create(TheStream);
+        end
+        else
+          Doc := nil;
+        if (TheStreamType = HTMLType) and IsFrame(MasterSet.FrameViewer, Doc, Source) then
+        begin
+          FFrameSet := TbrSubFrameSet.CreateIt(Self, MasterSet);
+          FrameSet.Align := alClient;
+          FrameSet.Visible := False;
+          InsertControl(FrameSet);
+          FrameSet.SendToBack;
+          FrameSet.Visible := True;
+          ParseFrame(MasterSet.FrameViewer, FrameSet, Doc, Source, FrameSet.HandleMeta);
+          Self.BevelOuter := bvNone;
+          frBumpHistory1(Source, 0);
+          with FrameSet do
           begin
-            Item := TFrameBaseOpener(List.Items[I]);
-            Item.LoadFiles;
+            for I := 0 to List.Count - 1 do
+            begin
+              Item := TFrameBaseOpener(List.Items[I]);
+              Item.LoadFiles;
+            end;
+            CheckNoresize(Lower, Upper);
+            if FRefreshDelay > 0 then
+              SetRefreshTimer;
           end;
-          CheckNoresize(Lower, Upper);
-          if FRefreshDelay > 0 then
-            SetRefreshTimer;
+        end
+        else
+        begin
+          CreateViewer;
+          Viewer.Base := MasterSet.FBase;
+          Viewer.LoadStream(Source, TheStream, TheStreamType);
+          Viewer.PositionTo(Destination);
+          frBumpHistory1(Source, Viewer.Position);
         end;
-      end
-      else
-      begin
-        CreateViewer;
-        Viewer.Base := MasterSet.FBase;
-        Viewer.LoadStream(Source, TheStream, TheStreamType);
-        Viewer.PositionTo(Destination);
-        frBumpHistory1(Source, Viewer.Position);
+      except
+        if not Assigned(Viewer) then
+          CreateViewer;
+        FreeAndNil(FFrameSet);
+        Msg := '<p><img src="qw%&.bmp" alt="Error"> Can''t load ' + Source;
+        Viewer.LoadFromBuffer(@Msg[1], Length(Msg), ''); {load an error message}
       end;
-    except
-      if not Assigned(Viewer) then
-        CreateViewer;
-      FreeAndNil(FFrameSet);
-      Msg := '<p><img src="qw%&.bmp" alt="Error"> Can''t load ' + Source;
-      Viewer.LoadFromBuffer(@Msg[1], Length(Msg), ''); {load an error message}
+    finally
+      Dec(MasterSet.NestLevel);
     end;
-    Dec(MasterSet.NestLevel);
   end
   else
   begin {so blank area will perform like the TFrameBrowser}
     OnMouseDown := MasterSet.FrameViewer.OnMouseDown;
     OnMouseMove := MasterSet.FrameViewer.OnMouseMove;
     OnMouseUp := MasterSet.FrameViewer.OnMouseUp;
+    OnMouseWheel := MasterSet.FrameViewer.OnMouseWheel;
+    OnMouseWheelUp := MasterSet.FrameViewer.OnMouseWheelUp;
+    OnMouseWheelDown := MasterSet.FrameViewer.OnMouseWheelDown;
   end;
 end;
 
@@ -367,11 +370,10 @@ var
   SameName: boolean;
   OldViewer: ThtmlViewer;
   OldFrameSet: TbrSubFrameSet;
-  TheString: ThtString;
   Upper, Lower, FrameFile: boolean;
   Item: TFrameBase;
   I: integer;
-
+  Doc: TBuffer;
 begin
   if Assigned(RefreshTimer) then
     RefreshTimer.Enabled := False;
@@ -400,14 +402,16 @@ begin
   end;
 
   try
-    TheString := StreamToString(TheStream);
-    if not SameName then
-    try
-      FrameFile := (TheStreamType = HTMLType) and
-        IsFrameString(lsString, '', TheString, MasterSet.FrameViewer);
-    except
-      raise(EfvLoadError.Create('Can''t load: ' + URL));
+    //TheString := StreamToString(TheStream);
+    if TheStream <> nil then
+    begin
+      TheStream.Position := 0;
+      Doc := TBuffer.Create(TheStream)
     end
+    else
+      Doc := nil;
+    if not SameName then
+      FrameFile := (TheStreamType = HTMLType) and IsFrame(MasterSet.FrameViewer, Doc, Source)
     else
       FrameFile := not Assigned(Viewer);
     if SameName and not Reload then
@@ -489,7 +493,7 @@ begin
         InsertControl(FrameSet);
         FrameSet.SendToBack; {to prevent blink}
         FrameSet.Visible := True;
-        FrameParseString(MasterSet.FrameViewer, FrameSet, lsString, '', TheString, FrameSet.HandleMeta);
+        ParseFrame(MasterSet.FrameViewer, FrameSet, Doc, Source, FrameSet.HandleMeta);
         MasterSet.FrameViewer.AddVisitedLink(URL);
         Self.BevelOuter := bvNone;
         with FrameSet do
@@ -672,16 +676,16 @@ var
   I: integer;
   Frame: TbrFrame;
   Lower, Upper: boolean;
-  TheString: ThtString;
+  Doc: TBuffer;
 begin
   Clear;
   NestLevel := 0;
   FCurrentFile := URL;
-  TheString := StreamToString(Stream);
-  if (StreamType = HTMLType) and
-    IsFrameString(lsString, '', TheString, MasterSet.FrameViewer) then
+  Stream.Position := 0;
+  Doc := TBuffer.Create(Stream, Url);
+  if (StreamType = HTMLType) and IsFrame(MasterSet.FrameViewer, Doc, Url) then
   begin {it's a Frameset html file}
-    FrameParseString(FrameViewer, Self, lsString, '', TheString, HandleMeta);
+    ParseFrame(FrameViewer, Self, Doc, Url, HandleMeta);
     for I := 0 to List.Count - 1 do
       TFrameBaseOpener(List.Items[I]).LoadFiles;
     CalcSizes(Self);
@@ -1042,7 +1046,14 @@ var
         Ch := S[I];
         if Ch = ' ' then
           Result := Result + '+'
-        else if not (Ch in ['a'..'z', 'A'..'Z', '0'..'9', '=', '_', '-', '.', '*', '@']) then
+        else if not (Ch in [
+          ThtChar('a')..ThtChar('z'),
+          ThtChar('A')..ThtChar('Z'),
+          ThtChar('0')..ThtChar('9'),
+          ThtChar('='), ThtChar('_'),
+          ThtChar('-'), ThtChar('.'),
+          ThtChar('*'), ThtChar('@')])
+        then
           Result := Result + '%' + IntToHex(ord(Ch), 2)
         else
           Result := Result + Ch;
