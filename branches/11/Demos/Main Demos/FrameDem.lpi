@@ -8,7 +8,7 @@
       <TargetFileExt Value=".exe"/>
       <Icon Value="0"/>
       <UseXPManifest Value="True"/>
-      <ActiveEditorIndexAtStart Value="9"/>
+      <ActiveEditorIndexAtStart Value="4"/>
     </General>
     <VersionInfo>
       <UseVersionInfo Value="True"/>
@@ -30,22 +30,20 @@
         <LaunchingApplication PathPlusParams="/usr/X11R6/bin/xterm -T 'Lazarus Run Output' -e $(LazarusDir)/tools/runwait.sh $(TargetCmdLine)"/>
       </local>
     </RunParams>
-    <RequiredPackages Count="2">
+    <RequiredPackages Count="1">
       <Item1>
-        <PackageName Value="TntUnicodeLcl_R09"/>
-        <MinVersion Valid="True"/>
-      </Item1>
-      <Item2>
         <PackageName Value="LCL"/>
-      </Item2>
+      </Item1>
     </RequiredPackages>
-    <Units Count="85">
+    <Units Count="86">
       <Unit0>
         <Filename Value="FrameDem.dpr"/>
         <IsPartOfProject Value="True"/>
-        <CursorPos X="27" Y="31"/>
-        <TopLine Value="1"/>
+        <CursorPos X="19" Y="50"/>
+        <TopLine Value="3"/>
+        <EditorIndex Value="3"/>
         <UsageCount Value="212"/>
+        <Loaded Value="True"/>
       </Unit0>
       <Unit1>
         <Filename Value="FDemUnit.pas"/>
@@ -53,9 +51,11 @@
         <HasResources Value="True"/>
         <ResourceBaseClass Value="Form"/>
         <UnitName Value="FDemUnit"/>
-        <CursorPos X="2" Y="177"/>
-        <TopLine Value="144"/>
+        <CursorPos X="1" Y="61"/>
+        <TopLine Value="31"/>
+        <EditorIndex Value="4"/>
         <UsageCount Value="99"/>
+        <Loaded Value="True"/>
       </Unit1>
       <Unit2>
         <Filename Value="..\..\source\HTMLSubs.pas"/>
@@ -78,9 +78,11 @@
       </Unit3>
       <Unit4>
         <Filename Value="..\..\source\htmlcons.inc"/>
-        <CursorPos X="1" Y="1"/>
-        <TopLine Value="1"/>
+        <CursorPos X="36" Y="194"/>
+        <TopLine Value="157"/>
+        <EditorIndex Value="2"/>
         <UsageCount Value="79"/>
+        <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
       </Unit4>
       <Unit5>
@@ -94,9 +96,9 @@
       <Unit6>
         <Filename Value="..\..\source\HtmlGlobals.pas"/>
         <UnitName Value="HtmlGlobals"/>
-        <CursorPos X="9" Y="35"/>
-        <TopLine Value="16"/>
-        <EditorIndex Value="7"/>
+        <CursorPos X="15" Y="136"/>
+        <TopLine Value="109"/>
+        <EditorIndex Value="0"/>
         <UsageCount Value="85"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
@@ -181,11 +183,13 @@
         <SyntaxHighlighter Value="Delphi"/>
       </Unit16>
       <Unit17>
-        <Filename Value="..\..\source\readhtml.pas"/>
+        <Filename Value="..\..\source\ReadHTML.pas"/>
         <UnitName Value="Readhtml"/>
-        <CursorPos X="51" Y="1756"/>
-        <TopLine Value="1727"/>
+        <CursorPos X="16" Y="33"/>
+        <TopLine Value="13"/>
+        <EditorIndex Value="1"/>
         <UsageCount Value="65"/>
+        <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
       </Unit17>
       <Unit18>
@@ -204,9 +208,9 @@
       <Unit20>
         <Filename Value="..\..\source\StylePars.pas"/>
         <UnitName Value="StylePars"/>
-        <CursorPos X="103" Y="770"/>
-        <TopLine Value="737"/>
-        <EditorIndex Value="9"/>
+        <CursorPos X="36" Y="801"/>
+        <TopLine Value="768"/>
+        <EditorIndex Value="5"/>
         <UsageCount Value="34"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
@@ -463,7 +467,7 @@
         <UnitName Value="HtmlBuffer"/>
         <CursorPos X="20" Y="34"/>
         <TopLine Value="1"/>
-        <EditorIndex Value="8"/>
+        <EditorIndex Value="6"/>
         <UsageCount Value="10"/>
         <Loaded Value="True"/>
         <SyntaxHighlighter Value="Delphi"/>
@@ -505,17 +509,13 @@
         <UnitName Value="TntWindows"/>
         <CursorPos X="65" Y="1391"/>
         <TopLine Value="1345"/>
-        <EditorIndex Value="1"/>
         <UsageCount Value="14"/>
-        <Loaded Value="True"/>
       </Unit64>
       <Unit65>
         <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntCompilers.inc"/>
         <CursorPos X="1" Y="370"/>
         <TopLine Value="305"/>
-        <EditorIndex Value="0"/>
         <UsageCount Value="14"/>
-        <Loaded Value="True"/>
       </Unit65>
       <Unit66>
         <Filename Value="C:\lazarus\fpc\2.2.4\source\rtl\win32\windows.pp"/>
@@ -534,10 +534,8 @@
         <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntLazarus.pas"/>
         <UnitName Value="TntLazarus"/>
         <CursorPos X="1" Y="1"/>
-        <TopLine Value="56"/>
-        <EditorIndex Value="3"/>
+        <TopLine Value="1"/>
         <UsageCount Value="24"/>
-        <Loaded Value="True"/>
       </Unit68>
       <Unit69>
         <Filename Value="C:\lazarus\fpc\2.2.4\source\rtl\win\wininc\base.inc"/>
@@ -556,36 +554,28 @@
         <UnitName Value="TntSysUtils"/>
         <CursorPos X="1" Y="349"/>
         <TopLine Value="313"/>
-        <EditorIndex Value="13"/>
         <UsageCount Value="13"/>
-        <Loaded Value="True"/>
       </Unit71>
       <Unit72>
         <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntWideStrings.pas"/>
         <UnitName Value="TntWideStrings"/>
         <CursorPos X="15" Y="73"/>
         <TopLine Value="40"/>
-        <EditorIndex Value="4"/>
         <UsageCount Value="13"/>
-        <Loaded Value="True"/>
       </Unit72>
       <Unit73>
         <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntWideStrUtils.pas"/>
         <UnitName Value="TntWideStrUtils"/>
         <CursorPos X="53" Y="81"/>
         <TopLine Value="48"/>
-        <EditorIndex Value="12"/>
         <UsageCount Value="13"/>
-        <Loaded Value="True"/>
       </Unit73>
       <Unit74>
         <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntClasses.pas"/>
         <UnitName Value="TntClasses"/>
         <CursorPos X="26" Y="762"/>
         <TopLine Value="729"/>
-        <EditorIndex Value="5"/>
         <UsageCount Value="13"/>
-        <Loaded Value="True"/>
       </Unit74>
       <Unit75>
         <Filename Value="C:\lazarus\fpc\2.2.4\source\rtl\objpas\classes\writer.inc"/>
@@ -598,18 +588,14 @@
         <UnitName Value="TntSystem"/>
         <CursorPos X="1" Y="1340"/>
         <TopLine Value="1304"/>
-        <EditorIndex Value="10"/>
         <UsageCount Value="12"/>
-        <Loaded Value="True"/>
       </Unit76>
       <Unit77>
         <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntFormatStrUtils.pas"/>
         <UnitName Value="TntFormatStrUtils"/>
         <CursorPos X="63" Y="415"/>
         <TopLine Value="382"/>
-        <EditorIndex Value="6"/>
         <UsageCount Value="12"/>
-        <Loaded Value="True"/>
       </Unit77>
       <Unit78>
         <Filename Value="C:\lazarus\fpc\2.2.4\source\packages\winunits-base\src\activex.pp"/>
@@ -636,9 +622,7 @@
         <UnitName Value="shellapi"/>
         <CursorPos X="5" Y="240"/>
         <TopLine Value="174"/>
-        <EditorIndex Value="2"/>
         <UsageCount Value="11"/>
-        <Loaded Value="True"/>
       </Unit81>
       <Unit82>
         <Filename Value="C:\lazarus\fpc\2.2.4\source\rtl\objpas\objpas.pp"/>
@@ -658,132 +642,73 @@
         <UnitName Value="TntForms"/>
         <CursorPos X="5" Y="873"/>
         <TopLine Value="807"/>
-        <EditorIndex Value="11"/>
         <UsageCount Value="10"/>
-        <Loaded Value="True"/>
       </Unit84>
+      <Unit85>
+        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntControls.pas"/>
+        <UnitName Value="TntControls"/>
+        <CursorPos X="43" Y="89"/>
+        <TopLine Value="56"/>
+        <UsageCount Value="10"/>
+      </Unit85>
     </Units>
-    <JumpHistory Count="30" HistoryIndex="29">
+    <JumpHistory Count="14" HistoryIndex="13">
       <Position1>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1302" Column="9" TopLine="1278"/>
-      </Position1>
-      <Position2>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1177" Column="3" TopLine="1180"/>
-      </Position2>
-      <Position3>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1263" Column="1" TopLine="1230"/>
-      </Position3>
-      <Position4>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1264" Column="59" TopLine="1230"/>
-      </Position4>
-      <Position5>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1258" Column="59" TopLine="1225"/>
-      </Position5>
-      <Position6>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1264" Column="45" TopLine="1231"/>
-      </Position6>
-      <Position7>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1258" Column="59" TopLine="1225"/>
-      </Position7>
-      <Position8>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1264" Column="28" TopLine="1231"/>
-      </Position8>
-      <Position9>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1383" Column="1" TopLine="1339"/>
-      </Position9>
-      <Position10>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1359" Column="29" TopLine="1340"/>
-      </Position10>
-      <Position11>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1360" Column="1" TopLine="1339"/>
-      </Position11>
-      <Position12>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1367" Column="1" TopLine="1346"/>
-      </Position12>
-      <Position13>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1410" Column="19" TopLine="1346"/>
-      </Position13>
-      <Position14>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="917" Column="11" TopLine="884"/>
-      </Position14>
-      <Position15>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1406" Column="12" TopLine="1346"/>
-      </Position15>
-      <Position16>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="105" Column="14" TopLine="72"/>
-      </Position16>
-      <Position17>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="897" Column="51" TopLine="864"/>
-      </Position17>
-      <Position18>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="902" Column="44" TopLine="864"/>
-      </Position18>
-      <Position19>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1406" Column="14" TopLine="1346"/>
-      </Position19>
-      <Position20>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1409" Column="1" TopLine="1346"/>
-      </Position20>
-      <Position21>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntForms.pas"/>
-        <Caret Line="1" Column="1" TopLine="1"/>
-      </Position21>
-      <Position22>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntForms.pas"/>
-        <Caret Line="803" Column="49" TopLine="762"/>
-      </Position22>
-      <Position23>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="89" Column="26" TopLine="56"/>
-      </Position23>
-      <Position24>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="1334" Column="1" TopLine="1302"/>
-      </Position24>
-      <Position25>
-        <Filename Value="..\..\..\..\TntUnicodeControls\Source\TntSystem.pas"/>
-        <Caret Line="89" Column="24" TopLine="56"/>
-      </Position25>
-      <Position26>
         <Filename Value="..\..\source\HtmlGlobals.pas"/>
         <Caret Line="33" Column="27" TopLine="18"/>
-      </Position26>
-      <Position27>
+      </Position1>
+      <Position2>
         <Filename Value="..\..\source\HtmlGlobals.pas"/>
         <Caret Line="124" Column="46" TopLine="91"/>
-      </Position27>
-      <Position28>
+      </Position2>
+      <Position3>
         <Filename Value="..\..\source\HtmlBuffer.pas"/>
         <Caret Line="134" Column="71" TopLine="106"/>
-      </Position28>
-      <Position29>
+      </Position3>
+      <Position4>
         <Filename Value="..\..\source\HtmlBuffer.pas"/>
         <Caret Line="168" Column="74" TopLine="135"/>
-      </Position29>
-      <Position30>
+      </Position4>
+      <Position5>
         <Filename Value="..\..\source\StylePars.pas"/>
-        <Caret Line="548" Column="5" TopLine="515"/>
-      </Position30>
+        <Caret Line="770" Column="113" TopLine="737"/>
+      </Position5>
+      <Position6>
+        <Filename Value="..\..\source\StylePars.pas"/>
+        <Caret Line="801" Column="36" TopLine="768"/>
+      </Position6>
+      <Position7>
+        <Filename Value="..\..\source\ReadHTML.pas"/>
+        <Caret Line="1756" Column="51" TopLine="1727"/>
+      </Position7>
+      <Position8>
+        <Filename Value="..\..\source\ReadHTML.pas"/>
+        <Caret Line="632" Column="21" TopLine="599"/>
+      </Position8>
+      <Position9>
+        <Filename Value="..\..\source\ReadHTML.pas"/>
+        <Caret Line="743" Column="21" TopLine="710"/>
+      </Position9>
+      <Position10>
+        <Filename Value="..\..\source\ReadHTML.pas"/>
+        <Caret Line="635" Column="1" TopLine="620"/>
+      </Position10>
+      <Position11>
+        <Filename Value="..\..\source\ReadHTML.pas"/>
+        <Caret Line="743" Column="29" TopLine="710"/>
+      </Position11>
+      <Position12>
+        <Filename Value="FrameDem.dpr"/>
+        <Caret Line="25" Column="44" TopLine="1"/>
+      </Position12>
+      <Position13>
+        <Filename Value="..\..\source\ReadHTML.pas"/>
+        <Caret Line="616" Column="46" TopLine="599"/>
+      </Position13>
+      <Position14>
+        <Filename Value="FDemUnit.pas"/>
+        <Caret Line="184" Column="51" TopLine="144"/>
+      </Position14>
     </JumpHistory>
   </ProjectOptions>
   <CompilerOptions>
