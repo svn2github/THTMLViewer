@@ -1026,7 +1026,7 @@ end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
-  //CloseAll;
+  CloseAll;          
 end;
 
 initialization
