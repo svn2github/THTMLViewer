@@ -746,7 +746,7 @@ end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
-HintWindow.Free;
+  CloseAll;
 end;
 
 procedure TForm1.FrameViewerRightClick(Sender: TObject; Parameters: TRightClickParameters);
