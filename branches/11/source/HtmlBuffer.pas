@@ -137,6 +137,7 @@ type
     function GetInfo(Index: Integer): TBuffCharSetCodePageInfo;
   public
     constructor Create;
+    destructor Destroy; override;
     procedure AddInfo(Info: TBuffCharSetCodePageInfo);
     function IndexOf(const S: String): Integer; override;
     property Infos[Index: Integer]: TBuffCharSetCodePageInfo read GetInfo; default;
@@ -267,58 +268,81 @@ constructor TBuffCharSetCodePageInfoList.Create;
 //    http://www.iana.org/assignments/ianacharset-mib
 begin
   inherited Create;
-  AddInfo(TBuffCharSetCodePageInfo.Create('1250', EASTEUROPE_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('1251', RUSSIAN_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('1252', ANSI_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('1253', GREEK_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('1254', TURKISH_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('1255', HEBREW_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('1256', ARABIC_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('1257', BALTIC_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('1258', VIETNAMESE_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('5601', HANGEUL_CHARSET, CP_UNKNOWN)); {Korean}
-  AddInfo(TBuffCharSetCodePageInfo.Create('866', RUSSIAN_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('874', THAI_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('8859-1', ANSI_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('8859-2', EASTEUROPE2_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('8859-3', TURKISH_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('8859-4', BALTIC_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('8859-5', RUSSIAN_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('8859-7', GREEK_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('8859-9', TURKISH_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('8859-15', ANSI_CHARSET, CP_UNKNOWN)); {almost Ansi, but not quite}
-  AddInfo(TBuffCharSetCodePageInfo.Create('932', SHIFTJIS_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('936', GB2312_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('949', HANGEUL_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('950', CHINESEBIG5_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('ansi', ANSI_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('arabic', ARABIC_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('big5', CHINESEBIG5_CHARSET, CP_UNKNOWN)); {traditional Chinese}
-  AddInfo(TBuffCharSetCodePageInfo.Create('default', DEFAULT_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('easteurope', EASTEUROPE_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('euc-jp', EUCJP_CHARSET, 932));
-  AddInfo(TBuffCharSetCodePageInfo.Create('euc-kr', HANGEUL_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('gb2312', GB2312_CHARSET, CP_UNKNOWN)); {simplified Chinese}
-  AddInfo(TBuffCharSetCodePageInfo.Create('greek', GREEK_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('hangeul', HANGEUL_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('hebrew', HEBREW_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('johab', JOHAB_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('koi', RUSSIAN_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('oem', OEM_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('russian', RUSSIAN_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('shift_jis', SHIFTJIS_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('shiftjis', SHIFTJIS_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('symbol', SYMBOL_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('thai', THAI_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('tis-620', THAI_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('turkish', TURKISH_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('utf-16be', DEFAULT_CHARSET, CP_UTF16BE)); //http://tools.ietf.org/html/rfc2781
-  AddInfo(TBuffCharSetCodePageInfo.Create('utf-16le', DEFAULT_CHARSET, CP_UTF16LE)); //http://tools.ietf.org/html/rfc2781
-  AddInfo(TBuffCharSetCodePageInfo.Create('utf-8', DEFAULT_CHARSET, CP_UTF8));
-  AddInfo(TBuffCharSetCodePageInfo.Create('vietnamese', VIETNAMESE_CHARSET, CP_UNKNOWN));
-  AddInfo(TBuffCharSetCodePageInfo.Create('x-sjis', SHIFTJIS_CHARSET, CP_UNKNOWN));
-  CaseSensitive := False;
-  Sort;
+  BeginUpdate;
+  try
+    AddInfo(TBuffCharSetCodePageInfo.Create('1250', EASTEUROPE_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('1251', RUSSIAN_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('1252', ANSI_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('1253', GREEK_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('1254', TURKISH_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('1255', HEBREW_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('1256', ARABIC_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('1257', BALTIC_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('1258', VIETNAMESE_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('5601', HANGEUL_CHARSET, CP_UNKNOWN)); {Korean}
+    AddInfo(TBuffCharSetCodePageInfo.Create('866', RUSSIAN_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('874', THAI_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('8859-1', ANSI_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('8859-2', EASTEUROPE2_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('8859-3', TURKISH_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('8859-4', BALTIC_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('8859-5', RUSSIAN_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('8859-7', GREEK_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('8859-9', TURKISH_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('8859-15', ANSI_CHARSET, CP_UNKNOWN)); {almost Ansi, but not quite}
+    AddInfo(TBuffCharSetCodePageInfo.Create('932', SHIFTJIS_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('936', GB2312_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('949', HANGEUL_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('950', CHINESEBIG5_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('ansi', ANSI_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('arabic', ARABIC_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('big5', CHINESEBIG5_CHARSET, CP_UNKNOWN)); {traditional Chinese}
+    AddInfo(TBuffCharSetCodePageInfo.Create('default', DEFAULT_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('easteurope', EASTEUROPE_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('euc-jp', EUCJP_CHARSET, 932));
+    AddInfo(TBuffCharSetCodePageInfo.Create('euc-kr', HANGEUL_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('gb2312', GB2312_CHARSET, CP_UNKNOWN)); {simplified Chinese}
+    AddInfo(TBuffCharSetCodePageInfo.Create('greek', GREEK_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('hangeul', HANGEUL_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('hebrew', HEBREW_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('johab', JOHAB_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('koi', RUSSIAN_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('oem', OEM_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('russian', RUSSIAN_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('shift_jis', SHIFTJIS_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('shiftjis', SHIFTJIS_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('symbol', SYMBOL_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('thai', THAI_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('tis-620', THAI_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('turkish', TURKISH_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('utf-16be', DEFAULT_CHARSET, CP_UTF16BE)); //http://tools.ietf.org/html/rfc2781
+    AddInfo(TBuffCharSetCodePageInfo.Create('utf-16le', DEFAULT_CHARSET, CP_UTF16LE)); //http://tools.ietf.org/html/rfc2781
+    AddInfo(TBuffCharSetCodePageInfo.Create('utf-8', DEFAULT_CHARSET, CP_UTF8));
+    AddInfo(TBuffCharSetCodePageInfo.Create('vietnamese', VIETNAMESE_CHARSET, CP_UNKNOWN));
+    AddInfo(TBuffCharSetCodePageInfo.Create('x-sjis', SHIFTJIS_CHARSET, CP_UNKNOWN));
+    CaseSensitive := False;
+    Sort;
+  finally
+    EndUpdate;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 08.01.2011 --
+destructor TBuffCharSetCodePageInfoList.Destroy;
+var
+  I: Integer;
+begin
+  //BG, 08.01.2011: Issue 48: Memory leaks in HTMLBuffer.pas
+  //  free the objects. Unlike Guilleaumes idea to set TStringList.OwnsObjects to True, we
+  //  must free the objects on our own, as OwnsObjects is a property added in Delphi 2009.
+  BeginUpdate;
+  try
+    for I := Count - 1 downto 0 do
+      Objects[I].Free;
+  finally
+    EndUpdate;
+  end;
+  inherited;
 end;
 
 //-- BG ---------------------------------------------------------- 22.12.2010 --
@@ -854,4 +878,8 @@ begin
   Result := Length(FBuffer);
 end;
 
+// GDG, 05.01.2011: Issue 48: Memory leaks in HTMLBuffer.pas
+initialization
+finalization
+  FreeAndNil(VCharSetCodePageByName);
 end.
