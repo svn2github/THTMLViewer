@@ -26,19 +26,21 @@ are covered by separate copyright notices located in those modules.
 
 {$I htmlcons.inc}
 
-unit Htmlview;
+unit HtmlView;
 
 interface
 
 uses
-  Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls,
 {$ifdef LCL}
-  Interfaces,
-  LMessages,
+  LclIntf, LclType, LMessages, types, FPimage, HtmlMisc,
+{$else}
+  Windows,
 {$endif}
-  UrlSubs,
-  MetafilePrinter,
-  vwPrint,
+  Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls,
+{$ifndef NoMetafile}
+  MetaFilePrinter, vwPrint,
+{$endif}
+  URLSubs,
   HtmlGlobals,
   HtmlBuffer,
   HTMLUn2,
@@ -90,13 +92,9 @@ type
 
   TPaintPanel = class(TCustomPanel)
   private
-    FOnPaint: TNotifyEvent;
     FViewer: THtmlViewer;
-    Canvas2: TCanvas;
     procedure WMEraseBkgnd(var Message: TWMEraseBkgnd); message WM_EraseBkgnd;
     procedure WMLButtonDblClk(var Message: TWMMouse); message WM_LButtonDblClk;
-    procedure DoBackground(ACanvas: TCanvas);
-    property OnPaint: TNotifyEvent read FOnPaint write FOnPaint;
   public
     constructor CreateIt(AOwner: TComponent; Viewer: THtmlViewer);
     procedure Paint; override;
@@ -122,6 +120,12 @@ type
   end;
 
   THtmlFileType = (HTMLType, TextType, ImgType, OtherType);
+
+{$ifdef NoMetafile}
+  //From MetaFilePrinter.pas
+  TPageEvent = procedure(Sender: TObject; NumPage: Integer ;
+                         var StopPrinting : Boolean) of Object;
+{$endif}
 
   THtmlViewerStateBit = (
     vsBGFixed,
@@ -221,7 +225,9 @@ type
     MiddleY: Integer;
     NoJump: Boolean;
     sbWidth: Integer;
+{$ifndef NoMetafile}
     vwP, OldPrinter: TvwPrinter;
+{$endif}
 // child components
     BorderPanel: TPanel;
     PaintPanel: TPaintPanel;
@@ -239,7 +245,7 @@ type
     function GetDocumentSource: ThtString;
     function GetDragDrop: TDragDropEvent;
     function GetDragOver: TDragOverEvent;
-    function GetFormControlList: TList;
+    function GetFormControlList: TFormControlObjList;
     function GetFormData: TFreeList;
     function GetHScrollBarRange: Integer;
     function GetHScrollPos: Integer;
@@ -355,7 +361,7 @@ type
     procedure HTMLMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); virtual;
     procedure HTMLMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual;
     procedure HTMLMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint);
-    procedure HTMLPaint(Sender: TObject); virtual;
+    procedure HTMLPaint(ACanvas: TCanvas; const ARect: TRect);
     procedure LoadFile(const FileName: ThtString; ft: ThtmlFileType); virtual;
     procedure LoadString(const Source, Reference: ThtString; ft: ThtmlFileType);
     procedure LoadDocument(Document: TBuffer; const Reference: ThtString; ft: ThtmlFileType);    
@@ -383,24 +389,27 @@ type
     function HtmlExpandFilename(const Filename: ThtString): ThtString; override;
     function InsertImage(const Src: ThtString; Stream: TMemoryStream): Boolean;
     function MakeBitmap(YTop, FormatWidth, Width, Height: Integer): TBitmap;
-{$ifndef FPC_TODO_PRINTING}
+{$ifndef NoMetafile}
     function MakeMetaFile(YTop, FormatWidth, Width, Height: Integer): TMetaFile;
     function MakePagedMetaFiles(Width, Height: Integer): TList;
+    procedure Print(FromPage, ToPage: Integer);
+    procedure OpenPrint;
+    procedure AbortPrint;
+    procedure ClosePrint;
+    function PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: Boolean = False): Integer; virtual;
+    procedure NumPrinterPages(MFPrinter: TMetaFilePrinter; out Width, Height: Integer); overload;
 {$endif}
     function NumPrinterPages(out WidthRatio: Double): Integer; overload;
     function NumPrinterPages: Integer; overload;
     function PositionTo(Dest: ThtString): Boolean;
-    function PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: Boolean = False): Integer; virtual;
     function PtInObject(X, Y: Integer; var Obj: TObject): Boolean; {X, Y, are client coord}
     function ShowFocusRect: Boolean; override;
     function XYToDisplayPos(X, Y: Integer): Integer;
-    procedure AbortPrint;
     procedure AddVisitedLink(const S: ThtString);
     procedure BumpHistory(const FileName, Title: ThtString; OldPos: Integer; OldFormData: TFreeList; ft: ThtmlFileType);
     procedure CheckVisitedLinks;
     procedure Clear; virtual;
     procedure ClearHistory;
-    procedure ClosePrint;
     procedure ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); override;
     procedure CopyToClipboard;
     procedure DoEnter; override;
@@ -420,9 +429,6 @@ type
     procedure LoadTextFile(const FileName: ThtString);
     procedure LoadTextFromString(const S: ThtString);
     procedure LoadTextStrings(Strings: ThtStrings);
-    procedure NumPrinterPages(MFPrinter: TMetaFilePrinter; out Width, Height: Integer); overload;
-    procedure OpenPrint;
-    procedure Print(FromPage, ToPage: Integer);
     procedure Reformat;
     procedure Reload;
     procedure Repaint; override;
@@ -439,7 +445,7 @@ type
     property CurrentFile: ThtString read GetCurrentFile;
     property DocumentSource: ThtString read GetDocumentSource;
     property DocumentTitle: ThtString read GetTitle;
-    property FormControlList: TList read GetFormControlList;
+    property FormControlList: TFormControlObjList read GetFormControlList;
     property FormData: TFreeList read GetFormData write SetFormData;
     property History: ThtStrings read FHistory;
     property HistoryIndex: Integer read FHistoryIndex write SetHistoryIndex;
@@ -575,7 +581,7 @@ implementation
 
 uses
   SysUtils, Math, Clipbrd, Forms, Printers, {$IFDEF UNICODE}AnsiStrings, {$ENDIF}
-  htmlgif2 {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
+  HTMLGif2 {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
 
 const
   ScrollGap = 20;
@@ -660,7 +666,7 @@ begin
 {$ifndef LCL}
   PaintPanel.Ctl3D := False;
 {$endif}
-  PaintPanel.OnPaint := HTMLPaint;
+  //PaintPanel.OnPaint := HTMLPaint;
   PaintPanel.OnMouseDown := HTMLMouseDown;
   PaintPanel.OnMouseMove := HTMLMouseMove;
   PaintPanel.OnMouseUp := HTMLMouseUp;
@@ -721,7 +727,7 @@ end;
 
 destructor THtmlViewer.Destroy;
 begin
-{$ifndef FPC_TODO_PRINTING}
+{$ifndef NoMetaFile}
   AbortPrint;
 {$endif}
   Exclude(FViewerState, vsMiddleScrollOn);
@@ -1277,16 +1283,6 @@ begin
   end;
 end;
 
-procedure THtmlViewer.HTMLPaint(Sender: TObject);
-var
-  ARect: TRect;
-begin
-  if vsDontDraw in FViewerState then
-    exit;
-  ARect := Rect(0, 1, PaintPanel.Width, PaintPanel.Height);
-  FSectionList.Draw(PaintPanel.Canvas2, ARect, MaxHScroll, -HScrollBar.Position, 0, 0, 0);
-end;
-
 procedure THtmlViewer.WMSize(var Message: TWMSize);
 begin
   inherited;
@@ -1567,15 +1563,16 @@ procedure THtmlViewer.ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y
 var
   Dummy: TUrlTarget;
   DummyFC: TIDObject {TImageFormControlObj};
+  FormControlObj: TFormControlObj absolute Sender;
 begin
   if Sender is TFormControlObj then
-    with TFormControlObj(Sender), TheControl do
+    //with TFormControlObj(Sender) do
     begin
-      FTitleAttr := Title;
+      FTitleAttr := FormControlObj.Title;
       if FTitleAttr = '' then
       begin
         Dummy := nil;
-        GetURL(X + Left, Y + Top, Dummy, DummyFC, FTitleAttr);
+        GetURL(X + FormControlObj.Left, Y + FormControlObj.Top, Dummy, DummyFC, FTitleAttr);
         if Assigned(Dummy) then
           Dummy.Free;
       end;
@@ -2551,7 +2548,7 @@ begin
   FCharset := Value;
 end;
 
-function THtmlViewer.GetFormControlList: TList;
+function THtmlViewer.GetFormControlList: TFormControlObjList;
 begin
   Result := FSectionList.FormControlList;
 end;
@@ -3095,6 +3092,77 @@ begin
   end;
 end;
 
+procedure THtmlViewer.HTMLPaint(ACanvas: TCanvas; const ARect: TRect);
+var
+  Image: TGpObject;
+  Mask, NewBitmap, NewMask: TBitmap;
+  PRec: PtPositionRec;
+  BW, BH, X, Y, X2, Y2, IW, IH, XOff, YOff: Integer;
+  AniGif: TGifImage;
+
+begin
+
+  if FSectionList.Printing then
+    Exit; {no background}
+
+  Image := FSectionList.BackgroundBitmap;
+  if FSectionList.ShowImages and Assigned(Image) then
+  begin
+    Mask := FSectionList.BackgroundMask;
+    BW := GetImageWidth(Image);
+    BH := GetImageHeight(Image);
+    PRec := FSectionList.BackgroundPRec;
+    SetViewerStateBit(vsBGFixed, PRec[1].Fixed);
+    if vsBGFixed in FViewerState then
+    begin {fixed background}
+      XOff := 0;
+      YOff := 0;
+      IW := PaintPanel.ClientRect.Right;
+      IH := PaintPanel.ClientRect.Bottom;
+    end
+    else
+    begin {scrolling background}
+      XOff := HScrollbar.Position;
+      YOff := FSectionList.YOff;
+      IW := HScrollbar.Max;
+      IH := Max(MaxVertical, PaintPanel.ClientRect.Bottom);
+    end;
+
+  {Calculate where the tiled background images go}
+    CalcBackgroundLocationAndTiling(PRec, ARect, XOff, YOff, IW, IH, BW, BH, X, Y, X2, Y2);
+
+    if (BW = 1) or (BH = 1) then
+    begin {this is for people who try to tile 1 pixel images}
+      NewBitmap := EnlargeImage(Image, X2 - X, Y2 - Y); // as TBitmap;
+      try
+        if Assigned(Mask) then
+          NewMask := TBitmap(EnlargeImage(Mask, X2 - X, Y2 - Y))
+        else
+          NewMask := nil;
+        try
+          DrawBackground(ACanvas, ARect, X, Y, X2, Y2, NewBitmap, NewMask, nil, NewBitmap.Width, NewBitmap.Height, ACanvas.Brush.Color);
+        finally
+          NewMask.Free;
+        end;
+      finally
+        NewBitmap.Free;
+      end;
+    end
+    else {normal situation}
+    begin
+      AniGif := FSectionList.BackgroundAniGif;
+      DrawBackground(ACanvas, ARect, X, Y, X2, Y2, Image, Mask, AniGif, BW, BH, ACanvas.Brush.Color);
+    end;
+  end
+  else
+  begin {no background image, show color only}
+    Exclude(FViewerState, vsBGFixed);
+    DrawBackground(ACanvas, ARect, 0, 0, 0, 0, nil, nil, nil, 0, 0, ACanvas.Brush.Color);
+  end;
+
+  FSectionList.Draw(ACanvas, ARect, MaxHScroll, -HScrollBar.Position, 0, 0, 0);
+end;
+
 function THtmlViewer.MakeBitmap(YTop, FormatWidth, Width, Height: Integer): TBitmap;
 begin
   Result := nil;
@@ -3116,7 +3184,7 @@ begin
   end;
 end;
 
-{$ifndef LCL}
+{$ifndef NoMetafile}
 
 function THtmlViewer.MakeMetaFile(YTop, FormatWidth, Width, Height: Integer): TMetaFile;
 var
@@ -3304,7 +3372,8 @@ begin
   end;
 end;
 
-{-$ifndef FPC_TODO_PRINTING}
+{$ifndef NoMetafile}
+
 procedure THtmlViewer.Print(FromPage, ToPage: Integer);
 var
   ARect, CRect: TRect;
@@ -3795,6 +3864,7 @@ begin
     FreeAndNil(vwP);
   end;
 end;
+{$endif}
 
 function THtmlViewer.NumPrinterPages: Integer;
 var
@@ -3804,9 +3874,12 @@ begin
 end;
 
 function THtmlViewer.NumPrinterPages(out WidthRatio: Double): Integer;
+{$ifndef NoMetafile}
 var
   MFPrinter: TMetaFilePrinter;
+{$endif}
 begin
+{$ifndef NoMetafile}
   MFPrinter := TMetaFilePrinter.Create(nil);
   FOnPageEvent := nil;
   try
@@ -3816,10 +3889,14 @@ begin
   finally
     MFPrinter.Free;
   end;
+{$else}
+  Result := 0;
+{$endif}
 end;
 
 //BG, 01.12.2006: beg of modification
 
+{$ifndef NoMetafile}
 procedure THtmlViewer.NumPrinterPages(MFPrinter: TMetaFilePrinter; out Width, Height: Integer);
 var
   LOnPageEvent: TPageEvent;
@@ -3835,7 +3912,6 @@ begin
   end;
 end;
 //BG, 01.12.2006: end of modification
-
 
 function THtmlViewer.PrintPreview(MFPrinter: TMetaFilePrinter; NoOutput: Boolean = False): Integer;
 var
@@ -4308,6 +4384,7 @@ begin
     Result := FPage;
   end;
 end;
+{$endif}
 
 procedure THtmlViewer.BackgroundChange(Sender: TObject);
 begin
@@ -4667,12 +4744,18 @@ var
   begin
     clipboard.Open;
     try
+{$ifdef LCL}
+      clipboard.addFormat(format, pAnsichar(source)^, length(source) + 1);
+{$else}
+      // Must be implemented in a cross-platform way.
       //an extra "1" for the null terminator
       gMem := globalalloc(GMEM_DDESHARE + GMEM_MOVEABLE, length(source) + 1);
       lp := globallock(gMem);
-      copymemory(lp, pAnsichar(source), length(source) + 1);
+      Move(lp^, pAnsichar(source)^, length(source) + 1);
+      //copymemory(lp, pAnsichar(source), length(source) + 1);
       globalunlock(gMem);
       setClipboarddata(format, gMem);
+{$endif}
     finally
       clipboard.Close;
     end
@@ -5175,9 +5258,7 @@ var
   I: Integer;
 begin
   for I := 0 to FormControlList.count - 1 do
-    with TFormControlObj(FormControlList.Items[I]) do
-      if Assigned(TheControl) then
-        TheControl.Hide;
+    FormControlList[I].Hide;
   BorderPanel.BorderStyle := bsNone;
   inherited Repaint;
 end;
@@ -5267,14 +5348,10 @@ begin
     if Find(ID, I) then
     begin
       Obj := Objects[I];
-      if (Obj is TFormControlObj) then
-      begin
-        if (Obj is THiddenFormControlObj) then
-          Result := Obj
-        else
-          Result := TFormControlObj(Obj).TheControl;
-      end
-      else if (Obj is TImageObj) then
+      if Obj is TFormControlObj then
+        //BG, 15.01.2011: always return Obj rather than the actual WinControl.
+        Result := Obj
+      else if Obj is TImageObj then
         Result := Obj;
     end;
 end;
@@ -5289,7 +5366,7 @@ begin
     if Find(ID, I) then
     begin
       Obj := Objects[I];
-      if (Obj is TBlock) then
+      if Obj is TBlock then
         Result := TBlock(Obj).Display;
     end;
 end;
@@ -5303,11 +5380,12 @@ begin
     if Find(ID, I) then
     begin
       Obj := Objects[I];
-      if (Obj is TBlock) and (TBlock(Obj).Display <> Value) then
-      begin
-        FSectionList.HideControls;
-        TBlock(Obj).Display := Value;
-      end;
+      if Obj is TBlock then
+        if TBlock(Obj).Display <> Value then
+        begin
+          FSectionList.HideControls;
+          TBlock(Obj).Display := Value;
+        end;
     end;
 end;
 
@@ -5368,124 +5446,64 @@ end;
 procedure TPaintPanel.Paint;
 var
   MemDC: HDC;
-  ABitmap: HBitmap;
-  ARect: TRect;
+  Bm: HBitmap;
+  Rect: TRect;
   OldPal: HPalette;
+  Canvas2: TCanvas;
+  X, Y, W, H: Integer;
 begin
-  if (vsDontDraw in FViewer.FViewerState) or (Canvas2 <> nil) then
+  if (vsDontDraw in FViewer.FViewerState) {or (Canvas2 <> nil)} then
     Exit;
-  FViewer.DrawBorder;
-  OldPal := 0;
+
+{$ifdef LCL}
+//BG, 23.01.2011: paint on panel canvas as Lazarus does the double buffering for us.
+//  Additionally this fixes a mysterious bug, that mixes up the frames of frameviewer,
+//  if some images have to be shown
+//  (Happened in FrameDemo on page 'samples' with images pengbrew and pyramids).
   Canvas.Font := Font;
   Canvas.Brush.Color := Color;
-  ARect := Canvas.ClipRect;
-  Canvas2 := TCanvas.Create; {paint on a memory DC}
+  Canvas.Brush.Style := bsSolid;
+  FViewer.DrawBorder;
+  FViewer.HTMLPaint(Canvas, Canvas.ClipRect);
+{$else}
+//BG, 23.01.2011: paint on a memory canvas: less flickering.
+  OldPal := 0;
+  MemDC := 0;
+  Bm := 0;
+  Canvas2 := TCanvas.Create;
   try
+    Rect := Canvas.ClipRect;
+    X := Rect.Left;
+    Y := Rect.Top;
+    W := Rect.Right - Rect.Left;
+    H := Rect.Bottom - Rect.Top;
     MemDC := CreateCompatibleDC(Canvas.Handle);
-    ABitmap := 0;
+    Bm := CreateCompatibleBitmap(Canvas.Handle, W, H);
+    if (Bm = 0) and (W <> 0) and (H <> 0) then
+      raise EOutOfResources.Create('Out of Resources');
     try
-      with ARect do
-      begin
-        ABitmap := CreateCompatibleBitmap(Canvas.Handle, Right - Left, Bottom - Top);
-        if (ABitmap = 0) and (Right - Left + Bottom - Top <> 0) then
-          raise EOutOfResources.Create('Out of Resources');
-        try
-          SelectObject(MemDC, ABitmap);
-          SetWindowOrgEx(memDC, Left, Top, nil);
-          Canvas2.Handle := MemDC;
-          DoBackground(Canvas2);
-          if Assigned(FOnPaint) then
-            FOnPaint(Self);
-          OldPal := SelectPalette(Canvas.Handle, ThePalette, False);
-          RealizePalette(Canvas.Handle);
-          BitBlt(Canvas.Handle, Left, Top, Right - Left, Bottom - Top,
-            MemDC, Left, Top, SrcCopy);
-        finally
-          if OldPal <> 0 then
-            SelectPalette(MemDC, OldPal, False);
-          Canvas2.Handle := 0;
-        end;
-      end;
+      SelectObject(MemDC, Bm);
+      SetWindowOrgEx(MemDC, X, Y, nil);
+      Canvas2.Font := Font;
+      Canvas2.Handle := MemDC;
+      Canvas2.Brush.Color := Color;
+      Canvas2.Brush.Style := bsSolid;
+      FViewer.DrawBorder;
+      FViewer.HTMLPaint(Canvas2, Rect);
+      OldPal := SelectPalette(Canvas.Handle, ThePalette, False);
+      RealizePalette(Canvas.Handle);
+      BitBlt(Canvas.Handle, X, Y, W, H, MemDC, X, Y, SrcCopy);
     finally
-      DeleteDC(MemDC);
-      DeleteObject(ABitmap);
+      if OldPal <> 0 then
+        SelectPalette(MemDC, OldPal, False);
+      Canvas2.Handle := 0;
     end;
   finally
-    FreeAndNil(Canvas2);
+    Canvas2.Destroy;
+    DeleteDC(MemDC);
+    DeleteObject(Bm);
   end;
-end;
-
-procedure TPaintPanel.DoBackground(ACanvas: TCanvas);
-var
-  ARect: TRect;
-  Image: TGpObject;
-  Mask, NewBitmap, NewMask: TBitmap;
-  PRec: PtPositionRec;
-  BW, BH, X, Y, X2, Y2, IW, IH, XOff, YOff: Integer;
-  AniGif: TGifImage;
-
-begin
-  with FViewer do
-  begin
-    if FSectionList.Printing then
-      Exit; {no background}
-
-    ARect := Canvas.ClipRect;
-    Image := FSectionList.BackgroundBitmap;
-    if FSectionList.ShowImages and Assigned(Image) then
-    begin
-      Mask := FSectionList.BackgroundMask;
-      BW := GetImageWidth(Image);
-      BH := GetImageHeight(Image);
-      PRec := FSectionList.BackgroundPRec;
-      SetViewerStateBit(vsBGFixed, PRec[1].Fixed);
-      if vsBGFixed in FViewerState then
-      begin {fixed background}
-        XOff := 0;
-        YOff := 0;
-        IW := Self.ClientRect.Right;
-        IH := Self.ClientRect.Bottom;
-      end
-      else
-      begin {scrolling background}
-        XOff := HScrollbar.Position;
-        YOff := FSectionList.YOff;
-        IW := HScrollbar.Max;
-        IH := Max(MaxVertical, Self.ClientRect.Bottom);
-      end;
-
-    {Calculate where the tiled background images go}
-      CalcBackgroundLocationAndTiling(PRec, ARect, XOff, YOff, IW, IH, BW, BH, X, Y, X2, Y2);
-
-      if (BW = 1) or (BH = 1) then
-      begin {this is for people who try to tile 1 pixel images}
-        NewBitmap := EnlargeImage(Image, X2 - X, Y2 - Y); // as TBitmap;
-        try
-          if Assigned(Mask) then
-            NewMask := TBitmap(EnlargeImage(Mask, X2 - X, Y2 - Y))
-          else
-            NewMask := nil;
-          try
-            DrawBackground(ACanvas, ARect, X, Y, X2, Y2, NewBitmap, NewMask, nil, NewBitmap.Width, NewBitmap.Height, Self.Color);
-          finally
-            NewMask.Free;
-          end;
-        finally
-          NewBitmap.Free;
-        end;
-      end
-      else {normal situation}
-      begin
-        AniGif := FSectionList.BackgroundAniGif;
-        DrawBackground(ACanvas, ARect, X, Y, X2, Y2, Image, Mask, AniGif, BW, BH, Self.Color);
-      end;
-    end
-    else
-    begin {no background image, show color only}
-      Exclude(FViewerState, vsBGFixed);
-      DrawBackground(ACanvas, ARect, 0, 0, 0, 0, nil, nil, nil, 0, 0, Self.Color);
-    end;
-  end;
+{$endif}
 end;
 
 procedure TPaintPanel.WMEraseBkgnd(var Message: TWMEraseBkgnd);

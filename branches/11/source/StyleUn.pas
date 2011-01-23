@@ -30,8 +30,12 @@ unit StyleUn;
 interface
 
 uses
-  Windows, Classes, Graphics, SysUtils, Math, Forms, Contnrs, Variants,
-  {$ifdef LCL}Interfaces, {$endif}
+{$ifdef LCL}
+  LclIntf, LclType, HtmlMisc,
+{$else}
+  Windows,
+{$endif}
+  Classes, Graphics, SysUtils, Math, Forms, Contnrs, Variants,
   HtmlGlobals, HtmlBuffer;
 
 const
@@ -109,7 +113,7 @@ type
     procedure Assign(Source: TPersistent); override;
     procedure AssignToCanvas(Canvas: TCanvas);
     destructor Destroy; override;
-    constructor Create;
+    constructor Create; {$ifdef LCL} override; {$endif}
   end;
 
   PropIndices = (
@@ -120,7 +124,7 @@ type
     BorderTopWidth, BorderRightWidth, BorderBottomWidth, BorderLeftWidth,
     BorderTopColor, BorderRightColor, BorderBottomColor, BorderLeftColor,
     BorderTopStyle, BorderRightStyle, BorderBottomStyle, BorderLeftStyle,
-    Width, Height, TopPos, BottomPos, RightPos, LeftPos, Visibility,
+    piWidth, piHeight, TopPos, BottomPos, RightPos, LeftPos, Visibility,
     LineHeight, BackgroundImage, BackgroundPosition,
     BackgroundRepeat, BackgroundAttachment, VerticalAlign, Position, ZIndex,
     ListStyleType, ListStyleImage, Float, Clear, TextIndent,
@@ -178,7 +182,7 @@ type
     ID: integer;
 
     constructor Create; overload; // for use in style list only
-    constructor Create(PropStack: TPropStack); overload; // for use in property stack
+    constructor Create(APropStack: TPropStack); overload; // for use in property stack
     destructor Destroy; override;
     procedure Copy(Source: TProperties);
     procedure CopyDefault(Source: TProperties);
@@ -426,10 +430,10 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 12.09.2010 --
-constructor TProperties.Create(PropStack: TPropStack);
+constructor TProperties.Create(APropStack: TPropStack);
 begin
   Create;
-  self.PropStack := PropStack;
+  self.PropStack := APropStack;
 end;
 
 destructor TProperties.Destroy;
@@ -485,7 +489,7 @@ begin
     else
       case I of
         MarginTop..BorderLeftStyle,
-        Width, Height,
+        piWidth, piHeight,
         TopPos..LeftPos:
           Props[I] := IntNull;
         BackgroundColor, BackgroundImage, BackgroundPosition,
@@ -1117,7 +1121,7 @@ begin
   for I := Low(VM) to High(VM) do
   begin
     case I of
-      Height, TopPos:
+      piHeight, TopPos:
         Base := BaseHeight
     else
       Base := BaseWidth;
@@ -1156,7 +1160,7 @@ begin
             end;
           end;
         end;
-      Height:
+      piHeight:
         begin
           if VarIsStr(VM[I]) then
           begin
@@ -1226,7 +1230,7 @@ begin
           else
             M[I] := 0;
         end;
-      Width:
+      piWidth:
         begin
           if VarIsStr(VM[I]) then
             M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, Auto)
@@ -1305,7 +1309,7 @@ var
 begin
   for I := Low(VM) to High(VM) do
     case I of
-      Height, Width:
+      piHeight, piWidth:
         begin
           if VarIsStr(VM[I]) then
             M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, Auto) {Auto will be Auto}
@@ -2078,7 +2082,7 @@ begin
         Props[Index] := clBlack
       else
         Props[Index] := clNone;
-    MarginTop..BorderLeftWidth, Width..LeftPos:
+    MarginTop..BorderLeftWidth, piWidth..LeftPos:
       Props[Index] := PropValue;
     FontSize:
       Props[FontSize] := PropValue;

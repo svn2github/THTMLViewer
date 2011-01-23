@@ -51,17 +51,23 @@ Each Section is also responsible for drawing itself (its Draw method).  The
 whole document is drawn with the TSectionList.Draw method.
 }
 
-unit Htmlsubs;
+unit HTMLSubs;
 
 {-$define DO_BLOCK_INLINE}
 {$ifdef DO_BLOCK_INLINE}
 {$endif}
 
 interface
+
 uses
-  Windows, Messages, Classes, Graphics, Controls, ExtCtrls,
-{$ifdef LCL}Interfaces, {$endif}
-  HtmlGlobals, HtmlUn2, StyleUn, HtmlGif2;
+{$ifdef VCL}
+  Windows,
+{$endif}
+  Messages, Graphics, Controls, ExtCtrls, Classes, SysUtils, Variants, Forms, Math, Contnrs,
+{$ifdef LCL}
+  LclIntf, LclType, HtmlMisc, types,
+{$endif}
+  HtmlGlobals, HTMLUn2, StyleUn, HTMLGif2;
 
 type
 
@@ -100,7 +106,7 @@ type
   TSection = class;
   TBlock = class;
 
-  ThtTabcontrol = class(TWinControl)
+  ThtTabControl = class(TWinControl)
   private
     procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
   protected
@@ -188,8 +194,11 @@ type
 
   HoverType = (hvOff, hvOverUp, hvOverDown);
 
+  { TImageObj }
+
   TImageObj = class(TFloatingObj) {inline image info}
   private
+    FImage: TgpObject; {bitmap possibly converted from GIF, Jpeg, etc or animated GIF}
     FBitmap: TBitmap;
     FHover: HoverType;
     FHoverImage: boolean;
@@ -197,10 +206,10 @@ type
     Positioning: PositionType;
     function GetBitmap: TBitmap;
     procedure SetHover(Value: HoverType);
+    procedure setImage(const AValue: TgpObject);
   public
     ObjHeight, ObjWidth: Integer; {width as drawn}
     Source: ThtString; {the src= attribute}
-    Image: TgpObject; {bitmap possibly converted from GIF, Jpeg, etc or animated GIF}
     OrigImage: TgpObject; {same as above unless swapped}
     Mask: TBitmap; {Image's mask if needed for transparency}
     ParentSectionList: TSectionList;
@@ -224,6 +233,7 @@ type
 
     property Bitmap: TBitmap read GetBitmap;
     property Hover: HoverType read FHover write SetHover;
+    property Image: TgpObject read FImage write setImage;
     procedure ReplaceImage(NewImage: TStream);
   end;
 
@@ -231,20 +241,17 @@ type
   public
     constructor CreateCopy(AMasterList: TSectionBaseList; T: TImageObjList);
     function FindImage(Posn: Integer): TFloatingObj;
-    function GetHeightAt(Posn: Integer; var AAlign: AlignmentType;
-      var FlObj: TFloatingObj): Integer;
-    function GetWidthAt(Posn: Integer; var AAlign: AlignmentType;
-      var HSpcL, HSpcR: Integer; var FlObj: TFloatingObj): Integer;
+    function GetHeightAt(Posn: Integer; var AAlign: AlignmentType; var FlObj: TFloatingObj): Integer;
     function GetImageCountAt(Posn: Integer): Integer;
+    function GetWidthAt(Posn: Integer; var AAlign: AlignmentType; var HSpcL, HSpcR: Integer; var FlObj: TFloatingObj): Integer;
     function PtInImage(X: Integer; Y: Integer; var IX, IY, Posn: Integer;
-      var AMap, UMap: boolean; var MapItem: TMapItem;
-      var ImageObj: TImageObj): boolean;
-    function PtInObject(X: Integer; Y: Integer; var Obj: TObject;
-      var IX, IY: Integer): boolean;
+      var AMap, UMap: boolean; var MapItem: TMapItem; var ImageObj: TImageObj): boolean;
+    function PtInObject(X: Integer; Y: Integer; var Obj: TObject; var IX, IY: Integer): boolean;
     procedure Decrement(N: Integer);
   end;
 
   TFormControlObj = class;
+  TFormControlObjList = class;
   TRadioButtonFormControlObj = class;
 
   ThtmlForm = class(TObject)
@@ -254,7 +261,7 @@ type
     MasterList: TSectionList;
     Method: ThtString;
     Action, Target, EncType: ThtString;
-    ControlList: TFreeList;
+    ControlList: TFormControlObjList;
     NonHiddenCount: Integer;
     constructor Create(AMasterList: TSectionList; L: TAttributeList);
     destructor Destroy; override;
@@ -274,21 +281,35 @@ type
     Active: boolean;
     PaintBitmap: TBitmap;
     AttributeList: ThtStringList;
+    FName: ThtString;
+    FID: ThtString;
     FTitle: ThtString;
     FValue: ThtString;
-    function GetControl: TWinControl; virtual;
     function GetAttribute(const AttrName: ThtString): ThtString;
-    procedure setValue(const Value: ThtString);
+    procedure SetValue(const Value: ThtString);
   protected
     CodePage: Integer;
+    function GetControl: TWinControl; virtual; abstract;
+    function GetHeight: Integer; virtual;
+    function GetLeft: Integer; virtual;
+    function GetTabOrder: Integer; virtual;
+    function GetTabStop: Boolean; virtual;
+    function GetTop: Integer; virtual;
+    function GetWidth: Integer; virtual;
+    function GetYPosition: Integer; override;
+    function IsHidden: Boolean; virtual;
     procedure DoOnChange; virtual;
     procedure SaveContents; virtual;
-    function GetYPosition: Integer; override;
+    procedure SetHeight(Value: Integer); virtual;
+    procedure SetLeft(Value: Integer); virtual;
+    procedure SetTabOrder(Value: Integer); virtual;
+    procedure SetTabStop(Value: Boolean); virtual;
+    procedure SetTop(Value: Integer); virtual;
+    procedure SetWidth(Value: Integer); virtual;
   public
     Pos: Integer; {0..Len  index of control position}
     MasterList: TSectionList;
     MyForm: ThtmlForm;
-    FName, FID: ThtString;
     FormAlign: AlignmentType;
     HSpaceL, HSpaceR, VSpaceT, VSpaceB, BordT, BordB: Integer;
     FHeight, FWidth: Integer;
@@ -296,119 +317,204 @@ type
     Disabled: boolean;
     Readonly: boolean;
     BkColor: TColor;
-    FControl: TWinControl;
     ShowIt: boolean;
-    OnClickMessage: ThtString;
-    OnFocusMessage: ThtString;
     OnBlurMessage: ThtString;
     OnChangeMessage: ThtString;
+    OnClickMessage: ThtString;
+    OnFocusMessage: ThtString;
 
     constructor Create(AMasterList: TSectionList; Position: Integer; L: TAttributeList);
     constructor CreateCopy(T: TFormControlObj);
     destructor Destroy; override;
-    procedure HandleMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
-    procedure ProcessProperties(Prop: TProperties); virtual;
-    procedure Draw(Canvas: TCanvas; X1, Y1: Integer); virtual;
-    procedure ResetToValue; virtual;
     function GetSubmission(Index: Integer; var S: ThtString): boolean; virtual;
-    procedure SetData(Index: Integer; const V: ThtString); virtual;
-    procedure SetDataInit; virtual;
-    procedure SetHeightWidth(Canvas: TCanvas); virtual;
+    procedure Draw(Canvas: TCanvas; X1, Y1: Integer); virtual;
     procedure EnterEvent(Sender: TObject); {these two would be better private}
     procedure ExitEvent(Sender: TObject);
     procedure FormControlClick(Sender: TObject);
+    procedure HandleMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
+    procedure Hide; virtual;
+    procedure ProcessProperties(Prop: TProperties); virtual;
+    procedure ResetToValue; virtual;
+    procedure SetData(Index: Integer; const V: ThtString); virtual;
+    procedure SetDataInit; virtual;
+    procedure SetHeightWidth(Canvas: TCanvas); virtual;
+    procedure Show; virtual;
 
-    property TheControl: TWinControl read GetControl; {the Delphi control, TButton, TMemo, etc}
-    property Name: ThtString read FName; {Name given to control}
-    property ID: ThtString read FID; {ID attribute of control}
-    property YValue: Integer read FYValue;
     property AttributeValue[const AttrName: ThtString]: ThtString read GetAttribute;
+    property Height: Integer read GetHeight write SetHeight;
+    property Hidden: Boolean read IsHidden;
+    property ID: ThtString read FID; {ID attribute of control}
+    property Left: Integer read GetLeft write SetLeft;
+    property Name: ThtString read FName; {Name given to control}
+    property TabOrder: Integer read GetTabOrder write SetTabOrder;
+    property TabStop: Boolean read GetTabStop write SetTabStop;
+    property TheControl: TWinControl read GetControl; {the Delphi control, TButton, TMemo, etc}
     property Title: ThtString read FTitle write FTitle;
-    property Value: ThtString read FValue write setValue;
+    property Top: Integer read GetTop write SetTop;
+    property Value: ThtString read FValue write SetValue;
+    property Width: Integer read GetWidth write SetWidth;
+    property YValue: Integer read FYValue;
+  end;
+
+  //BG, 15.01.2011:
+  TFormControlObjList = class(TObjectList)
+  private
+    function GetItem(Index: Integer): TFormControlObj;
+  public
+    function FindControl(Posn: integer): TFormControlObj;
+    function GetHeightAt(Posn: integer; var FormAlign: AlignmentType): Integer;
+    function GetWidthAt(Posn: integer; var HSpcL, HSpcR: integer): integer;
+    function GetControlCountAt(Posn: integer): integer;
+    procedure Decrement(N: integer);
+
+    procedure ActivateTabbing;
+    procedure DeactivateTabbing;
+    property Items[Index: Integer]: TFormControlObj read GetItem; default;
+  end;
+
+  THiddenFormControlObj = class(TFormControlObj)
+  protected
+    function GetControl: TWinControl; override;
+    function GetHeight: Integer; override;
+    function GetLeft: Integer; override;
+    function GetTabOrder: Integer; override;
+    function GetTabStop: Boolean; override;
+    function GetTop: Integer; override;
+    function GetWidth: Integer; override;
+    function IsHidden: Boolean; override;
+    procedure SetHeight(Value: Integer); override;
+    procedure SetLeft(Value: Integer); override;
+    procedure SetTabOrder(Value: Integer); override;
+    procedure SetTabStop(Value: Boolean); override;
+    procedure SetTop(Value: Integer); override;
+    procedure SetWidth(Value: Integer); override;
+  public
+    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
+    procedure Hide; override;
+    procedure SetData(Index: Integer; const V: ThtString); override;
+    procedure Show; override;
   end;
 
   TImageFormControlObj = class(TFormControlObj)
   private
+    FControl: ThtButton;
     MyImage: TImageObj;
+  protected
+    function GetControl: TWinControl; override;
   public
     XPos, YPos, XTmp, YTmp: Integer; {click position}
     constructor Create(AMasterList: TSectionList; Position: Integer; L: TAttributeList);
+    destructor Destroy; override;
     procedure ProcessProperties(Prop: TProperties); override;
     procedure ImageClick(Sender: TObject);
     function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
   end;
 
-  THiddenFormControlObj = class(TFormControlObj)
-    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
-    procedure SetData(Index: Integer; const V: ThtString); override;
-  end;
-
   TEditFormControlObj = class(TFormControlObj)
   private
+    FControl: ThtEdit;
     EnterContents: ThtString;
     tmAveCharWidth: Integer;
+    function getText: ThtString;
+    procedure setText(const Value: ThtString);
   protected
+    function GetControl: TWinControl; override;
     procedure DoOnChange; override;
     procedure SaveContents; override;
   public
     EditSize: Integer;
-    constructor Create(AMasterList: TSectionList; Position: Integer;
-      L: TAttributeList; const Typ: ThtString; Prop: TProperties);
+    constructor Create(AMasterList: TSectionList; Position: Integer; L: TAttributeList; const Typ: ThtString; Prop: TProperties);
+    destructor Destroy; override;
     procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
     procedure ProcessProperties(Prop: TProperties); override;
     procedure ResetToValue; override;
     function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
     procedure SetData(Index: Integer; const V: ThtString); override;
     procedure SetHeightWidth(Canvas: TCanvas); override;
+    property Text: ThtString read getText write setText;
   end;
 
   WhichType = (Submit, ResetB, Button, Browse);
 
   TButtonFormControlObj = class(TFormControlObj)
+  private
+    FControl: ThtButton;
+  protected
+    function GetControl: TWinControl; override;
   public
     Which: WhichType;
     MyEdit: TEditFormControlObj;
-    constructor Create(AMasterList: TSectionList; Position: Integer;
-      L: TAttributeList; const Typ: ThtString; Prop: TProperties);
+    constructor Create(AMasterList: TSectionList; Position: Integer; L: TAttributeList; const Typ: ThtString; Prop: TProperties);
+    destructor Destroy; override;
     procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
     procedure ButtonClick(Sender: TObject);
     procedure SetHeightWidth(Canvas: TCanvas); override;
   end;
 
+  TFormRadioButton = class(ThtRadioButton)
+  private
+    IDName: ThtString;
+    FChecked: boolean;
+    procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
+  protected
+    function GetChecked: Boolean; override;
+    procedure CreateWnd; override;
+    procedure SetChecked(Value: Boolean); override;
+  published
+    property Checked: boolean read GetChecked write SetChecked;
+  end;
+
   TRadioButtonFormControlObj = class(TFormControlObj)
   private
+    FControl: TFormRadioButton;
     WasChecked: boolean;
+    function GetChecked: Boolean;
+    procedure SetChecked(Value: Boolean);
   protected
+    function GetColor: TColor; //override;
+    function GetControl: TWinControl; override;
     procedure DoOnChange; override;
     procedure SaveContents; override;
-    function GetControl: TWinControl; override;
+    procedure SetColor(const Value: TColor); //override;
   public
     IsChecked: boolean;
     MyCell: TCellBasic;
-    constructor Create(AMasterList: TSectionList; Position: Integer;
-      L: TAttributeList; ACell: TCellBasic);
+    constructor Create(AMasterList: TSectionList; Position: Integer; L: TAttributeList; ACell: TCellBasic);
+    destructor Destroy; override;
+    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
     procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
     procedure RadioClick(Sender: TObject);
     procedure ResetToValue; override;
-    function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
     procedure SetData(Index: Integer; const V: ThtString); override;
+    property Checked: Boolean read GetChecked write SetChecked;
+    property Color: TColor read GetColor write SetColor;
+  end;
+
+  TFormCheckBox = class(ThtCheckBox)
+  private
+    procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
   end;
 
   TCheckBoxFormControlObj = class(TFormControlObj)
   private
+    FControl: TFormCheckBox;
     WasChecked: boolean;
+    function GetChecked: Boolean;
+    procedure SetChecked(Value: Boolean);
+  protected
+    function GetControl: TWinControl; override;
+    procedure DoOnChange; override;
+    procedure SaveContents; override;
   public
     IsChecked: boolean;
-    constructor Create(AMasterList: TSectionList; Position: Integer;
-      L: TAttributeList; Prop: TProperties);
+    constructor Create(AMasterList: TSectionList; Position: Integer; L: TAttributeList; Prop: TProperties);
+    destructor Destroy; override;
     procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
     procedure ResetToValue; override;
     function GetSubmission(Index: Integer; var S: ThtString): boolean; override;
     procedure SetData(Index: Integer; const V: ThtString); override;
     procedure SetDataInit; override;
-  protected
-    procedure DoOnChange; override;
-    procedure SaveContents; override;
+    property Checked: Boolean read GetChecked write SetChecked;
   end;
 
   LineRec = class(TObject) {holds info on a line of text}
@@ -466,7 +572,7 @@ type
     BuffSize: Integer; {buffer may be larger}
     Fonts: TFontList; {List of FontObj's in this section}
     Images: TImageObjList; {list of TImageObj's, the images in section}
-    FormControls: TList; {list of TFormControls in section}
+    FormControls: TFormControlObjList; {list of TFormControls in section}
     SIndexList: TFreeList; {list of Source index changes}
     Lines: TFreeList; {List of LineRecs,  info on all the lines in section}
     Justify: JustifyType; {Left, Centered, Right}
@@ -513,7 +619,7 @@ type
     procedure CopyToClipboard; override;
     procedure Finish;
     procedure HRef(Sy: Symb; List: TSectionList; AnURL: TUrlTarget; Attributes: TAttributeList; Prop: TProperties);
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); override;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
     procedure ProcessText(TagIndex: Integer); virtual;
   end;
 
@@ -589,7 +695,7 @@ type
     procedure DrawSort;
     procedure DrawTheList(Canvas: TCanvas; ARect: TRect; ClipWidth, X, XRef, YRef: Integer);
     procedure FormTree(const Indent: ThtString; var Tree: ThtString);
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); override;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
   end;
 
   ListTypeType = (None, Ordered, Unordered, Definition, liAlone);
@@ -618,7 +724,7 @@ type
     function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
       var MaxWidth: Integer; var Curs: Integer): Integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); override;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
     function FindWidth(Canvas: TCanvas; AWidth, AHeight, AutoCount: Integer): Integer; override;
     function FindWidth1(Canvas: TCanvas; AWidth, ExtMarg: Integer): Integer;
     procedure AddSectionsToList; override;
@@ -638,7 +744,7 @@ type
     constructor CreateCopy(AMasterList: TSectionBaseList; T: TSectionBase); override;
     procedure CancelUsage;
     function FindWidth(Canvas: TCanvas; AWidth, AHeight, AutoCount: Integer): Integer; override;
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); override;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
     function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; override;
     property CaptionBlock: TBlock read FCaptionBlock write SetCaptionBlock;
   end;
@@ -784,13 +890,11 @@ type
     destructor Destroy; override;
     procedure DoColumns(Width: Integer; AsPercent: boolean;
       VAlign: AlignmentType; const Align: ThtString);
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); override;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
     procedure AddDummyCells;
-    procedure GetMinMaxAbs(Canvas: TCanvas; var TotalMinWidth,
-      TotalMaxWidth: Integer);
+    procedure GetMinMaxAbs(Canvas: TCanvas; out TotalMinWidth, TotalMaxWidth: Integer);
     procedure GetWidthsAbs(Canvas: TCanvas; TablWidth: Integer; Specified: boolean);
-    procedure GetWidths(Canvas: TCanvas; var TotalMinWidth, TotalMaxWidth: Integer;
-      TheWidth: Integer);
+    procedure GetWidths(Canvas: TCanvas; out TotalMinWidth, TotalMaxWidth: Integer; TheWidth: Integer);
     procedure TableSpecifiedAndWillFit(TheWidth: Integer);
     procedure TableNotSpecifiedAndWillFit(TotalMinWidth, TotalMaxWidth, TheWidth: Integer);
     function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
@@ -840,7 +944,7 @@ type
     procedure CopyToClipboard;
     function DoLogic(Canvas: TCanvas; Y: Integer; Width, AHeight, BlHt: Integer;
       var ScrollWidth: Integer; var Curs: Integer): Integer; virtual;
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); virtual;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); virtual;
     function Draw(Canvas: TCanvas; ARect: TRect; ClipWidth, X: Integer;
       Y, XRef, YRef: Integer): Integer; virtual;
     function GetURL(Canvas: TCanvas; X: Integer; Y: Integer; var UrlTarg: TUrlTarget;
@@ -939,7 +1043,7 @@ type
     PageShortened: boolean;
     MapList: TFreeList; {holds list of client maps, TMapItems}
     Timer: TTimer; {for animated GIFs}
-    FormControlList: TList; {List of all TFormControlObj's in this SectionList}
+    FormControlList: TFormControlObjList; {List of all TFormControlObj's in this SectionList}
     PanelList: TList; {List of all TPanelObj's in this SectionList}
     MissingImages: ThtStringList; {images to be supplied later}
     ControlEnterEvent: TNotifyEvent;
@@ -1076,7 +1180,7 @@ type
     procedure ProcessText(TagIndex: Integer); override;
     function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
       var MaxWidth: Integer; var Curs: Integer): Integer; override;
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); override;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
   end;
 
   THtmlPropStack = class(TPropStack)
@@ -1100,7 +1204,7 @@ var
 
 var
   PropStack: THtmlPropStack;
-  Title: UnicodeString;
+  Title: ThtString;
   Base: ThtString;
   BaseTarget: ThtString;
   NoBreak: boolean; {set when in <NoBr>}
@@ -1108,7 +1212,6 @@ var
 implementation
 
 uses
-  SysUtils, Variants, Forms, Math,
 {$IFNDEF NoGDIPlus}
   GDIPL2A,
 {$ENDIF}
@@ -1142,24 +1245,6 @@ type
   EProcessError = class(Exception);
 
 type
-  TFormRadioButton = class(ThtRadioButton)
-  private
-    IDName: ThtString;
-    FChecked: boolean;
-    procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
-  protected
-    procedure CreateWnd; override;
-    function GetChecked: Boolean; override;
-    procedure SetChecked(Value: Boolean); override;
-  published
-    property Checked: boolean read GetChecked write SetChecked;
-  end;
-
-  TFormCheckBox = class(ThtCheckBox)
-  private
-    procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
-  end;
-
   BorderRec = class {record for inline borders}
   private
     BStart, BEnd: Integer;
@@ -1762,28 +1847,26 @@ begin
   Result := nil;
   if Image = ErrorBitmap then
     Exit;
-  if (Image is TGifImage) then
+  if Image is TGifImage then
     Result := TGifImage(Image).Bitmap
   else if (Image is TBitmap) {$IFNDEF NoGDIPlus}or (Image is TGpBitmap){$ENDIF} then
   begin
-    if Assigned(FBitmap) then
-      Result := FBitmap
-    else
+    if FBitmap = nil then
     begin
-      if (Image is TBitmap) then
+      if Image is TBitmap then
       begin
         FBitmap := TBitmap.Create;
         FBitmap.Assign(TBitmap(Image));
         if ColorBits = 8 then
           FBitmap.Palette := CopyPalette(ThePalette);
       end
-      {$IFNDEF NoGDIPlus}
+{$IFNDEF NoGDIPlus}
       else {it's a TGpBitmap}
         FBitmap := TGpBitmap(Image).GetTBitmap
-        {$ENDIF NoGDIPlus}
+{$ENDIF NoGDIPlus}
         ;
-      Result := FBitmap;
     end;
+    Result := FBitmap;
   end
 {$IFNDEF NoMetafile}
   else if (Image is ThtMetaFile) then
@@ -1819,6 +1902,12 @@ begin
       FHover := Value;
       ParentSectionList.PPanel.Invalidate;
     end;
+end;
+
+procedure TImageObj.setImage(const AValue: TgpObject);
+begin
+  if FImage = AValue then exit;
+  FImage := AValue;
 end;
 
 {----------------TImageObj.ReplaceImage}
@@ -2118,12 +2207,12 @@ end;
 
 {----------------TImageObj.DoDraw}
 
-procedure TImageObj.DoDraw(Canvas: TCanvas; XX: Integer; Y: Integer;
-  ddImage: TgpObject; ddMask: TBitmap);
+procedure TImageObj.DoDraw(Canvas: TCanvas; XX, Y: Integer; ddImage: TgpObject; ddMask: TBitmap);
 {Y relative to top of display here}
 var
   DC: HDC;
-  Img: TBitmap;
+  Img: TBitmap absolute ddImage;
+  Gif: TGifImage absolute ddImage;
   W, H: Integer;
   PrintTransparent: boolean;
 begin
@@ -2143,26 +2232,22 @@ begin
   end;
   {$ENDIF !NoGDIPlus}
 
-  if (ddImage is TGifImage) and not ParentSectionList.IsCopy then
-    with TGifImage(ddImage) do
-    begin
-      ShowIt := True;
-      Visible := True;
-      Draw(Canvas, XX, Y, ObjWidth, ObjHeight);
-      Exit;
-    end;
   try
     if not ParentSectionList.IsCopy then
     begin
-      if ((Transparent <> NotTransp) or (ddImage = ErrorBitmap)) and Assigned(ddMask) then
+      if ddImage is TGifImage then
+      begin
+        Gif.ShowIt := True;
+        Gif.Visible := True;
+        Gif.Draw(Canvas, XX, Y, ObjWidth, ObjHeight);
+      end
+      else if ((Transparent <> NotTransp) or (ddImage = ErrorBitmap)) and Assigned(ddMask) then
         if ddImage = ErrorBitmap then
-          FinishTransparentBitmap(DC, TBitmap(ddImage), Mask, XX, Y,
-            TBitmap(ddImage).Width, TBitmap(ddImage).Height)
+          FinishTransparentBitmap(DC, Img, Mask, XX, Y, Img.Width, Img.Height)
         else
-          FinishTransparentBitmap(DC, TBitmap(ddImage), Mask, XX, Y, ObjWidth, ObjHeight)
+          FinishTransparentBitmap(DC, Img, Mask, XX, Y, ObjWidth, ObjHeight)
       else
       begin
-        Img := TBitmap(ddImage);
         if (ddImage = DefBitMap) or (ddImage = ErrorBitmap) then
           BitBlt(DC, XX, Y, Img.Width, Img.Height, Img.Canvas.Handle, 0, 0, SRCCOPY)
         else if ddImage is TBitmap then
@@ -2179,15 +2264,14 @@ begin
     else
     begin {printing}
       if ddImage is TGifImage then
-        with TGifImage(ddImage) do
-        begin
-          ddMask := Mask;
-          if Assigned(ddMask) then
-            Transparent := TrGif;
-          ddImage := MaskedBitmap;
-          TBitmap(ddImage).Palette := CopyPalette(ThePalette);
-          TBitmap(ddImage).HandleType := bmDIB;
-        end;
+      begin
+        ddMask := Gif.Mask;
+        if Assigned(ddMask) then
+          Transparent := TrGif;
+        Img := Gif.MaskedBitmap;
+        Img.Palette := CopyPalette(ThePalette);
+        Img.HandleType := bmDIB;
+      end;
       if (ddImage = DefBitMap) or (ddImage = ErrorBitmap) then
       begin
         W := TBitmap(ddImage).Width;
@@ -2361,6 +2445,8 @@ begin
     Font.Size := 8;
     Font.Name := 'Arial'; {make this a property?}
     Font.Style := Font.Style - [fsBold];
+  end;
+  begin
     if SubstImage then
       Ofst := 4
     else
@@ -2386,12 +2472,12 @@ begin
     end;
 
     if not SubstImage or (AltHeight >= 16 + 8) and (AltWidth >= 16 + 8) then
-      DoDraw(Canvas, DrawXX + Ofst, DrawYY + Ofst, TmpImage, TmpMask);
+      Self.DoDraw(Canvas, DrawXX + Ofst, DrawYY + Ofst, TmpImage, TmpMask);
     Inc(DrawYY, ParentSectionList.YOff);
     SetTextAlign(Canvas.Handle, TA_Top);
     if SubstImage and (BorderSize = 0) then
     begin
-      Font.Color := FO.TheFont.Color;
+      Canvas.Font.Color := FO.TheFont.Color;
     {calc the offset from the image's base to the alt= text baseline}
       case VertAlign of
         ATop, ANone:
@@ -2415,6 +2501,7 @@ begin
       end;
     end;
     if (BorderSize > 0) then
+    with Canvas do
     begin
       SaveColor := Pen.Color;
       SaveWidth := Pen.Width;
@@ -2424,8 +2511,9 @@ begin
       Pen.Style := psInsideFrame;
       Font.Color := Pen.Color;
       try
-        if (FAlt <> '') and SubstImage then {output Alt message}
+        if (FAlt <> '') and SubstImage then
         begin
+          {output Alt message}
           YY := DrawYY - ParentSectionList.YOff;
           case VertAlign of
             ATop, ANone:
@@ -2436,10 +2524,16 @@ begin
               WrapTextW(Canvas, DrawXX + 24, YY + Ofst, DrawXX + AltWidth - 2, YY + AltHeight - 1, FAlt);
           end;
         end;
-        case VertAlign of {draw border}
-          {ALeft, ARight,} ATop, ANone: Rectangle(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
-          AMiddle: Rectangle(X, MiddleAlignTop, X + ImageWidth, MiddleAlignTop + ImageHeight);
-          ABottom, ABaseline: Rectangle(X, YBaseLine - ImageHeight - VSpaceB, X + ImageWidth, YBaseLine - VSpaceB);
+
+        {draw border}
+        case VertAlign of
+
+          {ALeft, ARight,} ATop, ANone:
+            Rectangle(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
+          AMiddle:
+            Rectangle(X, MiddleAlignTop, X + ImageWidth, MiddleAlignTop + ImageHeight);
+          ABottom, ABaseline:
+            Rectangle(X, YBaseLine - ImageHeight - VSpaceB, X + ImageWidth, YBaseLine - VSpaceB);
         end;
       finally
         Pen.Color := SaveColor;
@@ -2450,6 +2544,7 @@ begin
     if (Assigned(MyFormControl) and MyFormControl.Active or FO.Active) or
       ParentSectionList.IsCopy and Assigned(ParentSectionList.LinkDrawnEvent)
       and (FO.UrlTarget.Url <> '') then
+    with Canvas do
     begin
       SaveColor := SetTextColor(Handle, clBlack);
       Brush.Color := clWhite;
@@ -2666,7 +2761,7 @@ begin
           TargetSy: Target := Name;
           EncTypeSy: EncType := Name;
         end;
-  ControlList := TFreeList.Create;
+  ControlList := TFormControlObjList.Create(True);
 end;
 
 destructor ThtmlForm.Destroy;
@@ -2686,6 +2781,7 @@ procedure ThtmlForm.DoRadios(Radio: TRadioButtonFormControlObj);
 var
   S: ThtString;
   Ctrl: TFormControlObj;
+  RadioButton: TRadioButtonFormControlObj absolute Ctrl;
   I: Integer;
 begin
   if Radio.FName <> '' then
@@ -2693,13 +2789,13 @@ begin
     S := Radio.FName;
     for I := 0 to ControlList.Count - 1 do
     begin
-      Ctrl := TFormControlObj(ControlList.Items[I]);
+      Ctrl := ControlList[I];
       if (Ctrl is TRadioButtonFormControlObj) and (Ctrl <> Radio) then
-        if CompareText(Ctrl.FName, S) = 0 then
+        if CompareText(RadioButton.FName, S) = 0 then
         begin
-          TFormRadioButton(Ctrl.TheControl).Checked := False;
-          TFormRadioButton(Ctrl.TheControl).TabStop := False; {first check turns off other tabstops}
-          TRadioButtonFormControlObj(Ctrl).DoOnchange;
+          RadioButton.Checked := False;
+          RadioButton.TabStop := False; {first check turns off other tabstops}
+          RadioButton.DoOnChange;
         end;
     end;
   end;
@@ -2710,35 +2806,42 @@ var
   S: ThtString;
   Ctrl: TFormControlObj;
   I: Integer;
-  List: TList;
+  B: Boolean;
 begin
   if (Key in [vk_up, vk_down, vk_left, vk_right]) and (Sender is TFormRadioButton) then
   begin
     S := TFormRadioButton(Sender).IDName;
-    List := TList.Create;
-    try
+    B := False;
+    if Key in [vk_up, vk_left] then
+      for I := ControlList.Count - 1 downto 0 do
+      begin
+        Ctrl := ControlList[I];
+        if (Ctrl is TRadioButtonFormControlObj) and SameText(Ctrl.FName, S) then
+        begin
+          if B then
+          begin
+            ControlList[I].TheControl.SetFocus;
+            break;
+          end;
+          if Ctrl.TheControl = Sender then
+            B := True
+        end;
+      end
+    else
       for I := 0 to ControlList.Count - 1 do
       begin
-        Ctrl := TFormControlObj(ControlList.Items[I]);
-        if (Ctrl is TRadioButtonFormControlObj) and
-          (CompareText(Ctrl.FName, S) = 0) then
-          List.Add(TRadioButtonFormControlObj(Ctrl).TheControl);
-      end;
-      I := List.IndexOf(Sender);
-      if I >= 0 then
-      begin
-        if (Key in [vk_up, vk_left]) then
+        Ctrl := ControlList[I];
+        if (Ctrl is TRadioButtonFormControlObj) and SameText(Ctrl.FName, S) then
         begin
-          if I > 0 then
-            Dec(I);
-        end
-        else if I < List.Count - 1 then
-          Inc(I);
-        TFormRadioButton(List.Items[I]).SetFocus;
+          if B then
+          begin
+            ControlList[I].TheControl.SetFocus;
+            break;
+          end;
+          if Ctrl.TheControl = Sender then
+            B := True
+        end;
       end;
-    finally
-      List.Free;
-    end;
   end
   else {send other keys to THtmlViewer}
     MasterList.TheOwner.KeyDown(Key, Shift);
@@ -2886,16 +2989,13 @@ end;
 constructor TFormControlObj.CreateCopy(T: TFormControlObj);
 begin
   inherited Create;
-  System.Move(T.Pos, Pos, DWord(@FControl) - DWord(@Pos));
+  System.Move(T.Pos, Pos, PtrSub(@ShowIt, @Pos));
+  FId := T.FID;
+  FName := T.FName;
 end;
 
 destructor TFormControlObj.Destroy;
 begin
-  if Assigned(FControl) then {hidden controls are Nil}
-  begin
-    FControl.Parent := nil;
-    FControl.Free;
-  end;
   AttributeList.Free;
   PaintBitmap.Free;
   inherited Destroy;
@@ -2905,6 +3005,18 @@ procedure TFormControlObj.HandleMouseMove(Sender: TObject; Shift: TShiftState; X
   Y: Integer);
 begin
   MasterList.TheOwner.ControlMouseMove(Self, Shift, X, Y);
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure TFormControlObj.Hide;
+begin
+  TheControl.Hide;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TFormControlObj.IsHidden: Boolean;
+begin
+  Result := False;
 end;
 
 function TFormControlObj.GetYPosition: Integer;
@@ -2922,7 +3034,7 @@ begin
   Prop.GetVMarginArray(MargArrayO);
   EmSize := Prop.EmSize;
   ExSize := Prop.ExSize;
-  PercentWidth := (VarIsStr(MargArrayO[Width])) and (System.Pos('%', MargArrayO[Width]) > 0);
+  PercentWidth := (VarIsStr(MargArrayO[piWidth])) and (System.Pos('%', MargArrayO[piWidth]) > 0);
   ConvInlineMargArray(MargArrayO, 100, 200, EmSize, ExSize, MargArray);
 
   VSpaceT := 1;
@@ -2946,18 +3058,18 @@ begin
     Inc(VSpaceB, BordB);
   end;
 
-  if MargArray[Width] > 0 then {excludes IntNull and Auto}
+  if MargArray[piWidth] > 0 then {excludes IntNull and Auto}
     if PercentWidth then
     begin
-      if MargArray[Width] <= 100 then
-        FWidth := MargArray[Width]
+      if MargArray[piWidth] <= 100 then
+        FWidth := MargArray[piWidth]
       else
         PercentWidth := False;
     end
     else
-      FWidth := MargArray[Width];
-  if MargArray[Height] > 0 then
-    FHeight := MargArray[Height] - BordT - BordB;
+      FWidth := MargArray[piWidth];
+  if MargArray[piHeight] > 0 then
+    FHeight := MargArray[piHeight] - BordT - BordB;
   if Prop.GetVertAlign(Align) then
     FormAlign := Align;
   BkColor := Prop.GetBackgroundColor;
@@ -2965,10 +3077,6 @@ end;
 
 procedure TFormControlObj.EnterEvent(Sender: TObject);
 {Once form control entered, insure all form controls are tab active}
-{$IFNDEF FastRadio}
-var
-  I: Integer;
-{$ENDIF}
 begin
   if MasterList.IsCopy then
     Exit;
@@ -2976,16 +3084,7 @@ begin
   MasterList.PPanel.Invalidate;
   MasterList.ControlEnterEvent(Self);
 {$IFNDEF FastRadio}
-  with MasterList.FormControlList do
-  begin
-    for I := 0 to Count - 1 do
-      with TFormControlObj(Items[I]) do
-        if not ShowIt and Assigned(FControl) then
-        begin
-          FControl.Show; {makes it tab active}
-          FControl.Left := -4000; {even if it can't be seen}
-        end;
-  end;
+  MasterList.FormControlList.ActivateTabbing;
 {$ENDIF}
   if Assigned(MasterList.ObjectFocus) and (OnFocusMessage <> '') then
     MasterList.ObjectFocus(MasterList.TheOwner, Self, OnFocusMessage);
@@ -3015,11 +3114,6 @@ procedure TFormControlObj.DoOnChange;
 begin
 end;
 
-function TFormControlObj.GetControl: TWinControl;
-begin
-  Result := FControl;
-end;
-
 procedure TFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
 begin end;
 
@@ -3031,18 +3125,6 @@ begin
   Result := False;
 end;
 
-procedure TFormControlObj.SetDataInit;
-begin
-end;
-
-procedure TFormControlObj.SetData(Index: Integer; const V: ThtString);
-begin
-end;
-
-procedure TFormControlObj.SetHeightWidth(Canvas: TCanvas);
-begin
-end;
-
 procedure TFormControlObj.FormControlClick(Sender: TObject);
 begin
   if Assigned(MasterList.ObjectClick) then
@@ -3052,6 +3134,84 @@ end;
 function TFormControlObj.GetAttribute(const AttrName: ThtString): ThtString;
 begin
   Result := AttributeList.Values[AttrName];
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TFormControlObj.GetHeight: Integer;
+begin
+  Result := TheControl.Height;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TFormControlObj.GetLeft: Integer;
+begin
+  Result := TheControl.Left;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function TFormControlObj.GetTabOrder: Integer;
+begin
+  Result := TheControl.TabOrder
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function TFormControlObj.GetTabStop: Boolean;
+begin
+  Result := TheControl.TabStop
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TFormControlObj.GetTop: Integer;
+begin
+  Result := TheControl.Top;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TFormControlObj.GetWidth: Integer;
+begin
+  Result := TheControl.Width;
+end;
+
+procedure TFormControlObj.SetDataInit;
+begin
+end;
+
+procedure TFormControlObj.SetData(Index: Integer; const V: ThtString);
+begin
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure TFormControlObj.SetHeight(Value: Integer);
+begin
+  TheControl.Height := Value;
+end;
+
+procedure TFormControlObj.SetHeightWidth(Canvas: TCanvas);
+begin
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure TFormControlObj.SetLeft(Value: Integer);
+begin
+  TheControl.Left := Value;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure TFormControlObj.SetTabOrder(Value: Integer);
+begin
+  TheControl.TabOrder := Value;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure TFormControlObj.SetTabStop(Value: Boolean);
+begin
+  TheControl.TabStop := Value;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure TFormControlObj.SetTop(Value: Integer);
+begin
+  TheControl.Top := Value;
 end;
 
 {----------------TImageFormControlObj.Create}
@@ -3066,7 +3226,7 @@ begin
 
   PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
   FControl := ThtButton.Create(PntPanel);
-  with ThtButton(FControl) do
+  with FControl do
   begin
     Left := -4000; {so will be invisible until placed}
     Width := 1;
@@ -3094,6 +3254,20 @@ begin
     MyForm.SubmitTheForm('');
 end;
 
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+destructor TImageFormControlObj.Destroy;
+begin
+  FControl.Parent := nil;
+  FControl.Free;
+  inherited;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TImageFormControlObj.GetControl: TWinControl;
+begin
+  Result := FControl;
+end;
+
 function TImageFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
   Result := (Index <= 1) and (XPos >= 0);
@@ -3114,6 +3288,25 @@ end;
 
 {----------------THiddenFormControlObj.GetSubmission}
 
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function THiddenFormControlObj.GetControl: TWinControl;
+begin
+  Result := nil;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetHeight: Integer;
+begin
+  Result := 0;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetLeft: Integer;
+begin
+  Result := -4000;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
 function THiddenFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
   Result := Index = 0;
@@ -3121,9 +3314,86 @@ begin
     S := FName + '=' + Value;
 end;
 
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function THiddenFormControlObj.GetTabOrder: Integer;
+begin
+  Result := -1;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function THiddenFormControlObj.GetTabStop: Boolean;
+begin
+  Result := False;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetTop: Integer;
+begin
+  Result := 0;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetWidth: Integer;
+begin
+  Result := 0;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.Hide;
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.IsHidden: Boolean;
+begin
+  Result := True;
+end;
+
 procedure THiddenFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
   Value := V;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.SetHeight(Value: Integer);
+begin
+// do nothing
+end;
+
+procedure THiddenFormControlObj.SetLeft(Value: Integer);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure THiddenFormControlObj.SetTabOrder(Value: Integer);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure THiddenFormControlObj.SetTabStop(Value: Boolean);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.SetTop(Value: Integer);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.SetWidth(Value: Integer);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.Show;
+begin
+// do nothing
 end;
 
 {----------------TEditFormControlObj.Create}
@@ -3152,7 +3422,7 @@ begin
   end;
   PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
   FControl := ThtEdit.Create(PntPanel);
-  with ThtEdit(FControl) do
+  with FControl do
   begin
     Left := -4000; {so will be invisible until placed}
     Width := 120;
@@ -3183,12 +3453,12 @@ procedure TEditFormControlObj.ProcessProperties(Prop: TProperties);
 begin
   inherited;
   if BkColor <> clNone then
-    ThtEdit(FControl).Color := BkColor;
+    FControl.Color := BkColor;
 end;
 
 procedure TEditFormControlObj.ResetToValue;
 begin
-  ThtEdit(FControl).Text := Value;
+  Text := Value;
 end;
 
 procedure TEditFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
@@ -3196,11 +3466,11 @@ var
   H2, Addon: Integer;
   ARect: TRect;
 begin
-  if ThtEdit(FControl).BorderStyle <> bsNone then
+  if FControl.BorderStyle <> bsNone then
     Addon := 4 {normal 3D border}
   else
     Addon := 2; {inline border, 3D Border removed}
-  with ThtEdit(FControl) do
+  with FControl do
   begin
     Canvas.Font := Font;
     H2 := Abs(Font.Height);
@@ -3209,28 +3479,40 @@ begin
     else
       FillRectWhite(Canvas, X1, Y1, X1 + Width, Y1 + Height, Color);
     SetTextAlign(Canvas.handle, TA_Left);
-    SetBkMode(Canvas.Handle, Windows.Transparent);
+    SetBkMode(Canvas.Handle, {$ifdef FPC}Lcltype.{$endif}Transparent);
     Canvas.Brush.Style := bsClear;
     ARect := Rect(X1 + Addon, Y1, X1 + Width - (Addon div 2), Y1 + Height);
     ThtCanvas(Canvas).htTextRect(ARect, ARect.Left, Y1 + (Height - H2) div 2 - 1, Text);
   end
 end;
 
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TEditFormControlObj.GetControl: TWinControl;
+begin
+  Result := FControl;
+end;
+
 function TEditFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
   Result := Index = 0;
   if Result then
-    S := FName + '=' + ThtEdit(FControl).Text;
+    S := FName + '=' + Text;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function TEditFormControlObj.getText: ThtString;
+begin
+  Result := {$ifdef LCL}UTF8Decode{$endif}(FControl.Text);
 end;
 
 procedure TEditFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
-  ThtEdit(FControl).Text := V;
+  Text := V;
 end;
 
 procedure TEditFormControlObj.SetHeightWidth(Canvas: TCanvas);
 begin
-  with ThtEdit(FControl) do
+  with FControl do
   begin
     Canvas.Font := Font;
     if not PercentWidth then
@@ -3247,15 +3529,29 @@ begin
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure TEditFormControlObj.setText(const Value: ThtString);
+begin
+  FControl.Text := {$ifdef LCL}Utf8Encode{$endif}(Value);
+end;
+
 procedure TEditFormControlObj.SaveContents;
 {Save the current value to see if it has changed when focus is lost}
 begin
-  EnterContents := ThtEdit(FControl).Text;
+  EnterContents := Text;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+destructor TEditFormControlObj.Destroy;
+begin
+  FControl.Parent := nil;
+  FControl.Free;
+  inherited;
 end;
 
 procedure TEditFormControlObj.DoOnChange;
 begin
-  if ThtEdit(FControl).Text <> EnterContents then
+  if Text <> EnterContents then
     if Assigned(MasterList.ObjectChange) then
       MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
 end;
@@ -3297,7 +3593,7 @@ begin
   end;
   PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
   FControl := ThtButton.Create(PntPanel);
-  with ThtButton(FControl) do
+  with FControl do
   begin
     Left := -4000; {so will be invisible until placed}
     Tmp := Prop.GetFont;
@@ -3307,7 +3603,7 @@ begin
     if Which = Browse then
       Caption := 'Browse...'
     else
-      Caption := Value;
+      Caption := {$ifdef LCL}Utf8Encode{$endif}(Value);
     OnEnter := EnterEvent;
     OnExit := ExitEvent;
     OnMouseMove := HandleMouseMove;
@@ -3315,8 +3611,16 @@ begin
   end;
   FControl.Parent := PntPanel;
 {$IFDEF UseElPack}
-  ThtButton(FControl).Color := clBtnFace;
+  FControl.Color := clBtnFace;
 {$ENDIF}
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+destructor TButtonFormControlObj.Destroy;
+begin
+  FControl.Parent := nil;
+  FControl.Free;
+  inherited;
 end;
 
 procedure TButtonFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
@@ -3324,7 +3628,7 @@ var
   H2: Integer;
   MonoBlack: boolean;
 begin
-  with ThtButton(FControl) do
+  with FControl do
   begin
     MonoBlack := MasterList.PrintMonoBlack and (GetDeviceCaps(Canvas.Handle, BITSPIXEL) = 1) and
       (GetDeviceCaps(Canvas.Handle, PLANES) = 1);
@@ -3355,6 +3659,12 @@ begin
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TButtonFormControlObj.GetControl: TWinControl;
+begin
+  Result := FControl; 
+end;
+
 procedure TButtonFormControlObj.ButtonClick(Sender: TObject);
 var
   S: ThtString;
@@ -3371,17 +3681,17 @@ begin
       MyForm.SubmitTheForm(S + '=' + Value);
     end
   else if Which = Browse then
-    if Assigned(MasterList.FileBrowse) and Assigned(MyEdit) and (MyEdit.TheControl is ThtEdit) then
+    if Assigned(MasterList.FileBrowse) and (MyEdit is TEditFormControlObj) then
     begin
-      S := ThtEdit(MyEdit.TheControl).Text;
+      S := MyEdit.Text;
       MasterList.FileBrowse(MasterList.TheOwner, MyEdit, S);
-      ThtEdit(MyEdit.TheControl).Text := S;
+      MyEdit.Text := S;
     end;
 end;
 
 procedure TButtonFormControlObj.SetHeightWidth(Canvas: TCanvas);
 begin
-  with ThtButton(FControl) do
+  with FControl do
   begin
     Canvas.Font := Font;
     if FHeight >= Canvas.TextHeight('A') then
@@ -3411,7 +3721,7 @@ begin
     IsChecked := True;
   PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
   FControl := TFormCheckBox.Create(PntPanel);
-  with TFormCheckBox(FControl) do
+  with FControl do
   begin
     Left := -4000; {so will be invisible until placed}
     Width := 13;
@@ -3429,14 +3739,14 @@ end;
 
 procedure TCheckBoxFormControlObj.ResetToValue;
 begin
-  ThtCheckBox(FControl).Checked := IsChecked;
+  FControl.Checked := IsChecked;
 end;
 
 procedure TCheckBoxFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
 var
   x, y: Integer;
 begin
-  with ThtCheckBox(FControl) do
+  with FControl do
   begin
     FormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, False, MasterList.PrintMonoBlack, Disabled, clWhite);
     if Checked then
@@ -3451,33 +3761,59 @@ begin
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TCheckBoxFormControlObj.GetChecked: Boolean;
+begin
+  Result := FControl.Checked;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TCheckBoxFormControlObj.GetControl: TWinControl;
+begin
+  Result := FControl;
+end;
+
 function TCheckBoxFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
-  Result := (Index = 0) and ThtCheckBox(FControl).Checked;
+  Result := (Index = 0) and FControl.Checked;
   if Result then
     S := FName + '=' + Value;
 end;
 
 procedure TCheckBoxFormControlObj.SetDataInit;
 begin
-  ThtCheckBox(FControl).Checked := False; {not checked unless later data says so}
+  FControl.Checked := False; {not checked unless later data says so}
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure TCheckBoxFormControlObj.SetChecked(Value: Boolean);
+begin
+  FControl.Checked := Value;
 end;
 
 procedure TCheckBoxFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
   if htCompareText(V, Value) = 0 then
-    ThtCheckBox(FControl).Checked := True;
+    FControl.Checked := True;
 end;
 
 procedure TCheckBoxFormControlObj.SaveContents;
 {Save the current value to see if it has changed when focus is lost}
 begin
-  WasChecked := ThtCheckBox(FControl).Checked;
+  WasChecked := FControl.Checked;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+destructor TCheckBoxFormControlObj.Destroy;
+begin
+  FControl.Parent := nil;
+  FControl.Free;
+  inherited;
 end;
 
 procedure TCheckBoxFormControlObj.DoOnChange;
 begin
-  if ThtCheckBox(FControl).Checked <> WasChecked then
+  if FControl.Checked <> WasChecked then
     if Assigned(MasterList.ObjectChange) then
       MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
 end;
@@ -3490,6 +3826,7 @@ var
   T: TAttribute;
   PntPanel: TWinControl; //TPaintPanel;
   Ctrl: TFormControlObj;
+  RadioButtonFormControlObj: TRadioButtonFormControlObj absolute Ctrl;
   I: Integer;
   SetTabStop: boolean;
 begin
@@ -3500,7 +3837,7 @@ begin
   FormAlign := ABaseline;
   if L.Find(CheckedSy, T) then
     IsChecked := True;
-  with TFormRadioButton(FControl) do
+  with FControl do
   begin
     Left := -4000; {so will be invisible until placed}
     if Screen.PixelsPerInch > 100 then
@@ -3529,9 +3866,8 @@ begin
     for I := 0 to MyForm.ControlList.Count - 1 do
     begin
       Ctrl := TFormControlObj(MyForm.ControlList.Items[I]);
-      if (Ctrl is TRadioButtonFormControlObj)
-        and (TRadioButtonFormControlObj(Ctrl).TheControl <> FControl) then {skip the current radiobutton}
-        if CompareText(Ctrl.FName, FName) = 0 then {same group}
+      if (Ctrl is TRadioButtonFormControlObj) and (RadioButtonFormControlObj.FControl <> FControl) then {skip the current radiobutton}
+        if CompareText(Ctrl.Name, Name) = 0 then {same group}
           if not IsChecked then
           begin
           {if the current radiobutton is not checked and there are other radio buttons,
@@ -3544,9 +3880,9 @@ begin
           begin
           {if the current radio button is checked, then uncheck all the others and
            make sure no others have tabstop set}
-            TRadioButtonFormControlObj(Ctrl).IsChecked := False;
-            TFormRadioButton(TRadioButtonFormControlObj(Ctrl).TheControl).Checked := False;
-            TRadioButtonFormControlObj(Ctrl).TheControl.TabStop := False;
+            RadioButtonFormControlObj.IsChecked := False;
+            RadioButtonFormControlObj.Checked := False;
+            RadioButtonFormControlObj.TabStop := False;
           end;
     end;
     if not IsChecked then
@@ -3556,6 +3892,13 @@ begin
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TRadioButtonFormControlObj.GetColor: TColor;
+begin
+  Result := FControl.Color;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
 function TRadioButtonFormControlObj.GetControl: TWinControl;
 begin
   Result := FControl;
@@ -3569,7 +3912,7 @@ end;
 
 procedure TRadioButtonFormControlObj.ResetToValue;
 begin
-  TFormRadioButton(TheControl).Checked := IsChecked;
+  Checked := IsChecked;
 end;
 
 procedure TRadioButtonFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
@@ -3612,7 +3955,7 @@ begin
     if not MonoBlack then
       Pen.Color := clSilver;
     Arc(X1, Y1, XW, YH, X1, YH, XW, Y1);
-    if TFormRadioButton(TheControl).Checked then
+    if Checked then
     begin
       Pen.Color := clBlack;
       OldColor := Brush.Color;
@@ -3630,9 +3973,15 @@ begin
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function TRadioButtonFormControlObj.getChecked: Boolean;
+begin
+  Result := FControl.Checked;
+end;
+
 function TRadioButtonFormControlObj.GetSubmission(Index: Integer; var S: ThtString): boolean;
 begin
-  Result := (Index = 0) and TFormRadioButton(TheControl).Checked;
+  Result := (Index = 0) and Checked;
   if Result then
     S := FName + '=' + Value;
 end;
@@ -3640,18 +3989,38 @@ end;
 procedure TRadioButtonFormControlObj.SetData(Index: Integer; const V: ThtString);
 begin
   if htCompareText(V, Value) = 0 then
-    TFormRadioButton(TheControl).Checked := True;
+    Checked := True;
 end;
 
 procedure TRadioButtonFormControlObj.SaveContents;
 {Save the current value to see if it has changed when focus is lost}
 begin
-  WasChecked := TFormRadioButton(TheControl).Checked;
+  WasChecked := Checked;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure TRadioButtonFormControlObj.SetChecked(Value: Boolean);
+begin
+  FControl.Checked := Value;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure TRadioButtonFormControlObj.SetColor(const Value: TColor);
+begin
+  FControl.Color := Value;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+destructor TRadioButtonFormControlObj.Destroy;
+begin
+  FControl.Parent := nil;
+  FControl.Free;
+  inherited;
 end;
 
 procedure TRadioButtonFormControlObj.DoOnChange;
 begin
-  if TFormRadioButton(TheControl).Checked <> WasChecked then
+  if Checked <> WasChecked then
     if Assigned(MasterList.ObjectChange) then
       MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
 end;
@@ -3956,7 +4325,7 @@ end;
 
 {----------------TCellBasic.MinMaxWidth}
 
-procedure TCellBasic.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
+procedure TCellBasic.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 {Find the Width the cell would take if no wordwrap, Max, and the width if wrapped
  at largest word, Min}
 var
@@ -4148,7 +4517,7 @@ var
 begin
   inherited CreateCopy(AMasterList, T);
   TT := T as TBlock;
-  System.Move(TT.MargArray, MargArray, DWord(@Converted) - DWord(@MargArray) + Sizeof(Converted));
+  System.Move(TT.MargArray, MargArray, PtrSub(@Converted, @MargArray) + Sizeof(Converted));
   MyCell := TBlockCell.CreateCopy(AMasterList, TT.MyCell);
   MyCell.Owner := Self;
   DrawList := TList.Create;
@@ -4173,7 +4542,7 @@ begin
   inherited;
 end;
 
-procedure TBlock.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
+procedure TBlock.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 var
   MinCell, MaxCell: Integer;
   LeftSide, RightSide, AutoCount: Integer;
@@ -4193,10 +4562,10 @@ begin
 {$endif}
 
   ConvMargArray(0, 400, AutoCount);
-  HideOverflow := HideOverflow and (MargArray[Width] <> Auto) and (MargArray[Width] > 20);
+  HideOverflow := HideOverflow and (MargArray[piWidth] <> Auto) and (MargArray[piWidth] > 20);
   if HideOverflow then
   begin
-    MinCell := MargArray[Width];
+    MinCell := MargArray[piWidth];
     MaxCell := MinCell;
   end
   else
@@ -4205,15 +4574,15 @@ begin
     MargArray[MarginLeft] := 0;
   if MargArray[MarginRight] = Auto then
     MargArray[MarginRight] := 0;
-  if MargArray[Width] = Auto then
-    MargArray[Width] := 0;
+  if MargArray[piWidth] = Auto then
+    MargArray[piWidth] := 0;
   LeftSide := MargArray[MarginLeft] + MargArray[BorderLeftWidth] + MargArray[PaddingLeft];
   RightSide := MargArray[MarginRight] + MargArray[BorderRightWidth] + MargArray[PaddingRight];
-  Min := Math.Max(MinCell, MargArray[Width]) + LeftSide + RightSide;
-  if MargArray[Width] > 0 then
+  Min := Math.Max(MinCell, MargArray[piWidth]) + LeftSide + RightSide;
+  if MargArray[piWidth] > 0 then
     Max := Min
   else
-    Max := Math.Max(MaxCell, MargArray[Width]) + LeftSide + RightSide;
+    Max := Math.Max(MaxCell, MargArray[piWidth]) + LeftSide + RightSide;
 end;
 
 {----------------TBlock.GetURL}
@@ -4428,36 +4797,36 @@ var
   procedure CalcWidth;
   begin
     if Positioning = posAbsolute then
-      MargArray[Width] := Max(MinWidth, AWidth - BordWidth - LeftP)
+      MargArray[piWidth] := Max(MinWidth, AWidth - BordWidth - LeftP)
     else if (FloatLR in [ALeft, ARight]) then
-      MargArray[Width] := Min(MaxWidth, AWidth - BordWidth)
+      MargArray[piWidth] := Min(MaxWidth, AWidth - BordWidth)
     else
-      MargArray[Width] := Max(MinWidth, AWidth - BordWidth);
+      MargArray[piWidth] := Max(MinWidth, AWidth - BordWidth);
   end;
 
   procedure CalcMargRt;
   begin
-    MargArray[MarginRight] := Max(0, AWidth - BordPad - MargArray[MarginLeft] - MargArray[Width]);
+    MargArray[MarginRight] := Max(0, AWidth - BordPad - MargArray[MarginLeft] - MargArray[piWidth]);
   end;
 
   procedure CalcMargLf;
   begin
-    MargArray[MarginLeft] := Max(0, AWidth - BordPad - MargArray[MarginRight] - MargArray[Width]);
+    MargArray[MarginLeft] := Max(0, AWidth - BordPad - MargArray[MarginRight] - MargArray[piWidth]);
   end;
 
 begin
   ContentMinMaxWidth(Canvas, MinWidth, MaxWidth);
-  HideOverflow := HideOverflow and (MargArray[Width] <> Auto) and (MargArray[Width] > 20);
+  HideOverflow := HideOverflow and (MargArray[piWidth] <> Auto) and (MargArray[piWidth] > 20);
   case AutoCount of
     0:
       begin
         if not HideOverflow then
-          MargArray[Width] := Max(MinWidth, MargArray[Width]);
+          MargArray[piWidth] := Max(MinWidth, MargArray[piWidth]);
         if (Justify in [centered, Right]) and (Positioning = posStatic)
           and not (FloatLR in [ALeft, ARight]) and
           (MargArray[MarginLeft] = 0) and (MargArray[MarginRight] = 0) then
         begin
-          Marg2 := Max(0, AWidth - MargArray[Width] - BordPad);
+          Marg2 := Max(0, AWidth - MargArray[piWidth] - BordPad);
           case Justify of
             centered:
               begin
@@ -4469,12 +4838,12 @@ begin
           end;
         end;
       end;
-    1: if MargArray[Width] = Auto then
+    1: if MargArray[piWidth] = Auto then
         CalcWidth
       else
       begin
         if not HideOverflow then
-          MargArray[Width] := Max(MargArray[Width], MinWidth);
+          MargArray[piWidth] := Max(MargArray[piWidth], MinWidth);
         if MargArray[MarginRight] = Auto then
           if (FloatLR in [ALeft, ARight]) then
             MargArray[MarginRight] := 0
@@ -4483,7 +4852,7 @@ begin
         else
           CalcMargLf;
       end;
-    2: if MargArray[Width] = Auto then
+    2: if MargArray[piWidth] = Auto then
       begin
         if MargArray[MarginLeft] = Auto then
           MargArray[MarginLeft] := 0
@@ -4494,8 +4863,8 @@ begin
       else
       begin
         if not HideOverflow then
-          MargArray[Width] := Max(MargArray[Width], MinWidth);
-        Marg2 := Max(0, AWidth - MargArray[Width] - BordPad);
+          MargArray[piWidth] := Max(MargArray[piWidth], MinWidth);
+        Marg2 := Max(0, AWidth - MargArray[piWidth] - BordPad);
         MargArray[MarginLeft] := Marg2 div 2;
         MargArray[MarginRight] := Marg2 div 2;
       end;
@@ -4506,7 +4875,7 @@ begin
         CalcWidth;
       end;
   end;
-  Result := MargArray[Width];
+  Result := MargArray[piWidth];
 end;
 
 procedure DoImageStuff(Canvas: TCanvas; IW, IH: Integer; BGImage: TImageObj; PRec: PtPositionRec;
@@ -4753,10 +5122,10 @@ var
 
   function GetClientContentBot(ClientContentBot: Integer): Integer;
   begin
-    if HideOverflow and (MargArray[Height] > 3) then
-      Result := ContentTop + MargArray[Height]
+    if HideOverflow and (MargArray[piHeight] > 3) then
+      Result := ContentTop + MargArray[piHeight]
     else
-      Result := Max(Max(ContentTop, ClientContentBot), ContentTop + MargArray[Height]);
+      Result := Max(Max(ContentTop, ClientContentBot), ContentTop + MargArray[piHeight]);
   end;
 
 begin
@@ -4802,7 +5171,7 @@ begin
           TopP := 0;
         if (LeftP = Auto) then
           if (MargArray[RightPos] <> Auto) and (AutoCount = 0) then
-            LeftP := AWidth - MargArray[RightPos] - MargArray[Width]
+            LeftP := AWidth - MargArray[RightPos] - MargArray[piWidth]
               - MargArray[MarginLeft] - MargArray[PaddingLeft] - MargArray[BorderLeftWidth]
               - MargArray[MarginRight] - MargArray[PaddingRight] - MargArray[BorderRightWidth]
           else
@@ -4858,8 +5227,8 @@ begin
 
     ContentLeft := X;
 
-    if MargArray[Height] > 0 then
-      BlockHeight := MargArray[Height]
+    if MargArray[piHeight] > 0 then
+      BlockHeight := MargArray[piHeight]
     else if AHeight > 0 then
       BlockHeight := AHeight
     else
@@ -4872,7 +5241,7 @@ begin
           ContentTop + TopP,
           XRef,
           ContentTop + TopP,
-          NewWidth, MargArray[Height], BlockHeight, ScrollWidth, Curs);
+          NewWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
         MaxWidth := ScrollWidth + MiscWidths - MargArray[MarginRight] + LeftP - Xin;
         ClientContentBot := GetClientContentBot(MyCell.tcContentBot - TopP);
       end;
@@ -4884,7 +5253,7 @@ begin
           ContentTop,
           XRef + LeftP + MargArray[MarginLeft] + MargArray[BorderLeftWidth],
           YRef + TopP + MargArray[MarginTop] + MargArray[BorderTopWidth],
-          NewWidth, MargArray[Height], BlockHeight, ScrollWidth, Curs);
+          NewWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
         MaxWidth := ScrollWidth + MiscWidths - MargArray[MarginRight] + LeftP - Xin;
         ClientContentBot := GetClientContentBot(MyCell.tcContentBot);
         IB := IMgr.ImageBottom; {check for image overhang}
@@ -4898,7 +5267,7 @@ begin
         ContentTop,
         XRef,
         YRef,
-        NewWidth, MargArray[Height], BlockHeight, ScrollWidth, Curs);
+        NewWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
       MaxWidth := ScrollWidth + RightWidths + Indent;
       ClientContentBot := GetClientContentBot(MyCell.tcContentBot);
     end;
@@ -5472,7 +5841,7 @@ end;
 
 {----------------TTableAndCaptionBlock.MinMaxWidth}
 
-procedure TTableAndCaptionBlock.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
+procedure TTableAndCaptionBlock.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 var
   Mx, Mn, MxTable, MnTable: Integer;
 begin
@@ -5552,8 +5921,8 @@ begin
             WidthAttr := Value;
 
         HeightSy:
-          if (VarType(MargArrayO[Height]) in VarInt) and (MargArrayO[Height] = IntNull) then
-            MargArrayO[Height] := Name;
+          if (VarType(MargArrayO[piHeight]) in VarInt) and (MargArrayO[piHeight] = IntNull) then
+            MargArrayO[piHeight] := Name;
       end;
 
   //BG, 13.06.2010: Issue 5: Table border versus stylesheets:
@@ -5607,23 +5976,23 @@ begin
 
 
 {need to see if width is defined in style}
-  Percent := (VarIsStr(MargArrayO[Width])) and (Pos('%', MargArrayO[Width]) > 0);
+  Percent := (VarIsStr(MargArrayO[piWidth])) and (Pos('%', MargArrayO[piWidth]) > 0);
   StyleUn.ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, BorderStyle, BorderWidth, AutoCount, MargArray);
-  if MargArray[Width] > 0 then
+  if MargArray[piWidth] > 0 then
   begin
     if Percent then
     begin
       AsPercent := True;
-      WidthAttr := Min(1000, MargArray[Width] * 10);
+      WidthAttr := Min(1000, MargArray[piWidth] * 10);
     end
     else
     begin
-      WidthAttr := MargArray[Width];
+      WidthAttr := MargArray[piWidth];
     {By custom (not by specs), tables handle CSS Width property differently.  The
      Width includes the padding and border.}
-      MargArray[Width] := WidthAttr - MargArray[BorderLeftWidth] - MargArray[BorderRightWidth]
+      MargArray[piWidth] := WidthAttr - MargArray[BorderLeftWidth] - MargArray[BorderRightWidth]
         - MargArray[PaddingLeft] - MargArray[PaddingRight];
-      MargArrayO[Width] := MargArray[Width];
+      MargArrayO[piWidth] := MargArray[piWidth];
       AsPercent := False;
     end;
   end;
@@ -5643,14 +6012,14 @@ var
 begin
   inherited;
   TT := T as TTableBlock;
-  System.Move(TT.WidthAttr, WidthAttr, DWord(@Justify) - DWord(@WidthAttr) + Sizeof(Justify));
+  System.Move(TT.WidthAttr, WidthAttr, PtrSub(@Justify, @WidthAttr) + Sizeof(Justify));
   Item := MyCell.Items[0];
   Table := Item as THtmlTable;
 end;
 
 {----------------TTableBlock.MinMaxWidth}
 
-procedure TTableBlock.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
+procedure TTableBlock.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 var
   TmpWidth: Integer;
 begin
@@ -5796,7 +6165,7 @@ begin
     else
       Result := Allow;
   end;
-  MargArray[Width] := Result;
+  MargArray[piWidth] := Result;
 
   if (MargArray[MarginLeft] = 0) and (MargArray[MarginRight] = 0) and
     (Result + LeftSide + RightSide < AWidth) then
@@ -5868,13 +6237,13 @@ begin
     Align := Left;
   LeftSide := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
   RightSide := MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth];
-  SWidth := MargArray[Width];
+  SWidth := MargArray[piWidth];
 
   if SWidth > 0 then
     Result := Min(SWidth, AWidth - LeftSide - RightSide)
   else
     Result := Max(15, AWidth - LeftSide - RightSide);
-  MargArray[Width] := Result;
+  MargArray[piWidth] := Result;
 {note that above could be inherited; if LeftSide and Rightside were fields
 of TBlock}
 
@@ -5888,7 +6257,7 @@ of TBlock}
       end;
   end;
   if not ParentSectionList.IsCopy then
-    THorzline(MyHRule).VSize := MargArray[StyleUn.Height];
+    THorzline(MyHRule).VSize := MargArray[piHeight];
 end;
 
 {----------------TBlockLI.Create}
@@ -6214,7 +6583,7 @@ begin
   htmlFormList := TFreeList.Create;
   AGifList := TList.Create;
   MapList := TFreeList.Create;
-  FormControlList := TList.Create;
+  FormControlList := TFormControlObjList.Create(False);
   MissingImages := ThtStringList.Create;
   MissingImages.Sorted := False;
   LinkList := TList.Create;
@@ -6246,7 +6615,7 @@ begin
   // this Move() copied 24 fields including a ThtString, not only ShowImages.
   // re-introduce Move() after moving ThtString out of the moved area between ShowImages and Background.
   //ShowImages := T.ShowImages;
-  System.Move(T.ShowImages, ShowImages, DWord(@Background) - DWord(@ShowImages) + Sizeof(Integer));
+  System.Move(T.ShowImages, ShowImages, PtrSub(@Background, @ShowImages) + Sizeof(Integer));
   PreFontName := T.PreFontName;
   htmlFormList := TFreeList.Create; {no copy of list made}
   AGifList := TList.Create;
@@ -6540,16 +6909,12 @@ begin
       begin
         if Objects[I] is TFormControlObj then
         begin
-          with Objects[I] as TFormControlObj do
-            if Assigned(FControl) then
-            begin
-              FControl.TabOrder := J;
-              Inc(J);
-            end;
+          TFormControlObj(Objects[I]).TabOrder := J;
+          Inc(J);
         end
         else if Objects[I] is ThtTabControl then
         begin
-          ThtTabcontrol(Objects[I]).TabOrder := J;
+          ThtTabControl(Objects[I]).TabOrder := J;
           Inc(J);
         end
         else
@@ -6591,29 +6956,23 @@ end;
 
 procedure TSectionList.AdjustFormControls;
 var
-  I: Integer;
   Control: TControl;
   Showing: boolean;
 
 {$IFNDEF FastRadio}
-
   function ActiveInList: boolean; {see if active control is a form control}
   var
     Control: TWinControl;
     I: Integer;
   begin
-    with FormControlList do
-    begin
-      Result := False;
-      Control := Screen.ActiveControl;
-      for I := 0 to Count - 1 do
-        with TFormControlObj(Items[I]) do
-          if FControl = Control then
-          begin
-            Result := True;
-            Break;
-          end;
-    end;
+    Result := False;
+    Control := Screen.ActiveControl;
+    for I := 0 to FormControlList.Count - 1 do
+      if FormControlList.Items[I].TheControl = Control then
+      begin
+        Result := True;
+        Break;
+      end;
   end;
 {$ENDIF}
 
@@ -6623,12 +6982,7 @@ begin
   with FormControlList do
 {$IFNDEF FastRadio}
     if not ActiveInList then
-    begin {if none of the formcontrols are active, turn off tabs for those off screen}
-      for I := 0 to Count - 1 do
-        with TFormControlObj(Items[I]) do
-          if not ShowIt and Assigned(FControl) then
-            FControl.Hide; {hides and turns off tabs}
-    end
+      DeactivateTabbing
     else
 {$ENDIF}
     begin
@@ -6638,13 +6992,7 @@ begin
         Control := Control.Parent;
       until not Showing or not Assigned(Control);
       if Showing then
-        for I := 0 to Count - 1 do
-          with TFormControlObj(Items[I]) do
-            if not ShowIt and Assigned(FControl) then
-            begin
-              FControl.Show; {turns on tabs}
-              FControl.Left := -4000; {but it still can't be seen}
-            end;
+        ActivateTabbing;
     end;
 end;
 
@@ -7173,24 +7521,24 @@ begin
     Prop.GetVMarginArray(MargArrayO);
     EmSize := Prop.EmSize;
     ExSize := Prop.ExSize;
-    Percent := (VarIsStr(MargArrayO[Width])) and (Pos('%', MargArrayO[Width]) > 0);
+    Percent := (VarIsStr(MargArrayO[piWidth])) and (Pos('%', MargArrayO[piWidth]) > 0);
     ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, bssNone, 0, AutoCount, MargArray);
-    if MargArray[Width] > 0 then
+    if MargArray[piWidth] > 0 then
       if Percent then
       begin
-        if MargArray[Width] < 100 then
+        if MargArray[piWidth] < 100 then
         begin
           AsPercent := True;
-          WidthAttr := MargArray[Width] * 10;
+          WidthAttr := MargArray[piWidth] * 10;
         end;
       end
       else
       begin
-        WidthAttr := MargArray[Width];
+        WidthAttr := MargArray[piWidth];
         AsPercent := False;
       end;
-    if MargArray[Height] > 0 then
-      SpecHt := MargArray[Height];
+    if MargArray[piHeight] > 0 then
+      SpecHt := MargArray[piHeight];
     Color := Prop.GetBackgroundColor;
     if Color <> clNone then
     begin
@@ -7250,7 +7598,7 @@ constructor TCellObj.CreateCopy(AMasterList: TSectionBaseList; T: TCellObj);
 begin
   inherited create;
   Cell := TCellObjCell.CreateCopy(AMasterList, T.Cell);
-  Move(T.ColSpan, ColSpan, DWord(@Cell) - DWord(@ColSpan));
+  Move(T.ColSpan, ColSpan, PtrSub(@Cell, @ColSpan));
 
   if Cell.MasterList.PrintTableBackground then
   begin
@@ -7870,7 +8218,7 @@ begin
   for I := 0 to HtmlTable.Rows.Count - 1 do
     Rows.Add(TCellList.CreateCopy(ParentSectionList, TCellList(HtmlTable.Rows.Items[I])));
 
-  Move(HtmlTable.ListsProcessed, ListsProcessed, DWord(@EndList) - DWord(@ListsProcessed));
+  Move(HtmlTable.ListsProcessed, ListsProcessed, PtrSub(@EndList, @ListsProcessed));
 
   SetLength(Widths, NumCols);
   SetLength(MaxWidths, NumCols);
@@ -8072,7 +8420,7 @@ end;
 
 {----------------THtmlTable.GetMinMaxAbs}
 
-procedure THtmlTable.GetMinMaxAbs(Canvas: TCanvas; var TotalMinWidth,
+procedure THtmlTable.GetMinMaxAbs(Canvas: TCanvas; out TotalMinWidth,
   TotalMaxWidth: Integer);
 var
   I, J, Min, Max, N, Span, Addon, D: Integer;
@@ -8228,7 +8576,7 @@ end;
 
 {----------------THtmlTable.GetWidths}
 
-procedure THtmlTable.GetWidths(Canvas: TCanvas; var TotalMinWidth, TotalMaxWidth: Integer;
+procedure THtmlTable.GetWidths(Canvas: TCanvas; out TotalMinWidth, TotalMaxWidth: Integer;
   TheWidth: Integer);
 var
   I, J, Min, Max, N, Span, Addon, Distributable, TotalPC, Accum,
@@ -8376,7 +8724,7 @@ end;
 
 {----------------THtmlTable.MinMaxWidth}
 
-procedure THtmlTable.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
+procedure THtmlTable.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 begin
   AddDummyCells; {in case it hasn't been done}
   if UseAbsolute and (tblWidthAttr = 0) then
@@ -9549,7 +9897,7 @@ begin
   end;
 
   Images := TImageObjList.Create;
-  FormControls := TFormControlList.Create;
+  FormControls := TFormControlObjList.Create(False);
 
   if Assigned(L) then
   begin
@@ -9586,7 +9934,6 @@ end;
 constructor TSection.CreateCopy(AMasterList: TSectionBaseList; T: TSectionBase);
 var
   TT: TSection;
-  I: Integer;
 begin
   inherited CreateCopy(AMasterList, T);
   TT := T as TSection;
@@ -9598,9 +9945,8 @@ begin
   Brk := TT.Brk;
   Fonts := TFontList.CreateCopy(Self, TT.Fonts);
   Images := TImageObjList.CreateCopy(AMasterList, TT.Images);
-  FormControls := TFormControlList.Create;
-  for I := 0 to TT.FormControls.Count - 1 do
-    FormControls.Add(TT.FormControls[I]);
+  FormControls := TFormControlObjList.Create(False);
+  FormControls.Assign(TT.FormControls);
   Lines := TFreeList.Create;
   Justify := TT.Justify;
   ClearAttr := TT.ClearAttr;
@@ -9694,12 +10040,13 @@ var
   St, StU: WideString;
   Small: boolean;
 begin
-  if T.Leng = 0 then
+  if T.Count = 0 then
     Exit;
   { Yunqa.de: Simple hack to support <span style="display:none"> }
-  if PropStack.Last.Display = pdNone then Exit;
+  if PropStack.Last.Display = pdNone then
+    Exit;
 
-  L := Len + T.Leng;
+  L := Len + T.Count;
   if BuffSize < L + 3 then
     Allocate(L + 500); {L+3 to permit additions later}
   case PropStack.Last.GetTextTransform of
@@ -9710,12 +10057,12 @@ begin
   else
     St := T.S;
   end;
-  Move(T.I[1], XP^[Len], T.Leng * Sizeof(Integer));
+  Move(T.I[1], XP^[Len], T.Count * Sizeof(Integer));
   if NoBreak or (Self is TPreformated) then
     C := 'n'
   else
     C := 'y';
-  for I := 1 to T.Leng do
+  for I := 1 to T.Count do
     Brk := Brk + C;
 
   if PropStack.Last.GetFontVariant = 'small-caps' then
@@ -9773,9 +10120,9 @@ var
     Move(XP^[I], XP^[I - 1], ((Length(BuffS)) - I) * Sizeof(Integer));
     System.Delete(BuffS, I, 1);
     System.Delete(Brk, I, 1);
-    TFormControlList(FormControls).Decrement(I - 1);
-    TFontList(Fonts).Decrement(I - 1, ParentSectionList);
-    TImageObjList(Images).Decrement(I - 1);
+    FormControls.Decrement(I - 1);
+    Fonts.Decrement(I - 1, ParentSectionList);
+    Images.Decrement(I - 1);
   end;
 
 begin
@@ -10009,45 +10356,50 @@ var
   IO: TImageObj;
   ButtonControl: TButtonFormControlObj;
 
-  procedure GetEditFCO;
+  function CreateEditFCO: TEditFormControlObj;
   begin
-    FCO := TEditFormControlObj.Create(AMasterList, Len, L, S, Prop);
+    Result := TEditFormControlObj.Create(AMasterList, Len, L, S, Prop);
   end;
 
 begin
   S := '';
-  if Which = InputSy then
-  begin
-    if L.Find(TypeSy, T) then
+  case Which of
+    InputSy:
     begin
-      S := LowerCase(T.Name);
-      if (S = 'text') or (S = 'password') or (S = 'file') then
-        GetEditFCO
-      else if (S = 'submit') or (S = 'reset') or (S = 'button') then
-        FCO := TButtonFormControlObj.Create(AMasterList, Len, L, S, Prop)
-      else if S = 'radio' then
-        FCO := TRadioButtonFormControlObj.Create(AMasterList, Len, L, ACell)
-      else if S = 'checkbox' then
-        FCO := TCheckBoxFormControlObj.Create(AMasterList, Len, L, Prop)
-      else if S = 'hidden' then
-        FCO := THiddenFormControlObj.Create(AMasterList, Len, L)
-      else if S = 'image' then
-        FCO := TImageFormControlObj.Create(AMasterList, Len, L)
+      if L.Find(TypeSy, T) then
+      begin
+        S := LowerCase(T.Name);
+        if (S = 'text') or (S = 'password') or (S = 'file') then
+          FCO := CreateEditFCO
+        else if (S = 'submit') or (S = 'reset') or (S = 'button') then
+          FCO := TButtonFormControlObj.Create(AMasterList, Len, L, S, Prop)
+        else if S = 'radio' then
+          FCO := TRadioButtonFormControlObj.Create(AMasterList, Len, L, ACell)
+        else if S = 'checkbox' then
+          FCO := TCheckBoxFormControlObj.Create(AMasterList, Len, L, Prop)
+        else if S = 'hidden' then
+          FCO := THiddenFormControlObj.Create(AMasterList, Len, L)
+        else if S = 'image' then
+          FCO := TImageFormControlObj.Create(AMasterList, Len, L)
+        else
+          FCO := CreateEditFCO;
+      end
       else
-        GetEditFCO;
-    end
-    else
-      GetEditFCO;
-  end
-  else if Which = SelectSy then
-  begin
-    if L.Find(MultipleSy, T) or L.Find(SizeSy, T) and (T.Value > 1) then
-      FCO := TListBoxFormControlObj.Create(AMasterList, Len, L, Prop)
-    else
-      FCO := TComboFormControlObj.Create(AMasterList, Len, L, Prop);
-  end
+        FCO := CreateEditFCO;
+
+    end;
+
+    SelectSy:
+    begin
+      if L.Find(MultipleSy, T) or L.Find(SizeSy, T) and (T.Value > 1) then
+        FCO := TListBoxFormControlObj.Create(AMasterList, Len, L, Prop)
+      else
+        FCO := TComboFormControlObj.Create(AMasterList, Len, L, Prop);
+    end;
   else
     FCO := TTextAreaFormControlObj.Create(AMasterList, Len, L, Prop);
+  end;
+
   if S = 'image' then
   begin
     IO := AddImage(L, ACell, Index); {leave out of FormControlList}
@@ -10066,7 +10418,7 @@ begin
     if L.TheID <> '' then
       ParentSectionList.IDNameList.AddObject(L.TheID, FCO);
     FCO.Value := ''; {value attribute should not show in TEdit}
-    ThtEdit(FCO.TheControl).Text := '';
+    TEditFormControlObj(FCO).Text := '';
     AddChar(FmCtl, Index);
     Brk[Len] := 'n';
   end
@@ -10112,7 +10464,7 @@ begin
     Fonts.GetFontAt(Start - Buff, OHang).AssignToCanvas(Canvas);
     J1 := Fonts.GetFontCountAt(Start - Buff, Len);
     J2 := Images.GetImageCountAt(Start - Buff);
-    J3 := TFormControlList(FormControls).GetControlCountAt(Start - Buff);
+    J3 := FormControls.GetControlCountAt(Start - Buff);
     if J2 = 0 then
     begin
       Tmp := Images.GetWidthAt(Start - Buff, Align, HSpcL, HSpcR, FlObj);
@@ -10125,7 +10477,7 @@ begin
     end
     else if J3 = 0 then
     begin
-      XX := XX + TFormControlList(FormControls).GetWidthAt(Start - Buff, HSpcL, HSpcR);
+      XX := XX + FormControls.GetWidthAt(Start - Buff, HSpcL, HSpcR);
       XX := XX + HSpcL + HSpcR;
       I := 1; J := 1;
       Picture := True;
@@ -10228,7 +10580,7 @@ begin
     end;
     J1 := Min(Fonts.GetFontCountAt(Start - Buff, Len), Max - Cnt);
     J2 := Images.GetImageCountAt(Start - Buff);
-    J3 := TFormControlList(FormControls).GetControlCountAt(Start - Buff);
+    J3 := FormControls.GetControlCountAt(Start - Buff);
     if J2 = 0 then
     begin {next is an image}
       I := 1; J := 1;
@@ -10272,7 +10624,7 @@ begin
     end
     else if J3 = 0 then
     begin
-      XX := XX + TFormControlList(FormControls).GetWidthAt(Start - Buff, HSpcL, HSpcR);
+      XX := XX + FormControls.GetWidthAt(Start - Buff, HSpcL, HSpcR);
       XX := XX + HSpcL + HSpcR;
       I := 1; J := 1;
       Picture := True;
@@ -10332,7 +10684,7 @@ end;
 
 {----------------TSection.MinMaxWidth}
 
-procedure TSection.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
+procedure TSection.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 {Min is the width the section would occupy when wrapped as tightly as possible.
  Max, the width if no wrapping were used.}
 var
@@ -10389,7 +10741,7 @@ begin
     if Obj is TFormControlObj then
       with TFormControlObj(FormControls[I]) do
         if not PercentWidth then
-          Min := Math.Max(Min, FControl.Width + HSpaceL + HSpaceR);
+          Min := Math.Max(Min, Width + HSpaceL + HSpaceR);
   end;
 
   Max := 0;
@@ -10472,7 +10824,7 @@ begin
   while N > 0 do
   begin
     J := Images.GetImageCountAt(Start - Buff);
-    J1 := TFormControlList(FormControls).GetControlCountAt(Start - Buff);
+    J1 := FormControls.GetControlCountAt(Start - Buff);
     if J = 0 then {it's and image}
     begin
       Wid := Images.GetWidthAt(Start - Buff, Align, HSpcL, HSpcR, FlObj);
@@ -10485,7 +10837,7 @@ begin
     end
     else if J1 = 0 then
     begin
-      Inc(Result, TFormControlList(FormControls).GetWidthAt(Start - Buff, HSpcL, HSpcR) + HSpcL + HSpcR);
+      Inc(Result, FormControls.GetWidthAt(Start - Buff, HSpcL, HSpcR) + HSpcL + HSpcR);
       Dec(N); {control counts as one ThtChar}
       Inc(Start);
     end
@@ -10519,7 +10871,7 @@ begin
   while N > 0 do
   begin
     J := Images.GetImageCountAt(Start - Buff);
-    J1 := TFormControlList(FormControls).GetControlCountAt(Start - Buff);
+    J1 := FormControls.GetControlCountAt(Start - Buff);
     if J = 0 then {it's an image}
     begin
       Wid := Images.GetWidthAt(Start - Buff, Align, HSpcL, HSpcR, FlObj);
@@ -10534,7 +10886,7 @@ begin
     end
     else if J1 = 0 then
     begin
-      Result := Result + TFormControlList(FormControls).GetWidthAt(Start - Buff, HSpcL, HSpcR);
+      Result := Result + FormControls.GetWidthAt(Start - Buff, HSpcL, HSpcR);
       Result := Result + HSpcL + HSpcR;
       Dec(N); {control counts as one ThtChar}
       Inc(Start);
@@ -10559,15 +10911,14 @@ end;
 function TSection.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
   var MaxWidth: Integer; var Curs: Integer): Integer;
 {returns height of the section}
+
 var
-  PStart, P, Last: PWideChar;
-  Max, N, NN, Width, I, Indx, ImgHt: Integer;
+  PStart, Last: PWideChar;
+  ImgHt: Integer;
   Finished: boolean;
   LR: LineRec;
   NxImages: TList;
-  Tmp, Tmp1: Integer;
-  Obj: TFloatingObj;
-  TopY, AccumImgBot, HtRef: Integer;
+  AccumImgBot: Integer;
 
   function GetClearSpace(ClearAttr: ClearAttrType): Integer;
   var
@@ -10578,16 +10929,16 @@ var
     begin {may need to move down past floating image}
       IMgr.GetClearY(CL, CR);
       case ClearAttr of
-        clLeft: Result := Math.Max(0, CL - Y - 1);
-        clRight: Result := Math.Max(0, CR - Y - 1);
-        clAll: Result := Math.Max(CL - Y - 1, Math.Max(0, CR - Y - 1));
+        clLeft: Result := Max(0, CL - Y - 1);
+        clRight: Result := Max(0, CR - Y - 1);
+        clAll: Result := Max(CL - Y - 1, Max(0, CR - Y - 1));
       end;
     end;
   end;
 
   procedure LineComplete(NN: Integer);
   var
-    I, J, DHt, Desc, Tmp, TmpRt, Cnt, Index, H, SB, SA: Integer;
+    I, J, DHt, Desc, Tmp, TmpRt, Cnt, Index, H, SB, SA, Tmp1: Integer;
     FO: TFontObj;
     Align: AlignmentType;
     FormAlign: AlignmentType;
@@ -10634,8 +10985,8 @@ var
       repeat
         FO := Fonts.GetFontObjAt(PStart - Buff + Cnt, Index);
         Tmp := FO.GetHeight(Desc);
-        DHt := Math.Max(DHt, Tmp);
-        LR.Descent := Math.Max(LR.Descent, Desc);
+        DHt := Max(DHt, Tmp);
+        LR.Descent := Max(LR.Descent, Desc);
         J := Fonts.GetFontCountAt(PStart - Buff + Cnt, Len);
         Inc(Cnt, J);
       until Cnt >= NN;
@@ -10657,7 +11008,7 @@ var
         if (FLObj is TImageObj) and Assigned(TImageObj(FLObj).MyFormControl) then
           TImageObj(FLObj).MyFormControl.FYValue := Y;
         case Align of
-          ATop: SA := Math.Max(SA, H - DHt);
+          ATop: SA := Max(SA, H - DHt);
           AMiddle:
             begin
               if DHt = 0 then
@@ -10666,10 +11017,10 @@ var
                 LR.Descent := Desc;
               end;
               Tmp := (H - DHt) div 2;
-              SA := Math.Max(SA, Tmp);
-              SB := Math.Max(SB, (H - DHt - Tmp));
+              SA := Max(SA, Tmp);
+              SB := Max(SB, (H - DHt - Tmp));
             end;
-          ABottom, ABaseline: SB := Math.Max(SB, H - (DHt - LR.Descent));
+          ABottom, ABaseline: SB := Max(SB, H - (DHt - LR.Descent));
         end;
       end;
       Inc(Cnt); {to skip by the image}
@@ -10677,24 +11028,24 @@ var
 
     Cnt := 0; {now check on form controls}
     repeat
-      Cnt := Cnt + TFormControlList(FormControls).GetControlCountAt(PStart - Buff + Cnt);
+      Inc(Cnt, FormControls.GetControlCountAt(PStart - Buff + Cnt));
       if Cnt < NN then
       begin
-        FCO := TFormControlList(FormControls).FindControl(PStart - Buff + Cnt);
-        H := TFormControlList(FormControls).GetHeightAt(PStart - Buff + Cnt, FormAlign);
+        FCO := FormControls.FindControl(PStart - Buff + Cnt);
+        H := FormControls.GetHeightAt(PStart - Buff + Cnt, FormAlign);
         case FormAlign of
           ATop:
-            SA := Math.Max(SA, H + FCO.VSpaceB + FCO.VSpaceT - Dht);
+            SA := Max(SA, H + FCO.VSpaceB + FCO.VSpaceT - Dht);
           AMiddle:
             begin
               Tmp := (H - DHt) div 2;
-              SA := Math.Max(SA, Tmp + FCO.VSpaceB);
-              SB := Math.Max(SB, (H - DHt - Tmp + FCO.VSpaceT));
+              SA := Max(SA, Tmp + FCO.VSpaceB);
+              SB := Max(SB, (H - DHt - Tmp + FCO.VSpaceT));
             end;
           ABaseline:
-            SB := Math.Max(SB, H + FCO.VSpaceT + FCO.VSpaceB - (DHt - LR.Descent));
+            SB := Max(SB, H + FCO.VSpaceT + FCO.VSpaceB - (DHt - LR.Descent));
           ABottom:
-            SB := Math.Max(SB, H + FCO.VSpaceT + FCO.VSpaceB - DHt);
+            SB := Max(SB, H + FCO.VSpaceT + FCO.VSpaceB - DHt);
         end;
         if Assigned(FCO) and not ParentSectionList.IsCopy then
           FCO.FYValue := Y;
@@ -10730,7 +11081,7 @@ var
       Fonts.GetFontAt(PStart - Buff + NN - 1, OHang).AssignToCanvas(Canvas);
       Inc(LRTextWidth, Canvas.TextWidth('-'));
     end;
-    TextWidth := Math.Max(TextWidth, LRTextWidth);
+    TextWidth := Max(TextWidth, LRTextWidth);
     case Justify of
       Left:     LR.LineIndent := Tmp - X;
       Centered: LR.LineIndent := (TmpRt + Tmp - LRTextWidth) div 2 - X;
@@ -10752,19 +11103,27 @@ var
     SectionHeight := SectionHeight + DHt + SA + LR.SpaceBefore;
     Tmp := DHt + SA + SB;
     Inc(Y, Tmp);
-    LR.LineImgHt := Math.Max(Tmp, ImgHt);
+    LR.LineImgHt := Max(Tmp, ImgHt);
     for I := 0 to NxImages.Count - 1 do
     begin
       IMgr.Update(Y, TFloatingObj(NxImages[I])); {update Image manager and Image}
     {include images in Line height}
       with TFloatingObj(NxImages[I]) do
         Tmp1 := ImageHeight + VSpaceT + VSpaceB;
-      LR.LineImgHt := Math.Max(LR.LineImgHt, Tmp + Tmp1);
-      AccumImgBot := Math.Max(AccumImgBot, Y + Tmp1);
+      LR.LineImgHt := Max(LR.LineImgHt, Tmp + Tmp1);
+      AccumImgBot := Max(AccumImgBot, Y + Tmp1);
     end;
     NxImages.Clear;
   end;
 
+var
+  P: PWideChar;
+  MaxChars: Integer;
+  N, NN, Width, I, Indx: Integer;
+  Tmp: Integer;
+  Obj: TFloatingObj;
+  TopY, HtRef: Integer;
+  Ctrl: TFormControlObj;
 begin {TSection.DrawLogic}
   YDraw := Y;
   AccumImgBot := 0;
@@ -10802,21 +11161,20 @@ begin {TSection.DrawLogic}
   begin
     Obj := TFloatingObj(Images[I]);
     Obj.DrawLogic(Self.ParentSectionList, Canvas, Fonts.GetFontObjAt(Obj.Pos, Indx), Width, HtRef);
-    MaxWidth := Math.Max(MaxWidth, Obj.ImageWidth); {HScrollBar for wide images}
+    MaxWidth := Max(MaxWidth, Obj.ImageWidth); {HScrollBar for wide images}
   end;
   for I := 0 to FormControls.Count - 1 do
-    with TFormControlObj(FormControls[I]) do
-      if Assigned(FControl) then
-      begin
-        if PercentWidth then
-          FControl.Width := Math.Max(10, Min(MulDiv(FWidth, Width, 100), Width - HSpaceL - HSpaceR));
-        MaxWidth := Math.Max(MaxWidth, FControl.Width);
-      end;
+  begin
+    Ctrl := FormControls[I];
+    if Ctrl.PercentWidth then
+      Ctrl.Width := Max(10, Min(MulDiv(Ctrl.FWidth, Width, 100), Width - Ctrl.HSpaceL - Ctrl.HSpaceR));
+    MaxWidth := Max(MaxWidth, Ctrl.Width);
+  end;
   NxImages := TList.Create;
   while not Finished do
   begin
-    Max := Last - PStart + 1;
-    if Max <= 0 then
+    MaxChars := Last - PStart + 1;
+    if MaxChars <= 0 then
       Break;
     LR := LineRec.Create(ParentSectionList); {a new line}
     if Lines.Count = 0 then
@@ -10837,14 +11195,14 @@ begin {TSection.DrawLogic}
     ImgHt := 0;
     NN := 0;
     if (Self is TPreformated) and not BreakWord then
-      N := Max
+      N := MaxChars
     else
     begin
-      NN := FindCountThatFits1(Canvas, PStart, Max, X, Y, IMgr, ImgHt, NxImages);
-      N := Math.Max(NN, 1); {N = at least 1}
+      NN := FindCountThatFits1(Canvas, PStart, MaxChars, X, Y, IMgr, ImgHt, NxImages);
+      N := Max(NN, 1); {N = at least 1}
     end;
 
-    AccumImgBot := Math.Max(AccumImgBot, Y + ImgHt);
+    AccumImgBot := Max(AccumImgBot, Y + ImgHt);
     if NN = 0 then {if nothing fits, see if we can move down}
       Tmp := IMgr.GetNextWiderY(Y) - Y
     else
@@ -10856,12 +11214,12 @@ begin {TSection.DrawLogic}
       if ((P^ in [WideChar(' '), {FmCtl,} ImgPan]) or WrapChar(P^)) and (Brk[P - Buff + 1] <> 'n')
       or (P^ = BrkCh) then
       begin {move past spaces so as not to print any on next line}
-        while (N < Max) and ((P + 1)^ = ' ') do
+        while (N < MaxChars) and ((P + 1)^ = ' ') do
         begin
           Inc(P);
           Inc(N);
         end;
-        Finished := N >= Max;
+        Finished := N >= MaxChars;
         LineComplete(N);
       end
       else
@@ -10874,7 +11232,7 @@ begin {TSection.DrawLogic}
         Lines.Add(LR);
       end
     end {else can't move down or don't have to}
-    else if N = Max then
+    else if N = MaxChars then
     begin {Do the remainder}
       Finished := True;
       LineComplete(N);
@@ -10885,24 +11243,24 @@ begin {TSection.DrawLogic}
       if ((P^ in [WideChar(' '), FmCtl, ImgPan]) or WrapChar(P^)) and (Brk[P - Buff + 1] <> 'n')
       or (P^ = BrkCh) then
       begin {move past spaces so as not to print any on next line}
-        while (N < Max) and ((P + 1)^ = ' ') do
+        while (N < MaxChars) and ((P + 1)^ = ' ') do
         begin
           Inc(P);
           Inc(N);
         end;
-        Finished := N >= Max;
+        Finished := N >= MaxChars;
         LineComplete(N);
       end
-      else if (N < Max) and ((P + 1)^ = ' ') and (Brk[P - Buff + 2] <> 'n') then
+      else if (N < MaxChars) and ((P + 1)^ = ' ') and (Brk[P - Buff + 2] <> 'n') then
       begin
         repeat
           Inc(N); {pass the space}
           Inc(p);
-        until (N >= Max) or ((P + 1)^ <> ' ');
-        Finished := N >= Max;
+        until (N >= MaxChars) or ((P + 1)^ <> ' ');
+        Finished := N >= MaxChars;
         LineComplete(N);
       end
-      else if (N < Max) and ((P + 1)^ in [FmCtl, ImgPan]) and (Brk[PStart - Buff + N] <> 'n') then {an image or control}
+      else if (N < MaxChars) and ((P + 1)^ in [FmCtl, ImgPan]) and (Brk[PStart - Buff + N] <> 'n') then {an image or control}
       begin
         Finished := False;
         LineComplete(N);
@@ -10948,7 +11306,7 @@ begin {TSection.DrawLogic}
             end
             else
             begin {line is too long but do it anyway}
-              MaxWidth := Math.Max(MaxWidth, FindTextWidth(Canvas, PStart, P - PStart + 1, True));
+              MaxWidth := Max(MaxWidth, FindTextWidth(Canvas, PStart, P - PStart + 1, True));
               Finished := P = Last;
               LineComplete(P - PStart + 1);
             end;
@@ -11069,9 +11427,7 @@ var
     ARect: TRect;
     Inverted, ImageAtStart, NewCP: boolean;
     Color: TColor;
-    CP1: TPoint;
     CPx, CPy, CP1x: Integer;
-    SaveColor: TColor;
     BR: BorderRec;
     LR: LineRec;
     Start: PWideChar;
@@ -11132,7 +11488,7 @@ var
       I := 1;
       J1 := Fonts.GetFontCountAt(Start - Buff, Len) - 1;
       J2 := Images.GetImageCountAt(Start - Buff) - 1;
-      J4 := TFormControlList(FormControls).GetControlCountAt(Start - Buff) - 1;
+      J4 := FormControls.GetControlCountAt(Start - Buff) - 1;
       FO := Fonts.GetFontObjAt(Start - Buff, Index);
 
     {if an inline border, find it's boundaries}
@@ -11315,9 +11671,9 @@ var
       end
       else if J4 = -1 then
       begin {it's a form control}
-        Ctrl := TFormControlList(FormControls).FindControl(Start - Buff);
-        if Assigned(Ctrl.FControl) then
-          with Ctrl, FControl do
+        Ctrl := FormControls.FindControl(Start - Buff);
+        if not Ctrl.Hidden then
+          with Ctrl do
           begin
             ShowIt := True;
             case FormAlign of
@@ -11332,9 +11688,9 @@ var
             else
               TopP := Y; {never get here}
             end;
-            if FControl is ThtRadioButton then
+            if Ctrl is TRadioButtonFormControlObj then
               Inc(Topp, 2)
-            else if FControl is ThtCheckBox then
+            else if Ctrl is TCheckBoxFormControlObj then
               Inc(Topp, 1);
           {Check for border}
             if LR.FirstDraw and Assigned(LR.BorderList) then
@@ -11369,17 +11725,17 @@ var
               if Ctrl is TRadioButtonFormControlObj then
                 with TRadioButtonFormControlObj(Ctrl) do
                 begin
-                  TRadioButtonFormControlObj(Ctrl).TheControl.Show;
+                  Show;
                   if MyCell.BkGnd then
-                    (TheControl as TFormRadioButton).Color := MyCell.BkColor
+                    Color := MyCell.BkColor
                   else
-                    (TheControl as TFormRadioButton).Color := ParentSectionList.Background;
+                    Color := ParentSectionList.Background;
                 end;
               if Ctrl.Active and ((Ctrl is TRadioButtonFormControlObj) or
                 (Ctrl is TCheckBoxFormControlObj)) then
               begin
                 Canvas.Brush.Color := clWhite;
-                SaveColor := SetTextColor(Handle, clBlack);
+                //SaveColor := SetTextColor(Handle, clBlack);
                 if ParentSectionList.TheOwner.ShowFocusRect then //MK20091107
                 begin
                   if (Ctrl is TRadioButtonFormControlObj) then
@@ -11392,7 +11748,7 @@ var
                   else
                     Canvas.DrawFocusRect(Rect(Left - 3, Top - 3, Left + 16, Top + 16));
                 end;
-                SetTextColor(Handle, SaveColor);
+                //SetTextColor(Handle, SaveColor);
               end;
             end;
             Inc(CPx, Width + Ctrl.HSpaceL + Ctrl.HSpaceR);
@@ -12704,10 +13060,10 @@ begin
             if Pos('%', Name) > 0 then
             begin
               if (Value <= 100) then
-                Prop.Assign(IntToStr(Value) + '%', StyleUn.Width);
+                Prop.Assign(IntToStr(Value) + '%', piWidth);
             end
             else
-              Prop.Assign(Value, StyleUn.Width);
+              Prop.Assign(Value, piWidth);
         ColorSy: if ColorFromString(Name, False, Color) then
             Prop.Assign(Color, StyleUn.Color);
         AlignSy:
@@ -12721,7 +13077,7 @@ begin
         NoShadeSy: NoShade := True;
       end;
 
-  Prop.Assign(VSize, StyleUn.Height); {assigns if no property exists yet}
+  Prop.Assign(VSize, piHeight); {assigns if no property exists yet}
   TmpColor := Prop.GetOriginalForegroundColor;
   if TmpColor <> clNone then
     Color := TmpColor;
@@ -12738,7 +13094,7 @@ end;
 constructor THorzLine.CreateCopy(AMasterList: TSectionBaseList; T: TSectionBase);
 begin
   inherited Create(AMasterList, T.Display);
-  System.Move((T as THorzline).VSize, VSize, DWord(@BkGnd) - DWord(@VSize) + Sizeof(BkGnd));
+  System.Move((T as THorzline).VSize, VSize, PtrSub(@BkGnd, @VSize) + Sizeof(BkGnd));
 end;
 
 procedure THorzLine.CopyToClipboard;
@@ -12829,7 +13185,7 @@ begin
   Finish;
 end;
 
-procedure TPreformated.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
+procedure TPreformated.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 begin
   if BreakWord then
   begin
@@ -13185,8 +13541,8 @@ begin
     BorderWidth.Left := MargArray[MarginLeft] + MargArray[BorderLeftWidth] + MargArray[PaddingLeft];
     BorderWidth.Right := MargArray[MarginRight] + MargArray[BorderRightWidth] + MargArray[PaddingRight];
     BorderWidth.Top  := MargArray[MarginTop] + MargArray[BorderTopWidth] + MargArray[PaddingTop];
-    if MargArray[Height] > 0 then
-      BlockHeight := MargArray[Height]
+    if MargArray[piHeight] > 0 then
+      BlockHeight := MargArray[piHeight]
     else if AHeight > 0 then
       BlockHeight := AHeight
     else
@@ -13200,7 +13556,7 @@ begin
     Legend.IMgr := IMgr;
     LI := IMgr.SetLeftIndent(L, Y);
     RI := IMgr.SetRightIndent(L + NewWidth, Y);
-    Legend.DoLogicX(Canvas, X + BorderWidth.Left, Y, XRef, YRef, NewWidth, MargArray[Height], BlockHeight, ScrollWidth, Curs);
+    Legend.DoLogicX(Canvas, X + BorderWidth.Left, Y, XRef, YRef, NewWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
     IMgr.FreeLeftIndentRec(LI);
     IMgr.FreeRightIndentRec(RI);
     IMgr.CurrentID := SaveID;
@@ -13214,6 +13570,132 @@ procedure TFormControlObj.setValue(const Value: ThtString);
 begin
   FValue := Value;
 end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure TFormControlObj.SetWidth(Value: Integer);
+begin
+  TheControl.Width := Value;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure TFormControlObj.Show;
+begin
+  TheControl.Show;
+end;
+
+{ TFormControlObjList }
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure TFormControlObjList.ActivateTabbing;
+var
+  I: Integer;
+begin
+  for I := 0 to Count - 1 do
+    with Items[I] do
+      if not ShowIt and (TheControl <> nil) then
+      begin
+        TheControl.Show; {makes it tab active}
+        TheControl.Left := -4000; {even if it can't be seen}
+      end;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure TFormControlObjList.DeactivateTabbing;
+var
+  I: Integer;
+begin
+  for I := 0 to Count - 1 do
+    with Items[I] do
+      if not ShowIt and (TheControl <> nil) then
+        TheControl.Hide; {hides and turns off tabs}
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function TFormControlObjList.GetItem(Index: Integer): TFormControlObj;
+begin
+  Result := Get(Index);
+end;
+
+
+function TFormControlObjList.FindControl(Posn: integer): TFormControlObj;
+{find the control at a given character position}
+var
+  I: integer;
+begin
+  for I := 0 to Count - 1 do
+  begin
+    Result := Items[I];
+    if Result.Pos = Posn then
+      Exit;
+  end;
+  Result := nil;
+end;
+
+function TFormControlObjList.GetHeightAt(Posn: integer; var FormAlign: AlignmentType): Integer;
+var
+  Ctrl: TFormControlObj;
+begin
+  Ctrl := FindControl(Posn);
+  if Assigned(Ctrl) then
+  begin
+    Result := Ctrl.Height;
+    FormAlign := Ctrl.FormAlign;
+  end
+  else
+    Result := -1;
+end;
+
+function TFormControlObjList.GetWidthAt(Posn: integer; var HSpcL, HSpcR: integer): integer;
+var
+  Ctrl: TFormControlObj;
+begin
+  Ctrl := FindControl(Posn);
+  if Assigned(Ctrl) then
+  begin
+    Result := Ctrl.Width;
+    HSpcL := Ctrl.HSpaceL;
+    HSpcR := Ctrl.HSpaceR;
+  end
+  else
+    Result := -1;
+end;
+
+function TFormControlObjList.GetControlCountAt(Posn: integer): integer;
+{Return count of chars before the next form control.  0 if at the control,
+ 9999 if no controls after Posn}
+var
+  I, Pos: integer;
+begin
+  if Count = 0 then
+  begin
+    Result := 9999;
+    Exit;
+  end;
+  I := 0;
+  while I < count do
+  begin
+    Pos := Items[I].Pos;
+    if Pos >= Posn then
+      break;
+    Inc(I);
+  end;
+  if I = Count then
+    Result := 9999
+  else
+    Result := Items[I].Pos - Posn;
+end;
+
+procedure TFormControlObjList.Decrement(N: integer);
+{called when a character is removed to change the Position figure}
+var
+  I: integer;
+begin
+  for I := 0 to Count - 1 do
+    with Items[I] do
+      if Pos > N then
+        Dec(Pos);
+end;
+
 
 initialization
 {$ifdef UNICODE}

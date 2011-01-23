@@ -29,13 +29,22 @@ unit HTMLUn2;
 
 interface
 uses
-  Windows, SysUtils, Classes, Graphics, ClipBrd, Controls, Messages, Variants,
-  {$ifdef LCL}Interfaces, IntfGraphics, FpImage, {$endif}
-  {$IFNDEF NoGDIPlus}GDIPL2A, {$ENDIF}
+{$ifdef LCL}
+  LclIntf, IntfGraphics, FpImage, LclType, LResources, LMessages, HtmlMisc,
+{$else}
+  Windows,
+{$endif}
+  SysUtils, Classes, Graphics, ClipBrd, Controls, Messages, Variants, Types,
+{$IFNDEF NoGDIPlus}
+  GDIPL2A,
+{$ENDIF}
+{$ifdef METAFILEMISSING}
+  MetaFilePrinter,
+{$endif}
   UrlSubs, StyleUn, HtmlGlobals, HtmlBuffer, HtmlGif2;
 
 const
-  VersionNo = '10.2';
+  VersionNo = '11';
   MaxHScroll = 6000; {max horizontal display in pixels}
   HandCursor = 10101;
   OldThickIBeamCursor = 2;
@@ -312,6 +321,7 @@ type
   IndexArray = array[1..TokenLeng] of Integer;
   PIndexArray = ^IndexArray;
   ChrArray = array[1..TokenLeng] of WideChar;
+  PChrArray = ^ChrArray;
 
   {Simplified variant of TokenObj, to temporarily keep a ThtString of ANSI
    characters along with their original indices.}
@@ -339,20 +349,24 @@ type
   private
     St: WideString;
     StringOK: boolean;
+    FCapacity: Integer;
+    FCount: Integer;
     function GetString: WideString;
+    procedure SetCapacity(NewCapacity: Integer);
   public
-    C: ^ChrArray;
-    I: ^IndexArray;
-    MaxIndex, Leng: Integer;
+    C: PChrArray;
+    I: PIndexArray;
     constructor Create;
     destructor Destroy; override;
     procedure AddUnicodeChar(Ch: WideChar; Ind: Integer);
-    procedure AddString(S: TCharCollection; CodePage: Integer);
+    procedure AddString(S: TCharCollection);
     procedure Concat(T: TokenObj);
     procedure Clear;
     procedure Remove(N: Integer);
     procedure Replace(N: Integer; Ch: WideChar);
 
+    property Capacity: Integer read FCapacity write SetCapacity;
+    property Count: Integer read FCount;
     property S: WideString read GetString;
   end;
 
@@ -485,7 +499,7 @@ type
     function PtInObject(X: Integer; Y: Integer; var Obj: TObject; var IX, IY: Integer): boolean; virtual;
     procedure AddSectionsToList; virtual;
     procedure CopyToClipboard; virtual;
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); virtual;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); virtual;
     procedure SetParent(List: TSectionBaseList);
     property Display: TPropDisplay read FDisplay write FDisplay;
     property MyBlock: TBlockBase read FMyBlock write FMyBlock;
@@ -633,17 +647,81 @@ uses
   Forms, Math,
   {$ifndef FPC_TODO}jpeg, {$endif}
   {$IFDEF UNICODE} PngImage, {$ENDIF}
-  DitherUnit,
-  StylePars;
+  DitherUnit, StylePars;
 
 type
   EGDIPlus = class(Exception);
 
-{----------------StrLenW}
+{$ifdef FPC}
+
+// Pascal-ized equivalents of assembler functions.
+function StrLenW(Str: PWideChar): Cardinal;
+begin
+  Result := Length(WideString(Str));
+end;
+
+function StrPosW(Str, SubStr: PWideChar): PWideChar;
+var
+  StrPos    : PWideChar;
+  SubstrPos : PWideChar;
+begin
+  if SubStr^ = #0 then  // Make sure substring not null string
+  begin
+    Result := nil;
+    Exit;
+  end;
+  Result := Str;
+  while Result^ <> #0 do  // Until reach end of string
+  begin
+    StrPos := Result;
+    SubstrPos := SubStr;
+    while SubstrPos^ <> #0 do  // Until reach end of substring
+    begin
+      if StrPos^ <> SubstrPos^ then  // No point in continuing?
+        Break;
+      StrPos := StrPos + 1;
+      SubstrPos := SubstrPos + 1;
+    end;
+    if SubstrPos^ = #0 then  // Break because reached end of substring?
+      Exit;
+    Result := Result + 1;
+  end;
+  Result := nil;
+end;
+
+function StrRScanW(const Str: PWideChar; Chr: WideChar): PWideChar;
+begin
+  Result := StrScanW(Str, #0);
+  if Chr = #0 then  // Null-terminating char considered part of string.
+    Exit;
+  while Result <> Str do
+  begin
+    Result := Result - 1;
+    if Result^ = Chr then
+      Exit;
+  end;
+  Result := nil;
+end;
+
+function StrScanW(const Str: PWideChar; Chr: WideChar): PWideChar;
+begin
+  Result := Str;
+  while Result^ <> #0 do
+  begin
+    if Result^ = Chr then
+      Exit;
+    Result := Result + 1;
+  end;
+  if Chr = #0 then
+    Exit;  // Null-terminating char considered part of string. See call
+           // searching for #0 to find end of string.
+  Result := nil;
+end;
+
+{$else}
 
 function StrLenW(Str: PWideChar): Cardinal;
-{returns number of characters in a ThtString excluding the null terminator}
-
+// returns number of characters in a ThtString excluding the null terminator
 asm
        MOV     EDX, EDI
        MOV     EDI, EAX
@@ -653,10 +731,7 @@ asm
        MOV     EAX, 0FFFFFFFEH
        SUB     EAX, ECX
        MOV     EDI, EDX
-
 end;
-
-{----------------StrPosW}
 
 function StrPosW(Str, SubStr: PWideChar): PWideChar;
 // returns a pointer to the first occurance of SubStr in Str
@@ -708,8 +783,6 @@ asm
        POP     EDI
 end;
 
-{----------------StrRScanW}
-
 function StrRScanW(const Str: PWideChar; Chr: WideChar): PWideChar; assembler;
 asm
         PUSH    EDI
@@ -732,8 +805,6 @@ asm
         POP     EDI
 end;
 
-{----------------StrScanW}
-
 function StrScanW(const Str: PWideChar; Chr: WideChar): PWideChar; assembler;
 asm
         PUSH    EDI
@@ -753,6 +824,9 @@ asm
         DEC     EAX
 @@1:    POP     EDI
 end;
+
+{$endif}
+
 
 {----------------FitText}
 
@@ -1734,7 +1808,10 @@ begin
       begin
         if Cnt < 6 then
           Exit;
+{$ifdef LCL}        // ToDo: Find LCL replacement for CreatePolygonRgn(
+{$else}
         Handle := CreatePolygonRgn(Coords, Cnt div 2, Winding);
+{$endif}
       end;
   end;
   if Handle <> 0 then
@@ -1764,10 +1841,10 @@ end;
 //end;
 
 function KindOfImage(Start: Pointer): TImageType; overload;
-type
-  ByteArray = array[0..10] of byte;
+//type
+//  ByteArray = array[0..10] of byte;
 var
-  PB: ^ByteArray absolute Start;
+//  PB: ^ByteArray absolute Start;
   PW: ^Word absolute Start;
   PL: ^DWord absolute Start;
 begin
@@ -1794,7 +1871,7 @@ var
   Pos: Int64;
   Magic: DWord;
   WMagic: Word absolute Magic;
-  BMagic: Byte absolute Magic;
+//  BMagic: Byte absolute Magic;
 begin
   Pos := Stream.Position;
   Stream.Position := 0;
@@ -2181,8 +2258,10 @@ begin
   end;
 end;
 
+{$IFNDEF NoGDIPlus}
 var
   Unique: Integer = 183902;
+{$ENDIF !NoGDIPlus}
 
 {----------------GetImageAndMaskFromStream}
 
@@ -2383,7 +2462,7 @@ begin {look for the image file}
   Result := nil;
   if FileExists(FName) then
   begin
-    Stream := TFileStream.Create(FName, fmOpenRead, fmShareDenyWrite);
+    Stream := TFileStream.Create(FName, fmOpenRead or fmShareDenyWrite);
     try
       Result := LoadImageFromStream(Stream, Transparent, AMask);
     finally
@@ -2406,7 +2485,7 @@ var
     hdcImage: HDC;
   DestSize, SrcSize: TPoint;
   OldBack, OldFore: TColor;
-  BM: Windows.TBitmap;
+  BM: {$ifdef LCL} LclType.Bitmap {$else} Windows.TBitmap {$endif};
   Image: TBitmap;
 
 begin
@@ -2548,7 +2627,7 @@ end;
 
 procedure TDib.InitializeBitmapInfoHeader(Bitmap: HBITMAP);
 var
-  BM: Windows.TBitmap;
+  BM: {$ifdef LCL} LclType.Bitmap {$else} Windows.TBitmap {$endif};
   BitCount: Integer;
 
   function WidthBytes(I: Integer): Integer;
@@ -2963,21 +3042,6 @@ begin
   end;
 end;
 
-const
-  DefaultBitmap = 1002;
-  ErrBitmap = 1001;
-  ErrBitmapMask = 1005;
-  Hand_Cursor = 1003;
-  ThickIBeam_Cursor = 1006;
-
-procedure ThisExit; far;
-begin
-  DefBitMap.Free;
-  ErrorBitMap.Free;
-  ErrorBitMapMask.Free;
-  WaitStream.Free;
-end;
-
 {----------------TIDNameList}
 
 constructor TIDNameList.Create(List: TSectionBaseList);
@@ -3190,15 +3254,16 @@ begin
   Move(T.FIndices^[1], FIndices^[FCurrentIndex + 1], T.FCurrentIndex * Sizeof(Integer));
   FCurrentIndex := K;
 end;
-{----------------TokenObj.Create}
+
+{ TokenObj }
 
 constructor TokenObj.Create;
 begin
   inherited;
   GetMem(C, TokenLeng * Sizeof(WideChar));
   GetMem(I, TokenLeng * Sizeof(Integer));
-  MaxIndex := TokenLeng;
-  Leng := 0;
+  FCapacity := TokenLeng;
+  FCount := 0;
   St := '';
   StringOK := True;
 end;
@@ -3213,47 +3278,20 @@ end;
 procedure TokenObj.AddUnicodeChar(Ch: WideChar; Ind: Integer);
 {Ch must be Unicode in this method}
 begin
-  if Leng >= MaxIndex then
-  begin
-    ReallocMem(C, (MaxIndex + 50) * Sizeof(WideChar));
-    ReallocMem(I, (MaxIndex + 50) * Sizeof(Integer));
-    Inc(MaxIndex, 50);
-  end;
-  Inc(Leng);
-  C^[Leng] := Ch;
-  I^[Leng] := Ind;
+  if Count >= Capacity then
+    SetCapacity(Capacity + 50);
+  Inc(FCount);
+  C^[Count] := Ch;
+  I^[Count] := Ind;
   StringOK := False;
 end;
 
 procedure TokenObj.Clear;
 begin
-  Leng := 0;
+  FCount := 0;
   St := '';
   StringOK := True;
 end;
-
-//function MultibyteToWideString(CodePage: Integer; const S: AnsiString; Len: Integer): WideString;
-//{$IFNDEF UNICODE}
-//var
-//  NewLen: Integer;
-//{$ENDIF}
-//begin
-//{$IFDEF UNICODE}
-//  if Len >= 0 then
-//    Result := Copy(S, 1, Len)
-//  else
-//    Result := S;
-//{$ELSE}
-//  {Provide initial space. The resulting ThtString will never be longer than the
-//   UTF-8 or multibyte encoded ThtString.}
-//  SetLength(Result, 2 * Len);
-//  NewLen := MultiByteToWideChar(CodePage, 0, PAnsiChar(S), Len, PWideChar(Result), Len);
-//  if (NewLen = 0) and (CodePage <> CP_ACP) then
-//  { Invalid code page. Try default.}
-//    NewLen := MultiByteToWideChar(CP_ACP, 0, PAnsiChar(S), Len, PWideChar(Result), Len);
-//  SetLength(Result, NewLen);
-//{$ENDIF}
-//end;
 
 function WideStringToMultibyte(CodePage: Integer; W: WideString): Ansistring;
 var
@@ -3279,7 +3317,7 @@ var
 begin
   if CodePage <> CP_UTF8 then
   begin
-    P1 := CharNextExA(CodePage, P, 0);
+    P1 := {$ifdef LCL} CharNextEx {$else} CharNextExA {$endif} (CodePage, P, 0);
     if Assigned(P1) then
       Result := P1 - P
     else
@@ -3297,78 +3335,47 @@ begin
     end;
 end;
 
-procedure TokenObj.AddString(S: TCharCollection; CodePage: Integer);
-// Takes the given string S and converts it to Unicode using the given code page.
-// If we are on Windows 95 then CP_UTF8 (and CP_UTF7) are not supported.
-// We compensate for this by using a Delphi function.
-// Note: There are more code pages (including CP_UTF7), which are not supported
-// on all platforms. These are rather esoteric and therefore not considered here.
-
+procedure TokenObj.AddString(S: TCharCollection);
 var
-  WS: WideString;
-  I, J, N,
-    Len, NewLen: Integer;
-
+  K: Integer;
 begin
-  Len := S.FCurrentIndex;
-  if Len > 0 then
-    WS := Copy(S.FChars, 1, Len)
-  else
-    WS := S.FChars;
-  NewLen := Length(WS);
-
-  {Store the wide string and character indices.}
-  if Len = NewLen then {single byte character set or at least no multibyte conversion}
-    for I := 1 to NewLen do
-      AddUnicodeChar(WS[I], S.FIndices[I])
-  else
-  begin {multibyte character set}
-    J := 1;
-    for I := 1 to NewLen do
-    begin
-      AddUnicodeChar(WS[I], S.FIndices[J]);
-      {find index for start of next character}
-      N := ByteNum(CodePage, @S.FChars[J]);
-      if N > 0 then
-        J := J + N
-      else
-        Break;
-    end;
-  end;
+  K := Count + S.FCurrentIndex;
+  if K >= Capacity then
+    SetCapacity(K + 50);
+  Move(S.FChars[1], C^[Count + 1], S.FCurrentIndex * Sizeof(WideChar));
+  Move(S.FIndices[1], I^[Count + 1], S.FCurrentIndex * Sizeof(Integer));
+  FCount := K;
+  StringOK := False;
 end;
 
 procedure TokenObj.Concat(T: TokenObj);
 var
   K: Integer;
 begin
-  K := Leng + T.Leng;
-  if K > MaxIndex then
-  begin
-    ReallocMem(C, (K + 50) * Sizeof(WideChar));
-    ReallocMem(I, (K + 50) * Sizeof(Integer));
-    MaxIndex := K + 50;
-  end;
-  Move(T.C^, C^[Leng + 1], T.Leng * Sizeof(WideChar));
-  Move(T.I^, I^[Leng + 1], T.Leng * Sizeof(Integer));
-  Leng := K;
+  K := Count + T.Count;
+  if K >= Capacity then
+    SetCapacity(K + 50);
+  Move(T.C^, C^[Count + 1], T.Count * Sizeof(WideChar));
+  Move(T.I^, I^[Count + 1], T.Count * Sizeof(Integer));
+  FCount := K;
   StringOK := False;
 end;
 
 procedure TokenObj.Remove(N: Integer);
 begin {remove a single character}
-  if N <= Leng then
+  if N <= Count then
   begin
-    Move(C^[N + 1], C^[N], (Leng - N) * Sizeof(WideChar));
-    Move(I^[N + 1], I^[N], (Leng - N) * Sizeof(Integer));
+    Move(C^[N + 1], C^[N], (Count - N) * Sizeof(WideChar));
+    Move(I^[N + 1], I^[N], (Count - N) * Sizeof(Integer));
     if StringOK then
       Delete(St, N, 1);
-    Dec(Leng);
+    Dec(FCount);
   end;
 end;
 
 procedure TokenObj.Replace(N: Integer; Ch: WideChar);
 begin {replace a single character}
-  if N <= Leng then
+  if N <= Count then
   begin
     C^[N] := Ch;
     if StringOK then
@@ -3376,12 +3383,29 @@ begin {replace a single character}
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 20.01.2011 --
+procedure TokenObj.SetCapacity(NewCapacity: Integer);
+begin
+  if NewCapacity <> FCapacity then
+  begin
+    ReallocMem(C, NewCapacity * Sizeof(WideChar));
+    ReallocMem(I, NewCapacity * Sizeof(Integer));
+    FCapacity := NewCapacity;
+    if NewCapacity < Count then
+    begin
+      FCount := NewCapacity;
+      if StringOK then
+        St := Copy(St, 1, Count);
+    end;
+  end;
+end;
+
 function TokenObj.GetString: WideString;
 begin
   if not StringOK then
   begin
-    SetLength(St, Leng);
-    Move(C^, St[1], SizeOf(WideChar) * Leng);
+    SetLength(St, Count);
+    Move(C^, St[1], SizeOf(WideChar) * Count);
     StringOK := True;
   end;
   Result := St;
@@ -3538,7 +3562,7 @@ begin
       { scan each bitmap row - the orientation doesn't matter (Bottom-up or not) }
       ScanLinePtr := bmp.ScanLine[0];
       if bmp.Height > 1 then
-        ScanLineInc := Integer(bmp.ScanLine[1]) - Integer(ScanLinePtr)
+        ScanLineInc := PtrSub(bmp.ScanLine[1], ScanLinePtr)
       else
         ScanLineInc := 0;
       for y := 0 to bmp.Height - 1 do
@@ -3600,7 +3624,7 @@ begin
           end;
           Inc(x);
         end; // scan every sample byte of the image
-        Inc(Integer(ScanLinePtr), ScanLineInc);
+        PtrInc(ScanLinePtr, ScanLineInc);
       end;
       { need to call ExCreateRegion one more time because we could have left    }
       { a RgnData with less than 2000 rects, so it wasn't yet created/combined  }
@@ -4250,11 +4274,11 @@ begin
           Pn := ExtCreatePen(PS_GEOMETRIC or PenType or ps_Join_Miter, W[I], lb, 0, nil);
           OldPn := SelectObject(Canvas.Handle, Pn);
           BeginPath(Canvas.Handle);
-          Windows.movetoEx(Canvas.Handle, PM[I].x, PM[I].y, nil);
+          movetoEx(Canvas.Handle, PM[I].x, PM[I].y, nil);
           Start := I;
           InPath := True;
         end;
-        Windows.LineTo(Canvas.Handle, PM[(I + 1) mod 4].x, PM[(I + 1) mod 4].y);
+        LineTo(Canvas.Handle, PM[(I + 1) mod 4].x, PM[(I + 1) mod 4].y);
         if (I = 3) or (S[I + 1] <> S[I]) or (C[I + 1] <> C[I]) or (W[I + 1] <> W[I]) then
         begin
           if (I = 3) and (Start = 0) then
@@ -4471,9 +4495,10 @@ begin
   FParentSectionList := List;
 end;
 
-procedure TSectionBase.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
+procedure TSectionBase.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 begin
-  Min := 0; Max := 0;
+  Min := 0;
+  Max := 0;
 end;
 
 procedure TSectionBase.AddSectionsToList;
@@ -4597,33 +4622,33 @@ begin
     Inc(VSpaceB, MargArray[BorderBottomWidth]);
   end;
 
-  if MargArray[Width] <> IntNull then
+  if MargArray[piWidth] <> IntNull then
   begin
     PercentWidth := False;
-    if MargArray[Width] = Auto then
+    if MargArray[piWidth] = Auto then
       SpecWidth := -1
-    else if (VarIsStr(MargArrayO[Width]))
-      and (System.Pos('%', MargArrayO[Width]) > 0) then
+    else if (VarIsStr(MargArrayO[piWidth]))
+      and (System.Pos('%', MargArrayO[piWidth]) > 0) then
     begin
       PercentWidth := True;
-      SpecWidth := MulDiv(MargArray[Width], 100, DummyHtWd);
+      SpecWidth := MulDiv(MargArray[piWidth], 100, DummyHtWd);
     end
     else
-      SpecWidth := MargArray[Width];
+      SpecWidth := MargArray[piWidth];
   end;
-  if MargArray[Height] <> IntNull then
+  if MargArray[piHeight] <> IntNull then
   begin
     PercentHeight := False;
-    if MargArray[Height] = Auto then
+    if MargArray[piHeight] = Auto then
       SpecHeight := -1
-    else if (VarIsStr(MargArrayO[Height]))
-      and (System.Pos('%', MargArrayO[Height]) > 0) then
+    else if (VarIsStr(MargArrayO[piHeight]))
+      and (System.Pos('%', MargArrayO[piHeight]) > 0) then
     begin
       PercentHeight := True;
-      SpecHeight := MulDiv(MargArray[Height], 100, DummyHtWd);
+      SpecHeight := MulDiv(MargArray[piHeight], 100, DummyHtWd);
     end
     else
-      SpecHeight := MargArray[Height];
+      SpecHeight := MargArray[piHeight];
   end;
 
   if Prop.GetVertAlign(Align) then
@@ -4645,24 +4670,45 @@ begin
     Delete(FAlt, Length(FAlt), 1);
 end;
 
-{$R HTML32.Res}
+{$ifdef LCL}
+{$else}
+const
+  DefaultBitmap = 1002;
+  ErrBitmap = 1001;
+  ErrBitmapMask = 1005;
+  Hand_Cursor = 1003;
+  ThickIBeam_Cursor = 1006;
+{$endif}
 
 initialization
-
   DefBitMap := TBitmap.Create;
-  DefBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(DefaultBitmap));
   ErrorBitMap := TBitmap.Create;
-  ErrorBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmap));
   ErrorBitMapMask := TBitmap.Create;
+{$ifdef LCL}
+  {$I htmlun2.lrs}
+  DefBitMap.LoadFromLazarusResource('ErrBitmap');
+  ErrorBitMap.LoadFromLazarusResource('DefaultBitmap');
+  ErrorBitMapMask.LoadFromLazarusResource('ErrBitmapMask');
+  Screen.Cursors[HandCursor] := LoadCursorFromLazarusResource('Hand_Cursor');
+  Screen.Cursors[UpDownCursor] := LoadCursorFromLazarusResource('UPDOWNCURSOR');
+  Screen.Cursors[UpOnlyCursor] := LoadCursorFromLazarusResource('UPONLYCURSOR');
+  Screen.Cursors[DownOnlyCursor] := LoadCursorFromLazarusResource('DOWNONLYCURSOR');
+{$else}
+  {$R Html32.res}
+  DefBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(DefaultBitmap));
+  ErrorBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmap));
   ErrorBitMapMask.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmapMask));
   Screen.Cursors[HandCursor] := LoadCursor(HInstance, MakeIntResource(Hand_Cursor));
   Screen.Cursors[UpDownCursor] := LoadCursor(HInstance, 'UPDOWNCURSOR');
   Screen.Cursors[UpOnlyCursor] := LoadCursor(HInstance, 'UPONLYCURSOR');
   Screen.Cursors[DownOnlyCursor] := LoadCursor(HInstance, 'DOWNONLYCURSOR');
-
+{$endif}
   WaitStream := TMemoryStream.Create;
 
 finalization
-  ThisExit;
+  DefBitMap.Free;
+  ErrorBitMap.Free;
+  ErrorBitMapMask.Free;
+  WaitStream.Free;
 end.
 

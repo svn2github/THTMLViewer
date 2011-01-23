@@ -1,9 +1,9 @@
 object PrnStatusForm: TPrnStatusForm
   Left = 731
   Top = 443
+  Width = 255
+  Height = 130
   Caption = 'PrnStatusForm'
-  ClientHeight = 96
-  ClientWidth = 247
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText

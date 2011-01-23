@@ -46,7 +46,9 @@ unit DitherUnit;
 
 interface
 
-{$DEFINE PIXELFORMAT_TOO_SLOW}
+{$ifNdef LCL}
+ {$DEFINE PIXELFORMAT_TOO_SLOW}
+{$endif}
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -95,10 +97,12 @@ Error: This module not used with Delphi 2
 //
 ////////////////////////////////////////////////////////////////////////////////
 uses
-  SysUtils,
+{$ifdef LCL}
+  LclIntf, LclType, //LMessages,
+{$else}
   Windows,
-  Graphics,
-  Classes;
+{$endif}
+  SysUtils, Graphics, Classes;
 
 function GetBitmap(Source: TPersistent): TBitmap; {LDB}
 
@@ -217,10 +221,15 @@ end;
 procedure Error(msg: string);
 
   function ReturnAddr: Pointer;
-  // From classes.pas
-  asm
+{$ifdef LCL}
+  begin
+    Result := nil; // ToDo: Fix it. Why is there assy?
+{$else}
+  asm  // From classes.pas
     MOV		EAX,[EBP+4] // sysutils.pas says [EBP-4] !
+{$endif}
   end;
+
 begin
   raise GIFException.Create(msg)at ReturnAddr;
 end;
@@ -234,8 +243,8 @@ begin
   Result := Result shr 3;
 end;
 
-type
-  TPixelFormats = set of TPixelFormat;
+//type
+//  TPixelFormats = set of TPixelFormat;
 
 // --------------------------
 // InitializeBitmapInfoHeader
@@ -608,7 +617,11 @@ begin
     Result := PByte(Cardinal(FDIBBits) + Cardinal(Row) * AlignBit(biWidth, biBitCount, 32));
   end;
 {$ELSE}
+{$ifdef LCL}
+  Result := nil;  // ToDo: Find replacement of FBitmap.ScanLine for LCL
+{$else}
   Result := FBitmap.ScanLine[Row];
+{$endif}
 {$ENDIF}
 end;
 
@@ -790,11 +803,11 @@ type
     property Colors: integer read FColors;
   end;
 
-  PRGBQuadArray = ^TRGBQuadArray; // From Delphi 3 graphics.pas
+  //PRGBQuadArray = ^TRGBQuadArray; // From Delphi 3 graphics.pas
   TRGBQuadArray = array[Byte] of TRGBQuad; // From Delphi 3 graphics.pas
 
-  BGRArray = array[0..0] of TRGBTriple;
-  PBGRArray = ^BGRArray;
+  //BGRArray = array[0..0] of TRGBTriple;
+  //PBGRArray = ^BGRArray;
 
   PalArray = array[byte] of TPaletteEntry;
   PPalArray = ^PalArray;
@@ -1135,15 +1148,15 @@ begin
   // Move on to next column
   if (FDirection = 1) then
   begin
-    inc(longInt(ErrorR), sizeof(TErrorTerm));
-    inc(longInt(ErrorG), sizeof(TErrorTerm));
-    inc(longInt(ErrorB), sizeof(TErrorTerm));
+    inc(ErrorR);
+    inc(ErrorG);
+    inc(ErrorB);
   end
   else
   begin
-    dec(longInt(ErrorR), sizeof(TErrorTerm));
-    dec(longInt(ErrorG), sizeof(TErrorTerm));
-    dec(longInt(ErrorB), sizeof(TErrorTerm));
+    dec(ErrorR);
+    dec(ErrorG);
+    dec(ErrorB);
   end;
 end;
 {$IFDEF R_PLUS}
@@ -1650,8 +1663,8 @@ begin
         begin
           SrcScanline := DIBSource.ScanLine[Row];
           DstScanline := DIBResult.ScanLine[Row];
-          Src := pointer(longInt(SrcScanLine) + Ditherer.Column * sizeof(TRGBTriple));
-          Dst := pointer(longInt(DstScanLine) + Ditherer.Column);
+          Src := PtrAdd(SrcScanLine, Ditherer.Column * sizeof(TRGBTriple));
+          Dst := PtrAdd(DstScanLine, Ditherer.Column);
 
           while (Ditherer.Column < Ditherer.Width) and (Ditherer.Column >= 0) do
           begin

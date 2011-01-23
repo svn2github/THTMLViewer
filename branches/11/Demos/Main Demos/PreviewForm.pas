@@ -12,12 +12,17 @@ unit PreviewForm;
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls, ExtCtrls, Buttons, MetaFilePrinter,
 {$ifdef LCL}
-  LResources,
-{$else}
+  LclIntf, LclType, PrintersDlgs, HtmlMisc,
 {$endif}
+{$ifdef MsWindows}
+  Windows,
+{$endif}
+{$ifndef NoMetafile}
+  MetaFilePrinter,
+{$endif}
+  Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
+  StdCtrls, ExtCtrls, Buttons,
   HTMLView, PrintStatusForm;
 
 const
@@ -55,9 +60,7 @@ type
     PB1: TPaintBox;
     PagePanel2: TPanel;
     PB2: TPaintBox;
-{$ifndef FPC_TODO_PRINTING}
     PrintDialog1: TPrintDialog;
-{$endif}
     FitPageBut: TSpeedButton;
     FitWidthBut: TSpeedButton;
     Bevel1: TBevel;
@@ -102,8 +105,10 @@ type
     OldHint       : TNotifyEvent;
     DownX, DownY  : integer;
     Moving        : boolean;
+{$ifndef NoMetafile}
     MFPrinter     : TMetaFilePrinter;
     procedure     DrawMetaFile(PB: TPaintBox; mf: TMetaFile);
+{$endif}
     procedure     OnHint(Sender: TObject);
     procedure     SetCurPage(Val: integer);
     procedure     CheckEnable;
@@ -121,8 +126,9 @@ uses
    Gopage;
 
 {$ifdef LCL}
+  {$R *.lfm}
 {$else}
-{$R *.DFM}
+  {$R *.dfm}
 {$endif}
 {$R GRID.RES}
 
@@ -131,25 +137,34 @@ constructor TPreviewForm.CreateIt(AOwner: TComponent; AViewer: ThtmlViewer;
 var
   StatusForm: TPrnStatusForm;
 begin
-inherited Create(AOwner);
-   ZoomBox.ItemIndex := 0;
-   UnitsBox.ItemIndex := 0;
-   Screen.Cursors[crZoom] := LoadCursor(hInstance, 'ZOOM_CURSOR');
-   Screen.Cursors[crHandDrag] := LoadCursor(hInstance, 'HAND_CURSOR');
-   ZoomCursorButClick(nil);
-Viewer := AViewer;
-MFPrinter := TMetaFilePrinter.Create(Self);
-StatusForm := TPrnStatusForm.Create(Self);
-try
-  StatusForm.DoPreview(Viewer, MFPrinter, Abort);
-finally
-  StatusForm.Free;
+  inherited Create(AOwner);
+  ZoomBox.ItemIndex := 0;
+  UnitsBox.ItemIndex := 0;
+{$ifdef MsWindows}
+  Screen.Cursors[crZoom] := LoadCursor(hInstance, 'ZOOM_CURSOR');
+  Screen.Cursors[crHandDrag] := LoadCursor(hInstance, 'HAND_CURSOR');
+{$else}
+  Screen.Cursors[crZoom] := LoadCursorFromLazarusResource('ZOOM_CURSOR');
+  Screen.Cursors[crHandDrag] := LoadCursorFromLazarusResource('HAND_CURSOR');
+{$endif}
+  ZoomCursorButClick(nil);
+  Viewer := AViewer;
+{$ifndef NoMetafile}
+  MFPrinter := TMetaFilePrinter.Create(Self);
+{$endif}
+  StatusForm := TPrnStatusForm.Create(Self);
+  try
+{$ifndef NoMetafile}
+    StatusForm.DoPreview(Viewer, MFPrinter, Abort);
+{$endif}
+  finally
+    StatusForm.Free;
   end;
 end;
 
 destructor TPreviewForm.Destroy;
 begin
-inherited;
+  inherited;
 end;
 
 procedure TPreviewForm.CloseButClick(Sender: TObject);
@@ -162,7 +177,9 @@ procedure TPreviewForm.FormClose(Sender: TObject;
 begin
    Action := caFree;
    Application.OnHint := OldHint;
+{$ifndef NoMetafile}
    MFPrinter.Free;
+{$endif}
 end;
 
 procedure TPreviewForm.ScrollBox1Resize(Sender: TObject);
@@ -207,7 +224,7 @@ begin
 
    if ZoomBox.ItemIndex<>0 then OnePageBut.Down := True;
 
-   PagePanel.Height := TRUNC(PixelsPerInch * z * MFPrinter.PaperHeight / MFPrinter.PixelsPerInchY); 
+   PagePanel.Height := TRUNC(PixelsPerInch * z * MFPrinter.PaperHeight / MFPrinter.PixelsPerInchY);
    PagePanel.Width  := TRUNC(PixelsPerInch * z * MFPrinter.PaperWidth  / MFPrinter.PixelsPerInchX);
 
    PagePanel2.Visible := TwoPageBut.Down;
@@ -263,10 +280,12 @@ begin
    ZoomLabel.Caption := Format('%1.0n', [z * 100]) + '%';
 end;
 
+{$ifndef NoMetafile}
 procedure TPreviewForm.DrawMetaFile(PB: TPaintBox; mf: TMetaFile);
 begin
    PB.Canvas.Draw(0, 0, mf);
 end;
+{$endif}
 
 procedure TPreviewForm.PBPaint(Sender: TObject);
 var
@@ -474,7 +493,6 @@ var
   StatusForm: TPrnStatusForm;
   Dummy: boolean;
 begin
-{$ifndef FPC_TODO_PRINTING}
   with PrintDialog1 do
     begin
     MaxPage  := 9999;
@@ -488,7 +506,6 @@ begin
         StatusForm.DoPrint(Viewer, FromPage, ToPage, Dummy);
     StatusForm.Free;
   end;
-{$endif}
 end;
 
 procedure TPreviewForm.PageNumSpeedClick(Sender: TObject);
@@ -535,9 +552,4 @@ if GridBut.down then
   end;
 end;
 
-initialization
-{$ifdef LCL}
-{$include PreviewForm.lrs}
-{$else}
-{$endif}
 end.

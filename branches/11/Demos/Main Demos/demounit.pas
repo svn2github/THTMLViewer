@@ -11,15 +11,66 @@
 {$endif}
 
 unit demounit;
+
+{$include ..\..\source\htmlcons.inc}
+
 {A program to demonstrate the ThtmlViewer component}
 
 interface
 
 uses
-  SysUtils, WinTypes, WinProcs, Messages, Classes, Graphics, Controls,
-  Forms, Dialogs, ExtCtrls, Menus, StdCtrls, Clipbrd, ShellAPI, MMSystem, MPlayer, ComCtrls,
-  {$ifdef UseXpMan} XpMan, {$endif} Gauges,
-  ReadHtml, Htmlview, HTMLsubs, UrlSubs, HTMLUn2, StyleUn, HtmlAbt, HtmlGlobals;
+//{$ifdef LCL}
+//  LclIntf, LclType, PrintersDlgs, FPImage, HtmlMisc, WideStringsLcl,
+//{$else}
+//  WinTypes, WinProcs, ShellAPI,
+//{$endif}
+//{$ifdef MsWindows}
+//  MPlayer, XpMan, MMSystem,
+//{$endif}
+//  SysUtils, Messages, Classes, Graphics, Controls,
+//  Forms, Dialogs, ExtCtrls, Menus, StdCtrls, Clipbrd, ComCtrls,
+//  ReadHTML, Htmlview, HTMLSubs, URLSubs, HTMLUn2, StyleUn, Htmlabt, HtmlGlobals;
+  SysUtils, Messages, Classes, Graphics, Controls, Forms, Dialogs,
+  ExtCtrls, Menus, Clipbrd, ComCtrls, StdCtrls, Fontdlg,
+{$ifdef LCL}
+  LclIntf, LclType, PrintersDlgs, FPImage, HtmlMisc, WideStringsLcl,
+{$else}
+  Windows, ShellAPI,
+  {$if CompilerVersion > 15}
+    XpMan,
+  {$ifend}
+  {$ifdef Compiler18_Plus}
+    WideStrings,
+  {$else}
+    TntWideStrings,
+    TntClasses,
+  {$endif}
+{$endif}
+{$ifndef MultiMediaMissing}
+  MPlayer, MMSystem,
+{$endif}
+{$ifndef MetaFileMissing}
+  MetaFilePrinter,
+{$endif}
+  PreviewForm,
+{$ifdef UseTNT}
+  TntStdCtrls,
+  SubmitTnt,
+{$else UseTNT}
+  Submit,
+{$endif UseTNT}
+  HtmlGlobals,
+  HtmlBuffer,
+  URLSubs,
+  StyleUn,
+  ReadHTML,
+  HTMLSubs,
+  HTMLUn2,
+  Htmlview,
+  FramView,
+  DemoSubs,
+  Htmlabt,
+  ImgForm;
 
 const
   MaxHistories = 6;  {size of History list}
@@ -41,7 +92,6 @@ type
     FwdButton: TButton;
     HistoryMenuItem: TMenuItem;
     Exit1: TMenuItem;
-    PrintDialog: TPrintDialog;
     About1: TMenuItem;
     Edit2: TMenuItem;
     Find1: TMenuItem;
@@ -52,7 +102,6 @@ type
     SelectAllItem: TMenuItem;
     OpenTextFile: TMenuItem;
     OpenImageFile: TMenuItem;
-    MediaPlayer: TMediaPlayer;
     PopupMenu: TPopupMenu;
     CopyImageToClipboard: TMenuItem;
     Viewimage: TMenuItem;
@@ -63,64 +112,73 @@ type
     Printpreview: TMenuItem;
     Timer1: TTimer;
     ProgressBar: TProgressBar;
-    PrinterSetupDialog: TPrinterSetupDialog;
     PrinterSetup1: TMenuItem;
     RepaintButton: TButton;
-    procedure OpenFileClick(Sender: TObject);
-    procedure HotSpotChange(Sender: TObject; const URL: string);
-    procedure HotSpotClick(Sender: TObject; const URL: string;
-              var Handled: boolean);
-    procedure ShowImagesClick(Sender: TObject);
-    procedure ReloadButtonClick(Sender: TObject);
-    procedure FormCreate(Sender: TObject);
-    procedure FwdBackClick(Sender: TObject);
-    procedure HistoryClick(Sender: TObject);
-    procedure HistoryChange(Sender: TObject);
-    procedure Exit1Click(Sender: TObject);
-    procedure FontColorsClick(Sender: TObject);
-    procedure Print1Click(Sender: TObject);
+{$ifdef MsWindows}
+    MediaPlayer: TMediaPlayer;
+{$endif}
+{$ifndef LCL}
+    PrintDialog: TPrintDialog;
+    PrinterSetupDialog: TPrinterSetupDialog;
+{$endif}
     procedure About1Click(Sender: TObject);
-    procedure FormShow(Sender: TObject);
-    procedure SubmitEvent(Sender: TObject; Const AnAction, Target, EncType, Method: String;
-      Results: TStringList);
-    procedure Find1Click(Sender: TObject);
-    procedure FindDialogFind(Sender: TObject);
-    procedure ProcessingHandler(Sender: TObject; ProcessingOn: Boolean);
+    procedure CopyImageToClipboardClick(Sender: TObject);
     procedure CopyItemClick(Sender: TObject);
     procedure Edit2Click(Sender: TObject);
-    procedure SelectAllItemClick(Sender: TObject);
-    procedure OpenTextFileClick(Sender: TObject);
-    procedure OpenImageFileClick(Sender: TObject);
-    procedure MediaPlayerNotify(Sender: TObject);
-    procedure SoundRequest(Sender: TObject; const SRC: String;
-      Loop: Integer; Terminate: Boolean);
-    procedure CopyImageToClipboardClick(Sender: TObject);
-    procedure ObjectClick(Sender, Obj: TObject; const OnClick: String);
-    procedure ViewimageClick(Sender: TObject);
+    procedure Exit1Click(Sender: TObject);
+    procedure Find1Click(Sender: TObject);
+    procedure FindDialogFind(Sender: TObject);
+    procedure FontColorsClick(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
-    procedure ViewerInclude(Sender: TObject; const Command: String;
-      Params: TStrings; var S: string);
-    procedure RightClick(Sender: TObject;
-      Parameters: TRightClickParameters);
-    procedure OpenInNewWindowClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure FwdBackClick(Sender: TObject);
+    procedure HistoryChange(Sender: TObject);
+    procedure HistoryClick(Sender: TObject);
+    procedure MediaPlayerNotify(Sender: TObject);
     procedure MetaTimerTimer(Sender: TObject);
-    procedure MetaRefreshEvent(Sender: TObject; Delay: Integer;
-      const URL: String);
+    procedure OpenFileClick(Sender: TObject);
+    procedure OpenImageFileClick(Sender: TObject);
+    procedure OpenInNewWindowClick(Sender: TObject);
+    procedure OpenTextFileClick(Sender: TObject);
+    procedure Print1Click(Sender: TObject);
+    procedure PrinterSetup1Click(Sender: TObject);
     procedure PrintpreviewClick(Sender: TObject);
-    procedure ViewerMouseMove(Sender: TObject; Shift: TShiftState; X,
-      Y: Integer);
+    procedure ProcessingHandler(Sender: TObject; ProcessingOn: Boolean);
+    procedure ReloadButtonClick(Sender: TObject);
+    procedure RepaintButtonClick(Sender: TObject);
+    procedure RightClick(Sender: TObject; Parameters: TRightClickParameters);
+    procedure SelectAllItemClick(Sender: TObject);
+    procedure ShowImagesClick(Sender: TObject);
     procedure Timer1Timer(Sender: TObject);
-    procedure ViewerProgress(Sender: TObject; Stage: TProgressStage;
-      PercentDone: Integer);
+    procedure ViewerMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
     procedure ViewerPrintHTMLFooter(Sender: TObject; HFViewer: THTMLViewer;
       NumPage: Integer; LastPage: Boolean; var XL, XR: Integer;
       var StopPrinting: Boolean);
     procedure ViewerPrintHTMLHeader(Sender: TObject; HFViewer: THTMLViewer;
       NumPage: Integer; LastPage: Boolean; var XL, XR: Integer;
       var StopPrinting: Boolean);
-    procedure PrinterSetup1Click(Sender: TObject);
+    procedure ViewerProgress(Sender: TObject; Stage: TProgressStage; PercentDone: Integer);
+    procedure ViewimageClick(Sender: TObject);
+{$ifdef UNICODE}
+    procedure HotSpotChange(Sender: TObject; const URL: string);
+    procedure HotSpotClick(Sender: TObject; const URL: string; var Handled: boolean);
+    procedure MetaRefreshEvent(Sender: TObject; Delay: Integer; const URL: String);
+    procedure ObjectClick(Sender, Obj: TObject; const OnClick: String);
+    procedure SoundRequest(Sender: TObject; const SRC: String; Loop: Integer; Terminate: Boolean);
+    procedure SubmitEvent(Sender: TObject; Const AnAction, Target, EncType, Method: String; Results: TStringList);
+    procedure ViewerInclude(Sender: TObject; const Command: String; Params: TStrings; out IncludedDocument: TBuffer);
     procedure ViewerScript(Sender: TObject; const Name, ContentType, Src, Script: string);
-    procedure RepaintButtonClick(Sender: TObject);
+{$else}
+    procedure HotSpotChange(Sender: TObject; const URL: WideString);
+    procedure HotSpotClick(Sender: TObject; const URL: WideString; var Handled: boolean);
+    procedure MetaRefreshEvent(Sender: TObject; Delay: Integer; const URL: WideString);
+    procedure ObjectClick(Sender, Obj: TObject; const OnClick: WideString);
+    procedure SoundRequest(Sender: TObject; const SRC: WideString; Loop: Integer; Terminate: Boolean);
+    procedure SubmitEvent(Sender: TObject; Const AnAction, Target, EncType, Method: WideString; Results: TWideStringList);
+    procedure ViewerInclude(Sender: TObject; const Command: WideString; Params: TWideStrings; out IncludedDocument: TBuffer);
+    procedure ViewerScript(Sender: TObject; const Name, ContentType, Src, Script: WideString);
+{$endif}
   private
     { Private declarations }
     Histories: array[0..MaxHistories-1] of TMenuItem;
@@ -145,10 +203,11 @@ var
 
 implementation
 
-uses
-  PreviewForm, Submit, ImgForm, FontDlg;
-
-{$R *.DFM}
+{$ifdef LCL}
+  {$R *.lfm}
+{$else}
+  {$R *.dfm}
+{$endif}
 
 procedure TForm1.FormCreate(Sender: TObject);
 var
@@ -164,7 +223,7 @@ Caption := 'HTML Demo, Version '+HTMLAbt.Version;
 ShowImages.Checked := Viewer.ViewImages;
 Viewer.HistoryMaxCount := MaxHistories;  {defines size of history list}
 
-for I := 0 to MaxHistories-1 do
+  for I := 0 to MaxHistories-1 do
   begin      {create the MenuItems for the history list}
   Histories[I] := TMenuItem.Create(HistoryMenuItem);
   HistoryMenuItem.Insert(I, Histories[I]);
@@ -175,9 +234,11 @@ for I := 0 to MaxHistories-1 do
     Tag := I;
     end;
   end;
-DragAcceptFiles(Handle, True);
-HintWindow := THintWindow.Create(Self);
-HintWindow.Color := $C0FFFF;
+{$ifndef LCL}
+  DragAcceptFiles(Handle, True);
+{$endif}
+  HintWindow := THintWindow.Create(Self);
+  HintWindow.Color := $C0FFFF;
 end;
 
 procedure TForm1.FormShow(Sender: TObject);
@@ -214,7 +275,7 @@ if OpenDialog.Execute then
   end;
 end;
 
-procedure TForm1.HotSpotChange(Sender: TObject; const URL: string);
+procedure TForm1.HotSpotChange(Sender: TObject; const URL: ThtString);
 {mouse moved over or away from a hot spot.  Change the status line}
 var
   Caption: string;
@@ -227,8 +288,7 @@ if Viewer.TitleAttr <> '' then
 Panel1.Caption := Caption;
 end;
 
-procedure TForm1.HotSpotClick(Sender: TObject; const URL: string;
-          var Handled: boolean);
+procedure TForm1.HotSpotClick(Sender: TObject; const URL: ThtString; var Handled: boolean);
 {This routine handles what happens when a hot spot is clicked.  The assumption
  is made that DOS filenames are being used. .EXE, .WAV, .MID, and .AVI files are
  handled here, but other file types could be easily added.
@@ -239,6 +299,9 @@ const
   snd_Async = $0001;  { play asynchronously }
 var
   PC: array[0..255] of char;
+{$ifdef LCL}
+  PC2: array[0..255] of char;
+{$endif}
   S, Params: string[255];
   Ext: string[5];
   ID: string;
@@ -283,33 +346,46 @@ if (I <= 2) or (J > 0) then
   if Ext = '.WAV' then
     begin
     Handled := True;
+{$ifndef LCL}
     sndPlaySound(StrPCopy(PC, S), snd_ASync);
+{$endif}
     end
   else if Ext = '.EXE' then
     begin
     Handled := True;
+{$ifdef LCL}
+    OpenDocument(s);
+{$else}
     WinExec(StrPCopy(PC, S+' '+Params), sw_Show);
+{$endif}
     end
   else if (Ext = '.MID') or (Ext = '.AVI')  then
     begin
     Handled := True;
-    WinExec(StrPCopy(PC, 'MPlayer.exe /play /close '+S), sw_Show);
+{$ifdef LCL}
+    OpenDocument(s);
+{$else}
+    WinExec(StrPCopy(PC, S+' '+Params), sw_Show);
+{$endif}
     end;
   {else ignore other extensions}
   Edit1.Text := URL;
   Exit;
   end;
 
-I := Pos('MAILTO:', UpperCase(URL));
-J := Pos('HTTP:', UpperCase(URL));
-if (I > 0) or (J > 0) then
+  I := Pos('MAILTO:', UpperCase(URL));
+  J := Pos('HTTP:', UpperCase(URL));
+  if (I > 0) or (J > 0) then
   begin
-  ShellExecute(0, nil, pchar(URL), nil, nil, SW_SHOWNORMAL);
-  Handled := True;
-  Exit;
+{$ifdef LCL}
+    OpenDocument(URL);
+{$else}
+    ShellExecute(Handle, nil, StrPCopy(PC, URL), nil, nil, SW_SHOWNORMAL);
+{$endif}
+    Handled := True;
+    Exit;
   end;
-
-Edit1.Text := URL;   {other protocall}
+  Edit1.Text := URL;   {other protocall}
 end;
 
 procedure TForm1.ShowImagesClick(Sender: TObject);
@@ -420,17 +496,21 @@ end;
 
 procedure TForm1.Print1Click(Sender: TObject);
 begin
+{$ifndef LCL}
 with PrintDialog do
   if Execute then
     if PrintRange = prAllPages then
       viewer.Print(1, 9999)
     else
       Viewer.Print(FromPage, ToPage);
+{$endif}
 end;
 
 procedure TForm1.PrinterSetup1Click(Sender: TObject);
 begin
-PrinterSetupDialog.Execute;
+{$ifndef LCL}
+  PrinterSetupDialog.Execute;
+{$endif}
 end;
 
 procedure TForm1.About1Click(Sender: TObject);
@@ -444,16 +524,15 @@ begin
 end;
 
 
-procedure TForm1.SubmitEvent(Sender: TObject; const AnAction, Target, EncType, Method: String;
-  Results: TStringList);
+procedure TForm1.SubmitEvent(Sender: TObject; const AnAction, Target, EncType, Method: ThtString; Results: ThtStringList);
 begin
-with SubmitForm do
+  with SubmitForm do
   begin
-  ActionText.Text := AnAction;
-  MethodText.Text := Method;
-  ResultBox.Items := Results;
-  Results.Free;
-  Show;
+    ActionText.Text := AnAction;
+    MethodText.Text := Method;
+    ResultBox.Items.Text := Results.Text;
+    Results.Free;
+    Show;
   end;
 end;
 
@@ -560,6 +639,7 @@ var
   Ext: string;
   Count: integer;
 begin
+{$ifndef LCL}
 Count := DragQueryFile(Message.WParam, 0, @S[1], 200);
 Length(S) := Count;
 DragFinish(Message.WParam);
@@ -574,11 +654,13 @@ if Count >0 then
         or (Ext = '.jpeg') or (Ext = '.png') then
     Viewer.LoadImageFile(S);
   end;
+{$endif}
 Message.Result := 0;
 end;
 
 procedure TForm1.MediaPlayerNotify(Sender: TObject);
 begin
+{$ifdef MsWindows}
 try
   With MediaPlayer do
     if NotifyValue = nvSuccessful then
@@ -593,11 +675,12 @@ try
       end;
 except
   end;
+{$endif}
 end;
 
-procedure TForm1.SoundRequest(Sender: TObject; const SRC: String;
-  Loop: Integer; Terminate: Boolean);
+procedure TForm1.SoundRequest(Sender: TObject; const SRC: ThtString; Loop: Integer; Terminate: Boolean);
 begin
+{$ifdef MsWindows}
 try
   with MediaPlayer do
     if Terminate then
@@ -613,6 +696,7 @@ try
       end;
 except
   end;
+{$endif}
 end;
 
 procedure TForm1.ViewimageClick(Sender: TObject);
@@ -633,68 +717,76 @@ begin
 Clipboard.Assign(FoundObject.Bitmap);
 end;
 
-procedure TForm1.ObjectClick(Sender, Obj: TObject; const OnClick: String);
+procedure TForm1.ObjectClick(Sender, Obj: TObject; const OnClick: ThtString);
 var
-  S: string;
+  S: String;
+  CB: TCheckBoxFormControlObj absolute Obj;
+  RB: TRadioButtonFormControlObj absolute Obj;
 begin
-if OnClick = 'display' then
+  if OnClick = 'display' then
   begin
-  if Obj is TFormControlObj then
-    with TFormControlObj(Obj) do
-      begin
-      if TheControl is TCheckBox then
-        with TCheckBox(TheControl) do
-          begin
-          S := Value + ' is ';
-          if Checked then S := S + 'checked'
-            else S := S + 'unchecked';
-          MessageDlg(S, mtCustom, [mbOK], 0);
-          end
-      else if TheControl is TRadioButton then
-        with TRadioButton(TheControl) do
-          begin
-          S := Value + ' is checked';
-          MessageDlg(S, mtCustom, [mbOK], 0);
-          end;
-      end;
+    if Obj is TCheckBoxFormControlObj then
+    begin
+      S := CB.Value + ' is ';
+      if CB.Checked then
+        S := S + 'checked'
+      else
+        S := S + 'unchecked';
+      MessageDlg(S, mtCustom, [mbOK], 0);
+    end
+    else if Obj is TRadioButtonFormControlObj then
+    begin
+      S := RB.Value + ' is checked';
+      MessageDlg(S, mtCustom, [mbOK], 0);
+    end;
   end
-else if OnClick <> '' then
-      MessageDlg(OnClick, mtCustom, [mbOK], 0);
+  else if OnClick <> '' then
+    with TAboutBox.CreateIt(Self, OnClick) do
+      try
+        ShowModal;
+      finally
+        Free;
+      end;
+    //MessageDlg(OnClick, mtCustom, [mbOK], 0);
 end;
 
 
-procedure TForm1.ViewerInclude(Sender: TObject; const Command: String;
-  Params: TStrings; var S: string);
-{OnInclude handler}  
+procedure TForm1.ViewerInclude(Sender: TObject; const Command: ThtString; Params: ThtStrings; out IncludedDocument: TBuffer);
+{OnInclude handler}
 var
-  Filename: string;
+  Filename: ThtString;
   I: integer;
+  Stream: TFileStream;
 begin
-if CompareText(Command, 'Date') = 0 then
-  S := DateToStr(Date) { <!--#date --> }
-else if CompareText(Command, 'Time') = 0 then
-  S := TimeToStr(Time)   { <!--#time -->  }
-else if CompareText(Command, 'Include') = 0 then
+  if CompareText(Command, 'Date') = 0 then
+    IncludedDocument := TBuffer.Create(DateToStr(Date)) { <!--#date --> }
+  else if CompareText(Command, 'Time') = 0 then
+    IncludedDocument := TBuffer.Create(TimeToStr(Time))   { <!--#time -->  }
+  else if CompareText(Command, 'Include') = 0 then
   begin   {an include file <!--#include FILE="filename" -->  }
-  if (Params.count >= 1) then
+    if (Params.count >= 1) then
     begin
-    I := Pos('file=', Lowercase(Params[0]));
-    if I > 0 then
+      I := Pos('file=', Lowercase(Params[0]));
+      if I > 0 then
       begin
-      Filename := copy(Params[0],  6, Length(Params[0])-5);
-      try
-        S := LoadStringFromFile(Filename);
-      except
+        Filename := copy(Params[0], 6, Length(Params[0])-5);
+        try
+          if FileExists(Filename) then
+          begin
+            Stream := TFileStream.Create(Filename, fmOpenRead or fmShareDenyWrite);
+            IncludedDocument := TBuffer.Create(Stream);
+          end
+        except
         end;
       end;
     end;
   end;
-Params.Free;
+  Params.Free;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
-HintWindow.Free;
+  HintWindow.Free;
 end;
 
 procedure TForm1.RightClick(Sender: TObject; Parameters: TRightClickParameters);
@@ -702,7 +794,7 @@ var
   Pt: TPoint;
   S, Dest: string;
   I: integer;
-  HintWindow: THintWindow;  
+  HintWindow: ThtHintWindow;
   ARect: TRect;
 begin
 with Parameters do
@@ -731,7 +823,7 @@ with Parameters do
   GetCursorPos(Pt);
   if Length(CLickWord) > 0 then
     begin
-    HintWindow := THintWindow.Create(Self);   
+    HintWindow := ThtHintWindow.Create(Self);
     try
       ARect := Rect(0,0,0,0);
       DrawTextW(HintWindow.Canvas.Handle, @ClickWord[1], Length(ClickWord), ARect, DT_CALCRECT);
@@ -750,7 +842,11 @@ procedure TForm1.OpenInNewWindowClick(Sender: TObject);
 var
   PC: array[0..255] of char;
 begin
-WinExec(StrPCopy(PC, ParamStr(0)+' "'+NewWindowFile+'"'), sw_Show);
+{$ifdef LCL}
+  OpenDocument(ParamStr(0));
+{$else}
+  WinExec(StrPCopy(PC, ParamStr(0)+' "'+NewWindowFile+'"'), sw_Show);
+{$endif}
 end;
 
 procedure TForm1.MetaTimerTimer(Sender: TObject);
@@ -763,8 +859,7 @@ if Viewer.CurrentFile = PresentFile then  {don't load if current file has change
   end;
 end;
 
-procedure TForm1.MetaRefreshEvent(Sender: TObject; Delay: Integer;
-  const URL: String);
+procedure TForm1.MetaRefreshEvent(Sender: TObject; Delay: Integer; const URL: ThtString);
 begin
 NextFile := Viewer.HTMLExpandFilename(URL);  
 if FileExists(NextFile) then
@@ -776,10 +871,13 @@ if FileExists(NextFile) then
 end;
 
 procedure TForm1.PrintpreviewClick(Sender: TObject);
+{$ifndef LCL}
 var
   pf: TPreviewForm;
   Abort: boolean;
+{$endif}
 begin
+{$ifndef LCL}
 pf := TPreviewForm.CreateIt(Self, Viewer, Abort);
 try
   if not Abort then
@@ -787,6 +885,7 @@ try
 finally
   pf.Free;
   end;
+{$endif}
 end;
 
 procedure TForm1.ViewerMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
@@ -873,7 +972,7 @@ case Stage of
 ProgressBar.Update;
 end;
 
-procedure TForm1.ViewerScript(Sender: TObject; const Name, ContentType, Src, Script: string);
+procedure TForm1.ViewerScript(Sender: TObject; const Name, ContentType, Src, Script: ThtString);
 begin
   NLS := Name + '::' + ContentType + '::' + Src + '::'#10#13 + Script;
 end;

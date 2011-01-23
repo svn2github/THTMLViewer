@@ -5,11 +5,7 @@ unit ImgForm;
 interface
 
 uses
-  SysUtils, Classes, Graphics, Controls, Forms, Dialogs, ExtCtrls, Math
-{$ifdef LCL}
-  , LResources
-{$endif}
-  ;
+  SysUtils, Classes, Graphics, Controls, Forms, Dialogs, ExtCtrls, Math;
 
 type
   TImageForm = class(TForm)
@@ -24,8 +20,9 @@ type
 implementation
 
 {$ifdef LCL}
+  {$R *.lfm}
 {$else}
-{$R *.DFM}
+  {$R *.dfm}
 {$endif}
 
 procedure TImageForm.setBitmap(const Value: TBitmap);
@@ -39,8 +36,4 @@ begin
   Top  := Max(Top + (OldHeight - Image1.Height) div 2, 0);
 end;
 
-{$ifdef LCL}
-initialization
-{$I ImgForm.lrs}
-{$endif}
 end.

@@ -5,17 +5,20 @@
 { Identify FreePascal/Lazarus Compiler Version }
 
   {$define LCL}
-  {$mode Delphi}
+  {$mode delphi}
+  {$H+}
 
   {$define FPC_TODO}
   {$define FPC_TODO_PRINTING}
 
-  {$define NoGDIPlus}
+  {.$define NoGDIPlus}
 
+  {.$define UseUnicode}
   {$define CopyPaletteMissing}
   {$define TransparentStretchBltMissing}
   {$define MetaFileMissing}
-  {$define UnitConstsMissing}
+  {$define MultiMediaMissing}
+  {.$define UnitConstsMissing}
 
   {$define ver100_plus}
   {$define ver120_plus}
@@ -51,6 +54,7 @@
 }
 
   {$define VCL}
+  {$define Windows}
   {$ifdef CONDITIONALEXPRESSIONS} {Delphi 6 and up}
     {$define ver100_plus}
     {$define ver120_plus}
@@ -72,6 +76,7 @@
                 {$define Compiler18_Plus}
                 {$ifdef ver180}
                 {$else}
+                  {$define Compiler19_Plus}
                   {$ifdef ver185}
                   {$else}
                     {$define Compiler20_Plus}
@@ -135,7 +140,7 @@
         undesirable, define "NoGDIPlus" by removing the '.'.
         Defining NoGDIPlus will remove support for PNG images entirely.}
 
-{$Define NoMetaFile} {Metafiles may be displayed by undefining this constant.
+{.$Define NoMetaFile} {Metafiles may be displayed by undefining this constant.
         NoMetaFile is defined by default to emphasize the fact that Metafile
         display and some printing operations are currently incompatible in Win98.
         For applications where printing is unimportant or Win98/95/ME need not
@@ -178,10 +183,6 @@
   {$endif}
 {$endif}
 
-{.$Define UseElpack}
-        {Defining UseElpack allows the Elpack Unicode controls to be used for
-        HTML Form controls in place of the Delphi TEdit, TButton, TListbox,
-        TCombobox, and TMemo controls.  See "Using Third Party Controls" below.}
 {
 Using Third Party Unicode Controls
 

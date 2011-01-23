@@ -1,7 +1,7 @@
 object Form1: TForm1
-  Left = 209
+  Left = 383
   Height = 292
-  Top = 333
+  Top = 425
   Width = 494
   Caption = 'Frame Demo'
   ClientHeight = 272
@@ -13,7 +13,7 @@ object Form1: TForm1
   OnDestroy = FormDestroy
   OnShow = FormShow
   Position = poDesktopCenter
-  LCLVersion = '0.9.28.2'
+  LCLVersion = '0.9.31'
   object FrameViewer: TFrameViewer
     Left = 0
     Height = 218
@@ -137,7 +137,7 @@ object Form1: TForm1
     end
   end
   object MainMenu1: TMainMenu
-    left = 360
+    left = 328
     top = 72
     object File1: TMenuItem
       Caption = '&File'
@@ -218,18 +218,18 @@ object Form1: TForm1
     DefaultExt = '.htm'
     Filter = 'html files|*.htm;*.html|all files|*.*'
     Options = [ofHideReadOnly, ofPathMustExist, ofFileMustExist]
-    left = 320
+    left = 272
     top = 72
   end
   object FindDialog: TFindDialog
     Options = [frDown, frHideWholeWord, frDisableWholeWord]
     OnFind = FindDialogFind
-    left = 400
+    left = 384
     top = 72
   end
   object PopupMenu: TPopupMenu
-    left = 360
-    top = 105
+    left = 440
+    top = 72
     object ViewImage: TMenuItem
       Caption = '&View Image'
       OnClick = ViewImageClick
@@ -250,7 +250,15 @@ object Form1: TForm1
     Enabled = False
     Interval = 200
     OnTimer = Timer1Timer
-    left = 272
+    left = 216
     top = 72
+  end
+  object PrinterSetupDialog: TPrinterSetupDialog
+    left = 171
+    top = 144
+  end
+  object PrintDialog: TPrintDialog
+    left = 278
+    top = 144
   end
 end

@@ -30,7 +30,12 @@ unit FramView;
 interface
 
 uses
-  SysUtils, Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls, Math,
+{$ifdef LCL}
+  LclIntf, LclType, HtmlMisc,
+{$else}
+  Windows,
+{$endif}
+  SysUtils, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls, Math,
   UrlSubs, HtmlGlobals, HtmlBuffer, Htmlsubs, Htmlview, HTMLUn2, ReadHTML;
 
 type
@@ -244,7 +249,7 @@ type
     function FindEx(const S: WideString; MatchCase, Reverse: boolean): boolean;
     function InsertImage(Viewer: THtmlViewer; const Src: ThtString; Stream: TMemoryStream): boolean;
     function ViewerFromTarget(const Target: ThtString): THtmlViewer;
-{$ifndef FPC_TODO_PRINTING}
+{$ifndef NoMetafile}
     function NumPrinterPages(var WidthRatio: double): integer; overload;
     function NumPrinterPages: integer; overload;
     procedure Print(FromPage, ToPage: integer);
@@ -375,7 +380,7 @@ type
     procedure FVMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual; abstract;
     procedure FVMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); virtual; abstract;
     procedure FVMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual; abstract;
-    function CheckNoResize(var Lower, Upper: boolean): boolean; virtual; abstract;
+    function CheckNoResize(out Lower, Upper: boolean): boolean; virtual; abstract;
     procedure LoadFiles(); virtual; abstract;
     procedure ReLoadFiles(APosition: integer); virtual; abstract;
     procedure UnloadFiles; virtual; abstract;
@@ -399,7 +404,7 @@ type
     RefreshTimer: TTimer;
     NextFile: ThtString;
   protected
-    function CheckNoResize(var Lower, Upper: boolean): boolean; override;
+    function CheckNoResize(out Lower, Upper: boolean): boolean; override;
     function ExpandSourceName(Base, Path, S: ThtString): ThtString; virtual; abstract;
     function GetSubFrameSetClass: TSubFrameSetClass; virtual; abstract;
     procedure CreateViewer; virtual;
@@ -448,7 +453,7 @@ type
     OldRect: TRect;
 
     function GetFrameClass: TViewerFrameClass; virtual; abstract;
-    function CheckNoResize(var Lower, Upper: boolean): boolean; override;
+    function CheckNoResize(out Lower, Upper: boolean): boolean; override;
     function GetRect: TRect;
     function NearBoundary(X, Y: integer): boolean;
     procedure AddFrameNames;
@@ -803,7 +808,7 @@ end;
 
 {----------------TViewerFrameBase.CheckNoResize}
 
-function TViewerFrameBase.CheckNoResize(var Lower, Upper: boolean): boolean;
+function TViewerFrameBase.CheckNoResize(out Lower, Upper: boolean): boolean;
 begin
   Result := NoResize;
   Lower := NoResize;
@@ -917,7 +922,7 @@ begin
           EV.NewName := MasterSet.FrameViewer.HTMLExpandFilename(Source);
           if FileExists(Ev.NewName) then
           begin
-            Stream := TFileStream.Create(EV.NewName, fmOpenRead, fmShareDenyWrite);
+            Stream := TFileStream.Create(EV.NewName, fmOpenRead or fmShareDenyWrite);
             try
               EV.Doc := TBuffer.Create(Stream, EV.NewName);
             finally
@@ -1134,7 +1139,7 @@ begin
       EV.NewName := MasterSet.FrameViewer.HTMLExpandFilename(Source);
       if FileExists(Ev.NewName) then
       begin
-        Stream := TFileStream.Create(EV.NewName, fmOpenRead, fmShareDenyWrite);
+        Stream := TFileStream.Create(EV.NewName, fmOpenRead or fmShareDenyWrite);
         try
           EV.Doc := TBuffer.Create(Stream, EV.NewName);
         finally
@@ -2008,12 +2013,14 @@ end;
 
 {----------------TSubFrameSetBase.CheckNoResize}
 
-function TSubFrameSetBase.CheckNoResize(var Lower, Upper: boolean): boolean;
+function TSubFrameSetBase.CheckNoResize(out Lower, Upper: boolean): boolean;
 var
   Lw, Up: boolean;
   I: integer;
 begin
-  Result := False; Lower := False; Upper := False;
+  Result := False;
+  Lower := False;
+  Upper := False;
   for I := 0 to List.Count - 1 do
     with TFrameBase(List[I]) do
       if CheckNoResize(Lw, Up) then
@@ -2676,14 +2683,8 @@ var
   OldFrameSet: TFrameSet;
   OldPos: integer;
   Tmp: TObject;
-{$IFDEF Windows}
-  Dummy: integer;
-{$ENDIF}
 begin
   BeginProcessing;
-{$IFDEF windows}
-  Dummy :=
-{$ENDIF}
   IOResult; {remove any pending file errors}
   SendMessage(Handle, wm_SetRedraw, 0, 0);
   try
@@ -4557,7 +4558,7 @@ begin
     FOnProcessing(Self, False);
 end;
 
-{$ifndef FPC_TODO_PRINTING}
+{$ifndef NoMetafile}
 
 {----------------TFVBase.Print}
 
@@ -4648,14 +4649,8 @@ var
   OldPos: integer;
   Tmp: TObject;
   SameName: boolean;
-{$IFDEF Windows}
-  Dummy: integer;
-{$ENDIF}
 begin
   BeginProcessing;
-{$IFDEF windows}
-  Dummy :=
-{$ENDIF}
   IOResult; {remove any pending file errors}
   try
     OldFile := CurFrameSet.FCurrentFile;

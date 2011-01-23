@@ -32,39 +32,54 @@ unit FDemUnit;
 interface
 
 uses
-  Windows, SysUtils, Messages, Classes, Graphics, Controls, Forms, Dialogs,
-  ExtCtrls, Menus, MMSystem, Clipbrd, ShellAPI, FontDlg, ComCtrls, StdCtrls,
+  SysUtils, Messages, Classes, Graphics, Controls, Forms, Dialogs,
+  ExtCtrls, Menus, Clipbrd, ComCtrls, StdCtrls, Fontdlg,
 {$ifdef LCL}
-  LclIntf, LclType, LResources, FPImage,
+  LclIntf, LclType, PrintersDlgs, FPImage, HtmlMisc, WideStringsLcl,
 {$else}
-  MPlayer,
+  Windows, ShellAPI,
   {$if CompilerVersion > 15}
     XpMan,
   {$ifend}
+  {$ifdef Compiler18_Plus}
+    WideStrings,
+  {$else}
+    TntWideStrings,
+    TntClasses,
+  {$endif}
 {$endif}
-{$ifdef Compiler18_Plus}
-  WideStrings,
-{$else}
-  TntWideStrings,
-  TntClasses,
+{$ifndef MultiMediaMissing}
+  MPlayer, MMSystem,
 {$endif}
+{$ifndef MetaFileMissing}
+  MetaFilePrinter,
+{$endif}
+  PreviewForm,
 {$ifdef UseTNT}
   TntStdCtrls,
   SubmitTnt,
 {$else UseTNT}
-  {$ifdef UseElPack}
-  ElListBox, ElCombos, ElEdits, ElPopBtn,
-  {$else UseElPack}
-  {$endif UseElPack}
   Submit,
 {$endif UseTNT}
-  HtmlGlobals, HtmlBuffer, UrlSubs, StyleUn, Readhtml, HTMLsubs, HTMLun2, Htmlview, FramView,
-  DemoSubs, HTMLAbt, PreviewForm, ImgForm;
+  HtmlGlobals,
+  HtmlBuffer,
+  URLSubs,
+  StyleUn,
+  ReadHTML,
+  HTMLSubs,
+  HTMLUn2,
+  Htmlview,
+  FramView,
+  DemoSubs,
+  Htmlabt,
+  ImgForm;
 
 const
   MaxHistories = 6;  {size of History list}
 
 type
+
+  { TForm1 }
 
   TForm1 = class(TForm)
     About1: TMenuItem;
@@ -103,12 +118,13 @@ type
     Panel3: TPanel;
     ProgressBar: TProgressBar;
     InfoPanel: TPanel;
-{$ifdef LCL}
-{$else}
+{$ifdef MsWindows}
+  {$ifndef LCL}
     MediaPlayer: TMediaPlayer;
+  {$endif}
+{$endif}
     PrintDialog: TPrintDialog;
     PrinterSetupDialog: TPrinterSetupDialog;
-{$endif}
     procedure About1Click(Sender: TObject);
     procedure BackButtonClick(Sender: TObject);
     procedure Copy1Click(Sender: TObject);
@@ -169,8 +185,10 @@ type
     Histories: array[0..MaxHistories-1] of TMenuItem;
     FoundObject: TImageObj;
     NewWindowFile: string;
+{$ifdef MsWindows}
     MediaCount: integer;
     ThePlayer: TOBject;
+{$endif}
     TimerCount: integer;
     OldTitle: ThtString;
     HintWindow: ThtHintWindow;
@@ -191,8 +209,9 @@ var
 implementation
 
 {$ifdef LCL}
+  {$R *.lfm}
 {$else}
-{$R *.DFM}
+  {$R *.dfm}
 {$endif}
 
 procedure TForm1.FormCreate(Sender: TObject);
@@ -228,7 +247,10 @@ begin
       Tag := I;
     end;
   end;
+{$ifdef LCL}
+{$else}
   DragAcceptFiles(Handle, True);
+{$endif}
   HintWindow := ThtHintWindow.Create(Self);
   HintWindow.Color := $CCFFFF;
 
@@ -305,7 +327,9 @@ if (I <= 2) or (J > 0) then
   if Ext = '.WAV' then
     begin
     Handled := True;
+{$ifndef MultiMediaMissing}
     sndPlaySound(StrPCopy(PC, S), snd_ASync);
+{$endif}
     end
   else if Ext = '.EXE' then
     begin
@@ -326,7 +350,11 @@ J := Pos('HTTP://', UpperCase(URL));
 if (I > 0) or (J > 0) then
   begin
   {Note: ShellExecute causes problems when run from Delphi 4 IDE}
+{$ifdef LCL}
+  OpenDocument(StrPCopy(PC, URL));
+{$else}
   ShellExecute(Handle, nil, StrPCopy(PC, URL), nil, nil, SW_SHOWNORMAL);
+{$endif}
   Handled := True;
   Exit;
   end;
@@ -381,11 +409,6 @@ var
   S: string;
   I: integer;
 begin
-{$ifdef LCL}
-  Print1.Visible := False;
-  PrinterSetup.Visible := False;
-  PrintPreview1.Visible := False;
-{$endif}
 if (ParamCount >= 1) then
   begin            {Parameter is file to load}
   S := CmdLine;
@@ -505,15 +528,12 @@ end;
 
 procedure TForm1.Print1Click(Sender: TObject);
 begin
-{$ifdef LCL}
-{$else}
   with PrintDialog do
     if Execute then
       if PrintRange = prAllPages then
         FrameViewer.Print(1, 9999)
       else
         FrameViewer.Print(FromPage, ToPage);
-{$endif}
 end;
 
 procedure TForm1.File1Click(Sender: TObject);
@@ -624,11 +644,14 @@ var
   S: string;
   Count: integer;
 begin
+{$ifdef LCL}
+{$else}
   Count := DragQueryFile(Message.WParam, 0, @S[1], 200);
   SetLength(S, Count);
   DragFinish(Message.WParam);
   if Count >0 then
     FrameViewer.LoadFromFile(S);
+{$endif}
   Message.Result := 0;
 end;
 
@@ -652,8 +675,7 @@ end;
 
 procedure TForm1.MediaPlayerNotify(Sender: TObject);
 begin
-{$ifdef LCL}
-{$else}
+{$ifndef MultiMediaMissing}
   try
     With MediaPlayer do
       if NotifyValue = nvSuccessful then
@@ -676,8 +698,7 @@ end;
 
 procedure TForm1.SoundRequest(Sender: TObject; const SRC: ThtString; Loop: Integer; Terminate: Boolean);
 begin
-{$ifdef LCL}
-{$else}
+{$ifndef MultiMediaMissing}
   try
     with MediaPlayer do
       if Terminate then
@@ -708,29 +729,25 @@ end;
 procedure TForm1.FrameViewerObjectClick(Sender, Obj: TObject; const OnClick: ThtString);
 var
   S: ThtString;
+  CB: TCheckBoxFormControlObj absolute Obj;
+  RB: TRadioButtonFormControlObj absolute Obj;
 begin
   if OnClick = 'display' then
   begin
-    if Obj is TFormControlObj then
-      with TFormControlObj(Obj) do
-      begin
-        if TheControl is TCheckBox then
-          with TCheckBox(TheControl) do
-          begin
-            S := Value + ' is ';
-            if Checked then
-              S := S + 'checked'
-            else
-              S := S + 'unchecked';
-            MessageDlg(S, mtCustom, [mbOK], 0);
-          end
-        else if TheControl is TRadioButton then
-          with TRadioButton(TheControl) do
-          begin
-            S := Value + ' is checked';
-            MessageDlg(S, mtCustom, [mbOK], 0);
-          end;
-      end;
+    if Obj is TCheckBoxFormControlObj then
+    begin
+      S := CB.Value + ' is ';
+      if CB.Checked then
+        S := S + 'checked'
+      else
+        S := S + 'unchecked';
+      MessageDlg(S, mtCustom, [mbOK], 0);
+    end
+    else if Obj is TRadioButtonFormControlObj then
+    begin
+      S := RB.Value + ' is checked';
+      MessageDlg(S, mtCustom, [mbOK], 0);
+    end;
   end
   else if OnClick <> '' then
     with TAboutBox.CreateIt(Self, OnClick) do
@@ -764,7 +781,7 @@ begin
         try
           if FileExists(Filename) then
           begin
-            Stream := TFileStream.Create(Filename, fmOpenRead, fmShareDenyWrite);
+            Stream := TFileStream.Create(Filename, fmOpenRead or fmShareDenyWrite);
             IncludedDocument := TBuffer.Create(Stream);
           end
         except
@@ -836,17 +853,10 @@ end;
 
 procedure TForm1.PrinterSetupClick(Sender: TObject);
 begin
-{$ifdef LCL}
-{$else}
   PrinterSetupDialog.Execute;
-{$endif}
 end;
 
 procedure TForm1.PrintPreview1Click(Sender: TObject);
-{$ifdef LCL}
-begin
-end;
-{$else}
 var
   pf: TPreviewForm;
   Viewer: ThtmlViewer;
@@ -864,7 +874,6 @@ begin
     end;
   end;
 end;
-{$endif}
 
 procedure TForm1.FrameViewerMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
 var
@@ -902,7 +911,6 @@ var
   Pt, Pt1: TPoint;
   ARect: TRect;
   TitleStr: ThtString;
-
 begin
   if not Assigned(TitleViewer) then
   begin
@@ -933,8 +941,8 @@ begin
       CloseAll
     else if (TimerCount >= StartCount) and not HintVisible and (HintWindow <> nil) then
     begin
-      ARect := HintWindow.CalcHintRect(300, TitleStr, Nil);
-      HintWindow.ActivateHint(Rect(Pt.X, Pt.Y + 18, Pt.X + ARect.Right, Pt.Y + 18 + ARect.Bottom), TitleStr);
+      ARect := HintWindow.CalcHintRect(300, {$ifdef LCL}Utf8Encode{$endif}(TitleStr), Nil);
+      HintWindow.ActivateHint(Rect(Pt.X, Pt.Y + 18, Pt.X + ARect.Right, Pt.Y + 18 + ARect.Bottom), {$ifdef LCL}Utf8Encode{$endif}(TitleStr));
       HintVisible := True;
     end;
 except
@@ -1019,18 +1027,19 @@ end;
 procedure TForm1.UpdateCaption;
 begin
   if FrameViewer.DocumentTitle <> '' then
+{$ifdef LCL}
+    Caption := 'FrameViewer Demo - ' + UTF8Encode(FrameViewer.DocumentTitle)
+{$else}
     Caption := 'FrameViewer Demo - ' + FrameViewer.DocumentTitle
+{$endif}
   else
     Caption := 'FrameViewer Demo - <untitled document>';
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
-  CloseAll;          
+  CloseAll;
 end;
 
-initialization
-{$ifdef LCL}
-{$I FDemUnit.lrs}
-{$endif}
 end.
+
