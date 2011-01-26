@@ -2258,22 +2258,21 @@ begin
   end;
 end;
 
+{----------------GetImageAndMaskFromStream}
 {$IFNDEF NoGDIPlus}
 var
-  Unique: Integer = 183902;
+  TempPathInited: Boolean;
+  TempPath: array [0..Max_Path] of char;
 {$ENDIF !NoGDIPlus}
-
-{----------------GetImageAndMaskFromStream}
 
 function GetImageAndMaskFromStream(Stream: TStream;
   var Transparent: Transparency; var AMask: TBitmap): TgpObject;
 {$IFNDEF NoGDIPlus}
 var
   Filename: string;
-  Path: PChar;
   F: TFileStream;
   I: Integer;
-  {$ENDIF !NoGDIPlus}
+{$ENDIF !NoGDIPlus}
 begin
   Result := nil;
   AMask := nil;
@@ -2285,17 +2284,14 @@ begin
   if GDIPlusActive and (KindOfImage(Stream) = png) then
   begin
     try
-      Path := StrAlloc(MAX_PATH);
-      try
-        GetTempPath(Max_Path, Path);
-        SetLength(Filename, Max_Path+1);
-        GetTempFilename(Path, 'png', Unique, PChar(Filename));
-      finally
-        StrDispose(Path);
+      if not TempPathInited then
+      begin
+        GetTempPath(Max_Path, TempPath);
+        TempPathInited := True;
       end;
-      Inc(Unique);
-      I := Pos(#0, Filename);
-      SetLength(Filename, I - 1);
+      SetLength(Filename, Max_Path+1);
+      GetTempFilename(TempPath, 'png', 0, PChar(Filename));
+      SetLength(Filename, Pos(#0, Filename) - 1);
       F := TFileStream.Create(Filename, fmCreate, fmShareExclusive);
       try
         F.CopyFrom(Stream, Stream.Size);
