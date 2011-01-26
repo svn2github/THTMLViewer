@@ -2075,7 +2075,7 @@ var
 begin
   Result := nil;
   AMask := nil;
-  if not Assigned(Stream) or (Stream.Memory = nil) or (Stream.Size < 20) then
+  if not Assigned(Stream) or (Stream.Size < 20) then
     Exit;
   Stream.Position := 0;
   try
@@ -2142,24 +2142,25 @@ begin
   end;
 end;
 
-var
-  Unique: Integer = 183902;
-
 {----------------GetImageAndMaskFromStream}
+{$IFNDEF NoGDIPlus}
+var
+  TempPathInited: Boolean;
+  TempPath: array [0..Max_Path] of char;
+{$ENDIF !NoGDIPlus}
 
 function GetImageAndMaskFromStream(Stream: TMemoryStream;
   var Transparent: Transparency; var AMask: TBitmap): TgpObject;
 {$IFNDEF NoGDIPlus}
 var
   Filename: string;
-  Path: PChar;
-  F: file;
+  F: TFileStream;
   I: Integer;
-  {$ENDIF !NoGDIPlus}
+{$ENDIF !NoGDIPlus}
 begin
   Result := nil;
   AMask := nil;
-  if not Assigned(Stream) or (Stream.Memory = nil) or (Stream.Size < 20) then
+  if not Assigned(Stream) or (Stream.Size < 20) then
     Exit;
   Stream.Position := 0;
 
@@ -2167,21 +2168,20 @@ begin
   if GDIPlusActive and (KindOfImage(Stream.Memory) = png) then
   begin
     try
-      Path := StrAlloc(MAX_PATH);
-      try
-        GetTempPath(Max_Path, Path);
-        SetLength(Filename, Max_Path+1);
-        GetTempFilename(Path, 'png', Unique, PChar(Filename));
-      finally
-        StrDispose(Path);
+      if not TempPathInited then
+      begin
+        GetTempPath(Max_Path, TempPath);
+        TempPathInited := True;
       end;
-      Inc(Unique);
-      I := Pos(#0, Filename);
-      SetLength(Filename, I - 1);
-      AssignFile(F, Filename);
-      ReWrite(F, 1);
-      BlockWrite(F, Stream.Memory^, Stream.Size);
-      CloseFile(F);
+      SetLength(Filename, Max_Path+1);
+      GetTempFilename(TempPath, 'png', 0, PChar(Filename));
+      SetLength(Filename, Pos(#0, Filename) - 1);
+      F := TFileStream.Create(Filename, fmCreate, fmShareExclusive);
+      try
+        F.CopyFrom(Stream, Stream.Size);
+      finally
+        F.Free;
+      end;
       Result := TgpImage.Create(Filename, True); {True because it's a temporary file}
       Transparent := NotTransp;
     except
