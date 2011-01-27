@@ -63,8 +63,8 @@ RootDir=
 [Version Info]
 IncludeVerInfo=1
 AutoIncBuild=0
-MajorVer=10
-MinorVer=2
+MajorVer=11
+MinorVer=0
 Release=0
 Build=0
 Debug=0
@@ -77,13 +77,13 @@ CodePage=1252
 [Version Info Keys]
 CompanyName=HtmlViewer Team
 FileDescription=
-FileVersion=10.2.0.0
+FileVersion=11.0.0.0
 InternalName=
 LegalCopyright=
 LegalTrademarks=
 OriginalFilename=
 ProductName=FrameViewer Demo
-ProductVersion=10.0.0.0
+ProductVersion=11.0.0.0
 Comments=meet us at http://code.google.com/p/thtmlviewer/
 [HistoryLists\hlConditionals]
 Count=1
@@ -92,8 +92,9 @@ Item0=DEBUG
 Count=1
 Item0=WinTypes=Windows;WinProcs=Windows;DbiTypes=BDE;DbiProcs=BDE;DbiErrs=BDE;
 [HistoryLists\hlSearchPath]
-Count=1
-Item0=$(DELPHI)\Lib\Debug
+Count=2
+Item0=$(DELPHI)\Lib\Debug;..\..\package\lib\delphi6;..\..\source;L:\src\SHAREW~1\jedi\jcl\jcl\lib\d6\debug
+Item1=$(DELPHI)\Lib\Debug
 [HistoryLists\hlUnitOutputDirectory]
 Count=1
 Item0=lib\delphi6

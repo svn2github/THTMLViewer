@@ -40,7 +40,7 @@
         <PackageName Value="LCL"/>
       </Item3>
     </RequiredPackages>
-    <Units Count="89">
+    <Units Count="90">
       <Unit0>
         <Filename Value="FrameDemLaz.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -48,7 +48,7 @@
         <WindowIndex Value="0"/>
         <TopLine Value="1"/>
         <CursorPos X="43" Y="37"/>
-        <UsageCount Value="122"/>
+        <UsageCount Value="123"/>
       </Unit0>
       <Unit1>
         <Filename Value="Unit1.pas"/>
@@ -92,7 +92,7 @@
         <WindowIndex Value="0"/>
         <TopLine Value="751"/>
         <CursorPos X="65" Y="784"/>
-        <UsageCount Value="121"/>
+        <UsageCount Value="122"/>
       </Unit4>
       <Unit5>
         <Filename Value="FDemUnit.lfm"/>
@@ -122,10 +122,12 @@
       <Unit8>
         <Filename Value="..\..\source\HTMLUn2.pas"/>
         <UnitName Value="HTMLUn2"/>
+        <EditorIndex Value="8"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="2432"/>
-        <CursorPos X="54" Y="2465"/>
+        <TopLine Value="4210"/>
+        <CursorPos X="3" Y="4214"/>
         <UsageCount Value="52"/>
+        <Loaded Value="True"/>
       </Unit8>
       <Unit9>
         <Filename Value="C:\FPC\2.4.2\source\rtl\win\wininc\redef.inc"/>
@@ -137,10 +139,13 @@
       <Unit10>
         <Filename Value="..\..\source\HTMLSubs.pas"/>
         <UnitName Value="HTMLSubs"/>
+        <IsVisibleTab Value="True"/>
+        <EditorIndex Value="7"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="2195"/>
-        <CursorPos X="1" Y="2219"/>
+        <TopLine Value="10995"/>
+        <CursorPos X="34" Y="11032"/>
         <UsageCount Value="56"/>
+        <Loaded Value="True"/>
       </Unit10>
       <Unit11>
         <Filename Value="..\..\source\framview.pas"/>
@@ -256,10 +261,12 @@
       <Unit25>
         <Filename Value="..\..\source\MetaFilePrinter.pas"/>
         <UnitName Value="MetaFilePrinter"/>
+        <EditorIndex Value="5"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="552"/>
-        <CursorPos X="8" Y="588"/>
-        <UsageCount Value="9"/>
+        <TopLine Value="44"/>
+        <CursorPos X="21" Y="77"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
       </Unit25>
       <Unit26>
         <Filename Value="C:\FPC\2.4.2\source\rtl\win\printer.pp"/>
@@ -279,11 +286,10 @@
       <Unit28>
         <Filename Value="..\..\source\htmlview.pas"/>
         <UnitName Value="HtmlView"/>
-        <IsVisibleTab Value="True"/>
         <EditorIndex Value="2"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="5446"/>
-        <CursorPos X="19" Y="5494"/>
+        <TopLine Value="2661"/>
+        <CursorPos X="41" Y="2667"/>
         <UsageCount Value="43"/>
         <Bookmarks Count="2">
           <Item0 X="1" Y="3162" ID="8"/>
@@ -331,8 +337,8 @@
       <Unit34>
         <Filename Value="C:\FPC\2.4.2\source\rtl\objpas\classes\classesh.inc"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="826"/>
-        <CursorPos X="17" Y="859"/>
+        <TopLine Value="662"/>
+        <CursorPos X="14" Y="695"/>
         <UsageCount Value="11"/>
       </Unit34>
       <Unit35>
@@ -360,19 +366,18 @@
       <Unit38>
         <Filename Value="..\..\source\Htmlsbs1.pas"/>
         <UnitName Value="Htmlsbs1"/>
+        <EditorIndex Value="10"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="562"/>
-        <CursorPos X="79" Y="585"/>
-        <UsageCount Value="9"/>
-        <Bookmarks Count="1">
-          <Item0 X="27" Y="495" ID="9"/>
-        </Bookmarks>
+        <TopLine Value="772"/>
+        <CursorPos X="62" Y="810"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
       </Unit38>
       <Unit39>
         <Filename Value="D:\source\pascal\lazarus\lcl\include\winapih.inc"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="21"/>
-        <CursorPos X="1" Y="54"/>
+        <TopLine Value="91"/>
+        <CursorPos X="10" Y="124"/>
         <UsageCount Value="10"/>
       </Unit39>
       <Unit40>
@@ -386,18 +391,22 @@
       <Unit41>
         <Filename Value="..\..\source\widestringslcl.pas"/>
         <UnitName Value="WideStringsLcl"/>
+        <EditorIndex Value="3"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="829"/>
-        <CursorPos X="27" Y="855"/>
+        <TopLine Value="607"/>
+        <CursorPos X="33" Y="646"/>
         <UsageCount Value="11"/>
+        <Loaded Value="True"/>
       </Unit41>
       <Unit42>
         <Filename Value="..\..\source\StyleUn.pas"/>
         <UnitName Value="StyleUn"/>
+        <EditorIndex Value="11"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="2480"/>
-        <CursorPos X="1" Y="2514"/>
+        <TopLine Value="2752"/>
+        <CursorPos X="37" Y="2760"/>
         <UsageCount Value="33"/>
+        <Loaded Value="True"/>
       </Unit42>
       <Unit43>
         <Filename Value="..\..\source\htmlgif1.pas"/>
@@ -419,10 +428,12 @@
       <Unit45>
         <Filename Value="..\..\source\HtmlBuffer.pas"/>
         <UnitName Value="HtmlBuffer"/>
+        <EditorIndex Value="4"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="388"/>
-        <CursorPos X="78" Y="406"/>
-        <UsageCount Value="5"/>
+        <TopLine Value="132"/>
+        <CursorPos X="49" Y="165"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
       </Unit45>
       <Unit46>
         <Filename Value="..\..\source\ReadHTML.pas"/>
@@ -453,10 +464,12 @@
       <Unit49>
         <Filename Value="..\..\source\FramBrwz.pas"/>
         <UnitName Value="FramBrwz"/>
+        <EditorIndex Value="9"/>
         <WindowIndex Value="0"/>
-        <TopLine Value="1"/>
-        <CursorPos X="49" Y="45"/>
-        <UsageCount Value="5"/>
+        <TopLine Value="1073"/>
+        <CursorPos X="38" Y="1124"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
       </Unit49>
       <Unit50>
         <Filename Value="D:\source\pascal\lazarus\lcl\include\rasterimage.inc"/>
@@ -749,116 +762,138 @@
         <CursorPos X="18" Y="27"/>
         <UsageCount Value="10"/>
       </Unit88>
+      <Unit89>
+        <Filename Value="..\..\source\URLSubs.pas"/>
+        <UnitName Value="URLSubs"/>
+        <EditorIndex Value="6"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="379"/>
+        <CursorPos X="6" Y="381"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
+      </Unit89>
     </Units>
-    <JumpHistory Count="27" HistoryIndex="26">
+    <JumpHistory Count="30" HistoryIndex="29">
       <Position1>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="2007" Column="20" TopLine="1974"/>
+        <Filename Value="..\..\source\MetaFilePrinter.pas"/>
+        <Caret Line="69" Column="1" TopLine="25"/>
       </Position1>
       <Position2>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="2028" Column="16" TopLine="2010"/>
+        <Filename Value="..\..\source\URLSubs.pas"/>
+        <Caret Line="1" Column="1" TopLine="1"/>
       </Position2>
       <Position3>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="2116" Column="19" TopLine="2076"/>
+        <Filename Value="..\..\source\URLSubs.pas"/>
+        <Caret Line="288" Column="7" TopLine="255"/>
       </Position3>
       <Position4>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="2115" Column="19" TopLine="2076"/>
+        <Filename Value="..\..\source\URLSubs.pas"/>
+        <Caret Line="38" Column="45" TopLine="5"/>
       </Position4>
       <Position5>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1944" Column="59" TopLine="1930"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="1114" Column="58" TopLine="1113"/>
       </Position5>
       <Position6>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1939" Column="4" TopLine="1906"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="621" Column="34" TopLine="588"/>
       </Position6>
       <Position7>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1940" Column="27" TopLine="1907"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="1565" Column="40" TopLine="1532"/>
       </Position7>
       <Position8>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="52" Column="35" TopLine="19"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="2067" Column="19" TopLine="2034"/>
       </Position8>
       <Position9>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1949" Column="25" TopLine="1928"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="4144" Column="3" TopLine="4138"/>
       </Position9>
       <Position10>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1966" Column="1" TopLine="1926"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="5902" Column="52" TopLine="5869"/>
       </Position10>
       <Position11>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1948" Column="12" TopLine="1916"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="713" Column="5" TopLine="680"/>
       </Position11>
       <Position12>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1967" Column="17" TopLine="1928"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="7512" Column="27" TopLine="7479"/>
       </Position12>
       <Position13>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1967" Column="16" TopLine="1928"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="7923" Column="22" TopLine="7890"/>
       </Position13>
       <Position14>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1967" Column="11" TopLine="1934"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="8197" Column="21" TopLine="8164"/>
       </Position14>
       <Position15>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="2157" Column="22" TopLine="2124"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="296" Column="10" TopLine="263"/>
       </Position15>
       <Position16>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="1970" Column="17" TopLine="1917"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="2138" Column="35" TopLine="2105"/>
       </Position16>
       <Position17>
-        <Filename Value="..\..\source\htmlgif1.pas"/>
-        <Caret Line="2054" Column="44" TopLine="2001"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="2686" Column="32" TopLine="2653"/>
       </Position17>
       <Position18>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="50" Column="14" TopLine="17"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="2881" Column="11" TopLine="2848"/>
       </Position18>
       <Position19>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="389" Column="14" TopLine="356"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="2785" Column="10" TopLine="2755"/>
       </Position19>
       <Position20>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="149" Column="21" TopLine="116"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="2881" Column="6" TopLine="2848"/>
       </Position20>
       <Position21>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="389" Column="15" TopLine="330"/>
+        <Filename Value="..\..\source\StyleUn.pas"/>
+        <Caret Line="2944" Column="6" TopLine="2911"/>
       </Position21>
       <Position22>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="149" Column="58" TopLine="116"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="8197" Column="21" TopLine="8164"/>
       </Position22>
       <Position23>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="98" Column="1" TopLine="59"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="10878" Column="27" TopLine="10845"/>
       </Position23>
       <Position24>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="115" Column="5" TopLine="82"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="2620" Column="3" TopLine="2617"/>
       </Position24>
       <Position25>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="121" Column="3" TopLine="88"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="11007" Column="24" TopLine="10974"/>
       </Position25>
       <Position26>
-        <Filename Value="..\..\source\GDIPL2A.pas"/>
-        <Caret Line="99" Column="11" TopLine="81"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="2607" Column="3" TopLine="2604"/>
       </Position26>
       <Position27>
-        <Filename Value="..\..\source\htmlview.pas"/>
-        <Caret Line="777" Column="29" TopLine="750"/>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="11007" Column="26" TopLine="10986"/>
       </Position27>
+      <Position28>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="2607" Column="3" TopLine="2604"/>
+      </Position28>
+      <Position29>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="11027" Column="15" TopLine="10989"/>
+      </Position29>
+      <Position30>
+        <Filename Value="..\..\source\HTMLSubs.pas"/>
+        <Caret Line="12077" Column="71" TopLine="12044"/>
+      </Position30>
     </JumpHistory>
   </ProjectOptions>
   <CompilerOptions>
