@@ -371,7 +371,7 @@ end;
 
 function ReadURL(Item: Variant): string;
 var
-  I: integer;
+  I, J, L, N: Integer;
   S: string;
 begin
   Result := '';
@@ -381,17 +381,56 @@ begin
     I := Pos('url(', S);
     if I > 0 then
     begin
-      S := System.Copy(S, 5, Length(S));
-      I := Pos(')', S);
-      if I > 0 then
-        S := System.Copy(S, 1, I - 1);
-      if Length(S) > 2 then
-        if S[1] in ['''', '"'] then
-        begin
-          Delete(S, Length(S), 1);
-          Delete(S, 1, 1);
+      N := 0;
+      Inc(I, 3);
+      J := I;
+      L := Length(S);
+      while J < L do
+      begin
+        Inc(J);
+        case S[J] of
+          '(':
+            Inc(N);
+
+          '"':
+            while J < L do
+            begin
+              Inc(J);
+              case S[J] of
+                '"': break;
+              end;
+            end;
+
+          '''':
+            while J < L do
+            begin
+              Inc(J);
+              case S[J] of
+                '''': break;
+              end;
+            end;
+
+          ')':
+          begin
+            if N = 0 then
+              break;
+            Dec(N);
+          end;
         end;
-      Result := S;
+      end;
+      Inc(I);
+      Result := Copy(S, I, J - I);
+//      S := System.Copy(S, 5, Length(S));
+//      I := Pos(')', S);
+//      if I > 0 then
+//        S := System.Copy(S, 1, I - 1);
+//      if Length(S) > 2 then
+//        if (S[1] = '''') or (S[1] = '"') then //in ['''', '"'] then
+//        begin
+//          Delete(S, Length(S), 1);
+//          Delete(S, 1, 1);
+//        end;
+//      Result := S;
     end;
   end;
 end;

@@ -567,17 +567,26 @@ var
     end;
   end;
 
+  function CharToHexInt(Chr: Char): Integer;
+  begin
+    case Chr of
+      '0'..'9': Result := Ord(Chr) - Ord('0');
+      'A'..'F': Result := Ord(Chr) - Ord('A') + 10;
+      'a'..'f': Result := Ord(Chr) - Ord('a') + 10;
+    else
+      raise EConvertError.Create('Not a valid escape character: ''' + Chr + '''');
+    end;
+  end;
+
   procedure ReplaceEscapeChars;
   var
-    S: string;
     I: integer;
   begin
     I := Pos('%', FName);
-    while (I > 1) and (I <= Length(FName) - 2) do
+    while (I >= 1) and (I <= Length(FName) - 2) do
     begin
-      S := '$' + FName[I + 1] + FName[I + 2];
       try
-        FName[I] := chr(StrToInt(S));
+        FName[I] := Char(CharToHexInt(FName[I + 1]) * 16 + CharToHexInt(FName[I + 2]));
         Delete(FName, I + 1, 2);
       except {ignore exception}
         Exit;
