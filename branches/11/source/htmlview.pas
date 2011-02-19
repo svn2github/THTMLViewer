@@ -5470,6 +5470,7 @@ end;
 
 
 procedure TPaintPanel.Paint;
+{$ifdef OwnPaintPanelDoubleBuffering}
 var
   MemDC: HDC;
   Bm: HBitmap;
@@ -5477,6 +5478,8 @@ var
   OldPal: HPalette;
   Canvas2: TCanvas;
   X, Y, W, H: Integer;
+{$else}
+{$endif}
 begin
   if vsDontDraw in FViewer.FViewerState then
     Exit;
