@@ -127,6 +127,16 @@
 
 // Compiler defines not specific to a particlular platform.
 
+ // RAD Studio XE2 (BDS 9.0) DELPHI and BCB are no longer defined, only COMPILER
+ {$ifdef VER230}
+   {$define COMPILER_16}
+ {$endif VER230}
+
+ // RAD Studio XE (BDS 8.0) DELPHI and BCB are no longer defined, only COMPILER
+ {$ifdef VER220}
+   {$define COMPILER_15}
+ {$endif VER220}
+
  // RAD Studio 2010 (BDS 7.0) DELPHI and BCB are no longer defined, only COMPILER
  {$ifdef VER210}
    {$define COMPILER_14}
