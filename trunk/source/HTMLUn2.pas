@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -29,13 +29,22 @@ unit HTMLUn2;
 
 interface
 uses
-  Windows, SysUtils, Classes, Graphics, ClipBrd, Controls, Messages, Variants,
-  {$ifdef LCL}Interfaces, IntfGraphics, FpImage, {$endif}
-  {$IFNDEF NoGDIPlus}GDIPL2A, {$ENDIF}
-  UrlSubs, StyleUn, HtmlGlobals, HtmlGif2;
+{$ifdef LCL}
+  LclIntf, IntfGraphics, FpImage, LclType, LResources, LMessages, HtmlMisc,
+{$else}
+  Windows,
+{$endif}
+  SysUtils, Classes, Graphics, ClipBrd, Controls, Messages, Variants, Types,
+{$IFNDEF NoGDIPlus}
+  GDIPL2A,
+{$ENDIF}
+{$ifdef METAFILEMISSING}
+  MetaFilePrinter,
+{$endif}
+  StyleUn, HtmlGlobals, HtmlBuffer, HtmlGif2;
 
 const
-  VersionNo = '10.01';
+  VersionNo = '11';
   MaxHScroll = 6000; {max horizontal display in pixels}
   HandCursor = 10101;
   OldThickIBeamCursor = 2;
@@ -45,43 +54,11 @@ const
   Tokenleng = 300;
   TopLim = -200; {drawing limits}
   BotLim = 5000;
-  FmCtl = WideChar(#2);
-  ImgPan = WideChar(#4);
-  BrkCh = WideChar(#8);
-//BG, 11.09.2010: moved to this unit to reduce circular dependencies:
-  ImageSpace = 3; {extra space for left, right images}
-  ListIndent = 35;
-
-{$IFNDEF DOTNET}
-{$IFNDEF FPC}
-type
-    //needed so that in FreePascal, we can use pointers of different sizes
-{$IFDEF WIN32}
-  PtrInt = LongInt;
-  PtrUInt = LongWord;
-{$ENDIF}
-{$IFDEF WIN64}
-  PtrInt = Int64;
-  PtrUInt = Int64;
-{$ENDIF}
-//NOTE:  The code below asumes a 32bit Linux architecture (such as target i386-linux)
-{$IFDEF KYLIX}
-  PtrInt = LongInt;
-  PtrUInt = LongWord;
-{$ENDIF}
-{$ENDIF}
-{$ENDIF}
+  FmCtl = #2;
+  ImgPan = #4;
+  BrkCh = #8;
 
 type
-  TgpObject = TObject;
-  TSectionBaseList = class;
-  TFloatingObj = class;
-
-  { Like TList but frees it's items. Use only descendents of TObject! }
-  TFreeList = class(TList)
-  protected
-    procedure Notify(Ptr: Pointer; Action: TListNotification); override;
-  end;
 
   //BG, 09.09.2009: renamed TGif and TPng to TrGif and TrPng
   //  TGif interfered with same named class.
@@ -125,38 +102,58 @@ type
     ColGroupEndSy, TabIndexSy, BGPropertiesSy, DisabledSy,
     TopMarginSy, LeftMarginSy, LabelSy, LabelEndSy, THeadSy, TBodySy, TFootSy,
     THeadEndSy, TBodyEndSy, TFootEndSy, ObjectSy, ObjectEndSy, ParamSy,
-    ReadonlySy, EolSy);
+    ReadonlySy, EolSy, MediaSy);
+
+//------------------------------------------------------------------------------
+
+  { Like TList but frees it's items. Use only descendents of TObject! }
+  //BG, 03.03.2011: what about TObjectList?
+  TFreeList = class(TList)
+  protected
+    procedure Notify(Ptr: Pointer; Action: TListNotification); override;
+  end;
+
+//------------------------------------------------------------------------------
+// tag attributes
+//------------------------------------------------------------------------------
 
   TAttribute = class(TObject) {holds a tag attribute}
   public
     Which: Symb; {symbol of attribute such as HrefSy}
-    WhichName: string;
+    WhichName: ThtString;
     Value: Integer; {numeric value if appropriate}
     Percent: boolean; {if value is in percent}
-    Name: string; {String (mixed case), value after '=' sign}
+    Name: ThtString; {ThtString (mixed case), value after '=' sign}
     CodePage: Integer;
-    constructor Create(ASym: Symb; AValue: Integer;
-      const NameStr, ValueStr: string; ACodePage: Integer);
+    constructor Create(ASym: Symb; AValue: Integer; const NameStr, ValueStr: ThtString; ACodePage: Integer);
   end;
 
   TAttributeList = class(TFreeList) {a list of tag attributes,(TAttributes)}
   private
     Prop: TProperties;
-    SaveID: string;
-    function GetClass: string;
-    function GetID: string;
-    function GetTitle: string;
+    SaveID: ThtString;
+    function GetClass: ThtString;
+    function GetID: ThtString;
+    function GetTitle: ThtString;
     function GetStyle: TProperties;
+    function GetAttribute(Index: Integer): TAttribute; {$ifdef UseInline} inline; {$endif}
   public
     destructor Destroy; override;
     procedure Clear; override;
-    function Find(Sy: Symb; var T: TAttribute): boolean;
-    function CreateStringList: TStringList;
-    property TheClass: string read GetClass;
-    property TheID: string read GetID;
-    property TheTitle: string read GetTitle;
+    function Find(Sy: Symb; var T: TAttribute): boolean; {$ifdef UseInline} inline; {$endif}
+    function CreateStringList: ThtStringList;
+    property TheClass: ThtString read GetClass;
+    property TheID: ThtString read GetID;
+    property TheTitle: ThtString read GetTitle;
     property TheStyle: TProperties read GetStyle;
+    property Items[Index: Integer]: TAttribute read GetAttribute; default;
   end;
+
+//------------------------------------------------------------------------------
+// image cache
+//------------------------------------------------------------------------------
+
+  TgpObject = TObject;
 
   TBitmapItem = class(TObject)
   public
@@ -169,21 +166,29 @@ type
     destructor Destroy; override;
   end;
 
-  TStringBitmapList = class(TStringList)
-      {a list of bitmap filenames and TBitmapItems}
+  TStringBitmapList = class(ThtStringList)
+  {a list of bitmap filenames and TBitmapItems}
+  private
+    FMaxCache: Integer;
+    function GetObject(Index: Integer): TBitmapItem; reintroduce;
   public
-    MaxCache: Integer;
     constructor Create;
     destructor Destroy; override;
-    procedure Clear; override;
-    function AddObject(const S: string; AObject: TObject): Integer; override;
-    procedure DecUsage(const S: string);
-    procedure IncUsage(const S: string);
+    function AddObject(const S: ThtString; AObject: TBitmapItem): Integer; reintroduce;
+    function GetImage(I: Integer): TgpObject; {$ifdef UseInline} inline; {$endif}
     procedure BumpAndCheck;
+    procedure Clear; override;
+    procedure DecUsage(const S: ThtString);
+    procedure IncUsage(const S: ThtString);
     procedure PurgeCache;
-    function GetImage(I: Integer): TgpObject;
     procedure SetCacheCount(N: Integer);
+    property MaxCache: Integer read FMaxCache;
+    property Objects[Index: Integer]: TBitmapItem read GetObject;
   end;
+
+//------------------------------------------------------------------------------
+// copy to clipboard support
+//------------------------------------------------------------------------------
 
   SelTextCount = class(TObject)
   private
@@ -192,7 +197,7 @@ type
     Leng: Integer;
   public
     procedure AddText(P: PWideChar; Size: Integer); virtual;
-    procedure AddTextCR(P: PWideChar; Size: Integer);
+    procedure AddTextCR(P: PWideChar; Size: Integer); {$ifdef UseInline} inline; {$endif}
     function Terminate: Integer; virtual;
   end;
 
@@ -212,42 +217,53 @@ type
     function Terminate: Integer; override;
   end;
 
-  TutText = class {holds start and end point of URL text}
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+
+  {holds start and end point of URL text}
+  TutText = record //BG, 03.03.2011: changed to record. no need to use a class
     Start: Integer;
     Last: Integer;
   end;
 
   TUrlTarget = class(TObject)
-  private
-    function GetStart: Integer;
-    function GetLast: Integer;
   public
-    URL,
-      Target: string;
+    URL: ThtString;
+    Target: ThtString;
     ID: Integer;
-    Attr: string;
+    Attr: ThtString;
     utText: TutText;
     TabIndex: Integer;
     constructor Create;
-    procedure Copy(UT: TUrlTarget);
     destructor Destroy; override;
-    procedure Assign(const AnUrl, ATarget: string; L: TAttributeList; AStart: Integer);
+    procedure Assign(const AnUrl, ATarget: ThtString; L: TAttributeList; AStart: Integer); overload;
+    procedure Assign(const UT: TUrlTarget); overload;
     procedure Clear;
-    procedure SetLast(List: TList; ALast: Integer);
-    property Start: Integer read GetStart;
-    property Last: Integer read GetLast;
+    procedure SetLast(List: TList {of TFontObjBase}; ALast: Integer);
+    property Start: Integer read utText.Start;
+    property Last: Integer read utText.Last;
   end;
 
   TMapItem = class(TObject) {holds a client map info}
-    MapName: string;
-    Areas: TStringList; {holds the URL and region handle}
-    AreaTargets: TStringList; {holds the target window}
-    AreaTitles: TStringList; {the Title strings}
+    MapName: ThtString;
+    Areas: ThtStringList; {holds the URL and region handle}
+    AreaTargets: ThtStringList; {holds the target window}
+    AreaTitles: ThtStringList; {the Title strings}
     constructor Create;
     destructor Destroy; override;
-    function GetURL(X, Y: Integer; var URLTarg: TURLTarget; var ATitle: string): boolean;
+    function GetURL(X, Y: Integer; var URLTarg: TURLTarget; var ATitle: ThtString): boolean;
     procedure AddArea(Attrib: TAttributeList);
   end;
+
+  TFontObjBase = class(TObject) {font information}
+  public
+    UrlTarget: TUrlTarget;
+  end;
+
+//------------------------------------------------------------------------------
+// device independent bitmap wrapper
+//------------------------------------------------------------------------------
 
   TDib = class(TObject)
   private
@@ -264,71 +280,84 @@ type
     constructor CreateDIB(DC: HDC; Bitmap: TBitmap);
     destructor Destroy; override;
     function CreateDIBmp: hBitmap;
-    procedure DrawDIB(DC: HDC; X: Integer; Y: Integer; W, H: Integer;
-      ROP: DWord);
+    procedure DrawDIB(DC: HDC; X, Y, W, H: Integer; ROP: DWord);
   end;
 
+//------------------------------------------------------------------------------
+// indentation manager
+//------------------------------------------------------------------------------
+
   IndentRec = class(TObject)
-    X: Integer; {indent for this record}
-    YT, YB: Integer; {top and bottom Y values for this record}
-    ID: TObject; {level inicator for this record, 0 for not applicable}
-    Float: boolean; {set if Floating block boundary}
+    X: Integer;   // left or right indentation relative to LfEdge.
+    YT: Integer;  // top Y inclusive coordinate for this record relative to document top.
+    YB: Integer;  // bottom Y exclusive coordinate for this record relative to document top.
+    ID: TObject;  // block level indicator for this record, 0 for not applicable
   end;
 
   TIndentManager = class(TObject)
+  private
+    function LeftEdge(Y: Integer): Integer;
+    function RightEdge(Y: Integer): Integer;
   public
-    Width, ClipWidth: Integer;
-    L, R: TFreeList; {holds info (IndentRec's) on left and right indents}
-    CurrentID: TObject; {the current level (a TBlock pointer)}
-    LfEdge, RtEdge: Integer; {current extreme edges}
+    LfEdge: Integer;    // left edge of the block content area.
+                        // TCell.DoLogic calculates with LfEdge = 0.
+                        // TCell.Draw then may shift the block by setting LfEdge to X.
+    Width: Integer;     // width of the block content area.
+    ClipWidth: Integer; // clip width ???
+    L: TFreeList;       // list of left side indentations of type IndentRec.
+    R: TFreeList;       // list of right side indentations of type IndentRec.
+    CurrentID: TObject; // the current block level (a TBlock pointer)
   public
     constructor Create;
     destructor Destroy; override;
-    function GetNextLeftXY(var Y: Integer; X, ThisWidth, MaxWidth, MinIndex: Integer): Integer;
+    function AddLeft(YT, YB, W: Integer): IndentRec;
+    function AddRight(YT, YB, W: Integer): IndentRec;
+    function AlignLeft(var Y: Integer; W: Integer; SpW: Integer = 0; SpH: Integer = 0): Integer;
+    function AlignRight(var Y: Integer; W: Integer; SpW: Integer = 0; SpH: Integer = 0): Integer;
     function GetNextWiderY(Y: Integer): Integer;
     function ImageBottom: Integer;
     function LeftIndent(Y: Integer): Integer;
     function RightSide(Y: Integer): Integer;
     function SetLeftIndent(XLeft, Y: Integer): Integer;
     function SetRightIndent(XRight, Y: Integer): Integer;
-    procedure Clear;
     procedure FreeLeftIndentRec(I: Integer);
     procedure FreeRightIndentRec(I: Integer);
     procedure GetClearY(var CL, CR: Integer);
-    procedure Reset(Lf, Rt: Integer);
-    procedure Update(Y: Integer; Img: TFloatingObj);
-    procedure UpdateBlock(Y: Integer; IW: Integer; IH: Integer; Justify: AlignmentType);
-    procedure UpdateTable(Y: Integer; IW: Integer; IH: Integer; Justify: JustifyType);
+    procedure Init(Lf, Wd: Integer);
+    procedure Reset(Lf: Integer);
   end;
 
-  AllocRec = class(TObject)
-    Ptr: Pointer;
-    ASize: Integer;
-    AHandle: THandle;
-  end;
+//------------------------------------------------------------------------------
+// parser
+//------------------------------------------------------------------------------
 
   IndexArray = array[1..TokenLeng] of Integer;
   PIndexArray = ^IndexArray;
   ChrArray = array[1..TokenLeng] of WideChar;
+  PChrArray = ^ChrArray;
 
-  {Simplified variant of TokenObj, to temporarily keep a string of ANSI
+  {Simplified variant of TokenObj, to temporarily keep a ThtString of ANSI
    characters along with their original indices.}
+
+  { TCharCollection }
+
   TCharCollection = class
   private
-    FChars: string;
+    FChars: ThtString;
     FIndices: PIndexArray;
     FCurrentIndex: Integer;
     function GetSize: Integer;
-    function GetAsString: string;
+    function GetAsString: ThtString;
   public
     constructor Create;
     destructor Destroy; override;
-    procedure Add(C: Char; Index: Integer);
+    procedure Add(C: AnsiChar; Index: Integer); overload;
+    procedure Add(C: WideChar; Index: Integer); overload;
+    procedure Add(const S: ThtString; Index: Integer); overload;
     procedure Clear;
     procedure Concat(T: TCharCollection);
 
-    property AsString: string read GetAsString;
-    property Chars: string read FChars;
+    property AsString: ThtString read GetAsString;
     property Indices: PIndexArray read FIndices;
     property Size: Integer read GetSize;
   end;
@@ -337,52 +366,33 @@ type
   private
     St: WideString;
     StringOK: boolean;
+    FCapacity: Integer;
+    FCount: Integer;
     function GetString: WideString;
+    procedure SetCapacity(NewCapacity: Integer);
   public
-    C: ^ChrArray;
-    I: ^IndexArray;
-    MaxIndex, Leng: Integer;
+    C: PChrArray;
+    I: PIndexArray;
     constructor Create;
     destructor Destroy; override;
     procedure AddUnicodeChar(Ch: WideChar; Ind: Integer);
-    procedure AddString(S: TCharCollection; CodePage: Integer);
+    procedure AddString(S: TCharCollection);
     procedure Concat(T: TokenObj);
     procedure Clear;
     procedure Remove(N: Integer);
     procedure Replace(N: Integer; Ch: WideChar);
 
+    property Capacity: Integer read FCapacity write SetCapacity;
+    property Count: Integer read FCount;
     property S: WideString read GetString;
   end;
 
-  TIDObject = class(TObject)
-  protected
-    function GetYPosition: Integer; virtual; abstract;
-  public
-    property YPosition: Integer read GetYPosition;
-  end;
-
-  TChPosObj = class(TIDObject)
-  private
-    FChPos: Integer;
-    FList: TSectionBaseList;
-  protected
-    function GetYPosition: Integer; override;
-    property ChPos: Integer read FChPos;
-    property List: TSectionBaseList read FList;
-  end;
-
-  TIDNameList = class(TStringList)
-  private
-    OwnerList: TSectionBaseList;
-  public
-    constructor Create(List: TSectionBaseList);
-    destructor Destroy; override;
-    procedure Clear; override;
-    function AddObject(const S: string; AObject: TObject): Integer; override;
-    procedure AddChPosObject(const S: string; Pos: Integer);
-  end;
-
 {$IFNDEF NoMetafile}
+
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+
   ThtMetaFile = class(TMetaFile)
   private
     FBitmap, FMask: TBitmap;
@@ -397,9 +407,38 @@ type
     property Mask: TBitmap read GetMask;
     property WhiteBGBitmap: TBitmap read GetWhiteBGBitmap;
   end;
+
 {$ENDIF}
 
-  ImageType = (NoImage, Bmp, Gif, Gif89, Png, Jpg);
+//------------------------------------------------------------------------------
+// TIDObject is base class for all tag objects.
+//------------------------------------------------------------------------------
+// If they have an ID, the parser puts them into the HtmlViewer's IDNameList,
+// a TIDObjectList, where they can be obtained from by ID.
+// Their Y coordinates can be retrieved and HtmlViewer can scroll to them.
+//------------------------------------------------------------------------------
+
+  TIDObject = class(TObject)
+  protected
+    function GetYPosition: Integer; virtual; abstract;
+    function FreeMe: Boolean; virtual; // some objects the TIDObjectsList owns, some others not.
+  public
+    property YPosition: Integer read GetYPosition;
+  end;
+
+  //BG, 04.03.2011: TIDNameList renamed to TIDObjectList and used TObject changed to TIDObject.
+  TIDObjectList = class(ThtStringList)
+  private
+    function GetObject(Index: Integer): TIDObject; reintroduce;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function AddObject(const S: ThtString; AObject: TIDObject): Integer; reintroduce;
+    procedure Clear; override;
+    property Objects[Index: Integer]: TIDObject read GetObject; default;
+  end;
+
+  TImageType = (NoImage, Bmp, Gif, {Gif89,} Png, Jpg);
 
   htColorArray = packed array[0..3] of TColor;
   htBorderStyleArray = packed array[0..3] of BorderStyleType;
@@ -408,114 +447,16 @@ type
 
   guResultType = set of (guUrl, guControl, guTitle);
 
-  TFontObjBase = class(TObject) {font information}
-  public
-    UrlTarget: TUrlTarget;
-  end;
+//------------------------------------------------------------------------------
+// TViewerBase is base class for both THtmlViewer and TFrameViewer
+//------------------------------------------------------------------------------
 
-  TFloatingObj = class(TIDObject)
-  public
-    Pos: Integer; {0..Len  index of image position}
-    ImageHeight, {does not include VSpace}
-    ImageWidth: Integer;
-//BG, 17.01.2010: separate vertical and horizontal alignment:
-//    ObjAlign: AlignmentType;
-    VertAlign: AlignmentType;
-    HorzAlign: AlignmentType;
-    Indent: Integer;
-    HSpaceL, HSpaceR, VSpaceT, VSpaceB: Integer; {horizontal, vertical extra space}
-    SpecWidth: Integer; {as specified by <img or panel> tag}
-    SpecHeight: Integer; {as specified by <img or panel> tag}
-    PercentWidth: boolean; {if width is percent}
-    PercentHeight: boolean; {if height is percent}
-    ImageTitle: string;
-{$ifdef UNICODE}
-    FAlt: AnsiString;
-    FAltW: string; {the alt= attribute}
-{$else}
-    FAlt: string; {the alt= attribute}
-    FAltW: WideString;
-{$endif}
-
-    function GetYPosition: Integer; override;
-  public
-    ImageKnown: boolean; {know size of image}
-    DrawYY: Integer;
-    DrawXX: Integer;
-    NoBorder: boolean; {set if don't want blue border}
-    BorderSize: Integer;
-    constructor CreateCopy(T: TFloatingObj);
-    procedure SetAlt(CodePage: Integer; const Value: String);
-    procedure DrawLogic(SectionList: TSectionBaseList; Canvas: TCanvas;
-      FO: TFontObjBase; AvailableWidth, AvailableHeight: Integer); virtual; abstract;
-    procedure ProcessProperties(Prop: TProperties);
-    property Alt: String read {$ifdef UNICODE} FAltW {$else} FAlt {$endif};
-  end;
-
-  TBlockBase = class;
-
-  TSectionBase = class(TIDObject) {abstract base for document sections}
-  private
-    FDisplay: TPropDisplay;
-    FMyBlock: TBlockBase;
-    FParentSectionList: TSectionBaseList; {what list it's in}
-  protected
-    function GetYPosition: Integer; override;
-  public
-    SectionHeight: Integer; {pixel height of section}
-    DrawHeight: Integer; {floating image may overhang}
-    StartCurs: Integer;
-    Len: Integer;
-    ZIndex: Integer;
-    ContentTop, ContentBot, ContentLeft: Integer;
-    DrawTop, DrawBot, YDraw: Integer;
-
-    constructor Create(AMasterList: TSectionBaseList; ADisplay: TPropDisplay); overload;
-    constructor Create(AMasterList: TSectionBaseList; AProp: TProperties); overload;
-    constructor CreateCopy(AMasterList: TSectionBaseList; T: TSectionBase); virtual;
-    function CursorToXY(Canvas: TCanvas; Cursor: Integer; var X: Integer; var Y: Integer): boolean; virtual;
-    function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; virtual;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer;
-      IMgr: TIndentManager; var MaxWidth: Integer; var Curs: Integer): Integer; virtual;
-    function FindCursor(Canvas: TCanvas; X: Integer; Y: Integer; var XR: Integer; var YR: Integer;
-      var CaretHt: Integer; var Intext: boolean): Integer; virtual;
-    function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; virtual;
-    function FindSourcePos(DocPos: Integer): Integer; virtual;
-    function FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; virtual;
-    function FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; virtual;
-    function GetChAtPos(Pos: Integer; var Ch: WideChar; var Obj: TObject): boolean; virtual;
-    function GetURL(Canvas: TCanvas; X: Integer; Y: Integer; var UrlTarg: TUrlTarget;
-      var FormControl: TIDObject{TImageFormControlObj}; var ATitle: string): guResultType; virtual;
-    function PtInObject(X: Integer; Y: Integer; var Obj: TObject; var IX, IY: Integer): boolean; virtual;
-    procedure AddSectionsToList; virtual;
-    procedure CopyToClipboard; virtual;
-    procedure MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer); virtual;
-    procedure SetParent(List: TSectionBaseList);
-    property Display: TPropDisplay read FDisplay write FDisplay;
-    property MyBlock: TBlockBase read FMyBlock write FMyBlock;
-    property ParentSectionList: TSectionBaseList read FParentSectionList;
-  end;
-
-  TBlockBase = class(TSectionBase)
-  end;
-
-  TSectionBaseList = class(TFreeList)
-  private
-    function getItem(Index: Integer): TSectionBase;
-  protected
-    procedure AddSectionsToPositionList(Sections: TSectionBase); virtual;
-  public
-    function CursorToXY(Canvas: TCanvas; Cursor: Integer; var X: Integer; var Y: Integer): boolean; virtual;
-    function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; virtual;
-    property Items[Index: Integer]: TSectionBase read getItem; default;
-  end;
-
-  TGetStreamEvent = procedure(Sender: TObject; const SRC: string; var Stream: TMemoryStream) of object;
-  TIncludeType = procedure(Sender: TObject; const Command: string; Params: TStrings; var IString: string) of object;
-  TLinkType = procedure(Sender: TObject; const Rel, Rev, Href: string) of object;
-  TMetaType = procedure(Sender: TObject; const HttpEq, Name, Content: string) of object;
-  TScriptEvent = procedure(Sender: TObject; const Name, ContentType, Src, Script: string) of object;
-  TSoundType = procedure(Sender: TObject; const SRC: string; Loop: Integer; Terminate: boolean) of object;
+  TGetStreamEvent = procedure(Sender: TObject; const SRC: ThtString; var Stream: TMemoryStream) of object;
+  TIncludeType = procedure(Sender: TObject; const Command: ThtString; Params: ThtStrings; out IncludedDocument: TBuffer) of object;
+  TLinkType = procedure(Sender: TObject; const Rel, Rev, Href: ThtString) of object;
+  TMetaType = procedure(Sender: TObject; const HttpEq, Name, Content: ThtString) of object;
+  TScriptEvent = procedure(Sender: TObject; const Name, ContentType, Src, Script: ThtString) of object;
+  TSoundType = procedure(Sender: TObject; const SRC: ThtString; Loop: Integer; Terminate: boolean) of object;
 
   TViewerBase = class(TWinControl)
   private
@@ -546,11 +487,12 @@ type
   THtmlViewerBase = class(TViewerBase)
   public
     TablePartRec: TTablePartRec;
-    procedure htProgress(Percent: Integer); virtual; abstract;
-    procedure ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); virtual; abstract;
-    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
-    function HtmlExpandFilename(const Filename: string): string; virtual; abstract;
+    function HtmlExpandFilename(const Filename: ThtString): ThtString; virtual; abstract;
     function ShowFocusRect: Boolean; virtual; abstract;
+    procedure ControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); virtual; abstract;
+    procedure htProgress(Percent: Integer); virtual; abstract;
+    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
+    procedure Parsed(const Title, Base, BaseTarget: ThtString); virtual; abstract;
   end;
 
   TFrameViewerBase = class(TViewerBase)
@@ -558,56 +500,55 @@ type
     procedure wmerase(var msg: TMessage); message WM_ERASEBKGND;
   public
     function CreateSubFrameSet(FrameSet: TObject): TObject; virtual; abstract;
-    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string); virtual; abstract;
+    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: ThtString); virtual; abstract;
     procedure DoAttributes(FrameSet: TObject; Attr: TAttributeList); virtual; abstract;
-    procedure EndFrameSet(FrameSet: TObject); virtual; abstract;
   end;
+
+//------------------------------------------------------------------------------
 
 var
   DefBitMap, ErrorBitMap, ErrorBitmapMask: TBitMap;
   WaitStream: TMemoryStream;
 
+//------------------------------------------------------------------------------
+// string methods
+//------------------------------------------------------------------------------
+
 function StrLenW(Str: PWideChar): Cardinal;
 function StrPosW(Str, SubStr: PWideChar): PWideChar;
 function StrScanW(const Str: PWideChar; Chr: WideChar): PWideChar;
 function StrRScanW(const Str: PWideChar; Chr: WideChar): PWideChar;
-function FitText(DC: HDC; S: PWideChar; Max, Width: Integer; var Extent: Integer): Integer;
 function WidePos(SubStr, S: WideString): Integer;
 function WideTrim(const S: WideString): WideString;
-function WideUpperCase1(const S: WideString): WideString;
-function WideLowerCase1(const S: WideString): WideString;
-function WideSameText1(const S1, S2: WideString): boolean;
-function WideSameStr1(const S1, S2: WideString): boolean;
-function PosX(const SubStr, S: string; Offset: Integer = 1): Integer;
-   {find substring in S starting at Offset}
+function WideUpperCase1(const S: WideString): WideString; {$ifdef UNICODE} inline; {$endif}
+function WideLowerCase1(const S: WideString): WideString; {$ifdef UNICODE} inline; {$endif}
+function WideSameText1(const S1, S2: WideString): boolean; {$ifdef UseInline} inline; {$endif}
+function WideSameStr1(const S1, S2: WideString): boolean;  {$ifdef UseInline} inline; {$endif}
+// Posx(SubStr, S, Offst): find substring in S starting at Offset:
+function PosX(const SubStr, S: ThtString; Offset: Integer = 1): Integer;
 
-function CalcClipRect(Canvas: TCanvas; const Rect: TRect; Printing: boolean): TRect;
-procedure GetClippingRgn(Canvas: TCanvas; const ARect: TRect; Printing: boolean; var Rgn, SaveRgn: HRgn);
+function WideStringToMultibyte(CodePage: Integer; W: WideString): AnsiString;
 
-function LoadImageFromFile(const FName: string; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
-function LoadImageFromStream(Stream: TMemoryStream; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
-// unused: function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
-//  var Mask: TBitmap): TgpObject;
-
-  {convert an HTML style filename to one for Dos}
-function HTMLServerToDos(FName, Root: string): string;
-
+function FitText(DC: HDC; S: PWideChar; Max, Width: Integer; out Extent: TSize): Integer;
+function GetXExtent(DC: HDC; P: PWideChar; N: Integer): Integer;
 procedure WrapTextW(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; S: WideString);
 
-procedure FinishTransparentBitmap(ahdc: HDC; InImage, Mask: TBitmap; xStart, yStart, W, H: Integer);
-function GetImageMask(Image: TBitmap; ColorValid: boolean; AColor: TColor): TBitmap;
-//function GetImageAndMaskFromStream(Stream: TMemoryStream; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
-// unused: function KindOfImageFile(FName: string): ImageType;
-//function KindOfImage(Start: Pointer): ImageType;
-procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Color: TColor);
-procedure FormControlRect(Canvas: TCanvas; X1: Integer;
-  Y1: Integer; X2: Integer; Y2: Integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
-function GetXExtent(DC: HDC; P: PWideChar; N: Integer): Integer;
+//------------------------------------------------------------------------------
+// image methods
+//------------------------------------------------------------------------------
 
+function LoadImageFromFile(const FName: ThtString; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+function LoadImageFromStream(Stream: TStream; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+function KindOfImage(Stream: TStream): TImageType;
+
+function GetImageHeight(Image: TGpObject): Integer;
+function GetImageWidth(Image: TGpObject): Integer;
 function EnlargeImage(Image: TGpObject; W, H: Integer): TBitmap;
+
+function GetImageMask(Image: TBitmap; ColorValid: boolean; AColor: TColor): TBitmap;
+procedure FinishTransparentBitmap(ahdc: HDC; InImage, Mask: TBitmap; xStart, yStart, W, H: Integer);
 procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: Integer; Bitmap: TBitmap);
-procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: Integer;
-  Bitmap, Mask: TBitmap; YI, HI: Integer);
+procedure PrintTransparentBitmap3(Canvas: TCanvas; X, Y, NewW, NewH: Integer; Bitmap, Mask: TBitmap; YI, HI: Integer);
 
 {$IFNDEF NoGDIPlus}
 procedure DrawGpImage(Handle: THandle; Image: TGPImage; DestX, DestY: Integer); overload;
@@ -623,13 +564,18 @@ procedure StretchPrintGpImageOnColor(Canvas: TCanvas; Image: TGpImage;
   DestX, DestY, DestW, DestH: Integer; Color: TColor = clWhite);
 {$ENDIF NoGDIPlus}
 
-procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
-  S: htBorderStyleArray; BGround: TColor; Print: boolean);
+//------------------------------------------------------------------------------
+// canvas methods
+//------------------------------------------------------------------------------
 
-function MultibyteToWideString(CodePage: Integer; const S: AnsiString; Len: Integer = -1): WideString;
-function WideStringToMultibyte(CodePage: Integer; W: WideString): Ansistring;
-function GetImageHeight(Image: TGpObject): Integer;
-function GetImageWidth(Image: TGpObject): Integer;
+function CalcClipRect(Canvas: TCanvas; const Rect: TRect; Printing: boolean): TRect;
+procedure GetClippingRgn(Canvas: TCanvas; const ARect: TRect; Printing: boolean; var Rgn, SaveRgn: HRgn);
+
+procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Color: TColor);
+procedure DrawFormControlRect(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
+
+procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
+  const S: htBorderStyleArray; BGround: TColor; Print: boolean);
 
 implementation
 
@@ -637,17 +583,15 @@ uses
   Forms, Math,
   {$ifndef FPC_TODO}jpeg, {$endif}
   {$IFDEF UNICODE} PngImage, {$ENDIF}
-  DitherUnit,
-  StylePars;
+  DitherUnit, StylePars;
 
 type
   EGDIPlus = class(Exception);
 
-{----------------StrLenW}
+{$ifdef UseASMx86}
 
 function StrLenW(Str: PWideChar): Cardinal;
-{returns number of characters in a string excluding the null terminator}
-
+// returns number of characters in a ThtString excluding the null terminator
 asm
        MOV     EDX, EDI
        MOV     EDI, EAX
@@ -657,10 +601,7 @@ asm
        MOV     EAX, 0FFFFFFFEH
        SUB     EAX, ECX
        MOV     EDI, EDX
-
 end;
-
-{----------------StrPosW}
 
 function StrPosW(Str, SubStr: PWideChar): PWideChar;
 // returns a pointer to the first occurance of SubStr in Str
@@ -712,8 +653,6 @@ asm
        POP     EDI
 end;
 
-{----------------StrRScanW}
-
 function StrRScanW(const Str: PWideChar; Chr: WideChar): PWideChar; assembler;
 asm
         PUSH    EDI
@@ -736,8 +675,6 @@ asm
         POP     EDI
 end;
 
-{----------------StrScanW}
-
 function StrScanW(const Str: PWideChar; Chr: WideChar): PWideChar; assembler;
 asm
         PUSH    EDI
@@ -758,20 +695,90 @@ asm
 @@1:    POP     EDI
 end;
 
+{$else}
+
+// Pascal-ized equivalents of assembler functions.
+function StrLenW(Str: PWideChar): Cardinal;
+begin
+  Result := 0;
+  if Str <> nil then
+    while Str[Result] <> #0 do
+      Inc(Result);
+end;
+
+function StrPosW(Str, SubStr: PWideChar): PWideChar;
+var
+  StrPos    : PWideChar;
+  SubstrPos : PWideChar;
+begin
+  if SubStr^ = #0 then  // Make sure substring not null string
+  begin
+    Result := nil;
+    Exit;
+  end;
+  Result := Str;
+  while Result^ <> #0 do  // Until reach end of string
+  begin
+    StrPos := Result;
+    SubstrPos := SubStr;
+    while SubstrPos^ <> #0 do  // Until reach end of substring
+    begin
+      if StrPos^ <> SubstrPos^ then  // No point in continuing?
+        Break;
+      StrPos := StrPos + 1;
+      SubstrPos := SubstrPos + 1;
+    end;
+    if SubstrPos^ = #0 then  // Break because reached end of substring?
+      Exit;
+    Result := Result + 1;
+  end;
+  Result := nil;
+end;
+
+function StrRScanW(const Str: PWideChar; Chr: WideChar): PWideChar;
+begin
+  Result := StrScanW(Str, #0);
+  if Chr = #0 then  // Null-terminating char considered part of string.
+    Exit;
+  while Result <> Str do
+  begin
+    Result := Result - 1;
+    if Result^ = Chr then
+      Exit;
+  end;
+  Result := nil;
+end;
+
+function StrScanW(const Str: PWideChar; Chr: WideChar): PWideChar;
+begin
+  Result := Str;
+  while Result^ <> #0 do
+  begin
+    if Result^ = Chr then
+      Exit;
+    Result := Result + 1;
+  end;
+  if Chr = #0 then
+    Exit;  // Null-terminating char considered part of string. See call
+           // searching for #0 to find end of string.
+  Result := nil;
+end;
+
+{$endif}
+
+
 {----------------FitText}
 
-function FitText(DC: HDC; S: PWideChar; Max, Width: Integer; var Extent: Integer): Integer;
-  {return count <= Max which fits in Width.  Return X, the extent of chars that fit}
-
+function FitText(DC: HDC; S: PWideChar; Max, Width: Integer; out Extent: TSize): Integer;
+{return count <= Max which fits in Width.  Return X, the extent of chars that fit}
 type
   Integers = array[1..1] of Integer;
 var
-  ExtS: TSize;
   Ints: ^Integers;
   L, H, I: Integer;
-
 begin
-  Extent := 0;
+  Extent.cx := 0;
+  Extent.cy := 0;
   Result := 0;
   if (Width <= 0) or (Max = 0) then
     Exit;
@@ -780,11 +787,11 @@ begin
   begin
     GetMem(Ints, Sizeof(Integer) * Max);
     try
-      if GetTextExtentExPointW(DC, S, Max, Width, @Result, @Ints^, ExtS) then
+      if GetTextExtentExPointW(DC, S, Max, Width, @Result, @Ints^, Extent) then
         if Result > 0 then
-          Extent := Ints^[Result]
+          Extent.cx := Ints^[Result]
         else
-          Extent := 0;
+          Extent.cx := 0;
     finally
       FreeMem(Ints);
     end;
@@ -796,17 +803,16 @@ begin
     I := H;
     while L <= H do
     begin
-      GetTextExtentPoint32W(DC, S, I, ExtS);
-      if ExtS.cx < Width then
+      GetTextExtentPoint32W(DC, S, I, Extent);
+      if Extent.cx < Width then
         L := I + 1
       else
         H := I - 1;
-      if ExtS.cx = Width then
+      if Extent.cx = Width then
         Break;
       I := (L + H) shr 1;
     end;
     Result := I;
-    Extent := ExtS.cx;
   end;
 end;
 
@@ -826,16 +832,25 @@ end;
 
 {----------------WideUpperCase1}
 
+{$ifdef UNICODE}
+
 function WideUpperCase1(const S: WideString): WideString;
-{$IFNDEF UNICODE}
+begin
+  Result := WideUpperCase(S);
+end;
+
+function WideLowerCase1(const S: WideString): WideString;
+begin
+  Result := WideLowerCase(S);
+end;
+
+{$else}
+
+function WideUpperCase1(const S: WideString): WideString;
 var
   Len, NewLen: Integer;
   Tmp: string;
-{$ENDIF}
 begin
-{$IFDEF UNICODE}
-  Result := WideUpperCase(S);
-{$ELSE}
   Len := Length(S);
   if not IsWin32Platform then
   begin
@@ -852,19 +867,13 @@ begin
     SetLength(Result, Len);
     MultibyteToWideChar(CP_ACP, 0, PChar(Tmp), NewLen, PWideChar(Result), Len);
   end;
-{$ENDIF}
 end;
 
 function WideLowerCase1(const S: WideString): WideString;
-{$IFNDEF UNICODE}
 var
   Len, NewLen: Integer;
   Tmp: string;
-{$ENDIF}
 begin
-{$IFDEF UNICODE}
-  Result := WideLowerCase(S);
-{$ELSE}
   Len := Length(S);
   if not IsWin32Platform then
   begin
@@ -881,8 +890,9 @@ begin
     SetLength(Result, Len);
     MultibyteToWideChar(CP_ACP, 0, PChar(Tmp), NewLen, PWideChar(Result), Len);
   end;
-{$ENDIF}
 end;
+
+{$endif}
 
 function WideSameText1(const S1, S2: WideString): boolean;
 begin
@@ -894,10 +904,10 @@ begin
   Result := S1 = S2;
 end;
 
-function PosX(const SubStr, S: string; Offset: Integer = 1): Integer;
+function PosX(const SubStr, S: ThtString; Offset: Integer = 1): Integer;
 {find substring in S starting at Offset}
 var
-  S1: string;
+  S1: ThtString;
   I: Integer;
 begin
   if Offset <= 1 then
@@ -974,21 +984,6 @@ begin
   SelectClipRgn(Canvas.Handle, Rgn);
 end;
 
-function HTMLServerToDos(FName, Root: string): string;
-{Add Prefix Root only if first character is '\' but not '\\'}
-begin
-  Result := Trim(HTMLToDos(FName));
-  if (Result <> '') and (Root <> '') then
-  begin
-    if Pos('\\', Result) = 1 then
-      Exit;
-    if Pos(':', Result) = 2 then
-      Exit;
-    if Result[1] = '\' then
-      Result := Root + Result;
-  end;
-end;
-
 function WideTrim(const S: WideString): WideString;
 var
   I, L: Integer;
@@ -1017,37 +1012,6 @@ begin
   ARect := Rect(X1, Y1, X2, Y2);
   DrawTextW(Canvas.Handle, PWideChar(S), Length(S), ARect, DT_Wordbreak);
   SetTextAlign(Canvas.Handle, TAlign);
-end;
-
-function Allocate(Size: Integer): AllocRec;
-begin
-  Result := AllocRec.Create;
-  with Result do
-  begin
-    ASize := Size;
-    if Size < $FF00 then
-      GetMem(Ptr, Size)
-    else
-    begin
-      AHandle := GlobalAlloc(HeapAllocFlags, Size);
-      if AHandle = 0 then
-        ABort;
-      Ptr := GlobalLock(AHandle);
-    end;
-  end;
-end;
-
-procedure DeAllocate(AR: AllocRec);
-begin
-  with AR do
-    if ASize < $FF00 then
-      Freemem(Ptr, ASize)
-    else
-    begin
-      GlobalUnlock(AHandle);
-      GlobalFree(AHandle);
-    end;
-  AR.Free;
 end;
 
 function GetXExtent(DC: HDC; P: PWideChar; N: Integer): Integer;
@@ -1080,8 +1044,7 @@ begin
   end;
 end;
 
-procedure FormControlRect(Canvas: TCanvas; X1: Integer;
-  Y1: Integer; X2: Integer; Y2: Integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
+procedure DrawFormControlRect(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
 {Draws lowered rectangles for form control printing}
 var
   OldStyle: TPenStyle;
@@ -1139,7 +1102,7 @@ end;
 
 {$IFDEF Ver90}
 
-procedure Assert(B: boolean; const S: string);
+procedure Assert(B: boolean; const S: ThtString);
 begin {dummy Assert for Delphi 2}
 end;
 {$ENDIF}
@@ -1170,7 +1133,7 @@ end;
 constructor TStringBitmapList.Create;
 begin
   inherited Create;
-  MaxCache := 4;
+  FMaxCache := 4;
   {$IFNDEF NoGDIPlus}
   CheckInitGDIPlus;
   {$ENDIF NoGDIPlus}
@@ -1181,41 +1144,39 @@ var
   I: Integer;
 begin
   for I := 0 to Count - 1 do
-    (Objects[I] as TBitmapItem).Free;
+    Objects[I].Free;
   {$IFNDEF NoGDIPlus}
   CheckExitGDIPlus;
   {$ENDIF NoGDIPlus}
   inherited Destroy;
 end;
 
-function TStringBitmapList.AddObject(const S: string; AObject: TObject): Integer;
+function TStringBitmapList.AddObject(const S: ThtString; AObject: TBitmapItem): Integer;
 begin
   Result := inherited AddObject(S, AObject);
-  if AObject is TBitmapItem then
-    Inc(TBitmapItem(AObject).UsageCount);
+  Inc(AObject.UsageCount);
 end;
 
-procedure TStringBitmapList.DecUsage(const S: string);
+procedure TStringBitmapList.DecUsage(const S: ThtString);
 var
   I: Integer;
 begin
   I := IndexOf(S);
   if I >= 0 then
-    with Objects[I] as TBitmapItem do
+    with Objects[I] do
     begin
       Dec(UsageCount);
       Assert(UsageCount >= 0, 'Cache image usage count < 0');
     end;
 end;
 
-procedure TStringBitmapList.IncUsage(const S: string);
+procedure TStringBitmapList.IncUsage(const S: ThtString);
 var
   I: Integer;
 begin
   I := IndexOf(S);
   if I >= 0 then
-    with Objects[I] as TBitmapItem do
-      Inc(UsageCount);
+    Inc(Objects[I].UsageCount);
 end;
 
 procedure TStringBitmapList.SetCacheCount(N: Integer);
@@ -1223,7 +1184,7 @@ var
   I: Integer;
 begin
   for I := Count - 1 downto 0 do
-    with (Objects[I] as TBitmapItem) do
+    with Objects[I] do
     begin
       if (AccessCount > N) and (UsageCount <= 0) then
       begin
@@ -1231,17 +1192,23 @@ begin
         Free;
       end;
     end;
-  MaxCache := N;
+  FMaxCache := N;
 end;
 
 function TStringBitmapList.GetImage(I: Integer): TgpObject;
 begin
-  with Objects[I] as TBitmapItem do
+  with Objects[I] do
   begin
     Result := MImage;
     AccessCount := 0;
     Inc(UsageCount);
   end;
+end;
+
+//-- BG ---------------------------------------------------------- 06.03.2011 --
+function TStringBitmapList.GetObject(Index: Integer): TBitmapItem;
+begin
+  Result := TBitmapItem(inherited GetObject(Index));
 end;
 
 procedure TStringBitmapList.BumpAndCheck;
@@ -1251,15 +1218,12 @@ var
 begin
   for I := Count - 1 downto 0 do
   begin
-    Tmp := (Objects[I] as TBitmapItem);
-    with Tmp do
+    Tmp := Objects[I];
+    Inc(Tmp.AccessCount);
+    if (Tmp.AccessCount > FMaxCache) and (Tmp.UsageCount <= 0) then
     begin
-      Inc(AccessCount);
-      if (AccessCount > MaxCache) and (UsageCount <= 0) then
-      begin
-        Delete(I);
-        Free; {the TBitmapItem}
-      end;
+      Delete(I);
+      Tmp.Free; {the TBitmapItem}
     end;
   end;
 end;
@@ -1271,14 +1235,11 @@ var
 begin
   for I := Count - 1 downto 0 do
   begin
-    Tmp := (Objects[I] as TBitmapItem);
-    with Tmp do
+    Tmp := Objects[I];
+    if (Tmp.UsageCount <= 0) then
     begin
-      if (UsageCount <= 0) then
-      begin
-        Delete(I);
-        Free; {the TBitmapItem}
-      end;
+      Delete(I);
+      Tmp.Free; {the TBitmapItem}
     end;
   end;
 end;
@@ -1288,12 +1249,14 @@ var
   I: Integer;
 begin
   for I := 0 to Count - 1 do
-    (Objects[I] as TBitmapItem).Free;
+    Objects[I].Free;
   inherited Clear;
 end;
 
+{ TAttribute }
+
 constructor TAttribute.Create(ASym: Symb; AValue: Integer;
-  const NameStr, ValueStr: string; ACodePage: Integer);
+  const NameStr, ValueStr: ThtString; ACodePage: Integer);
 begin
   inherited Create;
   Which := ASym;
@@ -1305,16 +1268,26 @@ end;
 
 {----------------TAttributeList}
 
-destructor TAttributeList.Destroy;
-begin
-  Prop.Free;
-  inherited;
-end;
-
 procedure TAttributeList.Clear;
 begin
   inherited Clear;
   SaveID := '';
+end;
+
+function TAttributeList.CreateStringList: ThtStringList;
+var
+  I: Integer;
+begin
+  Result := ThtStringList.Create;
+  for I := 0 to Count - 1 do
+    with Items[I] do
+      Result.Add(WhichName + '=' + Name);
+end;
+
+destructor TAttributeList.Destroy;
+begin
+  Prop.Free;
+  inherited;
 end;
 
 function TAttributeList.Find(Sy: Symb; var T: TAttribute): boolean;
@@ -1322,7 +1295,7 @@ var
   I: Integer;
 begin
   for I := 0 to Count - 1 do
-    if TAttribute(Items[I]).which = Sy then
+    if Items[I].which = Sy then
     begin
       Result := True;
       T := Items[I];
@@ -1331,20 +1304,15 @@ begin
   Result := False;
 end;
 
-function TAttributeList.CreateStringList: TStringList;
-var
-  I: Integer;
+function TAttributeList.GetAttribute(Index: Integer): TAttribute;
 begin
-  Result := TStringList.Create;
-  for I := 0 to Count - 1 do
-    with TAttribute(Items[I]) do
-      Result.Add(WhichName + '=' + Name);
+  Result := Get(Index);
 end;
 
-function TAttributeList.GetClass: string;
+function TAttributeList.GetClass: ThtString;
 var
   T: TAttribute;
-  S: string;
+  S: ThtString;
   I: Integer;
 begin
   Result := '';
@@ -1369,7 +1337,7 @@ begin
   end;
 end;
 
-function TAttributeList.GetID: string;
+function TAttributeList.GetID: ThtString;
 var
   T: TAttribute;
 begin
@@ -1381,7 +1349,7 @@ begin
   end;
 end;
 
-function TAttributeList.GetTitle: string;
+function TAttributeList.GetTitle: ThtString;
 var
   T: TAttribute;
 begin
@@ -1411,23 +1379,23 @@ end;
 constructor TUrlTarget.Create;
 begin
   inherited Create;
-  utText := TutText.Create;
+  //utText := TutText.Create;
   utText.Start := -1;
   utText.Last := -1;
 end;
 
 destructor TUrlTarget.Destroy;
 begin
-  FreeAndNil(utText);
+  //FreeAndNil(utText);
   inherited Destroy;
 end;
 
 var
   Sequence: Integer = 10;
 
-procedure TUrlTarget.Assign(const AnUrl, ATarget: string; L: TAttributeList; AStart: Integer);
+procedure TUrlTarget.Assign(const AnUrl, ATarget: ThtString; L: TAttributeList; AStart: Integer);
 var
-  SL: TStringList;
+  SL: ThtStringList;
 begin
   Url := AnUrl;
   Target := ATarget;
@@ -1442,7 +1410,7 @@ begin
   end;
 end;
 
-procedure TUrlTarget.Copy(UT: TUrlTarget);
+procedure TUrlTarget.Assign(const UT: TUrlTarget); 
 begin
   Url := UT.Url;
   Target := UT.Target;
@@ -1462,16 +1430,6 @@ begin
   Attr := '';
   utText.Start := -1;
   utText.Last := -1;
-end;
-
-function TUrlTarget.GetStart: Integer;
-begin
-  Result := utText.Start
-end;
-
-function TUrlTarget.GetLast: Integer;
-begin
-  Result := utText.Last
 end;
 
 procedure TUrlTarget.SetLast(List: TList; ALast: Integer);
@@ -1494,8 +1452,12 @@ var
   I: Integer;
 begin
   for I := 0 to Size - 1 do
-    if not (P[I] in [FmCtl, ImgPan]) then {ImgPan and FmCtl used to mark images, form controls}
+    case P[I] of
+      {ImgPan and FmCtl used to mark images, form controls}
+      FmCtl, ImgPan:;
+    else
       Inc(Leng);
+    end;
 end;
 
 procedure SelTextCount.AddTextCR(P: PWideChar; Size: Integer);
@@ -1525,12 +1487,16 @@ var
 begin
   SizeM1 := BufferLeng - 1;
   for I := 0 to Size - 1 do
-    if not (P[I] in [FmCtl, ImgPan, BrkCh]) then {ImgPan and FmCtl used to mark images, form controls}
+    case P[I] of
+      {ImgPan and FmCtl used to mark images, form controls}
+      FmCtl, ImgPan, BrkCh:;
+    else
       if Leng < SizeM1 then
       begin
         Buffer[Leng] := P[I];
         Inc(Leng);
       end;
+    end;
 end;
 
 function SelTextBuf.Terminate: Integer;
@@ -1593,9 +1559,9 @@ end;
 constructor TMapItem.Create;
 begin
   inherited Create;
-  Areas := TStringList.Create;
-  AreaTargets := TStringList.Create;
-  AreaTitles := TStringList.Create;
+  Areas := ThtStringList.Create;
+  AreaTargets := ThtStringList.Create;
+  AreaTitles := ThtStringList.Create;
 end;
 
 destructor TMapItem.Destroy;
@@ -1610,7 +1576,7 @@ begin
   inherited Destroy;
 end;
 
-function TMapItem.GetURL(X, Y: Integer; var URLTarg: TUrlTarget; var ATitle: string): boolean;
+function TMapItem.GetURL(X, Y: Integer; var URLTarg: TUrlTarget; var ATitle: ThtString): boolean;
 var
   I: Integer;
 begin
@@ -1636,8 +1602,8 @@ const
   MAXCNT = 300;
 var
   I, Cnt, Rad: Integer;
-  HRef, S, Target, Title: string;
-  S1, Nm: string;
+  HRef, S, Target, Title: ThtString;
+  S1, Nm: ThtString;
   Coords: array[0..MAXCNT] of Integer;
   Rect: TRect absolute Coords;
   Handle: THandle;
@@ -1729,7 +1695,10 @@ begin
       begin
         if Cnt < 6 then
           Exit;
+{$ifdef LCL}        // ToDo: Find LCL replacement for CreatePolygonRgn(
+{$else}
         Handle := CreatePolygonRgn(Coords, Cnt div 2, Winding);
+{$endif}
       end;
   end;
   if Handle <> 0 then
@@ -1740,246 +1709,40 @@ begin
   end;
 end;
 
-//function KindOfImageFile(FName: string): ImageType;
-//var
-//  Mem: TMemoryStream;
-//begin
-//  Result := NoImage;
-//  if FileExists(FName) then
-//  begin
-//    Mem := TMemoryStream.Create;
-//    try
-//      Mem.LoadFromFile(FName);
-//      if Mem.Size >= 10 then
-//        Result := KindOfImage(Mem.Memory);
-//    finally
-//      Mem.Free;
-//    end;
-//  end;
-//end;
 
-function KindOfImage(Start: Pointer): ImageType;
-type
-  ByteArray = array[0..10] of byte;
+function KindOfImage(Stream: TStream): TImageType;
 var
-  PB: ^ByteArray absolute Start;
-  PW: ^Word absolute Start;
-  PL: ^DWord absolute Start;
+  Pos: Int64;
+  Magic: DWord;
+  WMagic: Word absolute Magic;
+//  BMagic: Byte absolute Magic;
 begin
-  if PL^ = $38464947 then
-  begin
-    if PB^[4] = Ord('9') then
-      Result := Gif89
+  Pos := Stream.Position;
+  Stream.Position := 0;
+  try
+    Stream.Read(Magic, sizeof(Magic));
+    if Magic = $38464947 then
+    begin
+//      Stream.Read(BMagic, sizeof(BMagic));
+//      if BMagic = Ord('9') then
+//        Result := Gif89
+//      else
+        Result := Gif;
+    end
+    else if Magic = $474E5089 then
+      Result := Png
     else
-      Result := Gif;
-  end
-  else if PW^ = $4D42 then
-    Result := Bmp
-  else if PL^ = $474E5089 then
-    Result := Png
-  else if PW^ = $D8FF then
-    Result := Jpg
-  else
-    Result := NoImage;
+      case WMagic of
+        $4D42: Result := Bmp;
+        $D8FF: Result := Jpg;
+      else
+        Result := NoImage;
+      end;
+  finally
+    Stream.Position := Pos;
+  end;
 end;
 
-//{$A-} {record field alignment off for this routine}
-//
-//function IsTransparent(Stream: TStream; var Color: TColor): boolean;
-//{Makes some simplifying assumptions that seem to be generally true for single
-// images.}
-//type
-//  RGB = record
-//    Red, Green, Blue: byte;
-//  end;
-//
-//  GifHeader = record
-//    GIF: array[0..2] of Ansichar;
-//    Version: array[0..2] of Ansichar;
-//    ScreenWidth, ScreenHeight: Word;
-//    Field: Byte;
-//    BackGroundColorIndex: byte;
-//    AspectRatio: byte;
-//  end;
-//  ColorArray = array[0..255] of RGB;
-//
-//var
-//  Header: ^GifHeader;
-//  X: Integer;
-//  Colors: ^ColorArray;
-//  Buff: array[0..Sizeof(GifHeader) + Sizeof(ColorArray) + 8] of byte;
-//  P: PByte;
-//  OldPosition: Integer;
-//
-//begin
-//  Result := False;
-//  Fillchar(Buff, Sizeof(Buff), 0); {in case read comes short}
-//  OldPosition := Stream.Position;
-//  Stream.Position := 0;
-//  Stream.Read(Buff, Sizeof(Buff));
-//  Stream.Position := OldPosition;
-//
-//  Header := @Buff;
-//  if KindOfImage(Header) <> Gif89 then
-//    Exit;
-//  Colors := @Buff[Sizeof(GifHeader)];
-//  with Header^ do
-//  begin
-//    X := 1 shl ((Field and 7) + 1) - 1; {X is last item in color table}
-//    if X = 0 then
-//      Exit; {no main color table}
-//  end;
-//  P := PByte(PtrInt(Colors) + (X + 1) * Sizeof(RGB));
-//  if (P^ <> $21) or (PByte(PtrInt(P) + 1)^ <> $F9) then
-//    Exit; {extension block not found}
-//  if (ord(PByteArray(P)[3]) and 1 <> 1) then
-//    Exit; {no transparent color specified}
-//
-//  with Colors^[Ord(PByteArray(P)[6])] do
-//    Color := Integer(Blue) shl 16 or Integer(Green) shl 8 or Integer(Red);
-//  Result := True;
-//end;
-//
-//{$A+}
-//
-//
-//{$A-} {record field alignment off for this routine}
-//
-//
-//function IsTransparentPng(Stream: TStream; var Color: TColor): boolean;
-//type
-//  RGB = record
-//    Red, Green, Blue: byte;
-//  end;
-//
-//  PngHeader = record
-//    width: Integer;
-//    height: Integer;
-//    bitDepth: byte;
-//    colorType: byte;
-//    compression: byte;
-//    filter: byte;
-//    interlace: byte;
-//  end;
-//var
-//  Header: PngHeader;
-//  CRC: Integer;
-//  OldPosition: Integer;
-//  pngPalette: array[0..255] of RGB;
-//  dataSize: Integer;
-//  chunkType: array[0..4] of AnsiChar;
-//  chunkTypeStr: string;
-//  done: Boolean;
-//  Ar: array[0..10] of byte;
-//  Alpha: array[0..255] of byte;
-//  I: Integer;
-//
-//  function IntSwap(data: Integer): Integer;
-//  var
-//    byte0: Integer;
-//    byte1: Integer;
-//    byte2: Integer;
-//    byte3: Integer;
-//  begin
-//    byte0 := data and $FF;
-//    byte1 := (data shr 8) and $FF;
-//    byte2 := (data shr 16) and $FF;
-//    byte3 := (data shr 24) and $FF;
-//
-//    result := (byte0 shl 24) or (byte1 shl 16) or (byte2 shl 8) or byte3;
-//  end;
-//
-//begin
-//  result := false;
-//  OldPosition := Stream.Position;
-//
-//  try
-//    Stream.Position := 0;
-//    Stream.Read(Ar, 8);
-//
-//    if KindOfImage(@Ar) <> Png then
-//    begin
-//      Stream.Position := OldPosition;
-//      Exit;
-//    end;
-//
-//    Stream.Position := 8; {past the PNG Signature}
-//    done := False;
-//
-//{Read Chunks}
-//    repeat
-//      Stream.Read(dataSize, 4);
-//      dataSize := IntSwap(dataSize);
-//      Stream.Read(chunkType, 4);
-//      chunkType[4] := #0; {make sure string is NULL terminated}
-//      chunkTypeStr := StrPas(chunkType);
-//      if chunkTypeStr = 'IHDR' then
-//      begin
-//        Stream.Read(Header, DataSize);
-//        Header.width := IntSwap(Header.width);
-//        Header.height := IntSwap(Header.height);
-//        Stream.Read(CRC, 4); {read it in case we need to read more}
-//        if (Header.colorType < 2) or (Header.colorType > 3) then
-//          done := True; {only type 2 and 3 use tRNS}
-//      end
-//      else if chunkTypeStr = 'PLTE' then
-//      begin
-//        Stream.Read(pngPalette, DataSize);
-//        Stream.Read(CRC, 4); {read it in case we need to read more}
-//      end
-//      else if chunkTypeStr = 'tRNS' then
-//      begin
-//        if Header.colorType = 3 then
-//        begin
-//          {there can be DataSize transparent or partial transparent colors.  We only accept one fully transparent color}
-//          Stream.Read(Alpha, DataSize);
-//          for I := 0 to DataSize - 1 do
-//            if Alpha[I] = 0 then {0 means full transparency}
-//            begin
-//              with pngPalette[I] do
-//                Color := Integer(Blue) shl 16 or Integer(Green) shl 8 or Integer(Red);
-//              Result := True;
-//              break;
-//            end;
-//        end
-//        else {has to have been 2}
-//        begin
-//            {for now I am ignoring this since I can't make one}
-//        end;
-//        done := true; {got everything we need at this point}
-//      end
-//      else if chunkTypeStr = 'IDAT' then
-//        done := True {if this chunk is hit there is no tRNS}
-//      else
-//        Stream.Position := Stream.Position + dataSize + 4; {additional 4 for the CRC}
-//      if Stream.Position >= Stream.Size then
-//        Done := True;
-//    until done = True;
-//  except
-//  end;
-//
-//  Stream.Position := OldPosition;
-//end;
-//
-//{$A+}
-//
-//function TransparentGIF(const FName: string; var Color: TColor): boolean;
-//{Looks at a GIF image file to see if it's a transparent GIF.}
-//{Needed for OnBitmapRequest Event handler}
-//var
-//  Stream: TFileStream;
-//begin
-//  Result := False;
-//  try
-//    Stream := TFileStream.Create(FName, fmShareDenyWrite or FmOpenRead);
-//    try
-//      Result := IsTransparent(Stream, Color);
-//    finally
-//      Stream.Free;
-//    end;
-//  except
-//  end;
-//end;
 
 function ConvertImage(Bitmap: TBitmap): TBitmap;
 {convert bitmap into a form for BitBlt later}
@@ -2036,7 +1799,7 @@ end;
 
 //{----------------GetImageAndMaskFromFile}
 //
-//function GetImageAndMaskFromFile(const Filename: string; var Transparent: Transparency;
+//function GetImageAndMaskFromFile(const Filename: ThtString; var Transparent: Transparency;
 //  var Mask: TBitmap): TgpObject;
 //var
 //  Stream: TMemoryStream;
@@ -2065,7 +1828,7 @@ end;
 
 {----------------GetBitmapAndMaskFromStream}
 
-function GetBitmapAndMaskFromStream(Stream: TMemoryStream;
+function GetBitmapAndMaskFromStream(Stream: TStream;
   var Transparent: Transparency; var AMask: TBitmap): TBitmap;
 var
   jpImage: TJpegImage;
@@ -2079,7 +1842,7 @@ begin
     Exit;
   Stream.Position := 0;
   try
-    case KindOfImage(Stream.Memory) of
+    case KindOfImage(Stream) of
       Jpg:
       begin
         Transparent := NotTransp;
@@ -2143,19 +1906,19 @@ begin
 end;
 
 {----------------GetImageAndMaskFromStream}
+
 {$IFNDEF NoGDIPlus}
 var
   TempPathInited: Boolean;
   TempPath: array [0..Max_Path] of char;
 {$ENDIF !NoGDIPlus}
 
-function GetImageAndMaskFromStream(Stream: TMemoryStream;
+function GetImageAndMaskFromStream(Stream: TStream;
   var Transparent: Transparency; var AMask: TBitmap): TgpObject;
 {$IFNDEF NoGDIPlus}
 var
   Filename: string;
   F: TFileStream;
-  I: Integer;
 {$ENDIF !NoGDIPlus}
 begin
   Result := nil;
@@ -2165,7 +1928,7 @@ begin
   Stream.Position := 0;
 
   {$IFNDEF NoGDIPlus}
-  if GDIPlusActive and (KindOfImage(Stream.Memory) = png) then
+  if GDIPlusActive and (KindOfImage(Stream) = png) then
   begin
     try
       if not TempPathInited then
@@ -2227,78 +1990,9 @@ begin
   end;
 end;
 
-//function GetImageFromFile(const Filename: string): TBitmap;
-//{used only externally in OnBitmapRequest handler}
-//var
-//  IT: ImageType;
-//  Mask: TBitmap;
-//  Transparent: Transparency;
-//  Stream: TMemoryStream;
-//  GpObj: TGpObject;
-//
-//  function GetGif: TBitmap;
-//  var
-//    TmpGif: TGifImage;
-//    NonAnimated: boolean;
-//  begin
-//    Result := nil;
-//    TmpGif := CreateAGifFromStream(NonAnimated, Stream);
-//    if Assigned(TmpGif) then
-//    begin
-//      Result := TBitmap.Create;
-//      try
-//        Result.Assign(TmpGif.Bitmap);
-//      except
-//        Result.Free;
-//        Result := nil;
-//      end;
-//      TmpGif.Free;
-//    end
-//  end;
-//
-//begin
-//  Result := nil;
-//  try
-//    Stream := TMemoryStream.Create;
-//    try
-//      Stream.LoadFromFile(Filename);
-//      IT := KindOfImage(Stream.Memory);
-//      if IT in [Gif, Gif89] then
-//        Result := GetGif
-//      else
-//      begin
-//        GpObj := GetImageAndMaskFromStream(Stream, Transparent, Mask);
-//        Mask.Free;
-//        if GpObj is TBitmap then
-//          Result := TBitmap(GpObj)
-//{$IFNDEF NoMetafile}
-//        else if GpObj is ThtMetafile then
-//        begin
-//          Result := TBitmap.Create;
-//          Result.Assign(ThtMetafile(GpObj).WhiteBGBitmap);
-//          GpObj.Free;
-//        end
-//{$ENDIF}
-//        {$IFNDEF NoGDIPlus}
-//        else if GpObj is TGpImage then
-//        begin
-//          Result := TBitmap.Create;
-//          Result.Assign(TGpImage(GpObj).GetTBitmap);
-//          GpObj.Free;
-//        end;
-//        {$ENDIF !NoGDIPlus}
-//      end;
-//    finally
-//      Stream.Free;
-//    end;
-//  except
-//    Result := nil;
-//  end;
-//end;
-
 //-- BG ---------------------------------------------------------- 26.09.2010 --
-function LoadImageFromStream(Stream: TMemoryStream; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
-// extracted from TSectionList.GetTheBitmap(), TSectionList.InsertImage(), and TSectionList.ReplaceImage()
+function LoadImageFromStream(Stream: TStream; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+// extracted from ThtDocument.GetTheBitmap(), ThtDocument.InsertImage(), and ThtDocument.ReplaceImage()
 var
   NonAnimated: boolean;
   Tmp: TGifImage;
@@ -2307,7 +2001,7 @@ begin
   if (Stream <> nil) and (Stream.Size > 0) then
   begin
     NonAnimated := True;
-    if KindOfImage(Stream.Memory) in [GIF, Gif89] then
+    if KindOfImage(Stream) in [GIF{, Gif89}] then
       Result := CreateAGifFromStream(NonAnimated, Stream);
     if Result <> nil then
     begin
@@ -2333,18 +2027,17 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 26.09.2010 --
-function LoadImageFromFile(const FName: string; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
-// extracted from TSectionList.GetTheBitmap() and redesigned.
+function LoadImageFromFile(const FName: ThtString; var Transparent: Transparency; var AMask: TBitmap): TgpObject;
+// extracted from ThtDocument.GetTheBitmap() and redesigned.
 // Now the image file is loaded once only (was: 2 to 3 times) and GetImageAndMaskFromFile() is obsolete.
 var
-  Stream: TMemoryStream;
+  Stream: TStream;
 begin {look for the image file}
   Result := nil;
   if FileExists(FName) then
   begin
-    Stream := TMemoryStream.Create;
+    Stream := TFileStream.Create(FName, fmOpenRead or fmShareDenyWrite);
     try
-      Stream.LoadFromFile(FName);
       Result := LoadImageFromStream(Stream, Transparent, AMask);
     finally
       Stream.Free;
@@ -2354,8 +2047,7 @@ end;
 
 {----------------FinishTransparentBitmap }
 
-procedure FinishTransparentBitmap(ahdc: HDC;
-  InImage, Mask: TBitmap; xStart, yStart, W, H: Integer);
+procedure FinishTransparentBitmap(ahdc: HDC; InImage, Mask: TBitmap; xStart, yStart, W, H: Integer);
 var
   bmAndBack,
     bmSave,
@@ -2366,7 +2058,7 @@ var
     hdcImage: HDC;
   DestSize, SrcSize: TPoint;
   OldBack, OldFore: TColor;
-  BM: Windows.TBitmap;
+  BM: {$ifdef LCL} LclType.Bitmap {$else} Windows.TBitmap {$endif};
   Image: TBitmap;
 
 begin
@@ -2423,7 +2115,11 @@ begin
       BitBlt(hdcImage, 0, 0, SrcSize.x, SrcSize.y, hdcInvMask, 0, 0, SRCAND);
 
     { XOR the bitmap with the background on the destination DC}
-      SetStretchBltMode(ahDC, ColorOnColor);
+{$IFDEF HalfToneStretching}
+      SetStretchBltMode(ahDC, HALFTONE);
+{$ELSE}
+      SetStretchBltMode(ahDC, COLORONCOLOR);
+{$ENDIF}
       StretchBlt(ahDC, XStart, YStart, W, H, hdcImage, 0, 0, Image.Width, Image.Height, SRCPAINT);
 
       SetBkColor(ahDC, OldBack);
@@ -2508,7 +2204,7 @@ end;
 
 procedure TDib.InitializeBitmapInfoHeader(Bitmap: HBITMAP);
 var
-  BM: Windows.TBitmap;
+  BM: {$ifdef LCL} LclType.Bitmap {$else} Windows.TBitmap {$endif};
   BitCount: Integer;
 
   function WidthBytes(I: Integer): Integer;
@@ -2565,8 +2261,7 @@ begin
   end;
 end;
 
-procedure TDib.DrawDIB(DC: HDC; X: Integer; Y: Integer; W, H: Integer;
-  ROP: DWord);
+procedure TDib.DrawDIB(DC: HDC; X, Y, W, H: Integer; ROP: DWord);
 var
   bmInfo: PBitmapInfo;
 begin
@@ -2595,7 +2290,7 @@ begin
   end;
 end;
 
-{----------------TIndentManager.Create}
+{ TIndentManager }
 
 constructor TIndentManager.Create;
 begin
@@ -2611,178 +2306,164 @@ begin
   inherited Destroy;
 end;
 
-procedure TIndentManager.Clear;
+////------------------------------------------------------------------------------
+//function TIndentManager.AddImage(Y: Integer; Img: TFloatingObj): IndentRec;
+//{Given a new floating image, update the edge information.  Fills  Img.Indent,
+// the distance from the left edge to the upper left corner of the image}
+//var
+//  IH, IW: Integer;
+//begin
+//  Result := nil;
+//  if Assigned(Img) then
+//  begin
+//    IW := Img.HSpaceL + Img.ImageWidth  + Img.HSpaceR;
+//    IH := Img.VSpaceT + Img.ImageHeight + Img.VSpaceB;
+//    case Img.Floating of
+//      ALeft:
+//      begin
+//        Result := AddLeft(Y, Y + IH, IW);
+//        Img.Indent := Result.X - IW + Img.HSpaceL;
+//      end;
+//
+//      ARight:
+//      begin
+//        Result := AddRight(Y, Y + IH, IW);
+//        Img.Indent := Result.X + Img.HSpaceL;
+//      end;
+//    end;
+//  end;
+//end;
+
+//-- BG ---------------------------------------------------------- 05.02.2011 --
+function TIndentManager.AddLeft(YT, YB, W: Integer): IndentRec;
+// For a floating block, update the left edge information.
 begin
+  Result := IndentRec.Create;
+  Result.YT := YT;
+  Result.YB := YB;
+  Result.X := LeftEdge(YT) + W;
+  L.Add(Result);
+end;
+
+//-- BG ---------------------------------------------------------- 05.02.2011 --
+function TIndentManager.AddRight(YT, YB, W: Integer): IndentRec;
+// For a floating block, update the right edge information.
+begin
+  Result := IndentRec.Create;
+  Result.YT := YT;
+  Result.YB := YB;
+  Result.X := RightEdge(YT) - W;
+  R.Add(Result);
+end;
+
+{----------------TIndentManager.Reset}
+
+//-- BG ---------------------------------------------------------- 23.02.2011 --
+procedure TIndentManager.Init(Lf, Wd: Integer);
+begin
+  LfEdge := Lf;
+  Width  := Wd;
   R.Clear;
   L.Clear;
   CurrentID := nil;
 end;
 
-{----------------TIndentManager.Reset}
-
-procedure TIndentManager.Reset(Lf, Rt: Integer);
+procedure TIndentManager.Reset(Lf: Integer);
 begin
   LfEdge := Lf;
-  RtEdge := Rt;
   CurrentID := nil;
-end;
-
-procedure TIndentManager.Update(Y: Integer; Img: TFloatingObj);
-{Given a new floating image, update the edge information.  Fills  Img.Indent,
- the distance from the left edge to the upper left corner of the image}
-var
-  IH, IW: Integer;
-  IR: IndentRec;
-  LIndent: Integer;
-begin
-  if Assigned(Img) then
-  begin
-    IW := Img.ImageWidth + Img.HSpaceL + Img.HSpaceR;
-    IH := Img.ImageHeight + Img.VSpaceT + Img.VSpaceB;
-    if (Img.HorzAlign = ALeft) then
-    begin
-      IR := IndentRec.Create;
-      with IR do
-      begin
-        LIndent := LeftIndent(Y);
-        Img.Indent := LIndent - LfEdge + Img.HSpaceL;
-        X := LIndent - LfEdge + IW;
-        YT := Y;
-        YB := Y + IH;
-        L.Add(IR);
-      end;
-    end
-    else if (Img.HorzAlign = ARight) then
-    begin
-      IR := IndentRec.Create;
-      with IR do
-      begin
-        X := RightSide(Y) - IW;
-        Img.Indent := X + Img.HSpaceL;
-        YT := Y;
-        YB := Y + IH;
-        R.Add(IR);
-      end;
-    end;
-  end;
-end;
-
-procedure TIndentManager.UpdateBlock(Y: Integer; IW: Integer; IH: Integer;
-  Justify: AlignmentType);
-{For a floating block, update the edge information. }
-var
-  IR: IndentRec;
-begin
-  IR := IndentRec.Create;
-  if (Justify = ALeft) then
-  begin
-    with IR do
-    begin
-      X := -LfEdge + IW;
-      YT := Y;
-      YB := Y + IH;
-      Float := True; //ID := CurrentID;
-      L.Add(IR);
-    end;
-  end
-  else if (Justify = ARight) then
-  begin
-    with IR do
-    begin
-      X := RightSide(Y) - IW;
-      YT := Y;
-      YB := Y + IH;
-      Float := True; //ID := CurrentID;
-      R.Add(IR);
-    end;
-  end;
-end;
-
-procedure TIndentManager.UpdateTable(Y: Integer; IW: Integer; IH: Integer;
-  Justify: JustifyType);
-{Given a floating table, update the edge information. }
-var
-  IR: IndentRec;
-begin
-  IR := IndentRec.Create;
-  if (Justify = Left) then
-  begin
-    with IR do
-    begin
-      X := -LfEdge + IW;
-      YT := Y;
-      YB := Y + IH;
-      L.Add(IR);
-    end;
-  end
-  else if (Justify = Right) then
-  begin
-    with IR do
-    begin
-      X := RightSide(Y) - IW;
-      YT := Y;
-      YB := Y + IH;
-      R.Add(IR);
-    end;
-  end;
 end;
 
 const
   BigY = 9999999;
 
-function TIndentManager.LeftIndent(Y: Integer): Integer;
-var
-  I: Integer;
-begin
-  Result := -99999;
-  for I := 0 to L.Count - 1 do
-    with IndentRec(L.Items[I]) do
-    begin
-      if (Y >= YT) and (Y < YB) and (Result < X) then
-        if not Assigned(ID) or (ID = CurrentID) then
-          Result := X;
-    end;
-  if Result = -99999 then
-    Result := LfEdge
-  else
-    Inc(Result, LfEdge);
-end;
-
-function TIndentManager.RightSide(Y: Integer): Integer;
-{returns the current right side dimension as measured from the left, a positive
- number}
+//-- BG ---------------------------------------------------------- 23.02.2011 --
+function TIndentManager.LeftEdge(Y: Integer): Integer;
+// Returns the right most left indentation at Y relative to LfEdge.
+// If there are no left indentations at Y, returns 0.
 var
   I: Integer;
   IR: IndentRec;
+  MinX: Integer;
 begin
-  Result := 99999;
+  Result := -MaxInt;
+  MinX := 0;
+  for I := 0 to L.Count - 1 do
+  begin
+    IR := L.Items[I];
+    if (Y >= IR.YT) and (Y < IR.YB) and (Result < IR.X) then
+      if (IR.ID = nil) or (IR.ID = CurrentID) then
+        Result := IR.X;
+    if IR.ID = CurrentID then
+      MinX := IR.X;
+  end;
+  if Result = -MaxInt then
+    Result := MinX;
+end;
+
+//-- BG ---------------------------------------------------------- 23.02.2011 --
+function TIndentManager.LeftIndent(Y: Integer): Integer;
+// Returns the right most left indentation at Y relative to block.
+// If there are no left indentations at Y, returns LfEdge.
+begin
+  Result := LeftEdge(Y) + LfEdge;
+end;
+
+//-- BG ---------------------------------------------------------- 23.02.2011 --
+function TIndentManager.RightEdge(Y: Integer): Integer;
+// Returns the left most right indentation at Y relative LfEdge.
+// If there are no indentations at Y, returns Width.
+var
+  I: Integer;
+  IR: IndentRec;
+  MinX: Integer;
+begin
+  Result := MaxInt;
   for I := 0 to R.Count - 1 do
   begin
-    IR := IndentRec(R.Items[I]);
-    with IR do
-      if (Y >= YT) and (Y < YB) and (Result > X) then
-        if not Assigned(ID) or (ID = CurrentID) then
-          Result := X;
+    IR := R.Items[I];
+    if (Y >= IR.YT) and (Y < IR.YB) and (Result > IR.X) then
+      if (IR.ID = nil) or (IR.ID = CurrentID) then
+        Result := IR.X;
   end;
-  if Result = 99999 then
-    Result := RtEdge
-  else
-    Inc(Result, LfEdge);
+  if Result = MaxInt then
+  begin
+    //BG, 01.03.2011: Issue 77: Error of the elements
+    MinX := 0;
+    for I := L.Count - 1 downto 0 do
+    begin
+      IR := L.Items[I];
+      if IR.ID = CurrentID then
+      begin
+        MinX := IR.X;
+        break;
+      end;
+    end;
+    Result := Width + MinX;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 23.02.2011 --
+function TIndentManager.RightSide(Y: Integer): Integer;
+// Returns the left most right indentation at Y relative to block.
+// If there are no indentations at Y, returns Width + LfEdge.
+begin
+  Result := RightEdge(Y) + LfEdge;
 end;
 
 function TIndentManager.ImageBottom: Integer;
-{finds the bottom of the last floating image}
+// Returns the bottom of the last floating image.
 var
   I: Integer;
 begin
   Result := 0;
   for I := 0 to L.Count - 1 do
     with IndentRec(L.Items[I]) do
-      if not Assigned(ID) and (YB > Result) then
+      if (ID = nil) and (YB > Result) then
         Result := YB;
   for I := 0 to R.Count - 1 do
     with IndentRec(R.Items[I]) do
-      if not Assigned(ID) and (YB > Result) then
+      if (ID = nil) and (YB > Result) then
         Result := YB;
 end;
 
@@ -2794,44 +2475,266 @@ begin
   CL := -1;
   for I := 0 to L.Count - 1 do
     with IndentRec(L.Items[I]) do
-      if not Assigned(ID) and (YB > CL) then
+      if (ID = nil) and (YB > CL) then
         CL := YB;
   CR := -1;
   for I := 0 to R.Count - 1 do
     with IndentRec(R.Items[I]) do
-      if not Assigned(ID) and (YB > CR) then
+      if (ID = nil) and (YB > CR) then
         CR := YB;
   Inc(CL);
   Inc(CR);
 end;
 
-//-- BG ---------------------------------------------------------- 08.06.2008 --
-function TIndentManager.GetNextLeftXY(var Y: Integer; X, ThisWidth, MaxWidth, MinIndex: Integer): Integer;
+////-- BG ---------------------------------------------------------- 08.06.2008 --
+//function TIndentManager.GetNextLeftXY(var Y: Integer; X, ThisWidth, MaxWidth, MinIndex: Integer): Integer;
+//var
+//  Index: Integer;
+//  Indent: IndentRec;
+//  DummyCR: Integer;
+//begin
+//  if X < 0 then
+//  begin
+//    dec(X, Auto);
+//    inc(MaxWidth, 2 * Auto);
+//  end;
+//
+//  Index := L.Count - 1;
+//  if Index >= MinIndex then
+//  begin
+//    Indent := IndentRec(L[Index]);
+//    if Y < Indent.YB then
+//    begin
+//      // set y to previous used y == y of current line
+//      Y := Max(Y, Indent.YT);
+//      Result := Max(X, Indent.X);
+//    end
+//    else
+//      Result := X;
+//  end
+//  else
+//    Result := Max(X, LeftIndent(Y));
+//
+//  if Result + ThisWidth > MaxWidth + X then
+//  begin
+//    Result := X;
+//    GetClearY(Y, DummyCR);
+//  end;
+//end;
+
+//-- BG ---------------------------------------------------------- 06.02.2011 --
+function TIndentManager.AlignLeft(var Y: Integer; W, SpW, SpH: Integer): Integer;
+// Returns the aligned Y position of a block of width W starting at Y.
+// Result is > Y, if at Y is not enough width for the block and optional additional space Sp
+// Additional space e.g. for a textRec between aligned images.
 var
-  Index: Integer;
-  Indent: IndentRec;
-  DummyCR: Integer;
+  I, CL, CR, LX, RX, XL, XR, YY, MinX: Integer;
 begin
-  if X < 0 then
+  Result := LeftEdge(Y);
+  if Result + W + SpW > RightEdge(Y) then
   begin
-    dec(X, Auto);
-    inc(MaxWidth, 2 * Auto);
+    // too wide, must find a wider place below:
+    if (SpH > 0) and (Result + W <= RightEdge(Y + SpH)) then
+    begin
+      // fits into area below space Sp
+      Inc(Y, SpH);
+    end
+    else
+    begin
+      // too wide, must find a wider place below:
+      YY := Y;
+      MinX := 0;
+
+      CL := Y;
+      XL := Result; // valium for the compiler
+      for I := L.Count - 1 downto 0 do
+        with IndentRec(L.Items[I]) do
+        begin
+          if ID = CurrentID then
+          begin
+            MinX := X;
+            break;
+          end;
+          if (ID = nil) and (YB > Y) and ((YB < CL) or (CL = Y)) then
+          begin
+            if X = LeftEdge(YB - 1) then
+            begin
+              // This is the right most left indentation
+              LX := LeftEdge(YB);
+              RX := RightEdge(YB) - W;
+              if YY < YB then
+                YY := YB;
+              if RX >= LX then
+              begin
+                CL := YB;
+                XL := LX;
+              end;
+            end;
+          end;
+        end;
+
+      CR := Y;
+      XR := Result; // valium for the compiler
+      for I := R.Count - 1 downto 0 do
+        with IndentRec(R.Items[I]) do
+        begin
+          if ID = CurrentID then
+            break;
+          if (ID = nil) and (YB > Y) and ((YB < CR) or (CR = Y)) then
+          begin
+            if X = RightEdge(YB - 1) then
+            begin
+              // This is the left most right indentation
+              LX := LeftEdge(YB);
+              RX := RightEdge(YB) - W;
+              if YY < YB then
+                YY := YB;
+              if RX >= LX then
+              begin
+                CR := YB;
+                XR := LX;
+              end;
+            end;
+          end;
+        end;
+
+      if CL = Y then
+      begin
+        if CR = Y then
+        begin
+          // no better place found, just append at the end.
+          Y := YY;
+          Result := MinX;
+        end
+        else
+        begin
+          Y := CR;
+          Result := XR;
+        end
+      end
+      else if CR = Y then
+      begin
+        Y := CL;
+        Result := XL;
+      end
+      else if CL < CR then
+      begin
+        Y := CL;
+        Result := XL;
+      end
+      else
+      begin
+        Y := CR;
+        Result := XR;
+      end;
+    end;
   end;
-  Index := L.Count - 1;
-  if Index >= MinIndex then
+  Inc(Result, LfEdge);
+end;
+
+function TIndentManager.AlignRight(var Y: Integer; W, SpW, SpH: Integer): Integer;
+var
+  I, CL, CR, LX, RX, XL, XR, YY, MaxX: Integer;
+begin
+  Result := RightEdge(Y) - W;
+  if Result < LeftEdge(Y) + SpW then
   begin
-    Indent := IndentRec(L[Index]);
-    // set y to previous used y == y of current line
-    Y := Max(Y, Indent.YT);
-    Result := Max(X, Indent.X);
-  end
-  else
-    Result := Max(X, LeftIndent(Y));
-  if Result + ThisWidth > MaxWidth + X then
-  begin
-    Result := X;
-    GetClearY(Y, DummyCR);
+    // too wide, must find a wider place below:
+    if (SpH > 0) and (Result >= LeftEdge(Y + SpH)) then
+    begin
+      // fits into area below space Sp
+      Inc(Y, SpH);
+    end
+    else
+    begin
+      YY := Y;
+      MaxX := Width - W;
+
+      CL := Y;
+      XL := Result; // valium for the compiler
+      for I := L.Count - 1 downto 0 do
+        with IndentRec(L.Items[I]) do
+        begin
+          if ID = CurrentID then
+            break;
+          if (ID = nil) and (YB > Y) and ((YB < CL) or (CL = Y)) then
+          begin
+            if X = LeftEdge(YB - 1) then
+            begin
+              // This is the right most left indentation
+              LX := LeftEdge(YB);
+              RX := RightEdge(YB) - W;
+              if YY < YB then
+                YY := YB;
+              if RX >= LX then
+              begin
+                CL := YB;
+                XL := RX;
+              end;
+            end;
+          end;
+        end;
+
+      CR := Y;
+      XR := Result; // valium for the compiler
+      for I := R.Count - 1 downto 0 do
+        with IndentRec(R.Items[I]) do
+        begin
+          if ID = CurrentID then
+          begin
+            MaxX := X - W;
+            break;
+          end;
+          if (ID = nil) and (YB > Y) and ((YB < CR) or (CR = Y)) then
+          begin
+            if X = RightEdge(YB - 1) then
+            begin
+              // This is the left most right indentation
+              LX := LeftEdge(YB);
+              RX := RightEdge(YB) - W;
+              if YY < YB then
+                YY := YB;
+              if RX >= LX then
+              begin
+                CR := YB;
+                XR := RX;
+              end;
+            end;
+          end;
+        end;
+
+      if CL = Y then
+      begin
+        if CR = Y then
+        begin
+          // no better place found, just append at the end.
+          Y := YY;
+          Result := MaxX;
+        end
+        else
+        begin
+          Y := CR;
+          Result := XR;
+        end
+      end
+      else if CR = Y then
+      begin
+        Y := CL;
+        Result := XL;
+      end
+      else if CL < CR then
+      begin
+        Y := CL;
+        Result := XL;
+      end
+      else
+      begin
+        Y := CR;
+        Result := XR;
+      end;
+    end;
   end;
+  Inc(Result, LfEdge);
 end;
 
 function TIndentManager.GetNextWiderY(Y: Integer): Integer;
@@ -2923,88 +2826,6 @@ begin
   end;
 end;
 
-const
-  DefaultBitmap = 1002;
-  ErrBitmap = 1001;
-  ErrBitmapMask = 1005;
-  Hand_Cursor = 1003;
-  ThickIBeam_Cursor = 1006;
-
-procedure ThisExit; far;
-begin
-  DefBitMap.Free;
-  ErrorBitMap.Free;
-  ErrorBitMapMask.Free;
-  WaitStream.Free;
-end;
-
-{----------------TIDNameList}
-
-constructor TIDNameList.Create(List: TSectionBaseList);
-begin
-  inherited Create;
-  Sorted := True;
-  OwnerList := List;
-end;
-
-destructor TIDNameList.Destroy;
-begin
-  Clear;
-  inherited
-end;
-
-procedure TIDNameList.Clear;
-var
-  I: Integer;
-begin
-  for I := 0 to Count - 1 do
-  try
-    if Objects[I] is TChPosObj then
-      Objects[I].Free;
-  except
-  end;
-  inherited Clear;
-end;
-
-function TIDNameList.AddObject(const S: string; AObject: TObject): Integer;
-var
-  I: Integer;
-begin
-  if Find(S, I) then
-  begin
-    try
-      if Objects[I] is TChPosObj then
-        Objects[I].Free;
-    except
-    end;
-    Delete(I);
-  end;
-  Result := inherited AddObject(S, AObject);
-end;
-
-procedure TIDNameList.AddChPosObject(const S: string; Pos: Integer);
-var
-  ChPosObj: TChPosObj;
-begin
-  ChPosObj := TChPosObj.Create;
-  ChPosObj.FList := OwnerList;
-  ChPosObj.FChPos := Pos;
-  AddObject(S, ChPosObj);
-end;
-
-{----------------TChPosObj.GetYPosition:}
-
-function TChPosObj.GetYPosition: Integer;
-var
-  Pos, X, Y: Integer;
-begin
-  Pos := List.FindDocPos(ChPos, False);
-  if List.CursorToXY(nil, Pos, X, Y) then
-    Result := Y
-  else
-    Result := 0;
-end;
-
 {$IFNDEF NoMetafile}
 
 procedure ThtMetaFile.Construct;
@@ -3088,12 +2909,12 @@ end;
 //  if Ord(W) > 255 then
 //    Result := False
 //  else
-//    Result := Char(W) in S;
+//    Result := ThtChar(W) in S;
 //end;
 
 {----------------TCharCollection.GetAsString:}
 
-function TCharCollection.GetAsString: string;
+function TCharCollection.GetAsString: ThtString;
 begin
   Result := Copy(FChars, 1, FCurrentIndex);
 end;
@@ -3118,7 +2939,12 @@ begin
   inherited;
 end;
 
-procedure TCharCollection.Add(C: Char; Index: Integer);
+procedure TCharCollection.Add(C: AnsiChar; Index: Integer);
+begin
+  Add(WideChar(C), Index);
+end;
+
+procedure TCharCollection.Add(C: WideChar; Index: Integer);
 begin
   if FCurrentIndex = Length(FChars) then
   begin
@@ -3128,6 +2954,24 @@ begin
   Inc(FCurrentIndex);
   FIndices^[FCurrentIndex] := Index;
   FChars[FCurrentIndex] := C;
+end;
+
+procedure TCharCollection.Add(const S: ThtString; Index: Integer);
+var
+  K: Integer;
+begin
+  K := FCurrentIndex + Length(S);
+  if K >= Length(FChars) then
+  begin
+    SetLength(FChars, K + 50);
+    ReallocMem(FIndices, (K + 50) * Sizeof(Integer));
+  end;
+  Move(PhtChar(S)^, FChars[FCurrentIndex + 1], Length(S) * SizeOf(ThtChar));
+  while FCurrentIndex < K do
+  begin
+    Inc(FCurrentIndex);
+    FIndices^[FCurrentIndex] := Index;
+  end;
 end;
 
 procedure TCharCollection.Clear;
@@ -3146,19 +2990,20 @@ begin
     SetLength(FChars, K + 50);
     ReallocMem(FIndices, (K + 50) * Sizeof(Integer));
   end;
-  Move(PChar(T.FChars)^, FChars[FCurrentIndex + 1], T.FCurrentIndex * SizeOf(Char)); //@@@ Tiburon: todo test
+  Move(PhtChar(T.FChars)^, FChars[FCurrentIndex + 1], T.FCurrentIndex * SizeOf(ThtChar)); //@@@ Tiburon: todo test
   Move(T.FIndices^[1], FIndices^[FCurrentIndex + 1], T.FCurrentIndex * Sizeof(Integer));
   FCurrentIndex := K;
 end;
-{----------------TokenObj.Create}
+
+{ TokenObj }
 
 constructor TokenObj.Create;
 begin
   inherited;
   GetMem(C, TokenLeng * Sizeof(WideChar));
   GetMem(I, TokenLeng * Sizeof(Integer));
-  MaxIndex := TokenLeng;
-  Leng := 0;
+  FCapacity := TokenLeng;
+  FCount := 0;
   St := '';
   StringOK := True;
 end;
@@ -3173,71 +3018,28 @@ end;
 procedure TokenObj.AddUnicodeChar(Ch: WideChar; Ind: Integer);
 {Ch must be Unicode in this method}
 begin
-  if Leng >= MaxIndex then
-  begin
-    ReallocMem(C, (MaxIndex + 50) * Sizeof(WideChar));
-    ReallocMem(I, (MaxIndex + 50) * Sizeof(Integer));
-    Inc(MaxIndex, 50);
-  end;
-  Inc(Leng);
-  C^[Leng] := Ch;
-  I^[Leng] := Ind;
+  if Count >= Capacity then
+    SetCapacity(Capacity + 50);
+  Inc(FCount);
+  C^[Count] := Ch;
+  I^[Count] := Ind;
   StringOK := False;
 end;
 
 procedure TokenObj.Clear;
 begin
-  Leng := 0;
+  FCount := 0;
   St := '';
   StringOK := True;
-end;
-
-function MultibyteToWideString(CodePage: Integer; const S: AnsiString; Len: Integer): WideString;
-{$IFNDEF UNICODE}
-var
-  NewLen: Integer;
-{$ENDIF}
-begin
-{$IFDEF UNICODE}
-  if Len >= 0 then
-    Result := Copy(S, 1, Len)
-  else
-    Result := S;
-{$ELSE}
-{$IFDEF Delphi6_Plus}
-  if IsWin95 and (CodePage = CP_UTF8) then
-  begin
-  {Provide initial space. The resulting string will never be longer than the
-   UTF-8 encoded string.}
-    if Len = -1 then
-      Len := Length(S);
-    SetLength(Result, Len + 1); {add 1 for #0 terminator}
-    NewLen := UTF8ToUnicode(PWideChar(Result), Len + 1, PAnsiChar(S), Len) - 1; {subtr 1 as don't want to count null terminator}
-  end
-  else
-{$ENDIF}
-  begin
-  {Provide initial space. The resulting string will never be longer than the
-   UTF-8 or multibyte encoded string.}
-    SetLength(Result, 2 * Len);
-    NewLen := MultiByteToWideChar(CodePage, 0, PAnsiChar(S), Len, PWideChar(Result), Len);
-    if NewLen = 0 then
-    { Invalid code page. Try default.}
-      NewLen := MultiByteToWideChar(CP_ACP, 0, PAnsiChar(S), Len, PWideChar(Result), Len);
-  end;
-  SetLength(Result, NewLen);
-{$ENDIF}
 end;
 
 function WideStringToMultibyte(CodePage: Integer; W: WideString): Ansistring;
 var
   NewLen, Len: Integer;
 begin
-{$IFDEF Delphi6_Plus}
-  if CodePage = CP_UTF8 then {UTF-8 encoded string.}
+  if CodePage = CP_UTF8 then {UTF-8 encoded ThtString.}
     Result := UTF8Encode(W)
   else
-{$ENDIF}
   begin
     Len := Length(W);
     SetLength(Result, 3 * Len);
@@ -3255,7 +3057,7 @@ var
 begin
   if CodePage <> CP_UTF8 then
   begin
-    P1 := CharNextExA(CodePage, P, 0);
+    P1 := {$ifdef LCL} CharNextEx {$else} CharNextExA {$endif} (CodePage, P, 0);
     if Assigned(P1) then
       Result := P1 - P
     else
@@ -3273,82 +3075,47 @@ begin
     end;
 end;
 
-procedure TokenObj.AddString(S: TCharCollection; CodePage: Integer);
-// Takes the given string S and converts it to Unicode using the given code page.
-// If we are on Windows 95 then CP_UTF8 (and CP_UTF7) are not supported.
-// We compensate for this by using a Delphi function.
-// Note: There are more code pages (including CP_UTF7), which are not supported
-// on all platforms. These are rather esoteric and therefore not considered here.
-
+procedure TokenObj.AddString(S: TCharCollection);
 var
-  WS: WideString;
-  I, J, N,
-    Len, NewLen: Integer;
-
+  K: Integer;
 begin
-  Len := S.FCurrentIndex;
-{$ifdef UNICODE}
-  if Len > 0 then
-    WS := Copy(S.FChars, 1, Len)
-  else
-    WS := S.FChars;
-{$else}
-  WS := MultibyteToWideString(CodePage, S.FChars, Len);
-{$endif}
-  NewLen := Length(WS);
-
-  {Store the wide string and character indices.}
-  if Len = NewLen then {single byte character set or at least no multibyte conversion}
-    for I := 1 to NewLen do
-      AddUnicodeChar(WS[I], S.FIndices[I])
-  else
-  begin {multibyte character set}
-    J := 1;
-    for I := 1 to NewLen do
-    begin
-      AddUnicodeChar(WS[I], S.FIndices[J]);
-      {find index for start of next character}
-      N := ByteNum(CodePage, @S.FChars[J]);
-      if N > 0 then
-        J := J + N
-      else
-        Break;
-    end;
-  end;
+  K := Count + S.FCurrentIndex;
+  if K >= Capacity then
+    SetCapacity(K + 50);
+  Move(S.FChars[1], C^[Count + 1], S.FCurrentIndex * Sizeof(WideChar));
+  Move(S.FIndices[1], I^[Count + 1], S.FCurrentIndex * Sizeof(Integer));
+  FCount := K;
+  StringOK := False;
 end;
 
 procedure TokenObj.Concat(T: TokenObj);
 var
   K: Integer;
 begin
-  K := Leng + T.Leng;
-  if K > MaxIndex then
-  begin
-    ReallocMem(C, (K + 50) * Sizeof(WideChar));
-    ReallocMem(I, (K + 50) * Sizeof(Integer));
-    MaxIndex := K + 50;
-  end;
-  Move(T.C^, C^[Leng + 1], T.Leng * Sizeof(WideChar));
-  Move(T.I^, I^[Leng + 1], T.Leng * Sizeof(Integer));
-  Leng := K;
+  K := Count + T.Count;
+  if K >= Capacity then
+    SetCapacity(K + 50);
+  Move(T.C^, C^[Count + 1], T.Count * Sizeof(WideChar));
+  Move(T.I^, I^[Count + 1], T.Count * Sizeof(Integer));
+  FCount := K;
   StringOK := False;
 end;
 
 procedure TokenObj.Remove(N: Integer);
 begin {remove a single character}
-  if N <= Leng then
+  if N <= Count then
   begin
-    Move(C^[N + 1], C^[N], (Leng - N) * Sizeof(WideChar));
-    Move(I^[N + 1], I^[N], (Leng - N) * Sizeof(Integer));
+    Move(C^[N + 1], C^[N], (Count - N) * Sizeof(WideChar));
+    Move(I^[N + 1], I^[N], (Count - N) * Sizeof(Integer));
     if StringOK then
       Delete(St, N, 1);
-    Dec(Leng);
+    Dec(FCount);
   end;
 end;
 
 procedure TokenObj.Replace(N: Integer; Ch: WideChar);
 begin {replace a single character}
-  if N <= Leng then
+  if N <= Count then
   begin
     C^[N] := Ch;
     if StringOK then
@@ -3356,15 +3123,81 @@ begin {replace a single character}
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 20.01.2011 --
+procedure TokenObj.SetCapacity(NewCapacity: Integer);
+begin
+  if NewCapacity <> FCapacity then
+  begin
+    ReallocMem(C, NewCapacity * Sizeof(WideChar));
+    ReallocMem(I, NewCapacity * Sizeof(Integer));
+    FCapacity := NewCapacity;
+    if NewCapacity < Count then
+    begin
+      FCount := NewCapacity;
+      if StringOK then
+        St := Copy(St, 1, Count);
+    end;
+  end;
+end;
+
 function TokenObj.GetString: WideString;
 begin
   if not StringOK then
   begin
-    SetLength(St, Leng);
-    Move(C^, St[1], SizeOf(WideChar) * Leng);
+    SetLength(St, Count);
+    Move(C^, St[1], SizeOf(WideChar) * Count);
     StringOK := True;
   end;
   Result := St;
+end;
+
+{----------------TIDObjectList}
+
+function TIDObjectList.AddObject(const S: ThtString; AObject: TIDObject): Integer;
+var
+  I: Integer;
+begin
+  if Find(S, I) then
+  begin
+    try
+      if Objects[I].FreeMe then
+        Objects[I].Free;
+    except
+    end;
+    Delete(I);
+  end;
+  Result := inherited AddObject(S, AObject);
+end;
+
+procedure TIDObjectList.Clear;
+var
+  I: Integer;
+begin
+  for I := 0 to Count - 1 do
+  try
+    if Objects[I].FreeMe then
+      Objects[I].Free;
+  except
+  end;
+  inherited Clear;
+end;
+
+constructor TIDObjectList.Create;
+begin
+  inherited Create;
+  Sorted := True;
+end;
+
+destructor TIDObjectList.Destroy;
+begin
+  Clear;
+  inherited
+end;
+
+//-- BG ---------------------------------------------------------- 04.03.2011 --
+function TIDObjectList.GetObject(Index: Integer): TIDObject;
+begin
+  Result := TIDObject(inherited GetObject(Index));
 end;
 
 {----------------BitmapToRegion}
@@ -3518,7 +3351,7 @@ begin
       { scan each bitmap row - the orientation doesn't matter (Bottom-up or not) }
       ScanLinePtr := bmp.ScanLine[0];
       if bmp.Height > 1 then
-        ScanLineInc := Integer(bmp.ScanLine[1]) - Integer(ScanLinePtr)
+        ScanLineInc := PtrSub(bmp.ScanLine[1], ScanLinePtr)
       else
         ScanLineInc := 0;
       for y := 0 to bmp.Height - 1 do
@@ -3580,7 +3413,7 @@ begin
           end;
           Inc(x);
         end; // scan every sample byte of the image
-        Inc(Integer(ScanLinePtr), ScanLineInc);
+        PtrInc(ScanLinePtr, ScanLineInc);
       end;
       { need to call ExCreateRegion one more time because we could have left    }
       { a RgnData with less than 2000 rects, so it wasn't yet created/combined  }
@@ -3635,9 +3468,47 @@ end;
 
 {----------------PrintBitmap}
 
+type
+  AllocRec = class(TObject)
+    Ptr: Pointer;
+    ASize: Integer;
+    AHandle: THandle;
+  end;
 
 procedure PrintBitmap(Canvas: TCanvas; X, Y, W, H: Integer; Bitmap: TBitmap);
 {Y relative to top of display here}
+
+  function Allocate(Size: Integer): AllocRec;
+  begin
+    Result := AllocRec.Create;
+    with Result do
+    begin
+      ASize := Size;
+      if Size < $FF00 then
+        GetMem(Ptr, Size)
+      else
+      begin
+        AHandle := GlobalAlloc(HeapAllocFlags, Size);
+        if AHandle = 0 then
+          ABort;
+        Ptr := GlobalLock(AHandle);
+      end;
+    end;
+  end;
+
+  procedure DeAllocate(AR: AllocRec);
+  begin
+    with AR do
+      if ASize < $FF00 then
+        Freemem(Ptr, ASize)
+      else
+      begin
+        GlobalUnlock(AHandle);
+        GlobalFree(AHandle);
+      end;
+    AR.Free;
+  end;
+
 {$ifdef LCL}
 {$else}
 var
@@ -3956,7 +3827,7 @@ end;
 {----------------DrawBorder}
 
 procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
-  S: htBorderStyleArray; BGround: TColor; Print: boolean);
+  const S: htBorderStyleArray; BGround: TColor; Print: boolean);
 {Draw the 4 sides of a border.  The sides may be of different styles or colors.
  The side indices, 0,1,2,3, represent left, top, right, bottom.
  ORect is the outside rectangle of the border, IRect the inside Rectangle.
@@ -4230,11 +4101,11 @@ begin
           Pn := ExtCreatePen(PS_GEOMETRIC or PenType or ps_Join_Miter, W[I], lb, 0, nil);
           OldPn := SelectObject(Canvas.Handle, Pn);
           BeginPath(Canvas.Handle);
-          Windows.movetoEx(Canvas.Handle, PM[I].x, PM[I].y, nil);
+          movetoEx(Canvas.Handle, PM[I].x, PM[I].y, nil);
           Start := I;
           InPath := True;
         end;
-        Windows.LineTo(Canvas.Handle, PM[(I + 1) mod 4].x, PM[(I + 1) mod 4].y);
+        LineTo(Canvas.Handle, PM[(I + 1) mod 4].x, PM[(I + 1) mod 4].y);
         if (I = 3) or (S[I + 1] <> S[I]) or (C[I + 1] <> C[I]) or (W[I + 1] <> W[I]) then
         begin
           if (I = 3) and (Start = 0) then
@@ -4336,322 +4207,53 @@ begin
   msg.result := 1;
 end;
 
-{----------------TSectionBase.Create}
-
-constructor TSectionBase.Create(AMasterList: TSectionBaseList; ADisplay: TPropDisplay);
-begin
-  inherited Create;
-  FParentSectionList := AMasterList;
-  FDisplay := ADisplay;
-  ContentTop := 999999999; {large number in case it has Display: none; }
-end;
-
-//-- BG ---------------------------------------------------------- 20.09.2009 --
-constructor TSectionBase.Create(AMasterList: TSectionBaseList; AProp: TProperties);
-begin
-  create(AMasterList, AProp.Display);
-end;
-
-constructor TSectionBase.CreateCopy(AMasterList: TSectionBaseList; T: TSectionBase);
-begin
-  inherited Create;
-  FParentSectionList := AMasterList;
-  FDisplay := T.Display; //BG, 30.12.2010: issue-43: Invisible section is printed
-  SectionHeight := T.SectionHeight;
-  ZIndex := T.ZIndex;
-end;
-
-procedure TSectionBase.CopyToClipboard;
-begin
-end;
-
-function TSectionBase.GetYPosition: Integer;
-begin
-  Result := ContentTop;
-end;
-
-{ TSectionBase }
-
-function TSectionBase.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-  var MaxWidth: Integer; var Curs: Integer): Integer;
-begin
-  StartCurs := Curs;
-  Result := SectionHeight;
-  DrawHeight := SectionHeight;
-  MaxWidth := 0;
-  ContentTop := Y;
-  DrawTop := Y;
-  YDraw := Y;
-  ContentBot := Y + SectionHeight;
-  DrawBot := Y + DrawHeight;
-end;
-
-function TSectionBase.Draw1(Canvas: TCanvas; const ARect: TRect;
-  IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
-var
-  Y: Integer;
-begin
-  Y := YDraw;
-  Result := Y + SectionHeight;
-end;
-
-function TSectionBase.GetURL(Canvas: TCanvas; X: Integer; Y: Integer;
-  var UrlTarg: TUrlTarget; var FormControl: TIDObject{TImageFormControlObj};
-  var ATitle: string): guResultType;
-begin
-  Result := [];
-end;
-
-function TSectionBase.PtInObject(X: Integer; Y: Integer; var Obj: TObject;
-  var IX, IY: Integer): boolean;
-begin
-  Result := False;
-end;
-
-function TSectionBase.FindCursor(Canvas: TCanvas; X: Integer; Y: Integer;
-  var XR: Integer; var YR: Integer; var CaretHt: Integer;
-  var Intext: boolean): Integer;
-begin
-  Result := -1;
-end;
-
-function TSectionBase.FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
-begin
-  Result := -1;
-end;
-
-function TSectionBase.FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
-begin
-  Result := -1;
-end;
-
-function TSectionBase.FindSourcePos(DocPos: Integer): Integer;
-begin
-  Result := -1;
-end;
-
-function TSectionBase.FindDocPos(SourcePos: Integer; Prev: boolean): Integer;
-begin
-  Result := -1;
-end;
-
-function TSectionBase.CursorToXY(Canvas: TCanvas; Cursor: Integer; var X: Integer;
-  var Y: Integer): boolean;
-begin
-  Result := False;
-end;
-
-function TSectionBase.GetChAtPos(Pos: Integer; var Ch: WideChar; var Obj: TObject): boolean;
-begin
-  Result := False;
-end;
-
-procedure TSectionBase.SetParent(List: TSectionBaseList);
-begin
-  FParentSectionList := List;
-end;
-
-procedure TSectionBase.MinMaxWidth(Canvas: TCanvas; var Min, Max: Integer);
-begin
-  Min := 0; Max := 0;
-end;
-
-procedure TSectionBase.AddSectionsToList;
-begin
-  ParentSectionList.addSectionsToPositionList(Self);
-end;
-
-{ TSectionBaseList }
-
-function TSectionBaseList.CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean;
-var
-  I: Integer;
-begin
-  Result := False;
-  for I := 0 to Count - 1 do
-  begin
-    Result := Items[I].CursorToXY(Canvas, Cursor, X, Y);
-    if Result then
-      Break;
-  end;
-end;
-
-function TSectionBaseList.FindDocPos(SourcePos: Integer; Prev: boolean): Integer;
-var
-  I: Integer;
-begin
-  Result := -1;
-  if not Prev then
-    for I := 0 to Count - 1 do
-    begin
-      Result := Items[I].FindDocPos(SourcePos, Prev);
-      if Result >= 0 then
-        Break;
-    end
-  else {Prev, iterate backwards}
-    for I := Count - 1 downto 0 do
-    begin
-      Result := Items[I].FindDocPos(SourcePos, Prev);
-      if Result >= 0 then
-        Break;
-    end
-end;
-
-function TSectionBaseList.getItem(Index: Integer): TSectionBase;
-begin
-  Result := inherited Items[Index];
-end;
-
-//-- BG ---------------------------------------------------------- 11.09.2010 --
-procedure TSectionBaseList.AddSectionsToPositionList(Sections: TSectionBase);
-begin
-  // overridden by TSectionList.
-end;
-
-{ TFloatingObj }
-
-constructor TFloatingObj.CreateCopy(T: TFloatingObj);
-begin
-  inherited Create;
-  FAlt := T.FAlt;
-  FAltW := T.FAltW;
-  ImageWidth := T.ImageWidth;
-  ImageHeight := T.ImageHeight;
-  NoBorder := T.NoBorder;
-  BorderSize := T.BorderSize;
-  Indent := T.Indent;
-  VertAlign := T.VertAlign;
-  HorzAlign := T.HorzAlign;
-  HSpaceL := T.HSpaceL;
-  HSpaceR := T.HSpaceR;
-  VSpaceT := T.VSpaceT;
-  VSpaceB := T.VSpaceB;
-  Pos := T.Pos;
-end;
-
-function TFloatingObj.GetYPosition: Integer;
-begin
-  Result := DrawYY;
-end;
-
-procedure TFloatingObj.ProcessProperties(Prop: TProperties);
-const
-  DummyHtWd = 200;
-var
-  MargArrayO: TVMarginArray;
-  MargArray: TMarginArray;
-  Align: AlignmentType;
-  EmSize, ExSize: Integer;
-begin
-  if Prop.GetVertAlign(Align) then
-    VertAlign := Align;
-  if Prop.GetFloat(Align) and (Align <> ANone) then
-  begin
-    if HSpaceR = 0 then
-    begin {default is different for Align = left/right}
-      HSpaceR := ImageSpace;
-      HSpaceL := ImageSpace;
-    end;
-    HorzAlign := Align;
-  end;
-  if ImageTitle = '' then {a Title attribute will have higher priority than inherited}
-    ImageTitle := Prop.PropTitle;
-  Prop.GetVMarginArray(MargArrayO);
-  EmSize := Prop.EmSize;
-  ExSize := Prop.ExSize;
-  ConvInlineMargArray(MargArrayO, DummyHtWd, DummyHtWd, EmSize, ExSize, MargArray);
-
-  if MargArray[MarginLeft] <> IntNull then
-    HSpaceL := MargArray[MarginLeft];
-  if MargArray[MarginRight] <> IntNull then
-    HSpaceR := MargArray[MarginRight];
-  if MargArray[MarginTop] <> IntNull then
-    VSpaceT := MargArray[MarginTop];
-  if MargArray[MarginBottom] <> IntNull then
-    VSpaceB := MargArray[MarginBottom];
-
-  if Prop.GetBorderStyle <> bssNone then
-  begin
-    Inc(HSpaceL, MargArray[BorderLeftWidth]);
-    Inc(HSpaceR, MargArray[BorderRightWidth]);
-    Inc(VSpaceT, MargArray[BorderTopWidth]);
-    Inc(VSpaceB, MargArray[BorderBottomWidth]);
-  end;
-
-  if MargArray[Width] <> IntNull then
-  begin
-    PercentWidth := False;
-    if MargArray[Width] = Auto then
-      SpecWidth := -1
-    else if (VarIsStr(MargArrayO[Width]))
-      and (System.Pos('%', MargArrayO[Width]) > 0) then
-    begin
-      PercentWidth := True;
-      SpecWidth := MulDiv(MargArray[Width], 100, DummyHtWd);
-    end
-    else
-      SpecWidth := MargArray[Width];
-  end;
-  if MargArray[Height] <> IntNull then
-  begin
-    PercentHeight := False;
-    if MargArray[Height] = Auto then
-      SpecHeight := -1
-    else if (VarIsStr(MargArrayO[Height]))
-      and (System.Pos('%', MargArrayO[Height]) > 0) then
-    begin
-      PercentHeight := True;
-      SpecHeight := MulDiv(MargArray[Height], 100, DummyHtWd);
-    end
-    else
-      SpecHeight := MargArray[Height];
-  end;
-
-  if Prop.GetVertAlign(Align) then
-    VertAlign := Align;
-  if Prop.GetFloat(Align) and (Align <> ANone) then
-    HorzAlign := Align;
-  if Prop.BorderStyleNotBlank then
-  begin
-    NoBorder := True; {will have inline border instead}
-    BorderSize := 0;
-  end;
-end;
-
-//-- BG ---------------------------------------------------------- 30.11.2010 --
-procedure TFloatingObj.SetAlt(CodePage: Integer; const Value: String);
-begin
-{$ifdef UNICODE}
-  FAltW := Value;
-  while (Length(FAltW) > 0) and (FAltW[Length(FAltW)] in [#$D, #$A]) do
-    Delete(FAltW, Length(FAltW), 1);
-  FAlt := WideStringToMultibyte(CodePage, FAltW);
+{$ifdef LCL}
 {$else}
-  FAlt := Value;
-  while (Length(FAlt) > 0) and (FAlt[Length(FAlt)] in [#$D, #$A]) do
-    Delete(FAlt, Length(FAlt), 1);
-  FAltW := MultibyteToWideString(CodePage, FAlt);
+const
+  DefaultBitmap = 1002;
+  ErrBitmap = 1001;
+  ErrBitmapMask = 1005;
+  Hand_Cursor = 1003;
+  ThickIBeam_Cursor = 1006;
 {$endif}
-end;
 
-{$R HTML32.Res}
+{ TIDObject }
+
+//-- BG ---------------------------------------------------------- 06.03.2011 --
+function TIDObject.FreeMe: Boolean;
+begin
+  Result := False;
+end;
 
 initialization
-
   DefBitMap := TBitmap.Create;
-  DefBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(DefaultBitmap));
   ErrorBitMap := TBitmap.Create;
-  ErrorBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmap));
   ErrorBitMapMask := TBitmap.Create;
+{$ifdef LCL}
+  {$I htmlun2.lrs}
+  DefBitMap.LoadFromLazarusResource('ErrBitmap');
+  ErrorBitMap.LoadFromLazarusResource('DefaultBitmap');
+  ErrorBitMapMask.LoadFromLazarusResource('ErrBitmapMask');
+  Screen.Cursors[HandCursor] := LoadCursorFromLazarusResource('Hand_Cursor');
+  Screen.Cursors[UpDownCursor] := LoadCursorFromLazarusResource('UPDOWNCURSOR');
+  Screen.Cursors[UpOnlyCursor] := LoadCursorFromLazarusResource('UPONLYCURSOR');
+  Screen.Cursors[DownOnlyCursor] := LoadCursorFromLazarusResource('DOWNONLYCURSOR');
+{$else}
+  {$R Html32.res}
+  DefBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(DefaultBitmap));
+  ErrorBitMap.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmap));
   ErrorBitMapMask.Handle := LoadBitmap(HInstance, MakeIntResource(ErrBitmapMask));
   Screen.Cursors[HandCursor] := LoadCursor(HInstance, MakeIntResource(Hand_Cursor));
   Screen.Cursors[UpDownCursor] := LoadCursor(HInstance, 'UPDOWNCURSOR');
   Screen.Cursors[UpOnlyCursor] := LoadCursor(HInstance, 'UPONLYCURSOR');
   Screen.Cursors[DownOnlyCursor] := LoadCursor(HInstance, 'DOWNONLYCURSOR');
-
+{$endif}
   WaitStream := TMemoryStream.Create;
 
 finalization
-  ThisExit;
+  DefBitMap.Free;
+  ErrorBitMap.Free;
+  ErrorBitMapMask.Free;
+  WaitStream.Free;
 end.
 

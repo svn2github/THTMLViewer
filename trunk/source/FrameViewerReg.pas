@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -28,6 +28,10 @@ unit FrameViewerReg;
 interface
 
 uses
+{$ifdef LCL}
+  LResources,
+{$else}
+{$endif}
   Classes, HTMLView, FramView, FramBrwz;
 
 procedure Register;
@@ -39,4 +43,10 @@ begin
   RegisterComponents('HtmlViewer/FrameViewer', [THTMLViewer, TFrameViewer, TFrameBrowser]);
 end;
 
+{$ifdef LCL}
+initialization
+{$I htmlcomp.lrs}
+{$endif}
+
 end.
+

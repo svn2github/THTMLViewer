@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -30,92 +30,210 @@ unit StylePars;
 interface
 
 uses
+{$ifdef VCL}
+  Windows,  // needed to expand inline function htUpCase 
+{$endif}
   Classes, Graphics, SysUtils,
-  HtmlGlobals, UrlSubs, StyleUn;
+  HtmlGlobals, HtmlBuffer, UrlSubs, StyleUn;
 
 
+{---------  Detect Shorthand syntax }
 type
-  CharFunction = function: Char;
+  TShortHand = (
+    MarginX, PaddingX, BorderWidthX, BorderX,
+    BorderTX, BorderRX, BorderBX, BorderLX,
+    FontX, BackgroundX, ListStyleX, BorderColorX,
+    BorderStyleX);
 
-procedure DoStyle(Styles: TStyleList; var C: char; GC: CharFunction; const APath: string; FromLink: boolean);
-procedure ParsePropertyStr(const PropertyStr: string; var Propty: TProperties);
-function SortContextualItems(S: string): string;
+  EParseError = class(Exception);
+
+  //TProcessProc = procedure(Obj: TObject; Selectors: ThtStringList; Prop, Value: ThtString);
+
+  { THtmlStyleParser }
+
+  THtmlStyleParser = class
+  private
+    Doc: TBuffer;
+    LCh: ThtChar;
+    LinkPath: ThtString;
+    procedure GetCh;
+    function GetIdentifier(out Identifier: ThtString): Boolean;
+    procedure SkipWhiteSpace;
+    function AddPath(S: ThtString): ThtString;
+    procedure DoBackground(Value: ThtString);
+    procedure DoBorder(Prop, Value: ThtString);
+    procedure DoFont(const Value: ThtString);
+    procedure DoListStyle(const Value: ThtString);
+    procedure DoMarginItems(X: TShortHand; const Value: ThtString);
+    procedure DoShortHand(Index: TShortHand; const Prop, OrigValue, StrippedValue: ThtString);
+  protected
+    procedure ProcessProperty(const Prop, Value: ThtString); virtual; abstract;
+  end;
+
+  THtmlStyleTagParser = class(THtmlStyleParser)
+  private
+    Selectors: ThtStringList;
+    Styles: TStyleList;
+    procedure GetCollection;
+    procedure GetSelectors;
+  protected
+    procedure ProcessProperty(const Prop, Value: ThtString); override;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure DoStyle(Styles: TStyleList; var C: ThtChar; Doc: TBuffer; const APath: ThtString; FromLink: boolean);
+  end;
+
+  THtmlStyleAttrParser = class(THtmlStyleParser)
+  private
+    Propty: TProperties;
+  protected
+    procedure ProcessProperty(const Prop, Value: ThtString); override;
+  public
+    procedure ParseProperties(Doc: TBuffer; Propty: TProperties);
+  end;
+
+
+procedure DoStyle(Styles: TStyleList; var C: ThtChar; Doc: TBuffer; const APath: ThtString; FromLink: boolean);
+procedure ParsePropertyStr(PropertyStr: ThtString; Propty: TProperties);
+function SortContextualItems(S: ThtString): ThtString;
 
 implementation
 
+const
+  ShortHands: array[Low(TShortHand)..High(TShortHand)] of ThtString = (
+    'margin', 'padding', 'border-width', 'border',
+    'border-top', 'border-right', 'border-bottom', 'border-left',
+    'font', 'background', 'list-style', 'border-color',
+    'border-style');
 
 const
   NeedPound = True;
-  EofChar = #0;
 
-type
-  TProcessProc = procedure(Obj: TObject; Selectors: TStringList; Prop, Value: string);
-
+//-- BG ---------------------------------------------------------- 26.12.2010 --
+procedure DoStyle(Styles: TStyleList; var C: ThtChar; Doc: TBuffer; const APath: ThtString; FromLink: boolean);
 var
-  LCh, Back: char;
-  Get: CharFunction;
-  LinkPath: string;
-
-function GetC: char;
+  Parser: THtmlStyleTagParser;
 begin
-  if Back <> #0 then
-  begin
-    Result := Back;
-    Back := #0;
-  end
-  else
-    Result := Get;
-  if Result = ^M then
-    Result := ' ';
+  Parser := THtmlStyleTagParser.Create;
+  try
+    Parser.DoStyle(Styles, C, Doc, APath, FromLink);
+  finally
+    Parser.Free;
+  end;
 end;
 
-procedure GetCh;
+//-- BG ---------------------------------------------------------- 26.12.2010 --
+procedure ParseProperties(Doc: TBuffer; Propty: TProperties);
 var
-  Comment: boolean;
-  NextCh, LastCh: char;
+  Parser: THtmlStyleAttrParser;
 begin
-  repeat {in case a comment immediately follows another comment}
-    Comment := False;
-    LCh := GetC;
-    if LCh = '/' then
-    begin
-      NextCh := GetC;
-      if NextCh = '*' then
+  Parser := THtmlStyleAttrParser.Create;
+  try
+    Parser.ParseProperties(Doc, Propty);
+  finally
+    Parser.Free;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 26.12.2010 --
+procedure ParsePropertyStr(PropertyStr: ThtString; Propty: TProperties);
+var
+  Doc: TBuffer;
+begin
+  Doc := TBuffer.Create(PropertyStr);
+  try
+    ParseProperties(Doc, Propty);
+  finally
+    Doc.Free;
+  end;
+end;
+
+procedure THtmlStyleParser.GetCh;
+var
+  LastCh: ThtChar;
+begin
+  LCh := Doc.NextChar;
+  case LCh of
+    ThtChar(^M),
+    ThtChar(^J),
+    ThtChar(^I):
+      LCh := SpcChar;
+
+    ThtChar('/'):
+      if Doc.PeekChar = '*' then
+      begin
         repeat
-          Comment := True;
           LastCh := LCh;
-          LCh := GetC;
-        until ((LCh = '/') and (LastCh = '*')) or (LCh = EofChar)
-        { Yunqa.de: Do not stop CSS comment at '<'. }
-        { or (LCh = '<') }
+          LCh := Doc.NextChar;
+          if LCh = EofChar then
+            raise EParseError.Create('Unterminated comment in style file: ' + Doc.Name);
+        until (LCh = '/') and (LastCh = '*');
+        LCh := SpcChar;
+      end;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 13.03.2011 --
+function THtmlStyleParser.GetIdentifier(out Identifier: ThtString): Boolean;
+begin
+  // http://www.w3.org/TR/2010/WD-CSS2-20101207/syndata.html#value-def-identifier
+
+  // can contain only the characters [a-zA-Z0-9] and ISO 10646 characters U+00A0 and higher,
+  // plus the hyphen (-) and the underscore (_);
+  // Identifiers can also contain escaped characters and any ISO 10646 character as a numeric code
+  // (see next item). For instance, the identifier "B&W?" may be written as "B\&W\?" or "B\26 W\3F".
+
+  Result := True;
+  SetLength(Identifier, 0);
+
+  // they cannot start with a digit, two hyphens, or a hyphen followed by a digit.
+  case LCh of
+    '0'..'9':
+      Result := False;
+
+    '-':
+    begin
+      case Doc.PeekChar of
+        '0'..'9', '-':
+          Result := False;
       else
-        Back := NextCh; {put character back}
+        SetLength(Identifier, Length(Identifier) + 1);
+        Identifier[Length(Identifier)] := LCh;
+        GetCh;
+      end;
     end;
-  until not Comment;
+  end;
+
+  // loop through all allowed charaters:
+  while Result do
+  begin
+    case LCh of
+      'A'..'Z', 'a'..'z', '0'..'9', '-', '_': ;
+    else
+      if LCh < #$A0 then
+        break;
+    end;
+    SetLength(Identifier, Length(Identifier) + 1);
+    Identifier[Length(Identifier)] := LCh;
+    GetCh;
+  end;
+
+  if Result then
+    Result := Length(Identifier) > 0;
 end;
 
 {-------------SkipWhiteSpace}
 
-procedure SkipWhiteSpace;
+procedure THtmlStyleParser.SkipWhiteSpace;
 begin
-  while (LCh in [' ']) do
+  while LCh = ' ' do
     GetCh;
-end;
-
-{----------------RemoveQuotes}
-
-function RemoveQuotes(const S: string): string;
-{if string is a quoted string, remove the quotes (either ' or ")}
-begin
-  if (Length(S) >= 2) and (S[1] in ['''', '"']) and (S[Length(S)] = S[1]) then
-    Result := Copy(S, 2, Length(S) - 2)
-  else
-    Result := S;
 end;
 
 {----------------AddPath}
 
-function AddPath(S: string): string;
+function THtmlStyleParser.AddPath(S: ThtString): ThtString;
 {for <link> styles, the path is relative to that of the stylesheet directory
  and must be added now}
 begin
@@ -136,34 +254,11 @@ begin
   Result := 'url(' + Result + ')';
 end;
 
-{----------------ProcessProperty}
-
-procedure ProcessProperty(Styles: TObject; Selectors: TStringList; Prop, Value: string);
+function FindShortHand(S: ThtString; var Index: TShortHand): boolean;
 var
-  I: integer;
+  I: TShortHand;
 begin
-  for I := 0 to Selectors.Count - 1 do
-    (Styles as TStyleList).AddModifyProp(Selectors[I], Prop, Value);
-end;
-
-{---------  Detect Shorthand syntax }
-type
-  ShortIndex = (MarginX, PaddingX, BorderWidthX, BorderX,
-    BorderTX, BorderRX, BorderBX, BorderLX,
-    FontX, BackgroundX, ListStyleX, BorderColorX,
-    BorderStyleX);
-var
-  ShortHands: array[Low(ShortIndex)..High(ShortIndex)] of string =
-  ('margin', 'padding', 'border-width', 'border',
-    'border-top', 'border-right', 'border-bottom', 'border-left',
-    'font', 'background', 'list-style', 'border-color',
-    'border-style');
-
-function FindShortHand(S: string; var Index: ShortIndex): boolean;
-var
-  I: ShortIndex;
-begin
-  for I := Low(ShortIndex) to High(ShortIndex) do
+  for I := Low(TShortHand) to High(TShortHand) do
     if S = ShortHands[I] then
     begin
       Result := True;
@@ -173,15 +268,15 @@ begin
   Result := False;
 end;
 
-procedure SplitString(Src: string; var Dest: array of string; var Count: integer);
-{Split a Src string into pieces returned in the Dest string array.  Splitting
- is on spaces with spaces within quotes being ignored.  String containing a '/'
+procedure SplitString(Src: ThtString; var Dest: array of ThtString; var Count: integer);
+{Split a Src ThtString into pieces returned in the Dest ThtString array.  Splitting
+ is on spaces with spaces within quotes being ignored.  ThtString containing a '/'
  are also split to allow for the "size/line-height" Font construct. }
 var
   I, Q, Q1, N: integer;
-  Z: string;
+  Z: ThtString;
   Done: boolean;
-  Match: char;
+  Match: ThtChar;
 begin
   Src := Trim(Src);
   I := Pos('  ', Src);
@@ -209,7 +304,7 @@ begin
       if (Q1 > 0) and ((Q > 0) and (Q1 < Q) or (Q = 0)) then
       begin
         Q := Q1;
-        Match := ''''; {the matching quote char}
+        Match := ''''; {the matching quote ThtChar}
       end
       else
         Match := '"';
@@ -223,7 +318,7 @@ begin
         Z := Z + Copy(Src, 1, I - 1);
         Delete(Src, 1, I);
       end
-      else {Q<I} {quoted string found}
+      else {Q<I} {quoted ThtString found}
       begin
         Z := Z + Copy(Src, 1, Q); {copy to quote}
         Delete(Src, 1, Q);
@@ -255,9 +350,9 @@ begin
   Count := N;
 end;
 
-procedure ExtractParn(var Src: string; var Dest: array of string; var Count: integer);
+procedure ExtractParn(var Src: ThtString; var Dest: array of ThtString; var Count: integer);
 {Look for strings in parenthesis like "url(....)" or rgb(...)".  Return these in
- Dest Array.  Return Src without the extracted string}
+ Dest Array.  Return Src without the extracted ThtString}
 var
   I, J: integer;
 
@@ -279,8 +374,7 @@ begin
   end;
 end;
 
-procedure DoFont(Styles: TObject; Selectors: TStringList; Prop, Value: string;
-  Process: TProcessProc);
+procedure THtmlStyleParser.DoFont(const Value: ThtString);
 { do the Font shorthand property specifier }
 type
   FontEnum =
@@ -288,16 +382,16 @@ type
     larger, smaller, xxsmall, xsmall, small, medium, large,
     xlarge, xxlarge);
 const
-  FontWords: array[italic..xxlarge] of string =
+  FontWords: array[italic..xxlarge] of ThtString =
   ('italic', 'oblique', 'normal', 'bolder', 'lighter', 'bold', 'small-caps',
     'larger', 'smaller', 'xx-small', 'x-small', 'small', 'medium', 'large',
     'x-large', 'xx-large');
 var
-  S: array[0..6] of string;
+  S: array[0..6] of ThtString;
   Count, I: integer;
   Index: FontEnum;
 
-  function FindWord(const S: string; var Index: FontEnum): boolean;
+  function FindWord(const S: ThtString; var Index: FontEnum): boolean;
   var
     I: FontEnum;
   begin
@@ -317,40 +411,39 @@ begin
   begin
     if S[I, 1] = '/' then
     begin
-      Process(Styles, Selectors, 'line-height', Copy(S[I], 2, Length(S[I]) - 1));
+      ProcessProperty('line-height', Copy(S[I], 2, Length(S[I]) - 1));
       Continue;
     end;
     if FindWord(S[I], Index) then
     begin
       case Index of
         italic, oblique:
-          Process(Styles, Selectors, 'font-style', S[I]);
+          ProcessProperty('font-style', S[I]);
         normal..bold:
-          Process(Styles, Selectors, 'font-weight', S[I]);
+          ProcessProperty('font-weight', S[I]);
         smallcaps:
-          Process(Styles, Selectors, 'font-variant', S[I]);
+          ProcessProperty('font-variant', S[I]);
         larger..xxlarge:
-          Process(Styles, Selectors, 'font-size', S[I]);
+          ProcessProperty('font-size', S[I]);
       end;
       continue;
     end;
-    if S[I, 1] in ['0'..'9'] then
+    if IsDigit(S[I, 1]) then
     begin
     {the following will pass 100pt, 100px, but not 100 or larger}
       if StrToIntDef(S[I], -1) < 100 then
-        Process(Styles, Selectors, 'font-size', S[I]);
+        ProcessProperty('font-size', S[I]);
     end
     else
-      Process(Styles, Selectors, 'font-family', S[I])
+      ProcessProperty('font-family', S[I])
   end;
 end;
 
-procedure DoBackground(Styles: TObject; Selectors: TStringList; Prop, Value: string;
-  Process: TProcessProc);
+procedure THtmlStyleParser.DoBackground(Value: ThtString);
 { do the Background shorthand property specifier }
 var
-  S: array[0..6] of string;
-  S1: string;
+  S: array[0..6] of ThtString;
+  S1: ThtString;
   Count, I, N: integer;
   Dummy: TColor;
 
@@ -359,37 +452,37 @@ begin
   for I := 0 to Count - 1 do
   begin
     if Pos('rgb(', S[I]) > 0 then
-      Process(Styles, Selectors, 'background-color', S[I])
+      ProcessProperty('background-color', S[I])
     else if (Pos('url(', S[I]) > 0) then
     begin
       if LinkPath <> '' then {path added now only for <link...>}
         S[I] := AddPath(S[I]);
-      Process(Styles, Selectors, 'background-image', S[I]);
+      ProcessProperty('background-image', S[I]);
     end;
   end;
   SplitString(Value, S, Count);
   for I := 0 to Count - 1 do
     if ColorFromString(S[I], NeedPound, Dummy) then
     begin
-      Process(Styles, Selectors, 'background-color', S[I]);
+      ProcessProperty('background-color', S[I]);
       S[I] := '';
     end
     else if S[I] = 'none' then
     begin
-      Process(Styles, Selectors, 'background-image', S[I]);
-      Process(Styles, Selectors, 'background-color', 'transparent'); {9.41}
+      ProcessProperty('background-image', S[I]);
+      ProcessProperty('background-color', 'transparent'); {9.41}
       S[I] := '';
     end;
   for I := 0 to Count - 1 do
     if Pos('repeat', S[I]) > 0 then
     begin
-      Process(Styles, Selectors, 'background-repeat', S[I]);
+      ProcessProperty('background-repeat', S[I]);
       S[I] := '';
     end;
   for I := 0 to Count - 1 do
     if (S[I] = 'fixed') or (S[I] = 'scroll') then
     begin
-      Process(Styles, Selectors, 'background-attachment', S[I]);
+      ProcessProperty('background-attachment', S[I]);
       S[I] := '';
     end;
   N := 0; S1 := ''; {any remaining are assumed to be position info}
@@ -402,21 +495,20 @@ begin
         Break; {take only last two}
     end;
   if S1 <> '' then
-    Process(Styles, Selectors, 'background-position', S1);
+    ProcessProperty('background-position', S1);
 end;
 
-procedure DoBorder(Styles: TObject; Selectors: TStringList; Prop, Value: string;
-  Process: TProcessProc);
+procedure THtmlStyleParser.DoBorder(Prop, Value: ThtString);
 { do the Border, Border-Top/Right/Bottom/Left shorthand properties.  However, there
   currently is only one style and color supported for all border sides }
 var
-  S: array[0..6] of string;
+  S: array[0..6] of ThtString;
   Count, I: integer;
   Dummy: TColor;
 
-  function FindStyle(const S: string): boolean;
+  function FindStyle(const S: ThtString): boolean;
   const
-    Ar: array[1..9] of string = ('none', 'solid', 'dashed', 'dotted', 'double', 'groove',
+    Ar: array[1..9] of ThtString = ('none', 'solid', 'dashed', 'dotted', 'double', 'groove',
       'inset', 'outset', 'ridge');
   var
     I: integer;
@@ -434,32 +526,31 @@ begin
   ExtractParn(Value, S, Count);
   for I := 0 to Count - 1 do
     if ColorFromString(S[I], NeedPound, Dummy) then
-      Process(Styles, Selectors, Prop + '-color', S[I]);
+      ProcessProperty(Prop + '-color', S[I]);
 
   SplitString(Value, S, Count);
   for I := 0 to Count - 1 do
   begin
     if ColorFromString(S[I], NeedPound, Dummy) then
-      Process(Styles, Selectors, Prop + '-color', S[I])
+      ProcessProperty(Prop + '-color', S[I])
     else if FindStyle(S[I]) then
-      Process(Styles, Selectors, Prop + '-style', S[I]) {Border-Style will change all four sides}
+      ProcessProperty(Prop + '-style', S[I]) {Border-Style will change all four sides}
     else if Prop = 'border' then
     begin
-      Process(Styles, Selectors, 'border-top-width', S[I]);
-      Process(Styles, Selectors, 'border-right-width', S[I]);
-      Process(Styles, Selectors, 'border-bottom-width', S[I]);
-      Process(Styles, Selectors, 'border-left-width', S[I]);
+      ProcessProperty('border-top-width', S[I]);
+      ProcessProperty('border-right-width', S[I]);
+      ProcessProperty('border-bottom-width', S[I]);
+      ProcessProperty('border-left-width', S[I]);
     end
     else
-      Process(Styles, Selectors, Prop + '-width', S[I]);
+      ProcessProperty(Prop + '-width', S[I]);
   end;
 end;
 
-procedure DoListStyle(Styles: TObject; Selectors: TStringList; Prop, Value: string;
-  Process: TProcessProc);
+procedure THtmlStyleParser.DoListStyle(const Value: ThtString);
 { do the List-Style shorthand property specifier }
 var
-  S: array[0..6] of string;
+  S: array[0..6] of ThtString;
   Count, I: integer;
 
 begin
@@ -470,28 +561,22 @@ begin
     begin
       if LinkPath <> '' then {path added now only for <link...>}
         S[I] := AddPath(S[I]);
-      Process(Styles, Selectors, 'list-style-image', S[I])
+      ProcessProperty('list-style-image', S[I])
     end
     else
-      Process(Styles, Selectors, 'list-style-type', S[I]);
+      ProcessProperty('list-style-type', S[I]);
   {should also do List-Style-Position }
   end;
 end;
 
 {----------------DoMarginItems}
 
-procedure DoMarginItems(X: ShortIndex; Styles: TObject; Selectors: TStringList;
-  Prop, Value: string; Process: TProcessProc);
+procedure THtmlStyleParser.DoMarginItems(X: TShortHand; const Value: ThtString);
 { Do the Margin, Border, Padding shorthand property specifiers}
 var
-  S: array[0..3] of string;
+  S: array[0..3] of ThtString;
   I, Count: integer;
   Index: array[0..3] of PropIndices;
-
-  procedure DoIndex(ix: PropIndices; const AValue: string);
-  begin
-    Process(Styles, Selectors, PropWords[ix], AValue);
-  end;
 
 begin
   if Value = '' then
@@ -510,35 +595,52 @@ begin
   for I := 1 to 3 do
     Index[I] := Succ(Index[I - 1]);
 
-  DoIndex(Index[0], S[0]);
+  ProcessProperty(PropWords[Index[0]], S[0]);
   case Count of
     1: for I := 1 to 3 do
-        DoIndex(Index[I], S[0]);
+        ProcessProperty(PropWords[Index[I]], S[0]);
     2:
       begin
-        DoIndex(Index[2], S[0]);
-        DoIndex(Index[1], S[1]);
-        DoIndex(Index[3], S[1]);
+        ProcessProperty(PropWords[Index[2]], S[0]);
+        ProcessProperty(PropWords[Index[1]], S[1]);
+        ProcessProperty(PropWords[Index[3]], S[1]);
       end;
     3:
       begin
-        DoIndex(Index[2], S[2]);
-        DoIndex(Index[1], S[1]);
-        DoIndex(Index[3], S[1]);
+        ProcessProperty(PropWords[Index[2]], S[2]);
+        ProcessProperty(PropWords[Index[1]], S[1]);
+        ProcessProperty(PropWords[Index[3]], S[1]);
       end;
     4:
       begin
-        DoIndex(Index[1], S[1]);
-        DoIndex(Index[2], S[2]);
-        DoIndex(Index[3], S[3]);
+        ProcessProperty(PropWords[Index[1]], S[1]);
+        ProcessProperty(PropWords[Index[2]], S[2]);
+        ProcessProperty(PropWords[Index[3]], S[3]);
       end;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+procedure THtmlStyleParser.DoShortHand(Index: TShortHand; const Prop, OrigValue, StrippedValue: ThtString);
+begin
+  case Index of
+    MarginX, BorderWidthX, PaddingX, BorderColorX, BorderStyleX:
+      DoMarginItems(Index, StrippedValue);
+    FontX:
+      DoFont(OrigValue);
+    BackgroundX:
+      DoBackground(StrippedValue);
+    BorderX..BorderLX:
+      DoBorder(Prop, StrippedValue);
+    ListStyleX:
+      DoListStyle(StrippedValue);
   end;
 end;
 
 {----------------SortContextualItems}
 
-function SortContextualItems(S: string): string;
-{Put a string of contextual items in a standard form for comparison purposes.
+function SortContextualItems(S: ThtString): ThtString;
+{Put a ThtString of contextual items in a standard form for comparison purposes.
  div.ghi#def:hover.abc
    would become
  div.abc.ghi:hover#def
@@ -547,51 +649,55 @@ function SortContextualItems(S: string): string;
 const
   Eos = #0;
 var
-  Ch, C: char;
-  SS: string;
-  SL: TStringList;
-  Done: boolean;
+  Ch, C: ThtChar;
+  SS: ThtString;
+  SL: ThtStringList;
   I: integer;
 
   procedure GetCh;
   begin
     if I <= Length(S) then
-      Ch := S[I]
+    begin
+      Ch := S[I];
+      Inc(I);
+    end
     else
       Ch := Eos;
-    Inc(I);
   end;
 
 begin
   Result := '';
-  SL := TStringList.Create; {TStringlist to do sorting}
+  SL := ThtStringList.Create; {ThtStringList to do sorting}
   try
     SL.Sorted := True;
-    Done := False;
     I := 1;
     GetCh;
-    while not done do
+    while True do
     begin
-      if Ch = Eos then
-        Done := True
+      case Ch of {add digit to sort item}
+        Eos: break;
+
+        '.': C := '1';
+        ':': C := '2';
+        '#': C := '3';
       else
-      begin
-        case Ch of {add digit to sort item}
-          '.': C := '1';
-          ':': C := '2';
-          '#': C := '3';
-        else
-          C := '0';
-        end;
-        SS := C + Ch;
-        GetCh;
-        while Ch in ['a'..'z', '0'..'9', '_', '-'] do
-        begin
-          SS := SS + Ch;
-          GetCh;
-        end;
-        SL.Add(SS);
+        C := '0';
       end;
+      SetLength(SS, 2);
+      SS[1] := C;
+      SS[2] := Ch;
+      GetCh;
+      while True do
+        case Ch of
+          'a'..'z', '0'..'9', '_', '-':
+          begin
+            SS := SS + Ch;
+            GetCh;
+          end;
+        else
+          break;
+        end;
+      SL.Add(SS);
     end;
     for I := 0 to SL.Count - 1 do
       Result := Result + Copy(SL.Strings[I], 2, Length(SL.Strings[I]) - 1);
@@ -600,25 +706,172 @@ begin
   end;
 end;
 
-{----------------GetSelectors}
+{ THtmlStyleTagParser }
 
-procedure GetSelectors(Styles: TStyleList; Selectors: TStringList);
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+constructor THtmlStyleTagParser.Create;
+begin
+  inherited Create;
+  Selectors := ThtStringList.Create;
+end;
+
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+destructor THtmlStyleTagParser.Destroy;
+begin
+  Selectors.Free;
+  inherited;
+end;
+
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+procedure THtmlStyleTagParser.DoStyle(Styles: TStyleList; var C: ThtChar; Doc: TBuffer; const APath: ThtString; FromLink: boolean);
+
+  procedure ReadAt; {read thru @import or some other @}
+  var
+    Media: ThtString;
+
+    procedure Brackets;
+    begin
+      if Pos('screen', Lowercase(Media)) > 0 then
+      begin {parse @ media screen  }
+        GetCh;
+        repeat
+          Selectors.Clear;
+          GetSelectors;
+          GetCollection;
+          SkipWhiteSpace;
+        until (LCh = '}') or (LCh = '<') or (LCh = EofChar);
+      end
+      else
+        repeat // read thru nested '{...}' pairs
+          GetCh;
+          if LCh = '{' then
+            Brackets;
+        until (LCh = '}') or (LCh = '<') or (LCh = EofChar);
+      if LCh = '}' then
+        GetCh;
+    end;
+
+  begin
+    Media := ''; {read the Media ThtString}
+    repeat
+      GetCh;
+      Media := Media + LCh;
+    until (LCh = ';') or (LCh = '{') or (LCh = '<') or (LCh = EofChar);
+    if LCh = '{' then
+      Brackets
+    else if LCh = ';' then
+      GetCh;
+  end;
+
+begin
+  Self.Doc := Doc;
+  Self.Styles := Styles;
+  LinkPath := APath;
+{enter with the first character in C}
+  if C = ^M then
+    C := ' ';
+
+  LCh := ' '; {This trick is needed if the first ThtChar is part of comment, '/*'}
+
+  while (LCh = ' ') or (LCh = '<') or (LCh = '>') or (LCh = '!') or (LCh = '-') do {'<' will probably be present from <style>}
+    GetCh;
+  repeat
+    if LCh = '@' then
+      ReadAt
+    else if LCh = '<' then
+    begin {someone left a tag here, ignore it}
+      repeat
+        GetCh;
+      until (LCh = ' ') or (LCh = EOFChar);
+      SkipWhiteSpace;
+    end
+    else
+    begin
+      Selectors.Clear;
+      GetSelectors;
+      GetCollection;
+    end;
+    while (LCh = ' ') or (LCh = '-') or (LCh = '>') do
+      GetCh;
+  until (LCh = EOFChar) or ((LCh = '<') and not FromLink);
+  C := LCh;
+  Self.Styles := nil;
+  Self.Doc := nil;
+end;
+
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+procedure THtmlStyleTagParser.GetCollection;
+//Read a series of property, value pairs such as "Text-Align: Center;" between
+//  '{', '}'  brackets. Add these to the Styles list for the specified selectors
+var
+  Prop, Value, Value1: ThtString;
+  Index: TShortHand;
+begin
+  if LCh <> '{' then
+    Exit;
+  GetCh;
+  repeat
+    SkipWhiteSpace;
+    GetIdentifier(Prop);
+    SkipWhiteSpace;
+    if (LCh = ':') or (LCh = '=') then
+    begin
+      GetCh;
+      SkipWhiteSpace;
+
+      SetLength(Value, 0);
+      while not ((LCh = ';') or (LCh = '}') or (LCh = '<') or (LCh = EofChar)) do
+      begin
+        SetLength(Value, Length(Value) + 1);
+        Value[Length(Value)] := LCh;
+        GetCh;
+      end;
+      Value1 := LowerCase(Trim(Value)); {leave quotes on for font:}
+      Value := RemoveQuotes(Value1);
+
+      Prop := LowerCase(Prop);
+      if FindShortHand(Prop, Index) then
+        DoShortHand(Index, Prop, Value, Value1)
+      else
+      begin
+        if (LinkPath <> '') and (Pos('url(', Value) > 0) then
+          Value := AddPath(Value);
+        ProcessProperty(Prop, Value);
+      end;
+    end;
+    if LCh = ';' then
+      GetCh;
+
+    while True do
+      case LCh of
+        'A'..'Z', 'a'..'z', '0'..'9', '-', '}', '<', EofChar:
+          break;
+      else
+        GetCh;
+      end;
+  until (LCh = '}') or (LCh = '<') or (LCh = EofChar);
+  if LCh = '}' then
+    GetCh;
+end;
+
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+procedure THtmlStyleTagParser.GetSelectors;
 {Get a series of selectors seperated by ',', like:  H1, H2, .foo }
 var
-  S: string;
+  S: ThtString;
   Sort: Boolean;
   Cnt: integer;
 
-  function FormatContextualSelector(S: string; Sort: boolean): string;
+  function FormatContextualSelector(S: ThtString; Sort: boolean): ThtString;
   {Takes a contextual selector and reverses the order.  Ex: 'div p em' will
    change to 'em Np div'.   N is a number added.  The first digit of N is
-   the number of extra selector items.  The remainder of the number is a sequnce
+   the number of extra selector items.  The remainder of the number is a sequence
    number which serves to sort entries by time parsed.}
   var
     I, Cnt: integer;
-    //Tmp: string;
+    //Tmp: ThtString;
 
-    function DoSort(St: string): string;
+    function DoSort(St: ThtString): ThtString;
     begin
       if Sort then
         Result := SortContextualItems(St)
@@ -672,19 +925,27 @@ var
       Result := DoSort(S);
   end;
 
+var
+  Ignore: Boolean;
 begin
   repeat
-    if LCh = ',' then
-      GetCh;
     SkipWhiteSpace;
     S := '';
     Sort := False;
+    Ignore := False;
     Cnt := 0;
-    while LCh in ['A'..'Z', 'a'..'z', '0'..'9', ' ', '.', ':', '#', '-', '_', '*', '>'] do
-    begin
+    repeat
       case LCh of
-        '.', ':', '#': {2 or more of these in an item will require a sort to put
-                       in standard form}
+        'A'..'Z',
+        'a'..'z',
+        '0'..'9',
+        '_', '-', '>': ;
+
+        '+': Ignore := True; // ignore these otherwize e1 is selected // e1 + e2 --> selects e2, if it follows directly e1
+        // '>': ; // e1 > e2 --> selects e2, if it is 1 level below e1 (e2 is child of e1)
+        // '*': ; // e1 * e2 --> selects e2, if it is at least 2 levels below e1 (e2 is at least grandchild of e1)
+
+        '.', ':', '#': {2 or more of these in an item will require a sort to put in standard form}
           begin
             Inc(Cnt);
             if Cnt = 2 then
@@ -692,252 +953,96 @@ begin
           end;
         ' ': Cnt := 0;
         '*': LCh := ' ';
+      else
+        break;
       end;
-      S := S + LCh;
+      SetLength(S, Length(S) + 1);
+      S[Length(S)] := LCh;
       GetCh;
+    until false;
+    if not Ignore then
+    begin
+      S := FormatContextualSelector(Lowercase(Trim(S)), Sort);
+      Selectors.Add(S);
     end;
-    S := Trim(Lowercase(S));
-    S := FormatContextualSelector(S, Sort);
-    Selectors.Add(S);
-  until LCh <> ',';
-  while not (LCh in ['{', '<', EofChar]) do
+    if LCh <> ',' then
+      break;
+    GetCh;
+  until False;
+  while not ((LCh = '{') or (LCh = '<') or (LCh = EofChar)) do
     GetCh;
 end;
 
-{----------------GetCollection}
-
-procedure GetCollection(Styles: TStyleList; Selectors: TStringList);
-//Read a series of property, value pairs such as "Text-Align: Center;" between
-//  '{', '}'  brackets. Add these to the Styles list for the specified selectors
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+procedure THtmlStyleTagParser.ProcessProperty(const Prop, Value: ThtString);
 var
-  Prop, Value, Value1: string;
-  Index: ShortIndex;
-begin
-  if LCh <> '{' then
-    Exit;
-  GetCh;
-  repeat
-    Prop := '';
-    SkipWhiteSpace;
-    while LCh in ['A'..'Z', 'a'..'z', '0'..'9', '-'] do
-    begin
-      Prop := Prop + LCh;
-      GetCh;
-    end;
-    Prop := Trim(LowerCase(Prop));
-    SkipWhiteSpace;
-    if LCh in [':', '='] then
-    begin
-      GetCh;
-      Value := '';
-      while not (LCh in [';', '}', '<', EofChar]) do
-      begin
-        Value := Value + LCh;
-        GetCh;
-      end;
-      Value1 := Trim(Lowercase(Value)); {leave quotes on for font:}
-      Value := RemoveQuotes(Value1);
-      if FindShortHand(Prop, Index) then
-        case Index of
-          MarginX, BorderWidthX, PaddingX, BorderColorX, BorderStyleX:
-            DoMarginItems(Index, Styles, Selectors, Prop, Value, ProcessProperty);
-          FontX:
-            DoFont(Styles, Selectors, Prop, Value1, ProcessProperty);
-          BackgroundX:
-            DoBackground(Styles, Selectors, Prop, Value, ProcessProperty);
-          ListStyleX:
-            DoListStyle(Styles, Selectors, Prop, Value, ProcessProperty);
-          BorderX..BorderLX:
-            DoBorder(Styles, Selectors, Prop, Value, ProcessProperty);
-        end
-      else
-      begin
-        if (LinkPath <> '') and (Pos('url(', Value) > 0) then
-          Value := AddPath(Value);
-        ProcessProperty(Styles, Selectors, Prop, Value);
-      end;
-    end;
-    SkipWhiteSpace;
-    if LCh = ';' then
-      GetCh;
-    while not (LCh in ['A'..'Z', 'a'..'z', '0'..'9', '-', '}', '<', EofChar]) do
-      GetCh;
-  until LCh in ['}', '<', EofChar];
-  if LCh = '}' then
-    GetCh;
-end;
-
-{----------------DoStyle}
-
-procedure DoStyle(Styles: TStyleList; var C: char; GC: CharFunction;
-  const APath: string; FromLink: boolean);
-var
-  Selectors: TStringList;
-
-  procedure ReadAt; {read thru @import or some other @}
-  var
-    Media: string;
-
-    procedure Brackets;
-    begin
-      if Pos('screen', Lowercase(Media)) > 0 then
-      begin {parse @ media screen  }
-        GetCh;
-        repeat
-          Selectors.Clear;
-          GetSelectors(Styles, Selectors);
-          GetCollection(Styles, Selectors);
-          SkipWhiteSpace;
-        until LCh in ['}', '<', EOFChar];
-      end
-      else
-        repeat // read thru nested '{...}' pairs
-          GetCh;
-          if LCh = '{' then
-            Brackets;
-        until LCh in ['}', '<', EOFChar];
-      if LCh = '}' then
-        GetCh;
-    end;
-
-  begin
-    Media := ''; {read the Media string}
-    repeat
-      GetCh;
-      Media := Media + LCh;
-    until LCh in ['{', ';', '<', EOFChar];
-    if LCh = '{' then
-      Brackets
-    else if LCh = ';' then
-      GetCh;
-  end;
-
-begin
-  Get := GC;
-  LinkPath := APath;
-{enter with the first character in C}
-  if C = ^M then
-    C := ' ';
-
-  LCh := ' '; {This trick is needed if the first char is part of comment, '/*'}
-  Back := C;
-
-  Selectors := TStringList.Create;
-
-  try
-    while LCh in [' ', '<', '>', '!', '-'] do {'<' will probably be present from <style>}
-      GetCh;
-    repeat
-      if LCh = '@' then
-        ReadAt
-      else if LCh = '<' then
-      begin {someone left a tag here, ignore it}
-        repeat
-          GetCh;
-        until LCh in [' ', EOFChar];
-        SkipWhiteSpace;
-      end
-      else
-      begin
-        Selectors.Clear;
-        GetSelectors(Styles, Selectors);
-        GetCollection(Styles, Selectors);
-      end;
-      while LCh in [' ', '-', '>'] do
-        GetCh;
-    until (LCh = EOFChar) or ((LCh = '<') and not FromLink);
-    C := UpCase(LCh);
-  finally
-    Selectors.Free;
-  end;
-end;
-
-// The following is to process the Style=  attribute strings
-
-{----------------MyProcess}
-
-procedure MyProcess(Propty: TObject; Selectors: TStringList; Prop, Value: string);
-begin
-  (Propty as TProperties).AddPropertyByName(Prop, Value);
-end;
-
-{----------------ParsePropertyStr}
-
-procedure ParsePropertyStr(const PropertyStr: string; var Propty: TProperties);
-var
-  Prop, Value, Value1, S: string;
-  LCh: char;
   I: integer;
-  Index: ShortIndex;
-
-  procedure GetCh;
-  begin
-    if I <= Length(S) then
-    begin
-      LCh := S[I];
-      Inc(I);
-      if LCh = ^M then
-        LCh := ' ';
-    end
-    else
-      LCh := EofChar;
-  end;
-
-  procedure SkipWhiteSpace;
-  begin
-    while (LCh in [' ']) do
-      GetCh;
-  end;
-
 begin
+  for I := 0 to Selectors.Count - 1 do
+    Styles.AddModifyProp(Selectors[I], Prop, Value);
+end;
+
+{ THtmlStyleAttrParser }
+
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+procedure THtmlStyleAttrParser.ParseProperties(Doc: TBuffer; Propty: TProperties);
+var
+  Prop, Value, Value1: ThtString;
+  Index: TShortHand;
+begin
+  Self.Doc := Doc;
+  Self.Propty := Propty;
   LinkPath := '';
-  S := Lowercase(PropertyStr);
-  I := 1;
   GetCh;
   repeat
     Prop := '';
     SkipWhiteSpace;
-    while LCh in ['A'..'Z', 'a'..'z', '0'..'9', '-'] do
-    begin
-      Prop := Prop + LCh;
-      GetCh;
-    end;
-    Prop := Trim(Prop);
+    while True do
+      case LCh of
+        'A'..'Z', 'a'..'z', '0'..'9', '-':
+          begin
+            Prop := Prop + LCh;
+            GetCh;
+          end;
+      else
+        break;
+      end;
+    Prop := LowerCase(Trim(Prop));
     SkipWhiteSpace;
-    if LCh in [':', '='] then
+    if (LCh = ':') or (LCh = '=') then
     begin
       GetCh;
       Value := '';
-      while not (LCh in [';', EofChar]) do
+      while not ((LCh = ';') or (LCh = EofChar)) do
       begin
         Value := Value + LCh;
         GetCh;
       end;
-      Value1 := Trim(Value); {leave quotes on for font}
+      Value1 := LowerCase(Trim(Value)); {leave quotes on for font}
       Value := RemoveQuotes(Value1);
 
       if FindShortHand(Prop, Index) then
-        case Index of
-          MarginX, BorderWidthX, PaddingX, BorderColorX, BorderStyleX:
-            DoMarginItems(Index, Propty, nil, Prop, Value, MyProcess);
-          FontX:
-            DoFont(Propty, nil, Prop, Value1, MyProcess);
-          BackgroundX:
-            DoBackground(Propty, nil, Prop, Value, MyProcess);
-          BorderX..BorderLX:
-            DoBorder(Propty, nil, Prop, Value, MyProcess);
-          ListStyleX:
-            DoListStyle(Propty, nil, Prop, Value, MyProcess);
-        end
+        DoShortHand(Index, Prop, Value, Value1)
       else
-        Propty.AddPropertyByName(Prop, Value);
+        ProcessProperty(Prop, Value);
     end;
     SkipWhiteSpace;
     if LCh = ';' then
       GetCh;
-    while not (LCh in ['A'..'Z', 'a'..'z', '0'..'9', '-', EofChar]) do
-      GetCh;
-  until LCh in [EofChar];
+    while True do
+      case LCh of
+        'A'..'Z', 'a'..'z', '0'..'9', '-', EofChar:
+          break;
+      else
+        GetCh;
+      end;
+  until LCh = EofChar;
+end;
+
+//-- BG ---------------------------------------------------------- 29.12.2010 --
+procedure THtmlStyleAttrParser.ProcessProperty(const Prop, Value: ThtString);
+begin
+  Propty.AddPropertyByName(Prop, Value);
 end;
 
 end.

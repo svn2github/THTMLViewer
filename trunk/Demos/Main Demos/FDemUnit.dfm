@@ -1,9 +1,9 @@
 object Form1: TForm1
-  Left = 135
-  Top = 398
+  Left = 449
+  Top = 189
+  Width = 1195
+  Height = 894
   Caption = 'Frame Demo'
-  ClientHeight = 292
-  ClientWidth = 494
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -13,35 +13,17 @@ object Form1: TForm1
   Menu = MainMenu1
   OldCreateOrder = True
   Position = poDesktopCenter
+  ShowHint = True
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 16
-  object Panel2: TPanel
-    Left = 0
-    Top = 269
-    Width = 494
-    Height = 23
-    Align = alBottom
-    Alignment = taLeftJustify
-    BevelInner = bvLowered
-    TabOrder = 0
-    object ProgressBar: TProgressBar
-      Left = 342
-      Top = 2
-      Width = 150
-      Height = 19
-      Align = alRight
-      TabOrder = 0
-      Visible = False
-    end
-  end
   object FrameViewer: TFrameViewer
     Left = 0
-    Top = 25
-    Width = 494
-    Height = 244
+    Top = 27
+    Width = 1179
+    Height = 782
     CharSet = DEFAULT_CHARSET
     DefBackground = clWindow
     DefFontName = 'Times New Roman'
@@ -55,7 +37,7 @@ object Form1: TForm1
     OnBlankWindowRequest = WindowRequest
     OnHistoryChange = HistoryChange
     OnHotSpotTargetClick = HotSpotTargetClick
-    OnHotSpotTargetCovered = HotspotTargetChange
+    OnHotSpotTargetCovered = HotSpotTargetCovered
     OnInclude = FrameViewerInclude
     OnObjectClick = FrameViewerObjectClick
     OnPrintHTMLFooter = ViewerPrintHTMLFooter
@@ -64,59 +46,67 @@ object Form1: TForm1
     OnProgress = FrameViewerProgress
     OnRightClick = FrameViewerRightClick
     OnSoundRequest = SoundRequest
-    PrintMarginBottom = 3.000000000000000000
-    PrintMarginLeft = 2.000000000000000000
-    PrintMarginRight = 2.000000000000000000
-    PrintMarginTop = 2.000000000000000000
-    PrintScale = 1.000000000000000000
+    PrintMarginBottom = 3
+    PrintMarginLeft = 2
+    PrintMarginRight = 2
+    PrintMarginTop = 2
+    PrintScale = 1
     Align = alClient
-    TabOrder = 1
+    TabOrder = 0
     OnMouseMove = FrameViewerMouseMove
     OnFormSubmit = SubmitEvent
   end
   object Panel1: TPanel
     Left = 0
     Top = 0
-    Width = 494
-    Height = 25
+    Width = 1179
+    Height = 27
     Align = alTop
     BevelOuter = bvNone
-    TabOrder = 2
+    BorderWidth = 2
+    TabOrder = 1
+    DesignSize = (
+      1179
+      27)
     object ReloadButton: TButton
-      Left = 8
-      Top = 0
+      Left = 2
+      Top = 2
       Width = 65
-      Height = 25
+      Height = 23
+      Anchors = [akLeft, akTop, akBottom]
       Caption = '&Reload'
       Enabled = False
       TabOrder = 0
       OnClick = ReloadClick
     end
     object FwdButton: TButton
-      Left = 72
-      Top = 0
+      Left = 67
+      Top = 2
       Width = 65
-      Height = 25
+      Height = 23
+      Anchors = [akLeft, akTop, akBottom]
       Caption = '&Fwd'
       Enabled = False
       TabOrder = 1
       OnClick = FwdButtonClick
     end
     object BackButton: TButton
-      Left = 136
-      Top = 0
+      Left = 132
+      Top = 2
       Width = 65
-      Height = 25
+      Height = 23
+      Anchors = [akLeft, akTop, akBottom]
       Caption = '&Back'
       Enabled = False
       TabOrder = 2
       OnClick = BackButtonClick
     end
     object Edit2: TEdit
-      Left = 208
-      Top = 0
-      Width = 337
+      Left = 197
+      Top = 2
+      Width = 988
       Height = 24
+      Anchors = [akLeft, akTop, akRight, akBottom]
       TabOrder = 3
     end
   end
@@ -126,8 +116,40 @@ object Form1: TForm1
     Width = 253
     Height = 30
     Visible = False
-    TabOrder = 3
+    TabOrder = 2
     OnNotify = MediaPlayerNotify
+  end
+  object Panel3: TPanel
+    Left = 0
+    Top = 809
+    Width = 1179
+    Height = 27
+    Align = alBottom
+    Alignment = taLeftJustify
+    BevelOuter = bvNone
+    BorderWidth = 2
+    TabOrder = 3
+    object ProgressBar: TProgressBar
+      Left = 1027
+      Top = 2
+      Width = 150
+      Height = 23
+      Align = alRight
+      Min = 0
+      Max = 100
+      TabOrder = 0
+      Visible = False
+    end
+    object InfoPanel: TPanel
+      Left = 2
+      Top = 2
+      Width = 1025
+      Height = 23
+      Align = alClient
+      Alignment = taLeftJustify
+      BevelOuter = bvLowered
+      TabOrder = 1
+    end
   end
   object MainMenu1: TMainMenu
     Left = 360

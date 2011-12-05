@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11      
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -29,7 +29,8 @@ unit GDIPL2A;
 
 interface
 
-uses Windows, SysUtils, ActiveX, Graphics;
+uses
+  Windows, ActiveX, SysUtils, Graphics;
 
 var
   GDIPlusActive: boolean;
@@ -88,30 +89,30 @@ const
 
 type
   EGDIPlus = class(Exception);
-  TRectF = record
-    X: Single;
-    Y: Single;
-    Width: Single;
-    Height: Single;
-  end;
+  //TRectF = record
+  //  X: Single;
+  //  Y: Single;
+  //  Width: Single;
+  //  Height: Single;
+  //end;
 
-  ImageCodecInfo = packed record
-    Clsid: TGUID;
-    FormatID: TGUID;
-    CodecName: PWCHAR;
-    DllName: PWCHAR;
-    FormatDescription: PWCHAR;
-    FilenameExtension: PWCHAR;
-    MimeType: PWCHAR;
-    Flags: DWORD;
-    Version: DWORD;
-    SigCount: DWORD;
-    SigSize: DWORD;
-    SigPattern: PBYTE;
-    SigMask: PBYTE;
-  end;
-  TImageCodecInfo = ImageCodecInfo;
-  PImageCodecInfo = ^TImageCodecInfo;
+  //ImageCodecInfo = packed record
+  //  Clsid: TGUID;
+  //  FormatID: TGUID;
+  //  CodecName: PWCHAR;
+  //  DllName: PWCHAR;
+  //  FormatDescription: PWCHAR;
+  //  FilenameExtension: PWCHAR;
+  //  MimeType: PWCHAR;
+  //  Flags: DWORD;
+  //  Version: DWORD;
+  //  SigCount: DWORD;
+  //  SigSize: DWORD;
+  //  SigPattern: PBYTE;
+  //  SigMask: PBYTE;
+  //end;
+  //TImageCodecInfo = ImageCodecInfo;
+  //PImageCodecInfo = ^TImageCodecInfo;
 
 var
 {$IFNDEF NoGDIPlus}
@@ -145,7 +146,7 @@ var
     order: integer): integer; stdcall;
   GdipCreateBitmapFromGraphics: function(width, height: Integer;
     Graphics: integer; out Bitmap: integer): integer; stdcall;
-  GdipBitmapGetPixel: function(bitmap, x, y: Integer; var color: DWord): integer; stdcall;
+  GdipBitmapGetPixel: function(bitmap, x, y: Integer; out color: DWord): integer; stdcall;
   GdipDrawImageRectRectI: function(graphics, image,
     dstx, dsty, dstwidth, dstheight, srcx, srcy, srcwidth, srcheight,
     srcUnit, imageAttributes: integer;
@@ -289,14 +290,14 @@ end;
 constructor TGpImage.Create(Filename: WideString; TmpFile: boolean = False);
 var
   err: Integer;
-//    Buffer: array [0..511] of WideChar;
 begin
   inherited Create;
-  if not FileExists(FileName) then
-    raise EGDIPlus.Create(Format('Image file %s not found.', [FileName]));
   err := GdipLoadImageFromFile(PWideChar(FileName), fHandle);
   if err <> 0 then
-    raise EGDIPlus.Create(Format('Can''t load image file %s.', [FileName]));
+    if GetLastError = 2 then
+      raise EGDIPlus.Create(Format('Image file "%s" not found.', [FileName]))
+    else
+      raise EGDIPlus.Create(Format('Can''t load image file "%s".', [FileName]));
   if TmpFile then
     fFilename := Filename;
 end;
@@ -462,3 +463,4 @@ begin
 end;
 
 end.
+

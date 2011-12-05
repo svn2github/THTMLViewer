@@ -17,7 +17,7 @@ package FrameViewer6;
 {$OPTIMIZATION ON}
 {$OVERFLOWCHECKS OFF}
 {$RANGECHECKS OFF}
-{$REFERENCEINFO OFF}
+{$REFERENCEINFO ON}
 {$SAFEDIVIDE OFF}
 {$STACKFRAMES OFF}
 {$TYPEDADDRESS OFF}
@@ -28,11 +28,13 @@ package FrameViewer6;
 {$DESCRIPTION 'ThtmlViewer, TFrameViewer, and TFrameBrowser'}
 {$DESIGNONLY}
 {$IMPLICITBUILD ON}
+{$DEFINE DEBUG}
 
 requires
   vcl,
   vcljpg,
-  designide;
+  designide,
+  TntUnicodeVcl_R60;
 
 contains
   framview in '..\source\framview.pas',
@@ -53,6 +55,7 @@ contains
   HtmlGif1 in '..\source\htmlgif1.pas',
   FrameViewerReg in '..\source\FrameViewerReg.pas',
   GDIPL2A in '..\source\GDIPL2A.pas',
-  HtmlGlobals in '..\source\HtmlGlobals.pas';
+  HtmlGlobals in '..\source\HtmlGlobals.pas',
+  HtmlBuffer in '..\source\HtmlBuffer.pas';
 
 end.

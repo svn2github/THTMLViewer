@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -30,14 +30,19 @@ unit FramView;
 interface
 
 uses
-  SysUtils, Windows, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls, Math,
-  UrlSubs, HtmlGlobals, Htmlsubs, Htmlview, HTMLUn2, ReadHTML;
+{$ifdef LCL}
+  LclIntf, LclType, HtmlMisc,
+{$else}
+  Windows,
+{$endif}
+  SysUtils, Messages, Classes, Graphics, Controls, StdCtrls, ExtCtrls, Math,
+  UrlSubs, HtmlGlobals, HtmlBuffer, Htmlsubs, Htmlview, HTMLUn2, ReadHTML;
 
 type
   {common to TFrameViewer and TFrameBrowser}
-  THotSpotTargetClickEvent = procedure(Sender: TObject; const Target, URL: string; var Handled: boolean) of object;
-  THotSpotTargetEvent = procedure(Sender: TObject; const Target, URL: string) of object;
-  TWindowRequestEvent = procedure(Sender: TObject; const Target, URL: string) of object;
+  THotSpotTargetClickEvent = procedure(Sender: TObject; const Target, URL: ThtString; var Handled: boolean) of object;
+  THotSpotTargetEvent = procedure(Sender: TObject; const Target, URL: ThtString) of object;
+  TWindowRequestEvent = procedure(Sender: TObject; const Target, URL: ThtString) of object;
   fvOptionEnum = (
     fvMetaRefresh, fvNoBorder, fvNoLinkUnderline, fvOverLinksActive,
     fvPrintMonochromeBlack, fvPrintTableBackground, fvPrintBackground,
@@ -48,10 +53,10 @@ type
   {for TFrameViewer}
 
   EfvLoadError = class(Exception);
-  TBufferRequestEvent = procedure(Sender: TObject; const SRC: string; var Buffer: PChar; var BuffSize: integer) of object;
-  TFileRequestEvent = procedure(Sender: TObject; const SRC: string; var NewName: string) of object;
-  TStreamRequestEvent = procedure(Sender: TObject; const SRC: string; var Stream: TStream) of object;
-  TStringsRequestEvent = procedure(Sender: TObject; const SRC: string; var Strings: TStrings) of object;
+  TBufferRequestEvent = procedure(Sender: TObject; const SRC: ThtString; var Buffer: TBuffer) of object;
+  TFileRequestEvent = procedure(Sender: TObject; const SRC: ThtString; var NewName: ThtString) of object;
+  TStreamRequestEvent = procedure(Sender: TObject; const SRC: ThtString; var Stream: TStream) of object;
+  TStringsRequestEvent = procedure(Sender: TObject; const SRC: ThtString; var Strings: ThtStrings) of object;
 
   {common base class for TFrameViewer and TFrameBrowser}
 
@@ -69,7 +74,7 @@ type
     FCursor: TCursor;
 //BG, 21.08.2010: has no effect:    FDither: Boolean; 
     FFontColor: TColor;
-    FFontName: string;
+    FFontName: ThtString;
     FFontSize: Integer;
     FHistory, FTitleHistory: TStrings;
     FHistoryIndex: integer;
@@ -110,38 +115,39 @@ type
     FOnViewerClear: TNotifyEvent;
     FOptions: TFrameViewerOptions;
     FPosition: TList;
-    FPreFontName: string;
+    FPreFontName: ThtString;
     FPrintMarginLeft, FPrintMarginRight, FPrintMarginTop, FPrintMarginBottom: Double;
+    FPrintMaxHPages: Integer;
     FPrintScale: Double;
     FProcessing, FViewerProcessing: Boolean;
-    FServerRoot: string;
+    FServerRoot: ThtString;
     FViewerList: TStrings;
     FViewImages: boolean;
     FVisitedMaxCount: Integer;
     function GetFwdButtonEnabled: Boolean;
     function GetBackButtonEnabled: Boolean;
   protected
-    FBaseEx: string;
-    FTarget: string;
-    FURL: string;
+    FBaseEx: ThtString;
+    FTarget: ThtString;
+    FURL: ThtString;
     FLinkAttributes: TStringList;
-    FLinkText: string;
+    FLinkText: ThtString;
     FCurFrameSet: TFrameSetBase; {the TFrameSet being displayed}
     ProcessList: TList; {list of viewers that are processing}
     Visited: TStringList; {visited URLs}
     function CreateViewer(Owner: TComponent): THtmlViewer;
-    function GetActiveBase: string;
-    function GetActiveTarget: string;
+    function GetActiveBase: ThtString;
+    function GetActiveTarget: ThtString;
     function GetActiveViewer: THtmlViewer;
-    function GetBase: string;
-    function GetBaseTarget: string;
+    function GetBase: ThtString;
+    function GetBaseTarget: ThtString;
     function GetCaretPos: integer;
-    function GetCurrentFile: string;
+    function GetCurrentFile: ThtString;
     function GetCurViewer(I: integer): THtmlViewer;
     function GetCurViewerCount: integer;
     function GetFontName: TFontName;
     function GetFrameSetClass: TFrameSetClass; virtual; abstract;
-    function GetFURL: string;
+    function GetFURL: ThtString;
     function GetOurPalette: HPalette;
     function GetPreFontName: TFontName;
     function GetProcessing: boolean;
@@ -150,29 +156,29 @@ type
     function GetSelText: WideString;
     function GetSelTextBuf(Buffer: PWideChar; BufSize: integer): integer;
     function GetSubFrameSetClass: TSubFrameSetClass; virtual; abstract;
-    function GetTarget: string;
-    function GetTitle: string;
+    function GetTarget: ThtString;
+    function GetTitle: ThtString;
     function GetViewerClass: THtmlViewerClass; virtual;
     function GetViewers: TStrings;
-    function HotSpotClickHandled(const FullUrl: string): Boolean;
-    procedure AddVisitedLink(const S: string);
+    function HotSpotClickHandled(const FullUrl: ThtString): Boolean;
+    procedure AddVisitedLink(const S: ThtString);
     procedure BeginProcessing;
     procedure BumpHistory(OldFrameSet: TFrameSetBase; OldPos: integer);
-    procedure BumpHistory1(const FileName, Title: string; OldPos: integer; ft: ThtmlFileType);
+    procedure BumpHistory1(const FileName, Title: ThtString; OldPos: integer; ft: ThtmlFileType);
     procedure BumpHistory2(OldPos: integer);
     procedure CheckProcessing(Sender: TObject; ProcessingOn: boolean);
     procedure CheckVisitedLinks; virtual; abstract;
     procedure ChkFree(Obj: TObject);
-    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: ThtStringList); virtual; abstract;
-    procedure DoURLRequest(Sender: TObject; const SRC: string; var RStream: TMemoryStream); virtual; abstract;
+    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: ThtString; Results: ThtStringList); virtual; abstract;
+    procedure DoURLRequest(Sender: TObject; const SRC: ThtString; var RStream: TMemoryStream); virtual; abstract;
     procedure EndProcessing;
     procedure fvDragDrop(Sender, Source: TObject; X, Y: Integer);
     procedure fvDragOver(Sender, Source: TObject; X, Y: Integer; State: TDragState; var Accept: Boolean);
-    procedure HotSpotClick(Sender: TObject; const AnURL: string;var Handled: boolean); virtual; abstract;
-    procedure HotSpotCovered(Sender: TObject; const SRC: string); virtual; abstract;
-    procedure LoadFromStringInternal(const Text, Name, Dest: string);
+    procedure HotSpotClick(Sender: TObject; const AnURL: ThtString;var Handled: boolean); virtual; abstract;
+    procedure HotSpotCovered(Sender: TObject; const SRC: ThtString); virtual; abstract;
+    procedure LoadFromStringInternal(const Text, Name, Dest: ThtString);
     procedure SetActiveColor(Value: TColor);
-    procedure SetBase(Value: string);
+    procedure SetBase(Value: ThtString);
     procedure SetCaretPos(Value: integer);
     procedure SetDefBackground(Value: TColor);
     procedure SetCursor(Value: TCursor); reintroduce;
@@ -225,40 +231,39 @@ type
     procedure SetProcessing(Local, Viewer: boolean);
     procedure SetSelLength(Value: integer);
     procedure SetSelStart(Value: integer);
-    procedure SetServerRoot(Value: string);
+    procedure SetServerRoot(Value: ThtString);
     procedure SetViewImages(Value: boolean);
     procedure SetVisitedColor(Value: TColor);
     procedure SetVisitedMaxCount(Value: integer);
     procedure SetCharset(Value: TFontCharset);
-    property Base: string read GetBase write SetBase;
-    property BaseTarget: string read GetBaseTarget;
+    property Base: ThtString read GetBase write SetBase;
+    property BaseTarget: ThtString read GetBaseTarget;
     property CurFrameSet: TFrameSetBase read FCurFrameSet;
     property CurViewer[I: integer]: THtmlViewer read GetCurViewer;
     property OnBitmapRequest: TGetBitmapEvent read FOnBitmapRequest write SetOnBitmapRequest;
-    property ServerRoot: string read FServerRoot write SetServerRoot;
+    property ServerRoot: ThtString read FServerRoot write SetServerRoot;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     function CreateSubFrameSet(FrameSet: TObject): TObject; override;
     function Find(const S: WideString; MatchCase: boolean): boolean;
     function FindEx(const S: WideString; MatchCase, Reverse: boolean): boolean;
-    function InsertImage(Viewer: THtmlViewer; const Src: string; Stream: TMemoryStream): boolean;
-    function ViewerFromTarget(const Target: string): THtmlViewer;
-{$ifndef FPC_TODO_PRINTING}
+    function InsertImage(Viewer: THtmlViewer; const Src: ThtString; Stream: TMemoryStream): boolean;
+    function ViewerFromTarget(const Target: ThtString): THtmlViewer;
+{$ifndef NoMetafile}
     function NumPrinterPages(var WidthRatio: double): integer; overload;
     function NumPrinterPages: integer; overload;
     procedure Print(FromPage, ToPage: integer);
 {$endif}
-    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string); override;
+    procedure AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: ThtString); override;
     procedure Clear;
     procedure ClearHistory;
     procedure CopyToClipboard;
     procedure DoAttributes(FrameSet: TObject; Attr: TAttributeList); override;
-    procedure EndFrameSet(FrameSet: TObject); override;
     procedure GoBack;
     procedure GoFwd;
-    procedure LoadFromFile(const Name: string); virtual; abstract;
-    procedure LoadFromString(const Text: String; const Name: string = ''; const Dest: string = '');
+    procedure LoadFromFile(const Name: ThtString); virtual; abstract;
+    procedure LoadFromString(const Text: ThtString; const Name: ThtString = ''; const Dest: ThtString = '');
     procedure Reload;
     procedure Repaint; override;
     procedure SelectAll;
@@ -266,19 +271,19 @@ type
 
     property ActiveViewer: THtmlViewer read GetActiveViewer;
     property CaretPos: integer read GetCaretPos write SetCaretPos;
-    property CurrentFile: string read GetCurrentFile;
-    property DocumentTitle: string read GetTitle;
+    property CurrentFile: ThtString read GetCurrentFile;
+    property DocumentTitle: ThtString read GetTitle;
     property History: TStrings read FHistory;
     property LinkAttributes: TStringList read FLinkAttributes;
-    property LinkText: string read FLinkText;
+    property LinkText: ThtString read FLinkText;
     property Palette: HPalette read GetOurPalette write SetOurPalette;
     property Processing: boolean read GetProcessing;
     property SelLength: integer read GetSelLength write SetSelLength;
     property SelStart: integer read GetSelStart write SetSelStart;
     property SelText: WideString read GetSelText;
-    property Target: string read GetTarget;
+    property Target: ThtString read GetTarget;
     property TitleHistory: TStrings read FTitleHistory;
-    property URL: string read GetFURL;
+    property URL: ThtString read GetFURL;
     property Viewers: TStrings read GetViewers;
     property FwdButtonEnabled: boolean read GetFwdButtonEnabled;
     property BackButtonEnabled: boolean read GetBackButtonEnabled;
@@ -339,6 +344,7 @@ type
     property PrintMarginLeft: double read FPrintMarginLeft write SetPrintMarginLeft;
     property PrintMarginRight: double read FPrintMarginRight write SetPrintMarginRight;
     property PrintMarginTop: double read FPrintMarginTop write SetPrintMarginTop;
+    property PrintMaxHPages: Integer read FPrintMaxHPages write FPrintMaxHPages default 2;
     property PrintScale: double read FPrintScale write SetPrintScale;
     property ViewImages: boolean read FViewImages write SetViewImages default True;
     property VisitedMaxCount: integer read FVisitedMaxCount write SetVisitedMaxCount default 50;
@@ -375,7 +381,7 @@ type
     procedure FVMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual; abstract;
     procedure FVMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); virtual; abstract;
     procedure FVMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual; abstract;
-    function CheckNoResize(var Lower, Upper: boolean): boolean; virtual; abstract;
+    function CheckNoResize(out Lower, Upper: boolean): boolean; virtual; abstract;
     procedure LoadFiles(); virtual; abstract;
     procedure ReLoadFiles(APosition: integer); virtual; abstract;
     procedure UnloadFiles; virtual; abstract;
@@ -397,22 +403,22 @@ type
     frPositionHistory: TFreeList;
     frHistoryIndex: integer;
     RefreshTimer: TTimer;
-    NextFile: string;
+    NextFile: ThtString;
   protected
-    function CheckNoResize(var Lower, Upper: boolean): boolean; override;
-    function ExpandSourceName(Base, Path, S: String): String; virtual; abstract;
+    function CheckNoResize(out Lower, Upper: boolean): boolean; override;
+    function ExpandSourceName(Base, Path, S: ThtString): ThtString; virtual; abstract;
     function GetSubFrameSetClass: TSubFrameSetClass; virtual; abstract;
     procedure CreateViewer; virtual;
-    procedure frBumpHistory(const NewName: string; NewPos, OldPos: integer; OldFormData: TFreeList);
-    procedure frBumpHistory1(const NewName: string; Pos: integer);
-    procedure frLoadFromFile(const FName, Dest: string; Bump, Reload: boolean); virtual; abstract;
+    procedure frBumpHistory(const NewName: ThtString; NewPos, OldPos: integer; OldFormData: TFreeList);
+    procedure frBumpHistory1(const NewName: ThtString; Pos: integer);
+    procedure frLoadFromFile(const FName, Dest: ThtString; Bump, Reload: boolean); virtual; abstract;
     procedure frSetHistoryIndex(Value: integer);
     procedure FVMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure FVMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); override;
     procedure FVMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
-    procedure RefreshEvent(Sender: TObject; Delay: integer; const URL: string); virtual; abstract;
+    procedure RefreshEvent(Sender: TObject; Delay: integer; const URL: ThtString); virtual; abstract;
     procedure RefreshTimerTimer(Sender: TObject); virtual; abstract;
-    procedure ReloadFile(const FName: string; APosition: integer);
+    procedure ReloadFile(const FName: ThtString; APosition: integer);
     procedure UnloadFiles; override;
     procedure UpdateFrameList; override;
   public
@@ -420,11 +426,11 @@ type
     ViewerFormData: TFreeList;
     Source, {Dos filename or URL for this frame}
       OrigSource, {Original Source name}
-      Destination: string; {Destination offset for this frame}
-    WinName: string; {window name, if any, for this frame}
+      Destination: ThtString; {Destination offset for this frame}
+    WinName: ThtString; {window name, if any, for this frame}
     NoReSize: boolean;
 
-    constructor CreateIt(AOwner: TComponent; L: TAttributeList; Master: TFrameSetBase; const Path: string); virtual;
+    constructor CreateIt(AOwner: TComponent; L: TAttributeList; Master: TFrameSetBase; const Path: ThtString); virtual;
     destructor Destroy; override;
     procedure InitializeDimensions(X, Y, Wid, Ht: integer); override;
     procedure Repaint; override;
@@ -437,18 +443,19 @@ type
 
   TSubFrameSetBase = class(TFrameBase) {can contain one or more TFrames and/or TSubFrameSets}
   protected
-    FBase: string;
-    FBaseTarget: string;
+    FBase: ThtString;
+    FBaseTarget: ThtString;
+    FTitle: ThtString;
     OuterBorder: integer;
     BorderSize: integer;
-    FRefreshURL: string;
+    FRefreshURL: ThtString;
     FRefreshDelay: integer;
     RefreshTimer: TTimer;
-    NextFile: string;
+    NextFile: ThtString;
     OldRect: TRect;
 
     function GetFrameClass: TViewerFrameClass; virtual; abstract;
-    function CheckNoResize(var Lower, Upper: boolean): boolean; override;
+    function CheckNoResize(out Lower, Upper: boolean): boolean; override;
     function GetRect: TRect;
     function NearBoundary(X, Y: integer): boolean;
     procedure AddFrameNames;
@@ -458,8 +465,8 @@ type
     procedure FVMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure FVMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer); override;
     procedure FVMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
-    procedure HandleMeta(Sender: TObject; const HttpEq, Name, Content: string);
-    procedure LoadFromFile(const FName, Dest: string);
+    procedure HandleMeta(Sender: TObject; const HttpEq, Name, Content: ThtString);
+    procedure LoadFromFile(const FName, Dest: ThtString);
     procedure RefreshTimerTimer(Sender: Tobject); virtual;
     procedure SetRefreshTimer;
     procedure UpdateFrameList; override;
@@ -479,25 +486,26 @@ type
 
     constructor CreateIt(AOwner: TComponent; Master: TFrameSetBase); virtual;
     destructor Destroy; override;
-    function AddFrame(Attr: TAttributeList; const FName: string): TViewerFrameBase;
-    procedure EndFrameSet; virtual;
+    function AddFrame(Attr: TAttributeList; const FName: ThtString): TViewerFrameBase;
+    procedure Parsed(const Title, Base, BaseTarget: ThtString); virtual;
     procedure DoAttributes(L: TAttributeList);
     procedure LoadFiles(); override;
     procedure ReLoadFiles(APosition: integer); override;
     procedure UnloadFiles; override;
     procedure InitializeDimensions(X, Y, Wid, Ht: integer); override;
     procedure CalcSizes(Sender: TObject);
-    property BaseTarget: string read FBaseTarget;
+    property Base: ThtString read FBase;
+    property BaseTarget: ThtString read FBaseTarget;
+    property Title: ThtString read FTitle;
   end;
 
   TFrameSetBase = class(TSubFrameSetBase) {only one of these showing, others may be held as History}
   protected
     FActive: THtmlViewer;  // the most recently active viewer
-    FCurrentFile: string;  // current filename or URL
+    FCurrentFile: ThtString;  // current filename or URL
     FFrameViewer: TFvBase;
     FrameNames: TStringList; {list of Window names and their TFrames}
     Frames: TList; {list of all the Frames contained herein}
-    FTitle: string;
     HotSet: TFrameBase; {owner of line we're moving}
     NestLevel: integer;
     OldWidth, OldHeight: integer;
@@ -513,10 +521,10 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure EndFrameSet; override;
+    procedure Parsed(const Title, Base, BaseTarget: ThtString); override;
     procedure Clear; override;
     procedure CalcSizes(Sender: TObject);
-    procedure LoadFromString(const Source, Name, Dest: string);
+    procedure LoadFromString(const Source, Name, Dest: ThtString);
     procedure Repaint; override;
     property FrameViewer: TFvBase read FFrameViewer;
   end;
@@ -525,9 +533,10 @@ type
 
   PEventRec = ^EventRec;
   EventRec = record
-    LStyle: LoadStyleType;
-    NewName: string;
-    AString: string;
+    //LStyle: LoadStyleType;
+    NewName: ThtString;
+    //AString: ThtString;
+    Doc: TBuffer;
   end;
 
   TFrameViewer = class;
@@ -535,13 +544,13 @@ type
 
   TfvFrame = class(TViewerFrameBase)
   protected
-    function ExpandSourceName(Base, Path, S: String): String; override;
+    function ExpandSourceName(Base, Path, S: ThtString): ThtString; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
-    function MasterSet: TFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
-    procedure frLoadFromFile(const FName, Dest: string; Bump, Reload: boolean); override;
+    function MasterSet: TFrameSet; {$ifdef UseInline} inline; {$endif}
+    procedure frLoadFromFile(const FName, Dest: ThtString; Bump, Reload: boolean); override;
     procedure LoadFiles(); overload; override;
     procedure LoadFiles(PEV: PEventRec); reintroduce; overload;
-    procedure RefreshEvent(Sender: TObject; Delay: integer; const URL: string); override;
+    procedure RefreshEvent(Sender: TObject; Delay: integer; const URL: ThtString); override;
     procedure RefreshTimerTimer(Sender: TObject); override;
     procedure ReLoadFiles(APosition: integer); override;
   end;
@@ -553,11 +562,11 @@ type
 
   TFrameSet = class(TFrameSetBase)
   protected
-    function FrameViewer: TFrameViewer; {$ifdef Compiler17_Plus} inline; {$endif}
+    function FrameViewer: TFrameViewer; {$ifdef UseInline} inline; {$endif}
     function GetFrameClass: TViewerFrameClass; override;
     function RequestEvent: boolean; override;
-    function TriggerEvent(const Src: string; PEV: PEventRec): Boolean;
-    procedure LoadFromFile(const FName, Dest: string);
+    function TriggerEvent(const Src: ThtString; out NewName: ThtString; out Doc: TBuffer): Boolean;
+    procedure LoadFromFile(const FName, Dest: ThtString);
     procedure RefreshTimerTimer(Sender: Tobject); override;
   end;
 
@@ -570,23 +579,23 @@ type
     FOnStringsRequest: TStringsRequestEvent;
     UrlRequestStream: TMemoryStream;
   protected
-    function CurFrameSet: TFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
+    function CurFrameSet: TFrameSet; {$ifdef UseInline} inline; {$endif}
     function GetFrameSetClass: TFrameSetClass; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
     procedure CheckVisitedLinks; override;
-    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: ThtStringList); override;
-    procedure DoURLRequest(Sender: TObject; const SRC: string; var RStream: TMemoryStream); override;
-    procedure HotSpotCovered(Sender: TObject; const SRC: string); override;
-    procedure LoadFromFileInternal(const S, Dest: string);
+    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: ThtString; Results: ThtStringList); override;
+    procedure DoURLRequest(Sender: TObject; const SRC: ThtString; var RStream: TMemoryStream); override;
+    procedure HotSpotCovered(Sender: TObject; const SRC: ThtString); override;
+    procedure LoadFromFileInternal(const S, Dest: ThtString);
     procedure SetOnFormSubmit(Handler: TFormSubmitEvent);
   public
     destructor Destroy; override;
-    function HTMLExpandFilename(const Filename: string): string; virtual;
-    procedure HotSpotClick(Sender: TObject; const AnURL: string;var Handled: boolean); override;
-    procedure Load(const SRC: string);
-    procedure LoadFromFile(const FName: string); override;
-    procedure LoadImageFile(const FName: string);
-    procedure LoadTargetFromFile(const Target, FName: string);
+    function HTMLExpandFilename(const Filename: ThtString): ThtString; virtual;
+    procedure HotSpotClick(Sender: TObject; const AnURL: ThtString;var Handled: boolean); override;
+    procedure Load(const SRC: ThtString);
+    procedure LoadFromFile(const FName: ThtString); override;
+    procedure LoadImageFile(const FName: ThtString);
+    procedure LoadTargetFromFile(const Target, FName: ThtString);
   published
     property OnFormSubmit: TFormSubmitEvent read FOnFormSubmit write SetOnFormSubmit;
     property OnStreamRequest: TStreamRequestEvent read FOnStreamRequest write FOnStreamRequest;
@@ -611,19 +620,19 @@ type
     destructor Destroy; override;
   end;
 
-function ImageFile(const S: string): boolean;
+function HasImageFileExt(const S: ThtString): boolean;
 begin
   Result := IsImageExt(Lowercase(ExtractFileExt(S)));
 end;
 
-function TexFile(const S: string): boolean;
+function HasTextFileExt(const S: ThtString): boolean;
 begin
   Result := IsTextExt(Lowercase(ExtractFileExt(S)));
 end;
 
 {----------------FileToString}
 
-function FileToString(const Name: string): AnsiString;
+function FileToString(const Name: ThtString): AnsiString;
 var
   FS: TFileStream;
   Tmp: AnsiString;
@@ -642,10 +651,10 @@ end;
 {----------------TViewerFrameBase.CreateIt}
 
 constructor TViewerFrameBase.CreateIt(AOwner: TComponent; L: TAttributeList;
-  Master: TFrameSetBase; const Path: string);
+  Master: TFrameSetBase; const Path: ThtString);
 var
   I: integer;
-  S: string;
+  S: ThtString;
 begin
   inherited Create(AOwner);
   if AOwner is TSubFrameSetBase then
@@ -670,7 +679,7 @@ begin
           SrcSy:
             begin
               SplitDest(Trim(Name), S, Destination);
-              Source := ExpandSourceName(HtmlSubs.Base, Path, S);
+              Source := ExpandSourceName(MasterSet.Base, Path, S);
               OrigSource := Source;
             end;
           NameSy: WinName := Name;
@@ -730,7 +739,7 @@ begin
     FrameSet.CalcSizes(nil);
 end;
 
-procedure TfvFrame.RefreshEvent(Sender: TObject; Delay: integer; const URL: string);
+procedure TfvFrame.RefreshEvent(Sender: TObject; Delay: integer; const URL: ThtString);
 begin
   if not (fvMetaRefresh in MasterSet.FrameViewer.fvOptions) then
     Exit;
@@ -749,7 +758,7 @@ end;
 
 procedure TfvFrame.RefreshTimerTimer(Sender: TObject);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   RefreshTimer.Enabled := False;
   if Unloaded then
@@ -802,7 +811,7 @@ end;
 
 {----------------TViewerFrameBase.CheckNoResize}
 
-function TViewerFrameBase.CheckNoResize(var Lower, Upper: boolean): boolean;
+function TViewerFrameBase.CheckNoResize(out Lower, Upper: boolean): boolean;
 begin
   Result := NoResize;
   Lower := NoResize;
@@ -859,7 +868,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 03.01.2010 --
-function TfvFrame.ExpandSourceName(Base, Path, S: String): String;
+function TfvFrame.ExpandSourceName(Base, Path, S: ThtString): ThtString;
 begin
   if not MasterSet.RequestEvent then
   begin
@@ -883,14 +892,17 @@ var
   Item: TFrameBase;
   I: integer;
   Upper, Lower, Image, Tex: boolean;
-  Msg: string;
+  Msg: ThtString;
   EV: EventRec;
+  Src: ThtString;
+  Stream: TStream;
 begin
   if ((Source <> '') or Assigned(PEV)) and (MasterSet.NestLevel < 4) then
   begin
-    Image := ImageFile(Source) and not MasterSet.RequestEvent;
-    Tex := TexFile(Source) and not MasterSet.RequestEvent;
-    EV.LStyle := lsFile;
+    Image := HasImageFileExt(Source) and not MasterSet.RequestEvent;
+    Tex := HasTextFileExt(Source) and not MasterSet.RequestEvent;
+    //EV.LStyle := lsFile;
+    EV.Doc := nil;
     if Image or Tex then
       EV.NewName := MasterSet.FrameViewer.HTMLExpandFilename(Source)
     else
@@ -901,19 +913,31 @@ begin
       end
       else if copy(Source, 1, 9) = 'source://' then
       begin
-        EV.LStyle := lsString;
-        EV.AString := copy(Source, 10, MaxInt);
+        //EV.LStyle := lsString;
         EV.NewName := Source;
+        Src := copy(Source, 10, MaxInt);
+        EV.Doc := TBuffer.Create(Src, EV.NewName);
       end
       else
       begin
-        if not MasterSet.TriggerEvent(Source, @EV) then
+        if not MasterSet.TriggerEvent(Source, EV.NewName, EV.Doc) then
+        begin
           EV.NewName := MasterSet.FrameViewer.HTMLExpandFilename(Source);
+          if FileExists(Ev.NewName) then
+          begin
+            Stream := TFileStream.Create(EV.NewName, fmOpenRead or fmShareDenyWrite);
+            try
+              EV.Doc := TBuffer.Create(Stream, EV.NewName);
+            finally
+              Stream.Free;
+            end;
+          end;
+        end;
       end;
     end;
     Inc(MasterSet.NestLevel);
     try
-      if not Image and not Tex and IsFrameString(EV.LStyle, EV.NewName, EV.AString, MasterSet.FrameViewer) then
+      if not Image and not Tex and IsFrame(MasterSet.FrameViewer, EV.Doc, EV.NewName) then
       begin
         FFrameSet := GetSubFrameSetClass.CreateIt(Self, MasterSet);
         FrameSet.Align := alClient;
@@ -921,8 +945,7 @@ begin
         InsertControl(FrameSet);
         FrameSet.SendToBack;
         FrameSet.Visible := True;
-        FrameParseString(MasterSet.FrameViewer, FrameSet, EV.LStyle, EV.NewName, EV.AString,
-          FrameSet.HandleMeta);
+        ParseFrame(MasterSet.FrameViewer, FrameSet, EV.Doc, EV.NewName, FrameSet.HandleMeta);
         Self.BevelOuter := bvNone;
         frBumpHistory1(Source, 0);
         with FrameSet do
@@ -947,12 +970,15 @@ begin
           Viewer.LoadTextFile(EV.NewName)
         else
         begin
-          case EV.LStyle of
-            lsFile:   Viewer.LoadFromFile(EV.NewName + Destination);
-            lsString: Viewer.LoadFromString(EV.AString, Source);
-          end;
-          if EV.LStyle <> lsFile then
+          if EV.Doc <> nil then
+          begin
+            Viewer.LoadFromDocument(EV.Doc, Source);
             Viewer.PositionTo(Destination);
+          end
+          else
+          begin
+            Viewer.LoadFromFile(EV.NewName + Destination)
+          end;
         end;
         frBumpHistory1(Source, Viewer.Position);
       end;
@@ -990,7 +1016,7 @@ var
 
   procedure DoError;
   var
-    Msg: string;
+    Msg: ThtString;
   begin
     Msg := '<p><img src="qw%&.bmp" alt="Error"> Can''t load ' + Source;
     Viewer.LoadFromBuffer(@Msg[1], Length(Msg), ''); {load an error message}
@@ -1013,22 +1039,22 @@ begin
     else if Assigned(Viewer) then
     begin
       Viewer.Base := MasterSet.FBase;
-      if ImageFile(Source) then
+      if HasImageFileExt(Source) then
       try
         Viewer.LoadImageFile(Source)
       except end {leave blank on error}
-      else if TexFile(Source) then
+      else if HasTextFileExt(Source) then
       try
         Viewer.LoadTextFile(Source)
       except end
       else
       begin
         try
-          if MasterSet.TriggerEvent(Source, @EV) then
-            case EV.LStyle of
-              lsFile: Viewer.LoadFromFile(EV.NewName);
-              lsString: Viewer.LoadFromString(EV.AString, '');
-            end
+          if MasterSet.TriggerEvent(Source, EV.NewName, EV.Doc) then
+            if EV.Doc <> nil then
+              Viewer.LoadFromDocument(EV.Doc, '')
+            else
+              Viewer.LoadFromFile(EV.NewName)
           else
             Viewer.LoadFromFile(Source);
           if APosition < 0 then
@@ -1082,12 +1108,12 @@ end;
 
 {----------------TViewerFrameBase.frLoadFromFile}
 
-procedure TfvFrame.frLoadFromFile(const FName, Dest: string; Bump, Reload: boolean);
+procedure TfvFrame.frLoadFromFile(const FName, Dest: ThtString; Bump, Reload: boolean);
 {Note: if FName not '' and there is no RequestEvent, it has been HTML expanded
  and contains the path}
 var
   OldPos: integer;
-  HS, OldTitle, OldName: string;
+  HS, OldTitle, OldName: ThtString;
   OldFormData: TFreeList;
   SameName, Tex, Img: boolean;
   OldViewer: THtmlViewer;
@@ -1096,7 +1122,7 @@ var
   Upper, Lower, FrameFile: boolean;
   Item: TFrameBase;
   I: integer;
-
+  Stream: TStream;
 begin
   if Assigned(RefreshTimer) then
     RefreshTimer.Enabled := False;
@@ -1106,22 +1132,32 @@ begin
     EV.NewName := OldName;
   Source := EV.NewName;
   HS := EV.NewName;
-  SameName := CompareText(EV.NewName, OldName) = 0;
+  SameName := CompareText(Source, OldName) = 0;
 {if SameName, will not have to reload anything}
-  Img := ImageFile(EV.NewName) and not MasterSet.RequestEvent;
-  Tex := TexFile(EV.NewName) and not MasterSet.RequestEvent;
-  EV.LStyle := lsFile;
+  Img := HasImageFileExt(Source) and not MasterSet.RequestEvent;
+  Tex := HasTextFileExt(Source) and not MasterSet.RequestEvent;
   if not Img and not Tex and not SameName then
-    MasterSet.TriggerEvent(EV.NewName, @EV);
-
+    if not MasterSet.TriggerEvent(Source, EV.NewName, EV.Doc) then
+    begin
+      EV.NewName := MasterSet.FrameViewer.HTMLExpandFilename(Source);
+      if FileExists(Ev.NewName) then
+      begin
+        Stream := TFileStream.Create(EV.NewName, fmOpenRead or fmShareDenyWrite);
+        try
+          EV.Doc := TBuffer.Create(Stream, EV.NewName);
+        finally
+          Stream.Free;
+        end;
+      end;
+    end;
   try
     if not SameName then
-    try
-      FrameFile := not Img and not Tex and
-        IsFrameString(EV.LStyle, EV.NewName, EV.AString, MasterSet.FrameViewer);
-    except
-      raise(EfvLoadError.Create('Can''t load: ' + EV.NewName));
-    end
+      try
+        FrameFile := not Img and not Tex and
+          IsFrame(MasterSet.FrameViewer, EV.Doc, EV.NewName);
+      except
+        raise(EfvLoadError.Create('Can''t load: ' + EV.NewName));
+      end
     else
       FrameFile := not Assigned(Viewer);
     if SameName then
@@ -1130,11 +1166,10 @@ begin
         OldPos := Viewer.Position;
         if Reload then
         begin {this for Meta Refresh only}
-          case EV.LStyle of
-            lsFile: Viewer.LoadFromFile(EV.NewName + Dest);
-            lsString:
-              Viewer.LoadFromString(EV.AString, '');
-          end;
+          if EV.Doc <> nil then
+            Viewer.LoadFromDocument(EV.Doc, '')
+          else
+            Viewer.LoadFromFile(EV.NewName + Dest);
           Viewer.Position := OldPos;
         end
         else
@@ -1176,13 +1211,10 @@ begin
         else
         begin
           Viewer.Base := MasterSet.FBase;
-          case EV.LStyle of
-            lsFile: Viewer.LoadFromFile(EV.NewName + Dest);
-            lsString:
-              Viewer.LoadFromString(EV.AString, '');
-          end;
-          if (EV.LStyle <> lsFile) and (Dest <> '') then
-            Viewer.PositionTo(Dest);
+          if EV.Doc <> nil then
+            Viewer.LoadFromDocument(EV.Doc, Dest)
+          else
+            Viewer.LoadFromFile(EV.NewName + Dest);
         end;
         MasterSet.FrameViewer.AddVisitedLink(EV.NewName + Dest);
         if MasterSet.Viewers.Count > 1 then
@@ -1225,8 +1257,7 @@ begin
         InsertControl(FrameSet);
         FrameSet.SendToBack; {to prevent blink}
         FrameSet.Visible := True;
-        FrameParseString(MasterSet.FrameViewer, FrameSet, EV.LStyle, EV.NewName,
-          EV.AString, FrameSet.HandleMeta);
+        ParseFrame(MasterSet.FrameViewer, FrameSet, EV.Doc, EV.NewName, FrameSet.HandleMeta);
         MasterSet.FrameViewer.AddVisitedLink(EV.NewName);
         Self.BevelOuter := bvNone;
         with FrameSet do
@@ -1255,13 +1286,10 @@ begin
         else
         begin
           Viewer.Base := MasterSet.FBase;
-          case EV.LStyle of
-            lsFile: Viewer.LoadFromFile(EV.NewName + Dest);
-            lsString:
-              Viewer.LoadFromString(EV.AString, '');
-          end;
-          if EV.LStyle <> lsFile then
-            Viewer.PositionTo(Dest);
+          if EV.Doc <> nil then
+            Viewer.LoadFromDocument(EV.Doc, Dest)
+          else
+            Viewer.LoadFromFile(EV.NewName + Dest);
         end;
         MasterSet.FrameViewer.AddVisitedLink(EV.NewName + Dest);
       {FrameSet to Viewer}
@@ -1315,7 +1343,7 @@ end;
 
 {----------------TViewerFrameBase.ReloadFile}
 
-procedure TViewerFrameBase.ReloadFile(const FName: string; APosition: integer);
+procedure TViewerFrameBase.ReloadFile(const FName: ThtString; APosition: integer);
 {It's known that there is only a single viewer, the file is not being changed,
  only the position}
 begin
@@ -1324,7 +1352,7 @@ end;
 
 {----------------TViewerFrameBase.frBumpHistory}
 
-procedure TViewerFrameBase.frBumpHistory(const NewName: string;
+procedure TViewerFrameBase.frBumpHistory(const NewName: ThtString;
   NewPos, OldPos: integer; OldFormData: TFreeList);
 {applies to TFrames which hold a THtmlViewer}{Viewer to Viewer}
 var
@@ -1359,7 +1387,7 @@ end;
 
 {----------------TViewerFrameBase.frBumpHistory1}
 
-procedure TViewerFrameBase.frBumpHistory1(const NewName: string; Pos: integer);
+procedure TViewerFrameBase.frBumpHistory1(const NewName: ThtString; Pos: integer);
 {called from a fresh TViewerFrameBase.  History list is empty}
 var
   PO: PositionObj;
@@ -1529,7 +1557,7 @@ end;
 
 {----------------TSubFrameSetBase.AddFrame}
 
-function TSubFrameSetBase.AddFrame(Attr: TAttributeList; const FName: string): TViewerFrameBase;
+function TSubFrameSetBase.AddFrame(Attr: TAttributeList; const FName: ThtString): TViewerFrameBase;
 {called by the parser when <Frame> is encountered within the <Frameset>
  definition}
 begin
@@ -1545,14 +1573,14 @@ procedure TSubFrameSetBase.DoAttributes(L: TAttributeList);
 {called by the parser to process the <Frameset> attributes}
 var
   T: TAttribute;
-  S: string;
-  Numb: string;
+  S: ThtString;
+  Numb: ThtString;
 
   procedure GetDims;
   const
     EOL = ^M;
   var
-    Ch: char;
+    Ch: ThtChar;
     I, N: integer;
 
     procedure GetCh;
@@ -1576,17 +1604,17 @@ var
       Inc(DimCount);
       Numb := '';
       GetCh;
-      while not (Ch in ['0'..'9', '*', EOL, ',']) do
+      while not (Ch in [ThtChar('0')..ThtChar('9'), ThtChar('*'), ThtChar(EOL), ThtChar(',')]) do
         GetCh;
-      if Ch in ['0'..'9'] then
+      if Ch in [ThtChar('0')..ThtChar('9')] then
       begin
-        while Ch in ['0'..'9'] do
+        while Ch in [ThtChar('0')..ThtChar('9')] do
         begin
           Numb := Numb + Ch;
           GetCh;
         end;
         N := Max(1, StrToInt(Numb)); {no zeros}
-        while not (Ch in ['*', '%', ',', EOL]) do
+        while not (Ch in [ThtChar('*'), ThtChar('%'), ThtChar(','), ThtChar(EOL)]) do
           GetCh;
         if ch = '*' then
         begin
@@ -1601,13 +1629,13 @@ var
         else
           Dim[DimCount] := Min(N, 5000); {limit absolute to 5000}
       end
-      else if Ch in ['*', ',', EOL] then
+      else if Ch in [ThtChar('*'), ThtChar(','), ThtChar(EOL)] then
       begin
         Dim[DimCount] := -1;
         if Ch = '*' then
           GetCh;
       end;
-      while not (Ch in [',', EOL]) do
+      while not (Ch in [ThtChar(','), ThtChar(EOL)]) do
         GetCh;
     until (Ch = EOL) or (DimCount = 20);
   end;
@@ -1691,9 +1719,9 @@ begin
   Unloaded := True;
 end;
 
-{----------------TSubFrameSetBase.EndFrameSet}
+{----------------TSubFrameSetBase.Parsed}
 
-procedure TSubFrameSetBase.EndFrameSet;
+procedure TSubFrameSetBase.Parsed(const Title, Base, BaseTarget: ThtString);
 {called by the parser when </FrameSet> is encountered}
 var
   I: integer;
@@ -1709,11 +1737,12 @@ begin
   else
     while DimCount > List.Count do {or add Frames if more Dims than Count}
       AddFrame(nil, '');
-  if HtmlSubs.Base <> '' then
-    FBase := HtmlSubs.Base
+  FTitle := Title;
+  if Base <> '' then
+    FBase := Base
   else
     FBase := MasterSet.FrameViewer.FBaseEx;
-  FBaseTarget := HtmlSubs.BaseTarget;
+  FBaseTarget := BaseTarget;
 end;
 
 {----------------TSubFrameSetBase.InitializeDimensions}
@@ -1988,12 +2017,14 @@ end;
 
 {----------------TSubFrameSetBase.CheckNoResize}
 
-function TSubFrameSetBase.CheckNoResize(var Lower, Upper: boolean): boolean;
+function TSubFrameSetBase.CheckNoResize(out Lower, Upper: boolean): boolean;
 var
   Lw, Up: boolean;
   I: integer;
 begin
-  Result := False; Lower := False; Upper := False;
+  Result := False;
+  Lower := False;
+  Upper := False;
   for I := 0 to List.Count - 1 do
     with TFrameBase(List[I]) do
       if CheckNoResize(Lw, Up) then
@@ -2024,7 +2055,7 @@ end;
 
 {----------------TSubFrameSetBase.LoadFromFile}
 
-procedure TSubFrameSetBase.LoadFromFile(const FName, Dest: string);
+procedure TSubFrameSetBase.LoadFromFile(const FName, Dest: ThtString);
 var
   Frame: TViewerFrameBase;
 begin
@@ -2032,7 +2063,7 @@ begin
   Frame := AddFrame(nil, '');
   Frame.Source := FName;
   Frame.Destination := Dest;
-  EndFrameSet;
+  Parsed('', '', '');
   Frame.LoadFiles();
   if Assigned(Frame.FrameSet) then
     with Frame.FrameSet do
@@ -2058,12 +2089,20 @@ end;
 
 {----------------TSubFrameSetBase.HandleMeta}
 
-procedure TSubFrameSetBase.HandleMeta(Sender: TObject; const HttpEq, Name, Content: string);
+procedure TSubFrameSetBase.HandleMeta(Sender: TObject; const HttpEq, Name, Content: ThtString);
 var
-  DelTime, I: integer;
+  DelTime, I: Integer;
+  Info: TBuffCharSetCodePageInfo;
 begin
   if CompareText(HttpEq, 'content-type') = 0 then
-    TranslateCharset(Content, LocalCharset);
+  begin
+    Info := GetCharSetCodePageInfo(Content);
+    if Info <> nil then
+    begin
+      LocalCharSet := Info.CharSet;
+      //LocalCodePage := Info.CodePage;
+    end;
+  end;
 
   with MasterSet.FrameViewer do
   begin
@@ -2113,7 +2152,7 @@ end;
 
 procedure TSubFrameSetBase.RefreshTimerTimer(Sender: Tobject);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   RefreshTimer.Enabled := False;
   if Unloaded then
@@ -2196,76 +2235,61 @@ end;
 
 {----------------TFrameSet.TriggerEvent}
 
-function TFrameSet.TriggerEvent(const Src: string; PEV: PEventRec): boolean;
+function TFrameSet.TriggerEvent(const Src: ThtString; out NewName: ThtString; out Doc: TBuffer): Boolean;
 var
-  AName: string;
-  Strings: TStrings;
+  Strings: ThtStrings;
   Stream: TStream;
-  Buffer: PChar;
-  BuffSize: integer;
 begin
-  with PEV^ do
-  begin
-    Result := False;
-    LStyle := lsFile;
-    Buffer := nil;
-    BuffSize := 0;
-    AName := '';
-    AString := '';
-    Stream := nil;
-    with FrameViewer do
-      if Assigned(FOnStringsRequest) then
+  Result := False;
+  Doc := nil;
+  NewName := Src;
+  //TODO -oBG, 27.12.2010: potential memory leaks. Who frees the gotten objects?
+  with FrameViewer do
+    if Assigned(FOnStringsRequest) then
+    begin
+      Strings := nil;
+      FOnStringsRequest(Self, Src, Strings);
+      Result := Assigned(Strings);
+      if Result then
+        Doc := TBuffer.Create(Strings.Text, Src);
+    end
+    else if Assigned(FOnStreamRequest) then
+    begin
+      Stream := nil;
+      FOnStreamRequest(Self, Src, Stream);
+      Result := Assigned(Stream);
+      if Result then
       begin
-        FOnStringsRequest(Self, Src, Strings);
-        Result := Assigned(Strings);
-        if Result then
-        begin
-          LStyle := lsString;
-          AString := Strings.Text;
-        end;
-      end
-      else if Assigned(FOnStreamRequest) then
+        Stream.Position := 0;
+        Doc := TBuffer.Create(Stream, Src);
+      end;
+    end
+    else if Assigned(FOnBufferRequest) then
+    begin
+      FOnBufferRequest(Self, Src, Doc);
+      Result := Doc <> nil;
+    end
+    else if Assigned(FOnFileRequest) then
+    begin
+      FOnFileRequest(Self, Src, NewName);
+      Result := NewName <> '';
+      if Result then
       begin
-        FOnStreamRequest(Self, Src, Stream);
-        Result := Assigned(Stream);
-        if Result then
-        begin
-          LStyle := lsString;
-          AString := LoadStringFromStream(Stream);
-        end;
-      end
-      else if Assigned(FOnBufferRequest) then
-      begin
-        FOnBufferRequest(Self, Src, Buffer, BuffSize);
-        Result := (BuffSize > 0) and Assigned(Buffer);
-        if Result then
-        begin
-          LStyle := lsString;
-          SetLength(AString, BuffSize div SizeOf(Char));
-          Move(Buffer^, AString[1], BuffSize); // don't use * SizeOf(Char) here
-        end;
-      end
-      else if Assigned(FOnFileRequest) then
-      begin
-        FOnFileRequest(Self, Src, AName);
-        Result := AName <> '';
-        if Result then
-        begin
-          LStyle := lsFile;
-          NewName := AName;
-          AString := LoadStringFromFile(NewName);
-          //was: AString := FileToString(NewName);
+        Stream := TFileStream.Create(NewName, fmOpenRead or fmShareDenyWrite);
+        try
+          Doc := TBuffer.Create(Stream, NewName);
+        finally
+          Stream.Free;
         end;
       end;
-  end;
+    end;
 end;
 
-{----------------TFrameSetBase.EndFrameSet}
+{----------------TFrameSetBase.Parsed}
 
-procedure TFrameSetBase.EndFrameSet;
+procedure TFrameSetBase.Parsed(const Title, Base, BaseTarget: ThtString);
 begin
-  FTitle := HtmlSubs.Title;
-  inherited EndFrameSet;
+  inherited;
   with ClientRect do
     InitializeDimensions(Left, Top, Right - Left, Bottom - Top);
 end;
@@ -2342,24 +2366,29 @@ begin
   Result := TfvFrame;
 end;
 
-procedure TFrameSet.LoadFromFile(const FName, Dest: string);
+procedure TFrameSet.LoadFromFile(const FName, Dest: ThtString);
 var
   I: integer;
-  Item: TFrameBase;
   Frame: TfvFrame;
   Lower, Upper: boolean;
   EV: EventRec;
   EventPointer: PEventRec;
   Img, Tex: boolean;
+  Stream: TStream;
 begin
   Clear;
   NestLevel := 0;
-  EV.LStyle := lsFile;
-  Img := ImageFile(FName) and not RequestEvent;
-  Tex := TexFile(FName) and not RequestEvent;
-  if Img or Tex or not TriggerEvent(FName, @EV) then
+  Img := HasImageFileExt(FName) and not RequestEvent;
+  Tex := HasTextFileExt(FName) and not RequestEvent;
+  if Img or Tex or not TriggerEvent(FName, EV.NewName, EV.Doc) then
   begin
     EV.NewName := ExpandFileName(FName);
+    Stream := TFileStream.Create(EV.NewName, fmOpenRead or fmShareDenyWrite);
+    try
+      EV.Doc := TBuffer.Create(Stream, EV.NewName);
+    finally
+      Stream.Free;
+    end;
     FCurrentFile := EV.NewName;
   end
   else
@@ -2367,14 +2396,11 @@ begin
     FCurrentFile := FName;
   end;
   FRefreshDelay := 0;
-  if not Img and not Tex and IsFrameString(EV.LStyle, EV.NewName, EV.AString, MasterSet.FrameViewer) then
+  if not Img and not Tex and IsFrame(MasterSet.FrameViewer, EV.Doc, EV.NewName) then
   begin {it's a Frameset html file}
-    FrameParseString(MasterSet.FrameViewer, Self, EV.LStyle, EV.NewName, EV.AString, HandleMeta);
+    ParseFrame(MasterSet.FrameViewer, Self, EV.Doc, EV.NewName, HandleMeta);
     for I := 0 to List.Count - 1 do
-    begin
-      Item := TFrameBase(List.Items[I]);
-      Item.LoadFiles();
-    end;
+      TFrameBase(List[I]).LoadFiles;
     CalcSizes(Self);
     CheckNoresize(Lower, Upper);
     if FRefreshDelay > 0 then
@@ -2394,16 +2420,16 @@ begin
       EventPointer := nil;
     end;
     Frame.Destination := Dest;
-    EndFrameSet;
+    Parsed('', '', '');
     CalcSizes(Self);
     Frame.Loadfiles(EventPointer);
-    FTitle := HtmlSubs.Title;
-    FBaseTarget := HtmlSubs.BaseTarget;
+    FTitle := Frame.Viewer.DocumentTitle;
+    FBaseTarget := Frame.Viewer.BaseTarget;
   end;
 end;
 
 //-- BG ---------------------------------------------------------- 23.09.2010 --
-procedure TFrameSetBase.LoadFromString(const Source, Name, Dest: string);
+procedure TFrameSetBase.LoadFromString(const Source, Name, Dest: ThtString);
 var
   I: integer;
   Item: TFrameBase;
@@ -2414,17 +2440,16 @@ var
 begin
   Clear;
   NestLevel := 0;
-  EV.LStyle := lsString;
-  EV.AString := Source;
+  EV.Doc := TBuffer.Create(Source, Name);
   if Name <> '' then
     EV.NewName := Name
   else
     EV.NewName := 'source://' + Source;
   FCurrentFile := EV.NewName;
   FRefreshDelay := 0;
-  if IsFrameString(EV.LStyle, EV.NewName, EV.AString, MasterSet.FrameViewer) then
+  if IsFrame(MasterSet.FrameViewer, EV.Doc, EV.NewName) then
   begin {it's a Frameset html file}
-    FrameParseString(MasterSet.FrameViewer, Self, EV.LStyle, EV.NewName, EV.AString, HandleMeta);
+    ParseFrame(MasterSet.FrameViewer, Self, EV.Doc, EV.NewName, HandleMeta);
     for I := 0 to List.Count - 1 do
     begin
       Item := TFrameBase(List.Items[I]);
@@ -2449,17 +2474,17 @@ begin
       PEV := nil;
     end;
     Frame.Destination := Dest;
-    EndFrameSet;
+    Parsed('', '', '');
     CalcSizes(Self);
     Frame.Loadfiles(PEV);
-    FTitle := HtmlSubs.Title;
-    FBaseTarget := HtmlSubs.BaseTarget;
+    FTitle := Frame.Viewer.DocumentTitle;
+    FBaseTarget := Frame.Viewer.BaseTarget;
   end;
 end;
 
 procedure TFrameSet.RefreshTimerTimer(Sender: Tobject);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   RefreshTimer.Enabled := False;
   if (Self = MasterSet.FrameViewer.CurFrameSet) then
@@ -2554,6 +2579,7 @@ begin
   FPrintMarginRight := 2.0;
   FPrintMarginTop := 2.0;
   FPrintMarginBottom := 2.0;
+  FPrintMaxHPages := 2;
   FPrintScale := 1.0;
   FMarginWidth := 10;
   FMarginHeight := 5;
@@ -2642,9 +2668,9 @@ end;
 
 {----------------TFrameViewer.LoadFromFile}
 
-procedure TFrameViewer.LoadFromFile(const FName: string);
+procedure TFrameViewer.LoadFromFile(const FName: ThtString);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   if Processing then
     exit;
@@ -2656,19 +2682,13 @@ end;
 
 {----------------TFrameViewer.LoadFromFileInternal}
 
-procedure TFrameViewer.LoadFromFileInternal(const S, Dest: string);
+procedure TFrameViewer.LoadFromFileInternal(const S, Dest: ThtString);
 var
   OldFrameSet: TFrameSet;
   OldPos: integer;
   Tmp: TObject;
-{$IFDEF Windows}
-  Dummy: integer;
-{$ENDIF}
 begin
   BeginProcessing;
-{$IFDEF windows}
-  Dummy :=
-{$ENDIF}
   IOResult; {remove any pending file errors}
   SendMessage(Handle, wm_SetRedraw, 0, 0);
   try
@@ -2718,9 +2738,9 @@ end;
 
 {----------------TFrameViewer.Load}
 
-procedure TFrameViewer.Load(const SRC: string);
+procedure TFrameViewer.Load(const SRC: ThtString);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   if Assigned(FOnStringsRequest) or
      Assigned(FOnStreamRequest) or
@@ -2735,11 +2755,11 @@ end;
 
 {----------------TFrameViewer.LoadTargetFromFile}
 
-procedure TFrameViewer.LoadTargetFromFile(const Target, FName: string);
+procedure TFrameViewer.LoadTargetFromFile(const Target, FName: ThtString);
 var
   I: integer;
   FrameTarget: TFrameBase;
-  S, Dest: string;
+  S, Dest: ThtString;
 
 begin
   if Processing then
@@ -2776,9 +2796,9 @@ end;
 
 {----------------TFrameViewer.LoadImageFile}
 
-procedure TFrameViewer.LoadImageFile(const FName: string);
+procedure TFrameViewer.LoadImageFile(const FName: ThtString);
 begin
-  if ImageFile(FName) then
+  if HasImageFileExt(FName) then
     LoadFromFile(FName);
 end;
 
@@ -2909,7 +2929,7 @@ end;
 
 {----------------TFVBase.HotSpotClickHandled:}
 
-function TFVBase.HotSpotClickHandled(const FullUrl: string): boolean;
+function TFVBase.HotSpotClickHandled(const FullUrl: ThtString): boolean;
 begin
   Result := False;
   if Assigned(OnHotSpotTargetClick) then
@@ -2918,12 +2938,12 @@ end;
 
 {----------------TFrameViewer.HotSpotClick}
 
-procedure TFrameViewer.HotSpotClick(Sender: TObject; const AnURL: string; var Handled: boolean);
+procedure TFrameViewer.HotSpotClick(Sender: TObject; const AnURL: ThtString; var Handled: boolean);
 var
   I: integer;
   Viewer: THtmlViewer;
   FrameTarget: TFrameBase;
-  S, Dest, Query: string;
+  S, Dest, Query: ThtString;
 begin
   Handled := True;
   if Processing then
@@ -3004,7 +3024,7 @@ end;
 
 {----------------TFrameViewer.HotSpotCovered}
 
-procedure TFrameViewer.HotSpotCovered(Sender: TObject; const SRC: string);
+procedure TFrameViewer.HotSpotCovered(Sender: TObject; const SRC: ThtString);
 begin
   if Assigned(OnHotSpotTargetCovered) then
     with (Sender as THtmlViewer) do
@@ -3017,7 +3037,7 @@ end;
 
 {----------------TFrameViewer.GetActiveTarget}
 
-function TFVBase.GetActiveTarget: string;
+function TFVBase.GetActiveTarget: ThtString;
 var
   Vw: THtmlViewer;
   Done: boolean;
@@ -3044,7 +3064,7 @@ end;
 
 {----------------TFrameViewer.GetActiveBase}
 
-function TFVBase.GetActiveBase: string;
+function TFVBase.GetActiveBase: ThtString;
 var
   Vw: THtmlViewer;
   Done: boolean;
@@ -3069,9 +3089,9 @@ end;
 
 {----------------TFrameViewer.HTMLExpandFilename}
 
-function TFrameViewer.HTMLExpandFilename(const Filename: string): string;
+function TFrameViewer.HTMLExpandFilename(const Filename: ThtString): ThtString;
 var
-  BasePath: string;
+  BasePath: ThtString;
   Viewer: THtmlViewer;
 begin
   Result := HTMLServerToDos(Trim(Filename), ServerRoot);
@@ -3095,28 +3115,28 @@ begin
   end;
 end;
 
-function TFVBase.GetBase: string;
+function TFVBase.GetBase: ThtString;
 begin
   Result := CurFrameSet.FBase;
 end;
 
-procedure TFVBase.SetBase(Value: string);
+procedure TFVBase.SetBase(Value: ThtString);
 begin
   CurFrameSet.FBase := Value;
   FBaseEx := Value;
 end;
 
-function TFVBase.GetBaseTarget: string;
+function TFVBase.GetBaseTarget: ThtString;
 begin
   Result := CurFrameSet.FBaseTarget;
 end;
 
-function TFVBase.GetTitle: string;
+function TFVBase.GetTitle: ThtString;
 begin
   Result := CurFrameSet.FTitle;
 end;
 
-function TFVBase.GetCurrentFile: string;
+function TFVBase.GetCurrentFile: ThtString;
 begin
   Result := CurFrameSet.FCurrentFile;
 end;
@@ -3180,7 +3200,7 @@ end;
 
 {----------------TFrameViewer.BumpHistory1}
 
-procedure TFvBase.BumpHistory1(const FileName, Title: string;
+procedure TFvBase.BumpHistory1(const FileName, Title: ThtString;
   OldPos: integer; ft: ThtmlFileType);
 {This variation called when CurFrameSet contains only a single viewer before
  and after the change}
@@ -3460,7 +3480,7 @@ begin
       THtmlViewer(Viewers[I]).OnImageRequested := Handler;
 end;
 
-function TFVBase.ViewerFromTarget(const Target: string): THtmlViewer;
+function TFVBase.ViewerFromTarget(const Target: ThtString): THtmlViewer;
 var
   I: integer;
 begin
@@ -3558,7 +3578,7 @@ begin
   FOptions := Value;
 end;
 
-procedure TFVBase.AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: string);
+procedure TFVBase.AddFrame(FrameSet: TObject; Attr: TAttributeList; const FName: ThtString);
 begin
   (FrameSet as TSubFrameSetBase).AddFrame(Attr, FName);
 end;
@@ -3629,15 +3649,16 @@ begin
   Result.Cursor := Cursor;
   Result.HistoryMaxCount := HistoryMaxCount;
   Result.OnScript := OnScript;
-  Result.PrintMarginLeft := FPrintMarginLeft;
-  Result.PrintMarginRight := FPrintMarginRight;
-  Result.PrintMarginTop := FPrintMarginTop;
-  Result.PrintMarginBottom := FPrintMarginBottom;
-  Result.PrintScale := FPrintScale;
-  Result.OnPrintHeader := FOnPrintHeader;
-  Result.OnPrintFooter := FOnPrintFooter;
-  Result.OnPrintHtmlHeader := FOnPrintHtmlHeader;
-  Result.OnPrintHtmlFooter := FOnPrintHtmlFooter;
+  Result.PrintMarginLeft := PrintMarginLeft;
+  Result.PrintMarginRight := PrintMarginRight;
+  Result.PrintMarginTop := PrintMarginTop;
+  Result.PrintMarginBottom := PrintMarginBottom;
+  Result.PrintMaxHPages := PrintMaxHPages;
+  Result.PrintScale := PrintScale;
+  Result.OnPrintHeader := OnPrintHeader;
+  Result.OnPrintFooter := OnPrintFooter;
+  Result.OnPrintHtmlHeader := OnPrintHtmlHeader;
+  Result.OnPrintHtmlFooter := OnPrintHtmlFooter;
   Result.OnInclude := OnInclude;
   Result.OnSoundRequest := OnSoundRequest;
   Result.OnImageOver := OnImageOver;
@@ -3673,20 +3694,15 @@ end;
 
 //-- BG ---------------------------------------------------------- 03.01.2010 --
 procedure TFrameViewer.DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType,
-  Method: string; Results: ThtStringList);
+  Method: ThtString; Results: ThtStringList);
 begin
   if Assigned(FOnFormSubmit) then
     FOnFormSubmit(Sender, Action, Target, EncType, Method, Results);
 end;
 
-procedure TFVBase.EndFrameSet(FrameSet: TObject);
-begin
-  (FrameSet as TSubFrameSetBase).EndFrameSet;
-end;
-
 {----------------TFVBase.AddVisitedLink}
 
-procedure TFVBase.AddVisitedLink(const S: string);
+procedure TFVBase.AddVisitedLink(const S: ThtString);
 var
   I: integer;
 begin
@@ -3707,7 +3723,7 @@ end;
 procedure TFrameViewer.CheckVisitedLinks;
 var
   I, J, K: integer;
-  S, S1, Src: string;
+  S, S1, Src: ThtString;
   Viewer: THtmlViewer;
   RequestEvent: boolean;
 begin
@@ -3746,27 +3762,21 @@ end;
 
 {----------------TFrameViewer.DoURLRequest}
 
-procedure TFrameViewer.DoURLRequest(Sender: TObject; const SRC: string;
-  var RStream: TMemoryStream);
+procedure TFrameViewer.DoURLRequest(Sender: TObject; const SRC: ThtString; var RStream: TMemoryStream);
 var
-  EV: EventRec;
+  NewName: ThtString;
+  Doc: TBuffer;
 begin
-  if CurFrameSet.TriggerEvent(Src, @EV) then
-    with EV do
-    begin
-      if not Assigned(UrlRequestStream) then
-        UrlRequestStream := TMemoryStream.Create;
-      case LStyle of
-        lsFile:
-          UrlRequestStream.LoadFromFile(NewName);
-        lsString:
-          begin
-            UrlRequestStream.SetSize(Length(AString) * SizeOf(Char));
-            System.Move(AString[1], UrlRequestStream.Memory^, Length(AString) * SizeOf(Char));
-          end;
-      end;
-      RStream := UrlRequestStream;
-    end;
+  if CurFrameSet.TriggerEvent(Src, NewName, Doc) then
+  begin
+    if not Assigned(UrlRequestStream) then
+      UrlRequestStream := TMemoryStream.Create;
+    if Doc <> nil then
+      Doc.AssignTo(UrlRequestStream)
+    else
+      UrlRequestStream.LoadFromFile(NewName);
+    RStream := UrlRequestStream;
+  end;
 end;
 
 //-- BG ---------------------------------------------------------- 05.01.2010 --
@@ -3780,7 +3790,7 @@ end;
 function TFVBase.GetViewers: TStrings;
 var
   I: integer;
-  S: string;
+  S: ThtString;
   AFrame: TViewerFrameBase;
   Viewer: THtmlViewer;
   Pt1, Pt2: TPoint;
@@ -3816,12 +3826,12 @@ end;
 
 {----------------TFVBase.GetFURL}{base class for TFrameViewer and TFrameBrowser}
 
-function TFVBase.GetFURL: string;
+function TFVBase.GetFURL: ThtString;
 begin
   Result := FURL;
 end;
 
-function TFVBase.GetTarget: string;
+function TFVBase.GetTarget: ThtString;
 begin
   Result := FTarget;
 end;
@@ -3983,7 +3993,7 @@ begin
     CurViewer[I].OnMouseDouble := Handler;
 end;
 
-procedure TFVBase.SetServerRoot(Value: string);
+procedure TFVBase.SetServerRoot(Value: ThtString);
 begin
   Value := Trim(Value);
   if (Length(Value) >= 1) and (Value[Length(Value)] = '\') then
@@ -4474,7 +4484,7 @@ end;
 
 {----------------TFVBase.InsertImage}
 
-function TFVBase.InsertImage(Viewer: THtmlViewer; const Src: string;
+function TFVBase.InsertImage(Viewer: THtmlViewer; const Src: ThtString;
   Stream: TMemoryStream): boolean;
 begin
   try
@@ -4548,7 +4558,7 @@ begin
     FOnProcessing(Self, False);
 end;
 
-{$ifndef FPC_TODO_PRINTING}
+{$ifndef NoMetafile}
 
 {----------------TFVBase.Print}
 
@@ -4625,28 +4635,22 @@ end;
 
 
 //-- BG ---------------------------------------------------------- 23.09.2010 --
-procedure TFVBase.LoadFromString(const Text, Name, Dest: string);
+procedure TFVBase.LoadFromString(const Text, Name, Dest: ThtString);
 begin
   if not Processing then
     LoadFromStringInternal(Text, Name, Dest);
 end;
 
 //-- BG ---------------------------------------------------------- 23.09.2010 --
-procedure TFVBase.LoadFromStringInternal(const Text, Name, Dest: string);
+procedure TFVBase.LoadFromStringInternal(const Text, Name, Dest: ThtString);
 var
   OldFrameSet: TFrameSetBase;
-  OldFile, S: string;
+  OldFile, S: ThtString;
   OldPos: integer;
   Tmp: TObject;
   SameName: boolean;
-{$IFDEF Windows}
-  Dummy: integer;
-{$ENDIF}
 begin
   BeginProcessing;
-{$IFDEF windows}
-  Dummy :=
-{$ENDIF}
   IOResult; {remove any pending file errors}
   try
     OldFile := CurFrameSet.FCurrentFile;

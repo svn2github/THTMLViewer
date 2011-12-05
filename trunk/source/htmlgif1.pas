@@ -1,10 +1,3 @@
-{
-Version 10.2
-}
-
-{$I HtmlCons.inc}
-
-unit HtmlGif1;
 
 {***************************************************************}
 {*                     htmlgif1.pas                            *}
@@ -44,6 +37,10 @@ the full implications and legal ramifications of using the LZW compression.
 
 ============================================================================ }
 
+{$I HtmlCons.inc}
+
+unit HtmlGif1;
+
 interface
 
 uses
@@ -51,7 +48,12 @@ uses
   SysUtils, Types, Classes, QGraphics, QControls, QForms, QDialogs,
   QStdCtrls, Math;
 {$ELSE}
-  Windows, Messages, SysUtils, Classes, Graphics,
+{$ifdef LCL}
+  LclIntf, LclType, IntfGraphics, //LMessages,
+{$else}
+  Windows,
+{$endif}
+  Messages, SysUtils, Classes, Graphics,
   Controls, StdCtrls, ExtCtrls, Forms, Math;
 {$ENDIF}
 
@@ -327,7 +329,7 @@ type
     procedure FreeImage;
 
     procedure LoadFromStream(Source: TStream);
-    function GetStripBitmap(var Mask: TBitmap): TBitmap; {LDB}
+    function GetStripBitmap(out Mask: TBitmap): TBitmap; {LDB}
 
     property Signature: AnsiString read GetSignature;
     property ScreenDescriptor: PGifScreenDescriptor read GetScreenDescriptor;
@@ -1925,17 +1927,55 @@ begin
 end;
 
 {----------------TGif.GetStripBitmap}
-
-function TGif.GetStripBitmap(var Mask: TBitmap): TBitmap; {LDB}
-{This is a single bitmap containing all the frames.  A mask is also provided
- if the GIF is transparent.  Each Frame is set up so that it can be transparently
- blted to a background.}
 type
   LayoutType = packed record
     BFH: TBitmapFileHeader;
     BIH: TBitmapInfoHeader;
   end;
   PLayoutType = ^LayoutType;
+
+{$ifdef LCL}
+function CreateMask(Bitmap: TBitmap; AColor: TColor): TBitmap;
+var
+  IntfImage: TLazIntfImage;
+  x, y, stopx, stopy: Integer;
+  ImgHandle, MskHandle: HBitmap;
+  TransColor: TColor;
+begin
+  // this convertion copied from TRasterImage.CreateMask() and modified:
+  IntfImage := TLazIntfImage.Create(0,0,[]);
+  try
+    MskHandle := CreateBitmap(Bitmap.Width, Bitmap.Height, 1, 1, nil);
+    IntfImage.LoadFromBitmap(Bitmap.BitmapHandle, MskHandle);
+    DeleteObject(MskHandle);
+
+    stopx := IntfImage.Width - 1;
+    stopy := IntfImage.Height - 1;
+
+    if AColor <> clDefault then
+      TransColor := ColorToRGB(AColor)
+    else
+      TransColor := FPColorToTColor(IntfImage.Colors[0, stopy]);
+
+    for y := 0 to stopy do
+      for x := 0 to stopx do
+        IntfImage.Masked[x,y] := FPColorToTColor(IntfImage.Colors[x,y]) = TransColor;
+
+    IntfImage.CreateBitmaps(ImgHandle, MskHandle);
+    DeleteObject(ImgHandle);
+    Result := TBitmap.Create;
+    Result.Handle := MskHandle;
+  finally
+    IntfImage.Free;
+    Bitmap.Free;
+  end;
+end;
+{$endif}
+
+function TGif.GetStripBitmap(out Mask: TBitmap): TBitmap; {LDB}
+{This is a single bitmap containing all the frames.  A mask is also provided
+ if the GIF is transparent.  Each Frame is set up so that it can be transparently
+ blted to a background.}
 var
   id: PGifImageDescriptor;
   ct: PGifColorTable;
@@ -2113,7 +2153,12 @@ begin
       Mask := TBitmap.Create;
       Mask.HandleType := bmDIB;
       Mask.LoadFromStream(MStream);
+{$ifdef LCL}
+      // setting to monochrome not yet implemented
+      Mask := CreateMask(Mask, clWhite);
+{$else}
       Mask.Monochrome := True; {crunch mask into a monochrome TBitmap}
+{$endif}
     end;
     Stream.Free;
     MStream.Free;

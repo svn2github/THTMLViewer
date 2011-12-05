@@ -1,15 +1,18 @@
 unit PrintStatusForm;
 
+{$include ..\..\source\htmlcons.inc}
+
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls, Buttons,
 {$ifdef LCL}
-  LResources,
+  LclIntf, LclType,
 {$else}
+  Windows,
 {$endif}
-  HTMLView, MetaFilePrinter;
+  MetaFilePrinter,
+  SysUtils, Classes, Graphics, Controls, Forms, Dialogs, StdCtrls, Buttons,
+  HtmlView;
 
 type
   TPrnStatusForm = class(TForm)
@@ -17,14 +20,12 @@ type
     CancelButton: TBitBtn;
     procedure CancelButtonClick(Sender: TObject);
   private
-    { Private declarations }
     Viewer: ThtmlViewer;
     Canceled: boolean;
     MFPrinter: TMetaFilePrinter;
     FromPage, ToPage: integer;
     procedure PageEvent(Sender: TObject; PageNum: integer; var Stop: boolean);
   public
-    { Public declarations }
   procedure DoPreview(AViewer: ThtmlViewer; AMFPrinter: TMetaFilePrinter;
               var Abort: boolean);
   procedure DoPrint(AViewer: ThtmlViewer; FromPg, ToPg: integer;
@@ -37,20 +38,18 @@ var
 implementation
 
 {$ifdef LCL}
+  {$R *.lfm}
 {$else}
-{$R *.DFM}
+  {$R *.dfm}
 {$endif}
+
 
 procedure TPrnStatusForm.DoPreview(AViewer: ThtmlViewer; AMFPrinter: TMetaFilePrinter;
               var Abort: boolean);
 begin
   Viewer := AViewer;
   MFPrinter := AMFPrinter;
-{$ifdef FPC}
-  Viewer.OnPageEvent := @PageEvent;
-{$else}
   Viewer.OnPageEvent := PageEvent;
-{$endif}
   try
     Show;
     Viewer.PrintPreview(MFPrinter);
@@ -61,20 +60,17 @@ begin
   end;
 end;
 
+
 procedure TPrnStatusForm.DoPrint(AViewer: ThtmlViewer; FromPg, ToPg: integer;
               var Abort: boolean);
 begin
-Viewer := AViewer;
-FromPage := FromPg;
-ToPage := ToPg;
-{$ifdef FPC}
-  Viewer.OnPageEvent := @PageEvent;
-{$else}
+  Viewer := AViewer;
+  FromPage := FromPg;
+  ToPage := ToPg;
   Viewer.OnPageEvent := PageEvent;
-{$endif}
 try
   Show;
-  Viewer.Print(FromPage, ToPage);          
+  Viewer.Print(FromPage, ToPage);
   Hide;
   Abort := Canceled;
 finally
@@ -99,9 +95,4 @@ begin
 Canceled := True;
 end;
 
-initialization
-{$ifdef LCL}
-{$include PrintStatusForm.lrs}
-{$else}
-{$endif}
 end.

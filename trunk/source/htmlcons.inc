@@ -1,25 +1,27 @@
-{Version 10.2}
+{Version 11}
 
 {$ifdef FPC}
 
 { Identify FreePascal/Lazarus Compiler Version }
 
   {$define LCL}
-  {$MODE Delphi}
+  {$mode delphi}
+  {$H+}
 
   {$define FPC_TODO}
   {$define FPC_TODO_PRINTING}
 
-  {$define NoGDIPlus}
+  {.$define NoGDIPlus}
 
+  {.$define UseUnicode}
   {$define CopyPaletteMissing}
   {$define TransparentStretchBltMissing}
   {$define MetaFileMissing}
-  {$define UnitConstsMissing}
+  {$define MultiMediaMissing}
+  {.$define UnitConstsMissing}
 
   {$define ver100_plus}
   {$define ver120_plus}
-  {$define Delphi6_Plus}
 {$else}
 
 { Identify Delphi Compiler Version:
@@ -53,10 +55,10 @@
 }
 
   {$define VCL}
+  {$define Windows}
   {$ifdef CONDITIONALEXPRESSIONS} {Delphi 6 and up}
     {$define ver100_plus}
     {$define ver120_plus}
-    {$define Delphi6_Plus}
     {$ifdef ver140}
     {$else}
       {$define Delphi7_Plus}
@@ -64,6 +66,7 @@
       {$else}
         {$ifdef ver140}
         {$else}
+          {$define Compiler15_Plus}
           {$ifdef ver150}
           {$else}
             {$ifdef ver160}
@@ -71,47 +74,22 @@
               {$define Compiler17_Plus}
               {$ifdef ver170}
               {$else}
+                {$define Compiler18_Plus}
                 {$ifdef ver180}
                 {$else}
+                  {$define Compiler19_Plus}
                   {$ifdef ver185}
                   {$else}
                     {$define Compiler20_Plus}
-                  {$endif}
-                {$endif}
-              {$endif}
-            {$endif}
-          {$endif}
-        {$endif}
-      {$endif}
-    {$endif}
-  {$else}
-    {$ifdef ver80}  {Delphi 1}
-    {$else}
-      {$ifdef ver90}  {Delphi 2}
-      {$else}
-        {$ifdef ver93}  {C++Builder 1}
-          {$Define CppBuilder}
-        {$else}
-          {$define ver100_plus}
-          {$ifdef ver100} {Delphi 3}
-            {$define D3_BCB3}
-          {$else}
-            {$ifdef ver110} {C++Builder 3}
-              {$define D3_BCB3}
-              {$Define CppBuilder}
-              {$ObjExportAll On}
-            {$else}
-              {$define ver120_plus}
-              {$ifdef Ver120} {Delphi 4}
-              {$else}
-                {$ifdef ver125} {C++Builder 4}
-                  {$Define CppBuilder}
-                  {$ObjExportAll On}
-                {$else}
-                  {$ifdef Ver130} {Delphi 5, C++Builder 5}
-                    {$ifdef BCB}   {C++Builder}
-                      {$Define CppBuilder}
-                      {$ObjExportAll On}
+                    {$ifdef ver200}
+                    {$else}
+                      {$ifdef ver210}
+                      {$else}
+                        {$ifdef ver220}
+                        {$else}
+                          {$define Compiler23_Plus}
+                        {$endif}
+                      {$endif}
                     {$endif}
                   {$endif}
                 {$endif}
@@ -121,11 +99,22 @@
         {$endif}
       {$endif}
     {$endif}
+  {$else}
+    {$message 'Sorry, but Delphi versions before 6 are not supported.'}
   {$endif}
 
-  {$ifndef ver100_plus}
-    {$define CopyPaletteMissing}
-    {$define TransparentStretchBltMissing}
+  { Compiler Features }
+
+  {$ifdef Compiler17_Plus}
+    {$ifdef DEBUG}
+    {$else}
+      {$define UseInline}
+    {$endif}
+  {$endif}
+
+  {$ifdef Compiler23_Plus}
+  {$else}
+    {$define UseASMx86}
   {$endif}
 
   { Set Delphi Compiler Switches }
@@ -139,6 +128,10 @@
   {$A+,B-,F-,G+,I+,P+,T-,V+,X+,R-}
 
   {$ifdef Win32}
+    {$J+}  {typed constants are modifiable}
+    {$H+}  {LongStrings On}
+  {$endif}
+  {$ifdef Win64}
     {$J+}  {typed constants are modifiable}
     {$H+}  {LongStrings On}
   {$endif}
@@ -161,9 +154,9 @@
     {$endif}
   {$endif}
 
-  {$ifdef Delphi6_Plus}
-    {$Warn Symbol_Platform Off}
-  {$endif}
+  {$Warn Symbol_Platform Off}
+
+  {$Define OwnPaintPanelDoubleBuffering}
 
 {$endif}
 
@@ -174,14 +167,14 @@
         undesirable, define "NoGDIPlus" by removing the '.'.
         Defining NoGDIPlus will remove support for PNG images entirely.}
 
-{$Define NoMetaFile} {Metafiles may be displayed by undefining this constant.
+{.$Define NoMetaFile} {Metafiles may be displayed by undefining this constant.
         NoMetaFile is defined by default to emphasize the fact that Metafile
         display and some printing operations are currently incompatible in Win98.
         For applications where printing is unimportant or Win98/95/ME need not
         be supported, undefining this constant will allow Metafiles to be
         displayed.}
 
-{$Define NoTabLink}  {To eliminate tabbing between links, define "NoTabLink" by
+{.$Define NoTabLink}  {To eliminate tabbing between links, define "NoTabLink" by
         removing the '.'.  For documents with hundreds of links, tabbing may not
         be desirable and also may cause delays in loading.  Even when NoTabLink
         is not defined, there is another constant, MaxTab, which eliminates
@@ -208,21 +201,24 @@
         simulates the way IExplorer does it, issuing the OnChange event
         immediately when a change is made.}
 
-{.$Define UseTNT}
-        {Defining UseTNT allows the TNT Unicode controls to be used for HTML Form
-        controls in place of the Delphi TEdit, TButton, TListbox, TCombobox, and
-        TMemo controls.  See "Using Third Party Controls" below.}
+{.$Define OwnPaintPanelDoubleBuffering}
+        {Issue 57: Delphi 7? or Russian? Locale? + XP-Manifest produce misplaced
+        button captions, which I (BG) cannot reproduce with D6, D2007 or D2009.
+        But SchwarzK...@yandex.ru reports, that this issue appears only since r118.
+        This switch reactivates the manual double buffering in TPaintPanel.Paint(), which
+        was removed with r118.
+        Due to several redraw errors with Delphi, OwnPaintPanelDoubleBuffering now is always set for Delphi.}
+{$Define HalfToneStretching}
+        {This makes use of a better stretching methode provided by Windows: HALFTONE.
+        So resized graphics (especially smaller ones) look MUCH better}
 
-{.$Define UseElpack}
-        {Defining UseElpack allows the Elpack Unicode controls to be used for
-        HTML Form controls in place of the Delphi TEdit, TButton, TListbox,
-        TCombobox, and TMemo controls.  See "Using Third Party Controls" below.}
-
-{$ifdef UseTNT}
-  {$define UseUnicodeControls}
-{$endif}
-{$ifdef UseElpack}
-  {$define UseUnicodeControls}
+{$ifdef Compiler20_Plus}
+{$else}
+  {TNT Unicode controls are mandatory for Delphi 6-2007}
+  {$ifdef LCL}
+  {$else}
+    {$define UseTNT}
+  {$endif}
 {$endif}
 
 {
@@ -249,7 +245,7 @@ time constant, "UseTNT" or "UseElpack".  You can define these in htmlcons.inc or
 in the Project|Options dialog, Directories/Conditionals tab.  Be sure and do a
 complete Build on your application after changing these compile time constants.
 
-htmlsubs.pas defines several new symbols to represent the form controls and types
+HtmlGlobals.pas defines several new symbols to represent the form controls and types
 depending on the set of controls being used. These types are
 ThtEdit, ThtButton, ThtMemo, ThtCombobox, ThtListbox, ThtString and ThtStringList.
 

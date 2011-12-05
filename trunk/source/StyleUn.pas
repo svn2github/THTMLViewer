@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -30,24 +30,24 @@ unit StyleUn;
 interface
 
 uses
-  Windows, Classes, Graphics, SysUtils, Math, Forms, Contnrs,
-  {$ifdef LCL}Interfaces, {$endif}
-  {$IFDEF Delphi6_Plus}Variants, {$ENDIF}
-  HtmlGlobals;
+{$ifdef LCL}
+  LclIntf, LclType, HtmlMisc,
+{$else}
+  Windows,
+{$endif}
+  Classes, Graphics, SysUtils, Math, Forms, Contnrs, Variants,
+  HtmlGlobals, HtmlBuffer;
 
 const
   IntNull = -12345678;
   Auto = -12348765;
   AutoParagraph = -12348766;
   ParagraphSpace = 14; {default spacing between paragraphs, etc.}
+  ImageSpace = 3; {extra space for left, right images}
+  ListIndent = 40;
   
-{$IFDEF Delphi6_Plus}
   varInt = [varInteger, varByte, varSmallInt, varShortInt, varWord, varLongWord];
   varFloat = [varSingle, varDouble, varCurrency];
-{$ELSE}
-  varInt = [varInteger];
-  varFloat = [varSingle, varDouble];
-{$ENDIF}
   varNum = varInt + varFloat;
 
   EastEurope8859_2 = 31; {for 8859-2}
@@ -70,7 +70,7 @@ type
   ListBulletType = (lbBlank, lbCircle, lbDecimal, lbDisc, lbLowerAlpha, lbLowerRoman,
     lbNone, lbSquare, lbUpperAlpha, lbUpperRoman);
   ClearAttrType = (clrNone, clLeft, clRight, clAll);
-  PositionType = (posStatic, posAbsolute, posRelative);
+  PositionType = (posStatic, posRelative, posAbsolute, posFixed);
   VisibilityType = (viInherit, viHidden, viVisible);
   TextTransformType = (txNone, txUpper, txLower, txCaps);
   PositionRec = record
@@ -87,7 +87,7 @@ type
 
   ThtFontInfo = class
   public
-    iName: string;
+    iName: ThtString;
     iSize: double;
     iStyle: TFontStyles;
     iColor: TColor;
@@ -109,13 +109,19 @@ type
   TMyFont = class(TFont)
   public
     bgColor: TColor;
-    tmHeight, tmDescent, tmExternalLeading, tmAveCharWidth,
-      tmMaxCharWidth, tmCharset: integer;
-    CharExtra: integer;
+    tmHeight: Integer;
+    tmDescent: Integer;
+    tmExternalLeading: Integer;
+    tmAveCharWidth: Integer;
+    tmMaxCharWidth: Integer;
+    tmCharset: Integer;
+    CharExtra: Integer;
+    EmSize: Integer;
+    ExSize: Integer;
     procedure Assign(Source: TPersistent); override;
     procedure AssignToCanvas(Canvas: TCanvas);
     destructor Destroy; override;
-    constructor Create;
+    constructor Create; {$ifdef LCL} override; {$endif}
   end;
 
   PropIndices = (
@@ -126,7 +132,7 @@ type
     BorderTopWidth, BorderRightWidth, BorderBottomWidth, BorderLeftWidth,
     BorderTopColor, BorderRightColor, BorderBottomColor, BorderLeftColor,
     BorderTopStyle, BorderRightStyle, BorderBottomStyle, BorderLeftStyle,
-    Width, Height, TopPos, BottomPos, RightPos, LeftPos, Visibility,
+    piWidth, piHeight, TopPos, BottomPos, RightPos, LeftPos, Visibility,
     LineHeight, BackgroundImage, BackgroundPosition,
     BackgroundRepeat, BackgroundAttachment, VerticalAlign, Position, ZIndex,
     ListStyleType, ListStyleImage, Float, Clear, TextIndent,
@@ -146,7 +152,7 @@ type
     pdRunIn,
     pdNone);
 const
-  CPropDisplay: array [TPropDisplay] of string = (
+  CPropDisplay: array [TPropDisplay] of ThtString = (
     '',
     'block',
     'inline',
@@ -164,43 +170,43 @@ type
     PropStack: TPropStack;
     TheFont: TMyFont;
     InLink: boolean;
-    DefFontname: string;
-    procedure AddPropertyByIndex(Index: PropIndices; PropValue: string);
-    procedure GetSingleFontInfo(var Font: ThtFontInfo);
+    DefFontname: ThtString;
+    procedure AddPropertyByIndex(Index: PropIndices; PropValue: ThtString);
+    procedure AssignCharSet(CS: TFontCharset);
+    procedure AssignCodePage(const CP: Integer);
     procedure CalcLinkFontInfo(Styles: TStyleList; I: integer);
+    procedure GetSingleFontInfo(var Font: ThtFontInfo);
   public
-    PropTag, PropClass, PropID, PropPseudo, PropTitle: string;
+    PropTag, PropClass, PropID, PropPseudo, PropTitle: ThtString;
     PropStyle: TProperties;
     FontBG: TColor;
-    CharSet: TFontCharSet;
-    CodePage: integer;
-    EmSize, ExSize: integer; {# pixels for Em and Ex dimensions}
+    FCharSet: TFontCharSet;
+    FCodePage: Integer;
+    FEmSize, FExSize: integer; {# pixels for Em and Ex dimensions}
     Props: array[Low(PropIndices)..High(PropIndices)] of Variant;
     Originals: array[Low(PropIndices)..High(PropIndices)] of boolean;
     FIArray: TFontInfoArray;
     ID: integer;
 
     constructor Create; overload; // for use in style list only
-    constructor Create(PropStack: TPropStack); overload; // for use in property stack
+    constructor Create(APropStack: TPropStack); overload; // for use in property stack
     destructor Destroy; override;
     procedure Copy(Source: TProperties);
     procedure CopyDefault(Source: TProperties);
-    procedure Inherit(Tag: string; Source: TProperties);
+    procedure Inherit(Tag: ThtString; Source: TProperties);
     procedure Assign(const Item: Variant; Index: PropIndices);
-    procedure AssignCharSet(CS: TFontCharset);
-    procedure AssignUTF8;
-    procedure Combine(Styles: TStyleList;
-      const Tag, AClass, AnID, Pseudo, ATitle: string; AProp: TProperties; ParentIndexInPropStack: Integer);
+    procedure AssignCharSetAndCodePage(CS: TFontCharset; CP: Integer);
+    procedure Combine(Styles: TStyleList; const Tag, AClass, AnID, Pseudo, ATitle: ThtString; AProp: TProperties; ParentIndexInPropStack: Integer);
     procedure Update(Source: TProperties; Styles: TStyleList; I: integer);
     function GetFont: TMyFont;
     procedure GetFontInfo(AFI: TFontInfoArray);
     procedure GetVMarginArray(var MArray: TVMarginArray);
-    function GetBackgroundImage(var Image: string): boolean;
+    function GetBackgroundImage(var Image: ThtString): boolean;
     procedure GetBackgroundPos(EmSize, ExSize: integer; var P: PtPositionRec);
     function GetLineHeight(NewHeight: integer): integer;
     function GetTextIndent(var PC: boolean): integer;
     function GetTextTransform: TextTransformType;
-    function GetFontVariant: string;
+    function GetFontVariant: ThtString;
     procedure GetPageBreaks(var Before, After, Intact: boolean);
     function GetVertAlign(var Align: AlignmentType): boolean;
     function GetFloat(var Align: AlignmentType): boolean;
@@ -210,7 +216,7 @@ type
     function GetBorderStyle: BorderStyleType;
     function BorderStyleNotBlank: boolean;
     function GetListStyleType: ListBulletType;
-    function GetListStyleImage: string;
+    function GetListStyleImage: ThtString;
     function GetPosition: PositionType;
     function GetVisibility: VisibilityType;
     function GetZIndex: integer;
@@ -219,44 +225,51 @@ type
     function Collapse: boolean;
     function ShowEmptyCells: Boolean;
     procedure SetFontBG;
-    procedure AddPropertyByName(const PropName, PropValue: string);
+    procedure AddPropertyByName(const PropName, PropValue: ThtString);
     function HasBorder: Boolean;
     function IsOverflowHidden: boolean;
     //BG, 20.09.2009:
     property Display: TPropDisplay read GetDisplay;
+    property CharSet: TFontCharset read FCharSet write AssignCharSet;
+    property CodePage: Integer read FCodePage write AssignCodePage;
+    property EmSize: integer read FEmSize;
+    property ExSize: integer read FExSize;
   end;
 
-  TStyleList = class(TStringList)
+  TStyleList = class(ThtStringList)
   private
     SeqNo: integer;
+  protected
+    procedure setLinksActive(Value: Boolean); virtual; abstract;
+    property LinksActive: Boolean write setLinksActive;
   public
     DefProp: TProperties;
     constructor Create;
     destructor Destroy; override;
+    function AddDuplicate(const Tag: ThtString; Prop: TProperties): TProperties;
+    function AddObject(const S: ThtString; AObject: TObject): Integer; override;
+    function GetSeqNo: ThtString;
     procedure Clear; override;
-    function GetSeqNo: string;
-    procedure Initialize(const FontName, PreFontName: string;
-      PointSize: integer; AColor, AHotspot, AVisitedColor, AActiveColor: TColor;
-      LinkUnderline: boolean; ACharSet: TFontCharSet; MarginHeight, MarginWidth: integer);
-    procedure AddModifyProp(const Selector, Prop, Value: string); virtual; abstract;
-    function AddObject(const S: string; AObject: TObject): Integer; override;
-    function AddDuplicate(const Tag: string; Prop: TProperties): TProperties;
-    procedure ModifyLinkColor(Psuedo: string; AColor: TColor);
+    procedure AddModifyProp(const Selector, Prop, Value: ThtString);
 {$IFDEF Quirk}
     procedure FixupTableColor(BodyProp: TProperties);
 {$ENDIF}
+    procedure Initialize(const FontName, PreFontName: ThtString;
+      PointSize: integer; AColor, AHotspot, AVisitedColor, AActiveColor: TColor;
+      LinkUnderline: boolean; ACharSet: TFontCharSet; MarginHeight, MarginWidth: integer);
+    procedure ModifyLinkColor(Pseudo: ThtString; AColor: TColor);
   end;
 
   TPropStack = class(TObjectList)
   private
-    function GetProp(Index: Integer): TProperties;
+    function GetProp(Index: Integer): TProperties; {$ifdef UseInline} inline; {$endif}
   public
-    function Last: TProperties;
+    function Last: TProperties; {$ifdef UseInline} inline; {$endif}
     property Items[Index: integer]: TProperties read GetProp; default;
   end;
 
 const
-  PropWords: array[Low(PropIndices)..High(PropIndices)] of string =
+  PropWords: array[Low(PropIndices)..High(PropIndices)] of ThtString =
   ('font-family', 'font-size', 'font-style', 'font-weight', 'text-align',
     'text-decoration', 'letter-spacing', 'border-style', 'color', 'background-color',
     'border-color',
@@ -273,13 +286,13 @@ const
     'word-wrap', 'font-variant', 'border-collapse', 'overflow', 'display', 'empty-cells');
 
 //BG, 05.10.2010: added:
-function VarIsIntNull(const Value: Variant): Boolean;
-function VarIsAuto(const Value: Variant): Boolean;
+function VarIsIntNull(const Value: Variant): Boolean; {$ifdef UseInline} inline; {$endif}
+function VarIsAuto(const Value: Variant): Boolean; {$ifdef UseInline} inline; {$endif}
 
 function VMargToMarg(const Value: Variant; Relative: boolean; Base, EmSize, ExSize, Default: Integer): Integer;
 
 procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: integer;
-  BorderStyle: BorderStyleType; BorderWidth: Integer; var AutoCount: integer; var M: TMarginArray);
+  BorderStyle: BorderStyleType; BorderWidth: Integer; out AutoCount: integer; var M: TMarginArray);
 
 procedure ConvVertMargins(const VM: TVMarginArray;
   BaseHeight, EmSize, ExSize: Integer;
@@ -291,45 +304,37 @@ procedure ConvMargArrayForCellPadding(const VM: TVMarginArray; EmSize,
 procedure ConvInlineMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize,
   ExSize: Integer; {BStyle: BorderStyleType;} var M: TMarginArray);
 
-function SortedColors: TStringList;
-function ColorFromString(S: string; NeedPound: boolean; var Color: TColor): boolean;
+function SortedColors: ThtStringList;
+function ColorFromString(S: ThtString; NeedPound: boolean; var Color: TColor): boolean;
 
-function ReadURL(Item: Variant): string;
+function ReadURL(Item: Variant): ThtString;
 
-function ReadFontName(S: string): string;
+function RemoveQuotes(const S: ThtString): ThtString;
+function ReadFontName(S: ThtString): ThtString;
 
-function AlignmentFromString(S: string): AlignmentType;
-
-function FindPropIndex(const PropWord: string; var PropIndex: PropIndices): boolean;
-
-{$IFNDEF Ver130}
-{$IFNDEF Delphi6_Plus}
-procedure FreeAndNil(var Obj);
-{$ENDIF}
-{$ENDIF}
+function AlignmentFromString(S: ThtString): AlignmentType;
 
 implementation
 
+type
+  TMyFontCache = class
+  private
+    FFontsByName: ThtStringList;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Add(Font: TMyFont);
+    function Find(FontInfo: ThtFontInfo): TMyFont;
+  end;
+
 var
   DefPointSize: double;
-
-{$IFNDEF Ver130}
-{$IFNDEF Delphi6_Plus}
-
-procedure FreeAndNil(var Obj);
-var
-  P: TObject;
-begin
-  P := TObject(Obj);
-  TObject(Obj) := nil; {clear the reference before destroying the object}
-  P.Free;
-end;
-{$ENDIF}
-{$ENDIF}
+  CharsetPerCharset: array [TFontCharset] of record Inited: Boolean; Charset: TFontCharset; end;
+  AllMyFonts: TMyFontCache;
 
 {----------------AlignmentFromString}
 
-function AlignmentFromString(S: string): AlignmentType;
+function AlignmentFromString(S: ThtString): AlignmentType;
 begin
   S := LowerCase(S);
   if S = 'top' then
@@ -350,10 +355,10 @@ begin
     Result := ANone;
 end;
 
-function FontSizeConv(const Str: string; OldSize: double): double; forward;
-function LengthConv(const Str: string; Relative: boolean; Base, EmSize, ExSize, Default: integer): integer; forward;
+function FontSizeConv(const Str: ThtString; OldSize: double): double; forward;
+function LengthConv(const Str: ThtString; Relative: boolean; Base, EmSize, ExSize, Default: integer): integer; forward;
 
-function FindPropIndex(const PropWord: string; var PropIndex: PropIndices): boolean;
+function FindPropIndex(const PropWord: ThtString; var PropIndex: PropIndices): boolean;
 var
   I: PropIndices;
 begin
@@ -368,7 +373,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 17.02.2011 --
-function SkipWhiteSpace(const S: string; I, L: Integer): Integer;
+function SkipWhiteSpace(const S: ThtString; I, L: Integer): Integer;
 begin
   while I <= L do
   begin
@@ -386,7 +391,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 17.02.2011 --
-function FindChar(const S: string; C: Char; I, L: Integer): Integer;
+function FindChar(const S: ThtString; C: ThtChar; I, L: Integer): Integer;
 begin
   while (I <= L) and (S[I] <> C) do
     Inc(I);
@@ -395,7 +400,7 @@ end;
 
 {----------------ReadURL}
 
-function ReadURL(Item: Variant): string;
+function ReadURL(Item: Variant): ThtString;
 {
   If Item is a string try to find and parse:
 
@@ -409,9 +414,9 @@ function ReadURL(Item: Variant): string;
   - nested '(' ')' pairs even in the unquoted <url>
 }
 var
-  S: string;
+  S: ThtString;
   I, J, L, N: Integer;
-  Q: Char;
+  Q: ThtChar;
 begin
   Result := '';
   if VarIsStr(Item) then
@@ -490,6 +495,8 @@ begin
     tmMaxCharWidth := TMyFont(Source).tmMaxCharWidth;
     tmCharset := TMyFont(Source).tmCharset;
     CharExtra := TMyFont(Source).CharExtra;
+    EmSize := TMyFont(Source).EmSize;
+    ExSize := TMyFont(Source).ExSize;
   end;
   inherited Assign(Source);
 end;
@@ -505,9 +512,10 @@ begin
   inherited;
 end;
 
-constructor TmyFont.Create;
+constructor TMyFont.Create;
 begin
   inherited;
+  Charset := DEFAULT_CHARSET;
 end;
 
 var
@@ -529,10 +537,10 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 12.09.2010 --
-constructor TProperties.Create(PropStack: TPropStack);
+constructor TProperties.Create(APropStack: TPropStack);
 begin
   Create;
-  self.PropStack := PropStack;
+  self.PropStack := APropStack;
 end;
 
 destructor TProperties.Destroy;
@@ -565,7 +573,7 @@ begin
   PropTag := 'default';
 end;
 
-procedure TProperties.Inherit(Tag: string; Source: TProperties);
+procedure TProperties.Inherit(Tag: ThtString; Source: TProperties);
 {copy the properties that are inheritable}
 var
   I: PropIndices;
@@ -588,7 +596,7 @@ begin
     else
       case I of
         MarginTop..BorderLeftStyle,
-        Width, Height,
+        piWidth, piHeight,
         TopPos..LeftPos:
           Props[I] := IntNull;
         BackgroundColor, BackgroundImage, BackgroundPosition,
@@ -613,8 +621,8 @@ begin
     FIArray.Assign(Source.FIArray);
   end;
 
-  EmSize := Source.EmSize; {actually this is calculated later }
-  ExSize := EmSize div 2; {apparently correlates with what browsers are doing}
+  FEmSize := Source.FEmSize; {actually this is calculated later }
+  FExSize := Source.FExSize; {apparently correlates with what browsers are doing}
 end;
 
 {----------------TProperties.Update}
@@ -667,7 +675,7 @@ begin
   end;
 end;
 
-function TProperties.GetBackgroundImage(var Image: string): boolean;
+function TProperties.GetBackgroundImage(var Image: ThtString): boolean;
 begin
   if (VarIsStr(Props[BackgroundImage])) then
     if (Props[BackgroundImage] = 'none') then
@@ -685,80 +693,90 @@ begin
 end;
 
 procedure TProperties.AssignCharSet(CS: TFontCharset);
-const
-  {EastEurope8859_2 = 31; }
-  SetValues: array[1..20] of integer =
-  (ANSI_CHARSET, DEFAULT_CHARSET, SYMBOL_CHARSET, MAC_CHARSET, SHIFTJIS_CHARSET,
-    HANGEUL_CHARSET, JOHAB_CHARSET, GB2312_CHARSET, CHINESEBIG5_CHARSET,
-    GREEK_CHARSET, TURKISH_CHARSET, VIETNAMESE_CHARSET, HEBREW_CHARSET,
-    ARABIC_CHARSET, BALTIC_CHARSET, RUSSIAN_CHARSET, THAI_CHARSET,
-    EASTEUROPE_CHARSET, OEM_CHARSET, EastEurope8859_2);
- { SetValues: array[1..19] of integer =
-    (0, 1, 2, 77, 128, 129, 130, 134, 136, 161, 162, 163, 177, 178,
-     186, 204, 222, 238, 255); }
-  CodePages: array[1..20] of integer =
-  (1252, CP_ACP, 0, CP_MACCP, 932, 949, 1361, 936, 950, 1253, 1254, 1258, 1255, 1256, 1257, 1251,
-    874, 1250, CP_OEMCP, 28592); {28592 for 8859-2, east european}
+begin
+  AssignCharSetAndCodePage(CS, CharSetToCodePage(CS));
+end;
+
+//-- BG ---------------------------------------------------------- 30.01.2011 --
+function TranslateCharset(CS: TFontCharset): TFontCharset;
+// extracted from TProperties.AssignCharSetAndCodePage()
 var
-  I: integer;
   Save: THandle;
   tm: TTextmetric;
   DC: HDC;
   Font: TFont;
-  IX: FIIndex;
 begin
-  if CS = EastEurope8859_2 then
+  if not CharsetPerCharset[CS].Inited then
   begin
-    CharSet := EASTEUROPE_CHARSET;
-    CodePage := 28592;
-    if Assigned(FIArray) then
-      for IX := LFont to HVFont do
-        FIArray.Ar[IX].iCharset := CharSet;
-    Exit;
-  end;
-{the following makes sure the CharSet is available.  It also translates
- "Default_CharSet" into the actual local character set}
-  Font := TFont.Create;
-  Font.Name := '';
-  Font.CharSet := CS;
-  DC := GetDC(0);
-  try
-    Save := SelectObject(DC, Font.Handle);
-    GetTextMetrics(DC, tm);
-    if CS <> Default_Charset then {leave default as is}
-      CharSet := tm.tmCharSet
-    else
-      CharSet := Default_CharSet;
-    if Assigned(FIArray) then
-      for IX := LFont to HVFont do
-        FIArray.Ar[IX].iCharset := CharSet;
-    SelectObject(DC, Save);
-  finally
-    ReleaseDC(0, DC);
-    Font.Free;
-  end;
-
-  for I := 1 to 19 do
-    if SetValues[I] = tm.tmCharSet then
-    begin
-      CodePage := CodePages[I];
-      break;
+    {the following makes sure the CharSet is available}
+    CharsetPerCharset[CS].Inited := True;
+    CharsetPerCharset[CS].Charset := CS;
+    Font := TFont.Create;
+    try
+      Font.Name := '';
+      Font.CharSet := CS;
+      DC := GetDC(0);
+      try
+        Save := SelectObject(DC, Font.Handle);
+        try
+          GetTextMetrics(DC, tm);
+          CharsetPerCharset[CS].Charset := tm.tmCharSet;
+        finally
+          SelectObject(DC, Save);
+        end;
+      finally
+        ReleaseDC(0, DC);
+      end;
+    finally
+      Font.Free;
     end;
+  end;
+  Result := CharsetPerCharset[CS].Charset;
 end;
 
-procedure TProperties.AssignUTF8;
-{Called by DoMeta in Readhtml.pas to make the properties using UTF-8 for conversions.}
+//-- BG ---------------------------------------------------------- 25.12.2010 --
+procedure TProperties.AssignCharSetAndCodePage(CS: TFontCharset; CP: Integer);
+var
+  IX: FIIndex;
 begin
-  CodePage := CP_UTF8;
-  Charset := ANSI_CHARSET;
+  if (FCharSet <> CS) or (FCodePage <> CP) then
+  begin
+    case CS of
+      EastEurope8859_2:
+        FCharSet := TranslateCharset(EASTEUROPE_CHARSET);
+
+      DEFAULT_CHARSET:
+        FCharSet := CS;
+    else
+      FCharSet := TranslateCharset(CS);
+    end;
+
+    if Assigned(FIArray) then
+      for IX := LFont to HVFont do
+        FIArray.Ar[IX].iCharset := CharSet;
+
+    FCodePage := CP;
+  end;
+end;
+
+procedure TProperties.AssignCodePage(const CP: Integer);
+begin
+  case CP of
+    CP_UTF8,
+    CP_UTF16LE,
+    CP_UTF16BE:
+      AssignCharSetAndCodePage(DEFAULT_CHARSET, CP);
+  else
+    AssignCharSetAndCodePage(CodePageToCharSet(CP), CP);
+  end;
 end;
 
 {----------------TProperties.GetBackgroundPos}
 
 procedure TProperties.GetBackgroundPos(EmSize, ExSize: integer; var P: PtPositionRec);
 var
-  S: array[1..2] of string;
-  Tmp: string;
+  S: array[1..2] of ThtString;
+  Tmp: ThtString;
   I, N, XY: integer;
 begin
 //BG, 29.08.2009: thanks to SourceForge user 'bolex': 'not' was missing.
@@ -854,7 +872,7 @@ end;
 function TProperties.GetVertAlign(var Align: AlignmentType): boolean;
 {note:  'top' should have a catagory of its own}
 var
-  S: string;
+  S: ThtString;
 begin
   if (VarIsStr(Props[VerticalAlign])) then
   begin
@@ -886,13 +904,13 @@ end;
 
 function TProperties.GetFloat(var Align: AlignmentType): boolean;
 var
-  S: string;
+  S: ThtString;
 begin
   if (VarIsStr(Props[Float])) then
   begin
     Result := True;
     S := Props[Float];
-    if (S = 'left') then
+    if S = 'left' then
       Align := ALeft
     else if S = 'right' then
       Align := ARight
@@ -907,7 +925,7 @@ end;
 
 function TProperties.GetClear(var Clr: ClearAttrType): boolean;
 var
-  S: string;
+  S: ThtString;
 begin
   if (VarIsStr(Props[Clear])) then
   begin
@@ -932,7 +950,7 @@ end;
 //-- BG ---------------------------------------------------------- 15.09.2009 --
 function TProperties.GetDisplay: TPropDisplay;
 var
-  S: String;
+  S: ThtString;
 begin
   if VarIsStr(Props[piDisplay]) then
   begin
@@ -951,7 +969,7 @@ end;
 
 function TProperties.GetListStyleType: ListBulletType;
 const
-  S: array[Low(ListBulletType)..High(ListBulletType)] of string =
+  S: array[Low(ListBulletType)..High(ListBulletType)] of ThtString =
   ('blank', 'circle', 'decimal', 'disc', 'lower-alpha', 'lower-roman',
     'none', 'square', 'upper-alpha', 'upper-roman');
 var
@@ -968,7 +986,7 @@ begin
   Result := lbBlank;
 end;
 
-function TProperties.GetListStyleImage: string;
+function TProperties.GetListStyleImage: ThtString;
 begin
   Result := ReadURL(Props[ListStyleImage])
 end;
@@ -980,6 +998,8 @@ begin
   begin
     if Props[Position] = 'absolute' then
       Result := posAbsolute
+    else if Props[Position] = 'fixed' then
+      Result := posFixed
     else if Props[Position] = 'relative' then
       Result := posRelative;
   end;
@@ -1071,7 +1091,7 @@ begin
   end;
 end;
 
-function TProperties.GetFontVariant: string;
+function TProperties.GetFontVariant: ThtString;
 begin
   try
     if VarIsStr(Props[FontVariant]) then
@@ -1107,9 +1127,9 @@ begin {return a color only if it hasn't been inherited}
     Result := clNone;
 end;
 
-function BorderStyleFromString(const S: string): BorderStyleType;
+function BorderStyleFromString(const S: ThtString): BorderStyleType;
 const
-  Ar: array[1..9] of string = ('none', 'solid', 'inset', 'outset', 'groove', 'ridge',
+  Ar: array[1..9] of ThtString = ('none', 'solid', 'inset', 'outset', 'groove', 'ridge',
     'dashed', 'dotted', 'double');
   Ar1: array[1..9] of BorderStyleType = (bssNone, bssSolid, bssInset, bssOutset, bssGroove, bssRidge,
     bssDashed, bssDotted, bssDouble);
@@ -1212,17 +1232,18 @@ end;
 {----------------ConvMargArray}
 
 procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: Integer;
-  BorderStyle: BorderStyleType; BorderWidth: Integer; var AutoCount: integer; var M: TMarginArray);
+  BorderStyle: BorderStyleType; BorderWidth: Integer; out AutoCount: integer; var M: TMarginArray);
 {This routine does not do MarginTop and MarginBottom as they are done by ConvVertMargins}
 var
   I: PropIndices;
   Base: integer;
+  VMBorderStyle: Variant;
 begin
   AutoCount := 0; {count of 'auto's in width items}
   for I := Low(VM) to High(VM) do
   begin
     case I of
-      Height, TopPos:
+      piHeight, TopPos:
         Base := BaseHeight
     else
       Base := BaseWidth;
@@ -1237,7 +1258,10 @@ begin
         end;
       BorderTopWidth..BorderLeftWidth:
         begin
-          if VM[PropIndices(Ord(BorderTopStyle) + (Ord(I) - Ord(BorderTopWidth)))] = bssNone then
+          VMBorderStyle := VM[PropIndices(Ord(BorderTopStyle) + (Ord(I) - Ord(BorderTopWidth)))];
+          if VMBorderStyle = Unassigned then
+            VMBorderStyle := bssNone;
+          if VMBorderStyle = bssNone then
             M[I] := 0
           else
           begin
@@ -1261,7 +1285,7 @@ begin
             end;
           end;
         end;
-      Height:
+      piHeight:
         begin
           if VarIsStr(VM[I]) then
           begin
@@ -1331,7 +1355,7 @@ begin
           else
             M[I] := 0;
         end;
-      Width:
+      piWidth:
         begin
           if VarIsStr(VM[I]) then
             M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, Auto)
@@ -1410,7 +1434,7 @@ var
 begin
   for I := Low(VM) to High(VM) do
     case I of
-      Height, Width:
+      piHeight, piWidth:
         begin
           if VarIsStr(VM[I]) then
             M[I] := LengthConv(VM[I], False, BaseWidth, EmSize, ExSize, Auto) {Auto will be Auto}
@@ -1472,13 +1496,13 @@ end;
 {----------------TProperties.Combine}
 
 procedure TProperties.Combine(Styles: TStyleList;
-  const Tag, AClass, AnID, PSeudo, ATitle: string; AProp: TProperties; ParentIndexInPropStack: Integer);
+  const Tag, AClass, AnID, PSeudo, ATitle: ThtString; AProp: TProperties; ParentIndexInPropStack: Integer);
 {When called, this TProperties contains the inherited properties.  Here we
  add the ones relevant to this item. AProp are TProperties gleaned from the
  Style= attribute. AClass may be a multiple class like class="ab.cd"}
 
   procedure CombineX(Styles: TStyleList;
-    const Tag, AClass, AnID, PSeudo, ATitle: string; AProp: TProperties);
+    const Tag, AClass, AnID, PSeudo, ATitle: ThtString; AProp: TProperties);
   {When called, this TProperties contains the inherited properties.  Here we
    add the ones relevant to this item. AProp are TProperties gleaned from the
    Style= attribute.}
@@ -1491,7 +1515,7 @@ procedure TProperties.Combine(Styles: TStyleList;
       Index: PropIndices;
       I: FIIndex;
       Wt: integer;
-      S1: string;
+      S1: ThtString;
     begin
       for Index := Low(Index) to High(PropIndices) do
         if (VarType(Source.Props[Index]) <> varEmpty) and (Vartype(Source.Props[Index]) <> varNull) then
@@ -1575,16 +1599,16 @@ procedure TProperties.Combine(Styles: TStyleList;
     var
       J, K, N: integer;
       A: array[1..10] of record
-        Tg, Cl, ID, PS: string;
+        Tg, Cl, ID, PS: ThtString;
         gt: boolean;
       end;
       MustMatchParent: Boolean;
 
-      procedure Split(S: string);
+      procedure Split(S: ThtString);
       var
         I, J: integer;
       begin
-        N := 1; {N is number of selectors in contextual string}
+        N := 1; {N is number of selectors in contextual ThtString}
         I := Pos(' ', S);
         while (I > 0) and (N < 10) do
         begin
@@ -1595,10 +1619,14 @@ procedure TProperties.Combine(Styles: TStyleList;
           I := Pos(' ', S);
         end;
         A[N].Tg := S;
-        if (N >= 2) and (Length(A[2].Tg) > 0) then
-          repeat
-            Delete(A[2].Tg, 1, 1); {remove the sort digit}
-          until (length(A[2].Tg) = 0) or not (A[2].Tg[1] in ['0'..'9']);
+        if N >= 2 then
+          while Length(A[2].Tg) > 0 do
+            case A[2].Tg[1] of
+              '0'..'9':
+                Delete(A[2].Tg, 1, 1); {remove the sort digit}
+            else
+              break;
+            end;
         for I := 1 to N do
         begin
           J := Pos('>', A[I].Tg);
@@ -1633,18 +1661,18 @@ procedure TProperties.Combine(Styles: TStyleList;
         end;
       end;
 
-      function PartOf(const S1, S2: string): boolean;
+      function PartOf(const S1, S2: ThtString): boolean;
       {see if all classes in S1 are present in S2.  Classes are separated by '.'}
       var
-        SL1, SL2: TStringList;
+        SL1, SL2: ThtStringList;
         J, X: integer;
 
-        function FormStringList(S: string): TStringList;
-        {construct a TStringList from classes in string S}
+        function FormStringList(S: ThtString): ThtStringList;
+        {construct a ThtStringList from classes in ThtString S}
         var
           I: integer;
         begin
-          Result := TStringList.Create;
+          Result := ThtStringList.Create;
           Result.Sorted := True;
           I := Pos('.', S);
           while I >= 1 do
@@ -1712,7 +1740,7 @@ procedure TProperties.Combine(Styles: TStyleList;
       end
     end;
 
-    procedure MergeItems(const Item: string);
+    procedure MergeItems(const Item: ThtString);
     {look up items in the Style list.  If found, merge them in this TProperties.
      Items may be duplicated in which case the last has priority.  Items may be
      simple tags like 'p', 'blockquote', 'em', etc or they may be more complex
@@ -1733,7 +1761,7 @@ procedure TProperties.Combine(Styles: TStyleList;
     end;
 
     //BG, 09.09.2010: extracted from below
-    procedure MergeContextuals(Style: String);
+    procedure MergeContextuals(Style: ThtString);
     var
       IX: Integer;
     begin
@@ -1856,12 +1884,12 @@ procedure TProperties.Combine(Styles: TStyleList;
     if AProp <> nil then //the Style= attribute
       Merge(AProp);
 
-    if not (VarType(Props[FontSize]) in varNum) then {if still a string, hasn't been converted}
+    if not (VarType(Props[FontSize]) in varNum) then {if still a ThtString, hasn't been converted}
       Props[FontSize] := FontSizeConv(Props[FontSize], OldSize);
   end;
 
 var
-  BClass, S: string;
+  BClass, S: ThtString;
   I: integer;
 begin
   BClass := Trim(AClass);
@@ -1904,64 +1932,72 @@ var
   tm: TTextmetric;
   DC: HDC;
   V: Variant;
+  SameFont: TMyFont;
 begin {call only if all things valid}
-  if not Assigned(TheFont) then
+  if TheFont = nil then
   begin
     Font := ThtFontInfo.Create;
     try
       GetSingleFontInfo(Font);
-      TheFont := TMyFont.Create;
-      with TheFont, Font do
+      SameFont := AllMyFonts.Find(Font);
+      if SameFont = nil then
       begin
-        Name := iName;
-        Height := -Round(iSize * Screen.PixelsPerInch / 72);
-        Style := iStyle;
-        bgColor := ibgColor;
-        Color := iColor;
-        Charset := iCharSet;
-        V := iCharExtra;
+        SameFont := TMyFont.Create;
+        SameFont.Name := Font.iName;
+        SameFont.Height := -Round(Font.iSize * Screen.PixelsPerInch / 72);
+        SameFont.Style := Font.iStyle;
+        SameFont.Charset := Font.iCharSet;
+        AllMyFonts.Add(SameFont);
+
+        // If this is a Symbol charset, then keep it that way.
+        // To check the font's real charset, use Default_Charset
+        SaveCharSet := SameFont.CharSet;
+        SameFont.CharSet := Default_Charset;
+        DC := GetDC(0);
+        try
+          Save := SelectObject(DC, SameFont.Handle);
+          try
+            GetTextMetrics(DC, tm);
+          finally
+            SelectObject(DC, Save);
+          end;
+          if tm.tmCharset = Symbol_Charset then
+            SameFont.Charset := Symbol_CharSet
+          else
+            SameFont.Charset := SaveCharSet;
+          {now get the info on the finalized font}
+          if SameFont.Charset <> Default_Charset then {else already have the textmetrics}
+          begin
+            Save := SelectObject(DC, SameFont.Handle);
+            try
+              GetTextMetrics(DC, tm);
+            finally
+              SelectObject(DC, Save);
+            end;
+          end;
+        finally
+          ReleaseDC(0, DC);
+        end;
+        {calculate EmSize with current font rather than inherited}
+        SameFont.EmSize := tm.tmHeight - tm.tmInternalLeading;
+        SameFont.ExSize := EmSize div 2; {apparently correlates with what browsers are doing}
+        SameFont.tmHeight := tm.tmHeight;
+        SameFont.tmDescent := tm.tmDescent;
+        SameFont.tmExternalLeading := tm.tmExternalLeading;
+        SameFont.tmMaxCharWidth := tm.tmMaxCharWidth;
+        SameFont.tmAveCharWidth := tm.tmAveCharWidth;
+        SameFont.tmCharset := tm.tmCharset;
       end;
+      TheFont := TMyFont.Create;
+      TheFont.Assign(SameFont);
+      TheFont.bgColor := Font.ibgColor;
+      TheFont.Color := Font.iColor;
+      V := Font.iCharExtra;
     finally
       Font.Free;
     end;
-  {if this is a Symbol charset, then keep it that way.  To check the font's real
-   charset, use Default_Charset}
-    SaveCharSet := TheFont.CharSet;
-    TheFont.CharSet := Default_Charset;
-    DC := GetDC(0);
-    try
-      Save := SelectObject(DC, TheFont.Handle);
-      try
-        GetTextMetrics(DC, tm);
-      finally
-        SelectObject(DC, Save);
-      end;
-      if tm.tmCharset = Symbol_Charset then
-        TheFont.Charset := Symbol_CharSet
-      else
-        TheFont.Charset := SaveCharSet;
-    {now get the info on the finalized font}
-      if TheFont.Charset <> Default_Charset then {else already have the textmetrics}
-      begin
-        Save := SelectObject(DC, TheFont.Handle);
-        try
-          GetTextMetrics(DC, tm);
-        finally
-          SelectObject(DC, Save);
-        end;
-      end;
-    finally
-      ReleaseDC(0, DC);
-    end;
-  {calculate EmSize with current font rather than inherited}
-    EmSize := tm.tmHeight - tm.tmInternalLeading;
-    ExSize := EmSize div 2; {apparently correlates with what browsers are doing}
-    TheFont.tmHeight := tm.tmHeight;
-    TheFont.tmDescent := tm.tmDescent;
-    TheFont.tmExternalLeading := tm.tmExternalLeading;
-    TheFont.tmMaxCharWidth := tm.tmMaxCharWidth;
-    TheFont.tmAveCharWidth := tm.tmAveCharWidth;
-    TheFont.tmCharset := tm.tmCharset;
+    FEmSize := TheFont.EmSize;
+    FExSize := TheFont.ExSize;
     if VarType(V) in VarInt then
       TheFont.CharExtra := V
     else if VarIsStr(V) then
@@ -1976,19 +2012,33 @@ begin {call only if all things valid}
   Result.Assign(TheFont);
 end;
 
+{----------------RemoveQuotes}
+
+function RemoveQuotes(const S: ThtString): ThtString;
+{if ThtString is a quoted ThtString, remove the quotes (either ' or ")}
+var
+  L: Integer;
+begin
+  L := Length(S);
+  if (L >= 2) and (S[L] = S[1]) and ((S[1] = '''') or (S[1] = '"')) then
+    Result := Copy(S, 2, Length(S) - 2)
+  else
+    Result := S;
+end;
+
 {----------------ReadFontName}
 
-function ReadFontName(S: string): string;
+function ReadFontName(S: ThtString): ThtString;
 const
   AMax = 5;
 var
-  S1: string;
+  S1: ThtString;
   Done: boolean;
 
-  function NextFontName: string;
+  function NextFontName: ThtString;
   const
-    Generic1: array[1..AMax] of string = ('serif', 'monospace', 'sans-serif', 'cursive', 'Helvetica');
-    Generic2: array[1..AMax] of string = ('Times New Roman', 'Courier New', 'Arial', 'Lucida Handwriting', 'Arial');
+    Generic1: array[1..AMax] of ThtString = ('serif', 'monospace', 'sans-serif', 'cursive', 'Helvetica');
+    Generic2: array[1..AMax] of ThtString = ('Times New Roman', 'Courier New', 'Arial', 'Lucida Handwriting', 'Arial');
   var
     I: integer;
   begin
@@ -2009,10 +2059,7 @@ var
         Result := Generic2[I];
         break;
       end;
-    if (Result <> '') and (Result[Length(Result)] in ['"', '''']) then
-      SetLength(Result, Length(Result) - 1);
-    if (Result <> '') and (Result[1] in ['"', '''']) then
-      Delete(Result, 1, 1);
+    Result := RemoveQuotes(Result);
   end;
 
 begin
@@ -2031,80 +2078,32 @@ end;
 {----------------TProperties.GetSingleFontInfo}
 
 procedure TProperties.GetSingleFontInfo(var Font: ThtFontInfo);
-const
-  AMax = 5;
 var
-  S, S1: string;
-  Done: boolean;
   Wt: integer;
   Style: TFontStyles;
-
-  function NextFontName: string;
-  const
-    Generic1: array[1..AMax] of string = ('serif', 'monospace', 'sans-serif', 'cursive', 'Helvetica');
-    Generic2: array[1..AMax] of string = ('Times New Roman', 'Courier New', 'Arial', 'Lucida Handwriting', 'Arial');
-  var
-    I: integer;
-  begin
-    I := Pos(',', S); {read up to the comma}
-    if I > 0 then
-    begin
-      Result := Trim(System.Copy(S, 1, I - 1));
-      Delete(S, 1, I);
-    end
-    else
-    begin {last item}
-      Result := Trim(S);
-      S := '';
-    end;
-    for I := 1 to AMax do
-      if CompareText(Result, Generic1[I]) = 0 then
-      begin
-        Result := Generic2[I];
-        break;
-      end;
-    if (Result <> '') and (Result[Length(Result)] in ['"', '''']) then
-      SetLength(Result, Length(Result) - 1);
-    if (Result <> '') and (Result[1] in ['"', '''']) then
-      Delete(Result, 1, 1);
-  end;
-
 begin {call only if all things valid}
   Font.ibgColor := FontBG;
   Font.iColor := Props[Color];
   Style := [];
   if Pos('bold', Props[FontWeight]) > 0 then
-    Style := [fsBold]
+    Include(Style, fsBold)
   else
   begin
     Wt := StrToIntDef(Props[FontWeight], 0);
     if Wt >= 600 then
-      Style := [fsBold];
+      Include(Style, fsBold);
   end;
   if (Props[FontStyle] = 'italic') or (Props[FontStyle] = 'oblique') then
-    Style := Style + [fsItalic];
+    Include(Style, fsItalic);
   if Props[TextDecoration] = 'underline' then
-    Style := Style + [fsUnderline]
+    Include(Style, fsUnderline)
   else if Props[TextDecoration] = 'line-through' then
-    Style := Style + [fsStrikeOut];
+    Include(Style, fsStrikeOut);
   Font.iStyle := Style;
   Font.iSize := Props[FontSize];
   Font.iCharset := CharSet;
   Font.iCharExtra := Props[LetterSpacing];
-
-  Done := False;
-  S := Props[FontFamily];
-  S1 := NextFontName;
-  while (S1 <> '') and not Done do
-  begin
-    Done := Screen.Fonts.IndexOf(S1) >= 0;
-    if Done then
-    begin
-      Font.iName := S1;
-    end
-    else
-      S1 := NextFontName;
-  end;
+  Font.iName := ReadFontName(Props[FontFamily]);
   if Font.iName = '' then
     Font.iName := DefFontname;
 end;
@@ -2112,7 +2111,7 @@ end;
 procedure TProperties.CalcLinkFontInfo(Styles: TStyleList; I: integer);
 {I is index in PropStack for this item}
 
-  procedure InsertNewProp(N: integer; const Pseudo: string);
+  procedure InsertNewProp(N: integer; const Pseudo: ThtString);
   begin
     PropStack.Insert(N, TProperties.Create(PropStack));
     PropStack[N].Inherit('', PropStack[N - 1]);
@@ -2159,7 +2158,7 @@ begin
     end;
 end;
 
-procedure TProperties.AddPropertyByIndex(Index: PropIndices; PropValue: string);
+procedure TProperties.AddPropertyByIndex(Index: PropIndices; PropValue: ThtString);
 var
   NewColor: TColor;
 begin
@@ -2183,7 +2182,7 @@ begin
         Props[Index] := clBlack
       else
         Props[Index] := clNone;
-    MarginTop..BorderLeftWidth, Width..LeftPos:
+    MarginTop..BorderLeftWidth, piWidth..LeftPos:
       Props[Index] := PropValue;
     FontSize:
       Props[FontSize] := PropValue;
@@ -2232,7 +2231,7 @@ begin
   end;
 end;
 
-procedure TProperties.AddPropertyByName(const PropName, PropValue: string);
+procedure TProperties.AddPropertyByName(const PropName, PropValue: ThtString);
 var
   Index: PropIndices;
 begin
@@ -2266,7 +2265,7 @@ begin
   inherited;
 end;
 
-function TStyleList.GetSeqNo: string;
+function TStyleList.GetSeqNo: ThtString;
 begin {used to help sort contextual items by entry sequence}
   Result := IntToStr(SeqNo);
   Inc(SeqNo);
@@ -2294,35 +2293,146 @@ begin
 end;
 {$ENDIF}
 
-function TStyleList.AddObject(const S: string; AObject: TObject): Integer;
+procedure TStyleList.AddModifyProp(const Selector, Prop, Value: ThtString);
+{strings are all lowercase here}
+var
+  I: Integer;
+  PropIndex: PropIndices;
+  Propty: TProperties;
+  NewColor: TColor;
+  NewProp: boolean;
+begin
+  if FindPropIndex(Prop, PropIndex) then
+  begin
+    if not Find(Selector, I) then
+    begin
+      NewProp := True;
+      Propty := TProperties.Create(); {newly created property}
+    end
+    else
+    begin
+      Propty := TProperties(Objects[I]); {modify existing property}
+      NewProp := False;
+    end;
+    case PropIndex of
+      Color:
+        if ColorFromString(Value, False, NewColor) then
+        begin
+          if Selector = ':link' then
+          begin {changed the defaults to be the same as link}
+            ModifyLinkColor('hover', NewColor);
+            ModifyLinkColor('visited', NewColor);
+          end
+          else if Selector = ':visited' then
+            ModifyLinkColor('hover', NewColor);
+          Propty.Props[PropIndex] := NewColor;
+        end;
+      BorderColor:
+        if ColorFromString(Value, False, NewColor) then
+        begin
+          Propty.Props[BorderColor] := NewColor;
+          Propty.Props[BorderLeftColor] := NewColor;
+          Propty.Props[BorderTopColor] := NewColor;
+          Propty.Props[BorderRightColor] := NewColor;
+          Propty.Props[BorderBottomColor] := NewColor;
+        end;
+      BorderTopColor..BorderLeftColor:
+        if ColorFromString(Value, False, NewColor) then
+          Propty.Props[PropIndex] := NewColor;
+      BackgroundColor:
+        if ColorFromString(Value, False, NewColor) then
+          Propty.Props[PropIndex] := NewColor
+        else
+          Propty.Props[PropIndex] := clNone;
+      Visibility:
+        begin
+          if Value = 'visible' then
+            Propty.Props[Visibility] := viVisible
+          else if Value = 'hidden' then
+            Propty.Props[Visibility] := viHidden;
+        end;
+      TextTransform:
+        begin
+          if Value = 'uppercase' then
+            Propty.Props[TextTransform] := txUpper
+          else if Value = 'lowercase' then
+            Propty.Props[TextTransform] := txLower
+          else
+            Propty.Props[TextTransform] := txNone;
+        end;
+      WordWrap:
+        if Value = 'break-word' then
+          Propty.Props[WordWrap] := Value
+        else
+          Propty.Props[WordWrap] := 'normal';
+      FontVariant:
+        if Value = 'small-caps' then
+          Propty.Props[FontVariant] := Value
+        else if Value = 'normal' then
+          Propty.Props[FontVariant] := 'normal';
+      BorderTopStyle..BorderLeftStyle:
+        begin
+          if Value <> 'none' then
+            Propty.Props[BorderStyle] := Value;
+          Propty.Props[PropIndex] := Value;
+        end;
+      BorderStyle:
+        begin
+          Propty.Props[BorderStyle] := Value;
+          Propty.Props[BorderTopStyle] := Value;
+          Propty.Props[BorderRightStyle] := Value;
+          Propty.Props[BorderBottomStyle] := Value;
+          Propty.Props[BorderLeftStyle] := Value;
+        end;
+      LineHeight:
+        Propty.Props[PropIndex] := Value;
+    else
+      Propty.Props[PropIndex] := Value;
+    end;
+    if NewProp then
+      AddObject(Selector, Propty); {it's a newly created property}
+    if Pos(':hover', Selector) > 0 then
+      LinksActive := True;
+    if Selector = 'a' then
+    begin
+      AddModifyProp('::link', Prop, Value); {also applies to ::link}
+    end;
+{$IFDEF Quirk}
+    if (Selector = 'body') and (PropIndex = Color) then
+      FixupTableColor(Propty);
+{$ENDIF}
+  end;
+end;
+
+function TStyleList.AddObject(const S: ThtString; AObject: TObject): Integer;
 begin
   Result := inherited AddObject(S, AObject);
   TProperties(AObject).PropTag := S;
 end;
 
-function TStyleList.AddDuplicate(const Tag: string; Prop: TProperties): TProperties;
+function TStyleList.AddDuplicate(const Tag: ThtString; Prop: TProperties): TProperties;
 begin
   Result := TProperties.Create(Prop.PropStack);
   Result.Copy(Prop);
   AddObject(Tag, Result);
 end;
 
-procedure TStyleList.ModifyLinkColor(Psuedo: string; AColor: TColor);
+procedure TStyleList.ModifyLinkColor(Pseudo: ThtString; AColor: TColor);
 var
   I: integer;
 begin
-  if Find('::' + Psuedo, I) then {the defaults}
+  if Find('::' + Pseudo, I) then {the defaults}
     with TProperties(Objects[I]) do
       Props[Color] := AColor;
 end;
 
-procedure TStyleList.Initialize(const FontName, PreFontName: string;
+procedure TStyleList.Initialize(const FontName, PreFontName: ThtString;
   PointSize: integer; AColor, AHotspot, AVisitedColor, AActiveColor: TColor;
   LinkUnderline: boolean; ACharSet: TFontCharSet; MarginHeight, MarginWidth: integer);
 type
   ListTypes = (ul, ol, menu, dir, dl, dd, blockquote);
 const
-  ListStr: array[Low(ListTypes)..High(ListTypes)] of string =
+  ListStr: array[Low(ListTypes)..High(ListTypes)] of ThtString =
   ('ul', 'ol', 'menu', 'dir', 'dl', 'dd', 'blockquote');
 var
   HIndex: integer;
@@ -2335,143 +2445,122 @@ begin
   DefPointSize := PointSize;
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    DefFontname := FontName;
-    Props[FontFamily] := FontName;
-    Props[FontSize] := PointSize;
-    Props[FontStyle] := 'none';
-    Props[FontWeight] := 'normal';
-    Props[TextAlign] := 'left';
-    Props[TextDecoration] := 'none';
-    Props[TextTransform] := txNone;
-    Props[WordWrap] := 'normal';
-    Props[FontVariant] := 'normal';
-    Props[Color] := AColor;
-    Props[MarginTop] := MarginHeight;
-    Props[MarginBottom] := MarginHeight;
-    Props[MarginLeft] := MarginWidth;
-    Props[MarginRight] := MarginWidth;
-    Props[Visibility] := viVisible;
-    Props[LetterSpacing] := 0;
-    CharSet := ACharSet;
-  end;
+  Properties.DefFontname := FontName;
+  Properties.Props[FontFamily] := FontName;
+  Properties.Props[FontSize] := PointSize;
+  Properties.Props[FontStyle] := 'none';
+  Properties.Props[FontWeight] := 'normal';
+  Properties.Props[TextAlign] := 'left';
+  Properties.Props[TextDecoration] := 'none';
+  Properties.Props[TextTransform] := txNone;
+  Properties.Props[WordWrap] := 'normal';
+  Properties.Props[FontVariant] := 'normal';
+  Properties.Props[Color] := AColor;
+  Properties.Props[MarginTop] := MarginHeight;
+  Properties.Props[MarginBottom] := MarginHeight;
+  Properties.Props[MarginLeft] := MarginWidth;
+  Properties.Props[MarginRight] := MarginWidth;
+  Properties.Props[Visibility] := viVisible;
+  Properties.Props[LetterSpacing] := 0;
+  Properties.CharSet := ACharSet;
   AddObject('default', Properties);
   DefProp := Properties;
 
 {$IFDEF Quirk}
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontSize] := PointSize * 1.0;
-    Props[FontStyle] := 'none';
-    Props[FontWeight] := 'normal';
-    Props[Color] := AColor;
-  end;
+  Properties.Props[FontSize] := PointSize * 1.0;
+  Properties.Props[FontStyle] := 'none';
+  Properties.Props[FontWeight] := 'normal';
+  Properties.Props[Color] := AColor;
   AddObject('td', Properties);
   Properties := AddDuplicate('th', Properties);
   Properties.Props[FontWeight] := 'bold';
 {$ENDIF}
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[Color] := AHotSpot or PalRelative;
-    if LinkUnderline then
-      Props[TextDecoration] := 'underline'
-    else
-      Props[TextDecoration] := 'none';
-  end;
+  Properties.Props[Color] := AHotSpot or PalRelative;
+  if LinkUnderline then
+    Properties.Props[TextDecoration] := 'underline'
+  else
+    Properties.Props[TextDecoration] := 'none';
   AddObject('::link', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-    Props[Color] := AVisitedColor or PalRelative;
+  Properties.Props[Color] := AVisitedColor or PalRelative;
   AddObject('::visited', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-    Props[Color] := AActiveColor or PalRelative;
+  Properties.Props[Color] := AActiveColor or PalRelative;
   AddObject('::hover', Properties);
 
   Properties := TProperties.Create;
   AddObject('null', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontFamily] := PreFontName;
-    Props[FontSize] := PointSize * 10.0 / 12.0;
-    Props[FontStyle] := 'none';
-    Props[FontWeight] := 'normal';
-    Props[TextDecoration] := 'none';
-  end;
+  Properties.Props[FontFamily] := PreFontName;
+  Properties.Props[FontSize] := PointSize * 10.0 / 12.0;
+  Properties.Props[FontStyle] := 'none';
+  Properties.Props[FontWeight] := 'normal';
+  Properties.Props[TextDecoration] := 'none';
   AddObject('pre', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[MarginTop] := AutoParagraph;
-    Props[MarginBottom] := AutoParagraph;
-  end;
+  Properties.Props[MarginTop] := AutoParagraph;
+  Properties.Props[MarginBottom] := AutoParagraph;
   AddObject('p', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[MarginTop] := 0;
-  end;
+  Properties.Props[MarginTop] := 0;
   AddObject('p 11pre', Properties);
 
   for J := Low(ListTypes) to High(ListTypes) do
   begin
     Properties := TProperties.Create;
-    with Properties do
-    begin
-      Props[PaddingLeft] := 35;
-      Props[MarginTop] := 0;
-      Props[MarginBottom] := 0;
-      case J of
-        ol, ul, menu, dir:
-          begin
-            Props[ListStyleType] := 'blank';
-            Props[MarginTop] := AutoParagraph;
-            Props[MarginBottom] := AutoParagraph;
-          end;
-        dl:
-          begin
-            Props[MarginLeft] := 0;
-            Props[PaddingLeft] := 0;
-            Props[ListStyleType] := 'none';
-          end;
-        blockquote:
-          begin
-            Props[MarginTop] := AutoParagraph;
-            Props[MarginBottom] := ParagraphSpace;
-          end;
+    case J of
+      ol, ul, menu, dir:
+      begin
+        Properties.Props[ListStyleType] := 'blank';
+        Properties.Props[MarginTop] := AutoParagraph;
+        Properties.Props[MarginBottom] := AutoParagraph;
+        Properties.Props[PaddingLeft] := IntNull;
+      end;
 
-        dd: ;
+      dl:
+      begin
+        Properties.Props[ListStyleType] := 'none';
+        Properties.Props[MarginLeft] := 0;
+        Properties.Props[MarginTop] := 0;
+        Properties.Props[MarginBottom] := 0;
+        Properties.Props[PaddingLeft] := 0;
+      end;
+
+      blockquote:
+      begin
+        Properties.Props[MarginTop] := AutoParagraph;
+        Properties.Props[MarginBottom] := ParagraphSpace;
+        Properties.Props[PaddingLeft] := ListIndent;
+      end;
+
+      dd:
+      begin
+        Properties.Props[MarginTop] := 0;
+        Properties.Props[MarginBottom] := 0;
+        Properties.Props[PaddingLeft] := ListIndent;
       end;
     end;
     AddObject(ListStr[J], Properties);
   end;
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontFamily] := PrefontName;
-    Props[FontSize] := '0.83em'; {10.0 / 12.0;}
-  end;
+  Properties.Props[FontFamily] := PrefontName;
+  Properties.Props[FontSize] := '0.83em'; {10.0 / 12.0;}
   AddObject('code', Properties);
   AddDuplicate('tt', Properties);
   AddDuplicate('kbd', Properties);
   AddDuplicate('samp', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontWeight] := 'bold';
-  end;
+  Properties.Props[FontWeight] := 'bold';
   AddObject('b', Properties);
   AddDuplicate('strong', Properties);
 {$IFNDEF Quirk}
@@ -2479,47 +2568,29 @@ begin
 {$ENDIF}
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontSize] := '0.83em';
-    Props[VerticalAlign] := 'super';
-  end;
+  Properties.Props[FontSize] := '0.83em';
+  Properties.Props[VerticalAlign] := 'super';
   AddObject('sup', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontSize] := '0.83em';
-    Props[VerticalAlign] := 'sub';
-  end;
+  Properties.Props[FontSize] := '0.83em';
+  Properties.Props[VerticalAlign] := 'sub';
   AddObject('sub', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontSize] := '1.17em';
-  end;
+  Properties.Props[FontSize] := '1.17em';
   AddObject('big', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontSize] := '0.83em';
-  end;
+  Properties.Props[FontSize] := '0.83em';
   AddObject('small', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[TextAlign] := 'none';
-  end;
+  Properties.Props[TextAlign] := 'none';
   AddObject('table', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontStyle] := 'italic';
-  end;
+  Properties.Props[FontStyle] := 'italic';
   AddObject('i', Properties);
   AddDuplicate('em', Properties);
   AddDuplicate('cite', Properties);
@@ -2528,39 +2599,27 @@ begin
   AddDuplicate('address', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[TextDecoration] := 'underline';
-  end;
+  Properties.Props[TextDecoration] := 'underline';
   AddObject('u', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[TextDecoration] := 'line-through';
-  end;
+  Properties.Props[TextDecoration] := 'line-through';
   AddObject('s', Properties);
   AddDuplicate('strike', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[TextAlign] := 'center';
-  end;
+  Properties.Props[TextAlign] := 'center';
   AddObject('center', Properties);
   AddDuplicate('caption', Properties);
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[FontFamily] := 'Arial Unicode MS, Arial';
-    Props[FontSize] := '10pt';
-    Props[FontStyle] := 'none';
-    Props[FontWeight] := 'normal';
-    Props[TextAlign] := 'left';
-    Props[TextDecoration] := 'none';
-    Props[Color] := AColor;
-  end;
+  Properties.Props[FontFamily] := 'Arial Unicode MS, Arial';
+  Properties.Props[FontSize] := '10pt';
+  Properties.Props[FontStyle] := 'none';
+  Properties.Props[FontWeight] := 'normal';
+  Properties.Props[TextAlign] := 'left';
+  Properties.Props[TextDecoration] := 'none';
+  Properties.Props[Color] := AColor;
   AddObject('input', Properties);
   AddDuplicate('select', Properties);
 
@@ -2571,33 +2630,27 @@ begin
     Properties.Props[FontFamily] := PreFontName;
 
   Properties := TProperties.Create;
-  with Properties do
-  begin
-    Props[MarginLeft] := 0;
-    Props[MarginRight] := 0;
-    Props[MarginTop] := 10;
-    Props[MarginBottom] := 10;
-  end;
+  Properties.Props[MarginLeft] := 0;
+  Properties.Props[MarginRight] := 0;
+  Properties.Props[MarginTop] := 10;
+  Properties.Props[MarginBottom] := 10;
   AddObject('hr', Properties);
 
   for HIndex := 1 to 6 do
   begin
     Properties := TProperties.Create;
     F := PointSize / 12.0;
-    with Properties do
-    begin
-      case HIndex of
-        1: Props[FontSize] := 24.0 * F;
-        2: Props[FontSize] := 18.0 * F;
-        3: Props[FontSize] := 14.0 * F;
-        4: Props[FontSize] := 12.0 * F;
-        5: Props[FontSize] := 10.0 * F;
-        6: Props[FontSize] := 8.0 * F;
-      end;
-      Props[MarginTop] := 19;
-      Props[MarginBottom] := Props[MarginTop];
-      Props[FontWeight] := 'bold';
+    case HIndex of
+      1: Properties.Props[FontSize] := 24.0 * F;
+      2: Properties.Props[FontSize] := 18.0 * F;
+      3: Properties.Props[FontSize] := 14.0 * F;
+      4: Properties.Props[FontSize] := 12.0 * F;
+      5: Properties.Props[FontSize] := 10.0 * F;
+      6: Properties.Props[FontSize] := 8.0 * F;
     end;
+    Properties.Props[MarginTop] := 19;
+    Properties.Props[MarginBottom] := Properties.Props[MarginTop];
+    Properties.Props[FontWeight] := 'bold';
     AddObject('h' + IntToStr(HIndex), Properties);
   end;
 end;
@@ -2606,18 +2659,18 @@ end;
 
 function TPropStack.GetProp(Index: integer): TProperties;
 begin
-  Result := TProperties(inherited Items[Index]);
+  Result := Get(Index); //TProperties(inherited Items[Index]);
 end;
 
 function TPropStack.Last: TProperties;
 begin
-  Result := Items[Count - 1];
+  Result := Get(Count - 1);
 end;
 
 
 const
   NumColors = 176;
-  Colors: array[1..NumColors] of string = ('transparent',
+  Colors: array[1..NumColors] of ThtString = ('transparent',
     'black', 'maroon', 'green', 'olive', 'navy', 'purple', 'teal', 'gray',
     'silver', 'red', 'lime', 'yellow', 'blue', 'fuchsia', 'aqua', 'white',
     'aliceblue', 'antiquewhite', 'aquamarine', 'azure', 'beige',
@@ -2691,16 +2744,16 @@ const
     clBtnFace, cl3DLight, clBtnShadow);
 
 var
-  ColorStrings: TStringList;
+  ColorStrings: ThtStringList;
 
-function SortedColors: TStringList;
+function SortedColors: ThtStringList;
 var
   I: integer;
 begin
 // Put the Colors into a sorted StringList for faster access.
   if ColorStrings = nil then
   begin
-    ColorStrings := TStringList.Create;
+    ColorStrings := ThtStringList.Create;
     for I := 1 to NumColors do
       ColorStrings.AddObject(Colors[I], Pointer(ColorValues[I]));
     ColorStrings.Sort;
@@ -2708,22 +2761,22 @@ begin
   Result := ColorStrings;
 end;
 
-function ColorFromString(S: string; NeedPound: boolean; var Color: TColor): boolean;
-{Translate StyleSheet color string to Color.  If NeedPound is true, a '#' sign
+function ColorFromString(S: ThtString; NeedPound: boolean; var Color: TColor): boolean;
+{Translate StyleSheet color ThtString to Color.  If NeedPound is true, a '#' sign
  is required to preceed a hexidecimal value.}
 const
-  LastS: string = '?&%@';
+  LastS: ThtString = '?&%@';
   LastColor: TColor = 0;
 
 var
   I, Rd, Bl: integer;
-  S1: string;
+  S1: ThtString;
 
-  function FindRGBColor(S: string): boolean;
+  function FindRGBColor(S: ThtString): boolean;
   type
     Colors = (red, green, blue);
   var
-    A: array[red..blue] of string;
+    A: array[red..blue] of ThtString;
     C: array[red..blue] of integer;
     I, J: integer;
     K: Colors;
@@ -2883,10 +2936,11 @@ begin
 end;
 
 //BG, 14.07.2010:
-function decodeSize(const Str: string; var V: extended; var U: String): boolean;
+function decodeSize(const Str: ThtString; out V: extended; out U: ThtString): boolean;
 var
   I, J, L: Integer;
 begin
+  U := '';
   Val(Str, V, I);
   Result := I <> 1;
   if Result then
@@ -2901,9 +2955,7 @@ begin
     begin
       Val(Copy(Str, 1, I - 1), V, J);
       U := Trim(Copy(Str, I, L - I + 1)); // text after number, maybe a unit
-    end
-    else
-      U := '';
+    end;
   end;
 end;
 
@@ -2973,11 +3025,11 @@ begin
     Result := OldSize * FontConv[NewIndex] / FontConv[OldIndex];
 end;
 
-function FontSizeConv(const Str: string; OldSize: double): double;
-{given a font-size string, return the point size}
+function FontSizeConv(const Str: ThtString; OldSize: double): double;
+{given a font-size ThtString, return the point size}
 var
   V: extended;
-  U: string;
+  U: ThtString;
 begin
   if decodeSize(Str, V, U) then
   begin
@@ -3032,15 +3084,15 @@ end;
 
 {----------------LengthConv}
 
-function LengthConv(const Str: string; Relative: boolean; Base, EmSize, ExSize,
+function LengthConv(const Str: ThtString; Relative: boolean; Base, EmSize, ExSize,
   Default: integer): integer;
-{given a length string, return the appropriate pixel value.  Base is the
+{given a length ThtString, return the appropriate pixel value.  Base is the
  base value for percentage. EmSize, ExSize for units relative to the font.
  Relative makes a numerical entry relative to Base.
  Default returned if no match.}
 var
   V: extended;
-  U: string;
+  U: ThtString;
 begin
   if decodeSize(Str, V, U) then
   begin
@@ -3078,7 +3130,77 @@ begin
     Result := Default;
 end;
 
+{ TMyFontCache }
+
+type
+  ThtStringListOpener = class(ThtStringList)
+  end;
+
+//-- BG ---------------------------------------------------------- 30.01.2011 --
+procedure TMyFontCache.Add(Font: TMyFont);
+var
+  I: Integer;
+begin
+  if not FFontsByName.Find(htLowerCase(Font.Name), I) then
+    ThtStringListOpener(FFontsByName).InsertItem(I, Font.Name, TObjectList.Create(True));
+  TObjectList(FFontsByName.Objects[I]).Add(Font);
+end;
+
+//-- BG ---------------------------------------------------------- 30.01.2011 --
+constructor TMyFontCache.Create;
+begin
+  inherited;
+  FFontsByName := ThtStringList.Create;
+  FFontsByName.Sorted := True;
+end;
+
+//-- BG ---------------------------------------------------------- 30.01.2011 --
+destructor TMyFontCache.Destroy;
+var
+  I: Integer;
+begin
+  for I := 0 to FFontsByName.Count - 1 do
+    FFontsByName.Objects[I].Free;
+  FFontsByName.Free;
+  inherited;
+end;
+
+//-- BG ---------------------------------------------------------- 30.01.2011 --
+function TMyFontCache.Find(FontInfo: ThtFontInfo): TMyFont;
+
+  function SameFonts(F1: TMyFont; F2: ThtFontInfo): Boolean;
+  begin
+    if F2 <> nil then
+      if F1.Height = -Round(F2.iSize * Screen.PixelsPerInch / 72) then
+        if F1.Style = F2.iStyle then
+          if F1.Charset = F2.iCharset then
+          begin
+            Result := True;
+            exit;
+          end;
+    Result := False;
+  end;
+
+var
+  I: Integer;
+  Fonts: TObjectList;
+begin
+  if FFontsByName.Find(htLowerCase(FontInfo.iName), I) then
+  begin
+    Fonts := TObjectList(FFontsByName.Objects[I]);
+    for I := 0 to Fonts.Count - 1 do
+    begin
+      Result := TMyFont(Fonts[I]);
+      if SameFonts(Result, FontInfo) then
+        exit;
+    end;
+  end;
+  Result := nil;
+end;
+
 initialization
+  AllMyFonts := TMyFontCache.Create;
 finalization
-  freeAndNil(ColorStrings);
+  FreeAndNil(AllMyFonts);
+  FreeAndNil(ColorStrings);
 end.

@@ -1,6 +1,6 @@
 {
-Version   10.2
-Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
+Version   11
+Copyright (c) 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -30,23 +30,138 @@ unit HtmlGlobals;
 interface
 
 uses
+  Classes, SysUtils, Graphics, Controls,
+{$ifdef MSWINDOWS}
   Windows,
-{$ifdef FPC}
-  RtlConsts,
+{$endif}
+{$ifdef LCL}
+  LclIntf, LclType,
+  StdCtrls, Buttons, Forms,
+  HtmlMisc,
+  WideStringsLcl,
 {$else}
   Consts,
+  {$ifdef UseTNT}
+    {$message 'HtmlViewer uses TNT unicode controls.'}
+    TntControls,
+    TntStdCtrls,
+    {$ifdef Compiler18_Plus}
+      WideStrings,
+    {$else}
+      TntWideStrings,
+    {$endif}
+    TntClasses,
+  {$else UseTNT}
+    {$message 'HtmlViewer uses VCL standard controls.'}
+    StdCtrls,
+    Buttons,
+    {$ifdef Compiler18_Plus}
+      WideStrings,
+    {$else}
+      TntWideStrings,
+      TntClasses,
+    {$endif}
+  {$endif UseTNT}
 {$endif}
-  Classes, SysUtils;
+  HtmlBuffer;
 
-{$IFNDEF Unicode}
 type
-  UnicodeString = WideString;
-{$ENDIF !Unicode}
+
+{$IFNDEF DOTNET}
+  {$IFNDEF FPC}
+     //needed so that in FreePascal, we can use pointers of different sizes
+    {$IFDEF WIN32}
+      PtrInt = LongInt;
+      PtrUInt = LongWord;
+    {$ENDIF}
+    {$IFDEF WIN64}
+      PtrInt = Int64;
+      PtrUInt = Int64;
+    {$ENDIF}
+    //NOTE:  The code below asumes a 32bit Linux architecture (such as target i386-linux)
+    {$IFDEF KYLIX}
+      PtrInt = LongInt;
+      PtrUInt = LongWord;
+    {$ENDIF}
+  {$ENDIF}
+{$ENDIF}
+
+{$ifdef UNICODE}
+  {$message 'Compiler uses unicode by default.'}
+{$else}
+  {$message 'Compiler uses single byte chars by default.'}
+{$endif}
+
+{$message 'HtmlViewer uses unicode.'}
+
+{$ifdef FPC}
+{$else}
+  {$ifdef Compiler18_Plus}
+  {$else}
+    TWideStringList = class(TTntStringList);
+  {$endif}
+{$endif}
+{$ifdef UNICODE}
+  ThtChar = Char;
+  ThtString = string;
+  ThtStrings = TStrings;
+  ThtStringList = TStringList;
+  PhtChar = PChar;
+{$else}
+  ThtChar = WideChar;
+  ThtString = WideString;
+  ThtStrings = TWideStrings;
+  ThtStringList = TWideStringList;
+  PhtChar = PWideChar;
+{$endif}
+
+  ThtEdit = class({$ifdef UseTNT} TTntEdit {$else} TEdit {$endif})
+  protected
+    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
+  end;
+
+{$ifdef UseTNT}
+  ThtButton = TTntButton;
+  ThtMemo = TTntMemo;
+  ThtCombobox = TTntComboBox;
+  ThtListbox = TTntListBox;
+  ThtCheckBox = TTntCheckBox;
+  ThtRadioButton = TTntRadioButton;
+  ThtHintWindow = TTntHintWindow;
+{$else}
+  ThtButton = TBitBtn; //BG, 25.12.2010: TBitBtn uses correct charset, but TButton does not.
+  ThtMemo = TMemo;
+  ThtCombobox = TCombobox;
+  ThtListbox = TListbox;
+  ThtCheckBox = TCheckBox;
+  ThtRadioButton = TRadioButton;
+  ThtHintWindow = THintWindow;
+{$endif}
+
+  //BG, 10.12.2010: don't add virtual methods or fields. It is only used to access protected stuff of TCanvas.
+  ThtCanvas = class(TCanvas)
+  public
+    procedure htTextRect(const Rect: TRect; X, Y: Integer; const Text: ThtString);
+  end;
+
+const
+  EofChar     = #0;
+  TabChar     = #9;
+  LfChar      = #10;
+  FfChar      = #12;
+  CrChar      = #13;
+  SpcChar     = ' ';
+  DotChar     = '.';
+  LessChar    = '<';
+  MinusChar   = '-';
+  GreaterChar = '>';
+  PercentChar = '%';
+  AmperChar   = '&';
+
 
 {$ifdef LCL}
 const
   HWND_MESSAGE = HWND(-3);
-
 
   //ANSI_CHARSET            = 0;       // ANSI charset (Windows-1252)
   //DEFAULT_CHARSET         = 1;
@@ -104,7 +219,7 @@ const
   {$EXTERNALSYM GHND}
   GPTR = GMEM_FIXED or GMEM_ZEROINIT;
   {$EXTERNALSYM GPTR}
-
+{
 const
   HeapAllocFlags = GMEM_MOVEABLE;
 
@@ -115,6 +230,7 @@ type
     psRunning,
     psEnding
   );
+}
 {$endif}
 
 {$ifndef Compiler17_Plus}
@@ -132,17 +248,20 @@ var
 {$ifdef CopyPaletteMissing}
 function CopyPalette(Palette: HPALETTE): HPALETTE;
 {$endif}
+
 {$ifdef TransparentStretchBltMissing}
 function TransparentStretchBlt(DstDC: HDC; DstX, DstY, DstW, DstH: Integer;
   SrcDC: HDC; SrcX, SrcY, SrcW, SrcH: Integer; MaskDC: HDC; MaskX,
   MaskY: Integer): Boolean;
 {$endif}
 
-// UNICODE dependent loading string methods
-function LoadStringFromStream(Stream: TStream): String;
-function LoadStringFromStreamW(Stream: TStream): WideString;
-function LoadStringFromFile(const Name: String): String;
-function LoadStringFromFileW(const Name: String): WideString;
+procedure htAppendChr(var Dest: ThtString; C: ThtChar); {$ifdef UseInline} inline; {$endif}
+procedure htAppendStr(var Dest: ThtString; const S: ThtString); {$ifdef UseInline} inline; {$endif}
+function htLowerCase(Str: ThtString): ThtString; {$ifdef UseInline} inline; {$endif}
+function htUpperCase(Str: ThtString): ThtString; {$ifdef UseInline} inline; {$endif}
+
+function IsAlpha(Ch: ThtChar): Boolean; {$ifdef UseInline} inline; {$endif}
+function IsDigit(Ch: ThtChar): Boolean; {$ifdef UseInline} inline; {$endif}
 
 //{$ifdef UnitConstsMissing}
 //const
@@ -151,10 +270,44 @@ function LoadStringFromFileW(const Name: String): WideString;
 //  SScanLine		= 'Scan line index out of range';
 //{$endif}
 
+function PtrSub(P1, P2: Pointer): Integer; {$ifdef UseInline} inline; {$endif}
+function PtrAdd(P1: Pointer; Offset: Integer): Pointer; {$ifdef UseInline} inline; {$endif}
+procedure PtrInc(var P1; Offset: Integer); {$ifdef UseInline} inline; {$endif}
+
 implementation
 
 uses
-  HtmlUn2;
+  HTMLUn2;
+
+//-- BG ------------------------------------------------------------------------
+function PtrSub(P1, P2: Pointer): Integer;
+begin
+{$ifdef FPC}
+  Result := P1 - P2;
+{$else}
+  Result := PAnsiChar(P1) - PAnsiChar(P2);
+{$endif}
+end;
+
+//-- BG ------------------------------------------------------------------------
+function PtrAdd(P1: Pointer; Offset: Integer): Pointer;
+begin
+{$ifdef FPC}
+  Result := P1 + Offset;
+{$else}
+  Result := PAnsiChar(P1) + Offset;
+{$endif}
+end;
+
+//-- BG ------------------------------------------------------------------------
+procedure PtrInc(var P1; Offset: Integer);
+begin
+{$ifdef FPC}
+  Inc(PAnsiChar(P1), Offset);
+{$else}
+  Inc(PAnsiChar(P1), Offset);
+{$endif}
+end;
 
 procedure CalcPalette(DC: HDC);
 {calculate a rainbow palette, one with equally spaced colors}
@@ -246,73 +399,46 @@ end;
 {$endif}
 
 {$ifdef TransparentStretchBltMissing}
-(*
-**  GDI Error handling
-**  Adapted from graphics.pas
-*)
-{$IFOPT R+}
-  {$DEFINE R_PLUS}
-  {$RANGECHECKS OFF}
-{$ENDIF}
-{$ifdef D3_BCB3}
-function GDICheck(Value: Integer): Integer;
-{$else}
-function GDICheck(Value: Cardinal): Cardinal;
-{$endif}
+const
+  SOutOfResources = 'Out of system resources';
 var
-  ErrorCode		: integer;
-// 2008.10.19 ->
-{$IFDEF VER20_PLUS}
-  Buf			: array [byte] of WideChar;
-{$ELSE}
-  Buf			: array [byte] of AnsiChar;
-{$ENDIF}
-// 2008.10.19 <-
-
-  function ReturnAddr: Pointer;
-  // From classes.pas
-  asm
-    MOV		EAX,[EBP+4] // sysutils.pas says [EBP-4], but this works !
-  end;
-
-begin
-  if (Value = 0) then
-  begin
-    ErrorCode := GetLastError;
-    if (ErrorCode <> 0) and (FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, nil,
-      ErrorCode, LOCALE_USER_DEFAULT, Buf, sizeof(Buf), nil) <> 0) then
-      raise EOutOfResources.Create(Buf) at ReturnAddr
-    else
-      raise EOutOfResources.Create(SOutOfResources) at ReturnAddr;
-  end;
-  Result := Value;
-end;
-{$IFDEF R_PLUS}
-  {$RANGECHECKS ON}
-  {$UNDEF R_PLUS}
-{$ENDIF}
-
-var
-  // From Delphi 3 graphics.pas
   SystemPalette16: HPalette; // 16 color palette that maps to the system palette
 
-// Copied from D3 graphics.pas
-// Fixed by Brian Lowe of Acro Technology Inc. 30Jan98
+procedure OutOfResources;
+begin
+  raise EOutOfResources.Create(SOutOfResources);
+end;
+
+procedure GDIError;
+var
+  ErrorCode: Integer;
+  Buf: array [Byte] of Char;
+begin
+  ErrorCode := GetLastError;
+  if (ErrorCode <> 0) and (FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, nil,
+    ErrorCode, LOCALE_USER_DEFAULT, Buf, sizeof(Buf), nil) <> 0) then
+    raise EOutOfResources.Create(Buf)
+  else
+    OutOfResources;
+end;
+
+function GDICheck(Value: Integer): Integer;
+begin
+  if Value = 0 then GDIError;
+  Result := Value;
+end;
+
 function TransparentStretchBlt(DstDC: HDC; DstX, DstY, DstW, DstH: Integer;
   SrcDC: HDC; SrcX, SrcY, SrcW, SrcH: Integer; MaskDC: HDC; MaskX,
   MaskY: Integer): Boolean;
 const
-  ROP_DstCopy		= $00AA0029;
+  ROP_DstCopy = $00AA0029;
 var
-  MemDC			,
-  OrMaskDC		: HDC;
-  MemBmp		,
-  OrMaskBmp		: HBITMAP;
-  Save			,
-  OrMaskSave		: THandle;
-  crText, crBack	: TColorRef;
-  SavePal		: HPALETTE;
-
+  MemDC: HDC;
+  MemBmp: HBITMAP;
+  Save: THandle;
+  crText, crBack: TColorRef;
+  SavePal: HPALETTE;
 begin
   Result := True;
   if (Win32Platform = VER_PLATFORM_WIN32_NT) and (SrcW = DstW) and (SrcH = DstH) then
@@ -320,274 +446,143 @@ begin
     MemBmp := GDICheck(CreateCompatibleBitmap(SrcDC, 1, 1));
     MemBmp := SelectObject(MaskDC, MemBmp);
     try
-      MaskBlt(DstDC, DstX, DstY, DstW, DstH, SrcDC, SrcX, SrcY, MemBmp, MaskX,
-        MaskY, MakeRop4(ROP_DstCopy, SrcCopy));
+      MaskBlt(
+        DstDC, DstX, DstY, DstW, DstH,
+        SrcDC, SrcX, SrcY,
+        MemBmp, MaskX, MaskY,
+        MakeRop4(ROP_DstCopy, SrcCopy));
     finally
       MemBmp := SelectObject(MaskDC, MemBmp);
       DeleteObject(MemBmp);
     end;
     Exit;
   end;
-
   SavePal := 0;
-  MemDC := GDICheck(CreateCompatibleDC(DstDC));
+  MemDC := GDICheck(CreateCompatibleDC(0));
   try
-    { Color bitmap for combining OR mask with source bitmap }
-    MemBmp := GDICheck(CreateCompatibleBitmap(DstDC, SrcW, SrcH));
-    try
-      Save := SelectObject(MemDC, MemBmp);
-      try
-        { This bitmap needs the size of the source but DC of the dest }
-        OrMaskDC := GDICheck(CreateCompatibleDC(DstDC));
-        try
-          { Need a monochrome bitmap for OR mask!! }
-          OrMaskBmp := GDICheck(CreateBitmap(SrcW, SrcH, 1, 1, nil));
-          try
-            OrMaskSave := SelectObject(OrMaskDC, OrMaskBmp);
-            try
+    MemBmp := GDICheck(CreateCompatibleBitmap(SrcDC, SrcW, SrcH));
+    Save := SelectObject(MemDC, MemBmp);
+    SavePal := SelectPalette(SrcDC, SystemPalette16, False);
+    SelectPalette(SrcDC, SavePal, False);
+    if SavePal <> 0 then
+      SavePal := SelectPalette(MemDC, SavePal, True)
+    else
+      SavePal := SelectPalette(MemDC, SystemPalette16, True);
+    RealizePalette(MemDC);
 
-              // OrMask := 1
-              // Original: BitBlt(OrMaskDC, SrcX, SrcY, SrcW, SrcH, OrMaskDC, SrcX, SrcY, WHITENESS);
-              // Replacement, but not needed: PatBlt(OrMaskDC, SrcX, SrcY, SrcW, SrcH, WHITENESS);
-              // OrMask := OrMask XOR Mask
-              // Not needed: BitBlt(OrMaskDC, SrcX, SrcY, SrcW, SrcH, MaskDC, SrcX, SrcY, SrcInvert);
-              // OrMask := NOT Mask
-              BitBlt(OrMaskDC, SrcX, SrcY, SrcW, SrcH, MaskDC, SrcX, SrcY, NotSrcCopy);
+    StretchBlt(MemDC, 0, 0, SrcW, SrcH, MaskDC, MaskX, MaskY, SrcW, SrcH, SrcCopy);
+    StretchBlt(MemDC, 0, 0, SrcW, SrcH, SrcDC, SrcX, SrcY, SrcW, SrcH, SrcErase);
+    crText := SetTextColor(DstDC, $0);
+    crBack := SetBkColor(DstDC, $FFFFFF);
+    StretchBlt(DstDC, DstX, DstY, DstW, DstH, MaskDC, MaskX, MaskY, SrcW, SrcH, SrcAnd);
+    StretchBlt(DstDC, DstX, DstY, DstW, DstH, MemDC, 0, 0, SrcW, SrcH, SrcInvert);
+    SetTextColor(DstDC, crText);
+    SetBkColor(DstDC, crBack);
 
-              // Retrieve source palette (with dummy select)
-              SavePal := SelectPalette(SrcDC, SystemPalette16, False);
-              // Restore source palette
-              SelectPalette(SrcDC, SavePal, False);
-              // Select source palette into memory buffer
-              if SavePal <> 0 then
-                SavePal := SelectPalette(MemDC, SavePal, True)
-              else
-                SavePal := SelectPalette(MemDC, SystemPalette16, True);
-              RealizePalette(MemDC);
-
-              // Mem := OrMask
-              BitBlt(MemDC, SrcX, SrcY, SrcW, SrcH, OrMaskDC, SrcX, SrcY, SrcCopy);
-              // Mem := Mem AND Src
-{$IFNDEF GIF_TESTMASK} // Define GIF_TESTMASK if you want to know what it does...
-              BitBlt(MemDC, SrcX, SrcY, SrcW, SrcH, SrcDC, SrcX, SrcY, SrcAnd);
-{$ELSE}
-              StretchBlt(DstDC, DstX, DstY, DstW DIV 2, DstH, MemDC, SrcX, SrcY, SrcW, SrcH, SrcCopy);
-              StretchBlt(DstDC, DstX+DstW DIV 2, DstY, DstW DIV 2, DstH, SrcDC, SrcX, SrcY, SrcW, SrcH, SrcCopy);
-              exit;
-{$ENDIF}
-            finally
-              if (OrMaskSave <> 0) then
-                SelectObject(OrMaskDC, OrMaskSave);
-            end;
-          finally
-            DeleteObject(OrMaskBmp);
-          end;
-        finally
-          DeleteDC(OrMaskDC);
-        end;
-
-        crText := SetTextColor(DstDC, $00000000);
-        crBack := SetBkColor(DstDC, $00FFFFFF);
-
-        { All color rendering is done at 1X (no stretching),
-          then final 2 masks are stretched to dest DC }
-        // Neat trick!
-        // Dst := Dst AND Mask
-        StretchBlt(DstDC, DstX, DstY, DstW, DstH, MaskDC, SrcX, SrcY, SrcW, SrcH, SrcAnd);
-        // Dst := Dst OR Mem
-        StretchBlt(DstDC, DstX, DstY, DstW, DstH, MemDC, SrcX, SrcY, SrcW, SrcH, SrcPaint);
-
-        SetTextColor(DstDC, crText);
-        SetTextColor(DstDC, crBack);
-
-      finally
-        if (Save <> 0) then
-          SelectObject(MemDC, Save);
-      end;
-    finally
-      DeleteObject(MemBmp);
-    end;
+    if Save <> 0 then SelectObject(MemDC, Save);
+    DeleteObject(MemBmp);
   finally
-    if (SavePal <> 0) then
-      SelectPalette(MemDC, SavePal, False);
+    if SavePal <> 0 then SelectPalette(MemDC, SavePal, False);
     DeleteDC(MemDC);
   end;
 end;
-{$endif}
 
-function LoadStringFromStream(Stream: TStream): String;
-var
-  ByteCount: Integer;
-{$IFDEF UNICODE}
-  PreambleSize: Integer;
-  Buffer: TBytes;
-  Encoding: TEncoding;
-{$ENDIF}
+{$endif TransparentStretchBltMissing}
+//-- BG ---------------------------------------------------------- 27.03.2011 --
+procedure htAppendChr(var Dest: ThtString; C: ThtChar);
 begin
-  //BG, 07.12.2010: cannot start in the middle of a stream,
-  // if I want to recognize encoding by preamble.
-  Stream.Position := 0;
-{$IFDEF UNICODE}
-  ByteCount := Stream.Size - Stream.Position;
-  if ByteCount = 0 then
-  begin
-    Result := '';
-    exit;
-  end;
-  SetLength(Buffer, ByteCount);
-  Stream.Read(Buffer[0], ByteCount);
-  Encoding := nil;
-  PreambleSize := TEncoding.GetBufferEncoding(Buffer, Encoding);
-  if Encoding = TEncoding.Default then
-  begin
-    // BG, 04.12.2010: GetBufferEncoding looks for preambles only to detected
-    // encoding, but often there is no header/preamble in UTF-8 streams/files.
-    Result := TEncoding.UTF8.GetString(Buffer, PreambleSize, Length(Buffer) - PreambleSize);
-    if Result <> '' then
-      exit;
-  end;
-  Result := Encoding.GetString(Buffer, PreambleSize, Length(Buffer) - PreambleSize);
-{$ELSE}
-  ByteCount := Stream.Size - Stream.Position;
-  SetString(Result, nil, ByteCount);
-  Stream.Read(Result[1], ByteCount);
-{$ENDIF}
+  SetLength(Dest, Length(Dest) + 1);
+  Dest[Length(Dest)] := C;
 end;
 
-function LoadStringFromStreamW(Stream: TStream): WideString;
-{$IFDEF UNICODE}
-{$ELSE}
-  procedure SwapBytes(Bytes: PByte; Count: Integer);
-  var
-    I: Integer;
-    B: Byte;
-    NextByte: PByte;
-  begin
-    for I := 0 to Count div 2 do
-    begin
-      B := Bytes^;
-      NextByte := Bytes;
-      Inc(NextByte);
-      Bytes^:= NextByte^;
-      NextByte^ := B;
-      Inc(Bytes, 2);
-    end;
-  end;
+//-- BG ---------------------------------------------------------- 27.03.2011 --
+procedure htAppendStr(var Dest: ThtString; const S: ThtString);
 var
-  ByteCount: Integer;
-  CharCount: Integer;
-  Buffer: TBytes;
-{$ENDIF}
+  L, N: Integer;
 begin
-{$IFDEF UNICODE}
-  Result := LoadStringFromStream(Stream);
-{$ELSE}
-  //BG, 07.12.2010: cannot start in the middle of a stream,
-  // if I want to recognize encoding by preamble.
-  Stream.Position := 0;
-  ByteCount := Stream.Size - Stream.Position;
-  if ByteCount = 0 then
+  L := Length(S);
+  if L > 0 then
   begin
-    Result := '';
-    Exit;
-  end;
-  if ByteCount >= 2 then
-  begin
-    SetLength(Buffer, 3); // 3 = max length of checked preambles
-    Stream.Read(Buffer[0], 2);
-    case Buffer[0] of
-      $FF:
-      begin
-        if Buffer[1] = $FE then
-        begin
-          // this is little endian unicode
-          Dec(ByteCount, 2);
-          SetLength(Result, ByteCount);
-          Stream.Read(Result[1], ByteCount);
-          Exit;
-        end;
-      end;
-
-      $FE:
-      begin
-        if Buffer[1] = $FF then
-        begin
-          // this is big endian unicode
-          // swap the 2 bytes of one char.
-          Dec(ByteCount, 2);
-          SetLength(Result, ByteCount);
-          Stream.Read(Result[1], ByteCount);
-          SwapBytes(PByte(Result[1]), ByteCount);
-          Exit;
-        end;
-      end;
-
-      $EF:
-      begin
-        if ByteCount >= 3 then
-          if Buffer[1] = $BB then
-          begin
-            Stream.Read(Buffer[2], 1);
-            if Buffer[2] = $BF then
-            begin
-              // this is UTF-8
-              Dec(ByteCount, 3);
-              if ByteCount = 0 then
-              begin
-                Result := '';
-                Exit;
-              end;
-              SetLength(Buffer, ByteCount);
-              SetLength(Result, 2 * ByteCount); // resulting WideString will never exceed this length
-              Stream.Read(Buffer[0], ByteCount);
-              CharCount := MultiByteToWideChar(CP_UTF8, 0,
-                PAnsiChar(Buffer), ByteCount,
-                PWideChar(Result), Length(Result));
-              SetLength(Result, CharCount * sizeof(Result[1]));
-              Exit;
-            end;
-          end;
-      end;
-    end;
-  end;
-  // no preamble: this is most probably a 1-byte per character code or UTF-8 without preamble.
-  Stream.Position := 0;
-  SetLength(Buffer, ByteCount);
-  SetLength(Result, 2 * ByteCount); // resulting WideString will never exceed this length
-  Stream.Read(Buffer[0], ByteCount);
-  CharCount := MultiByteToWideChar(CP_UTF8, 0,
-    PAnsiChar(Buffer), ByteCount,
-    PWideChar(Result), Length(Result));
-  if CharCount = 0 then
-    CharCount := MultiByteToWideChar(CP_ACP, 0,
-      PAnsiChar(Buffer), ByteCount,
-      PWideChar(Result), Length(Result));
-  SetLength(Result, CharCount);
-{$ENDIF}
-end;
-
-function LoadStringFromFile(const Name: String): String;
-var
-  Stream: TFileStream;
-begin
-  Stream := TFileStream.Create(Name, fmOpenRead or fmShareDenyWrite);
-  try
-    Result := LoadStringFromStream(Stream);
-  finally
-    Stream.Free;
+    N := Length(Dest);
+    SetLength(Dest, N + L);
+    Move(S[1], Dest[N + 1], L * sizeof(ThtChar));
   end;
 end;
 
-function LoadStringFromFileW(const Name: String): WideString;
-var
-  Stream: TFileStream;
+//-- BG ---------------------------------------------------------- 28.01.2011 --
+function htLowerCase(Str: ThtString): ThtString;
 begin
-  Stream := TFileStream.Create(Name, fmOpenRead or fmShareDenyWrite);
-  try
-    Result := LoadStringFromStreamW(Stream);
-  finally
-    Stream.Free;
+  {$ifdef UNICODE}
+    Result := LowerCase(Str);
+  {$else}
+    Result := Str;
+    CharLowerBuffW(@Result[1], Length(Result));
+  {$endif}
+end;
+
+//-- BG ---------------------------------------------------------- 28.01.2011 --
+function htUpperCase(Str: ThtString): ThtString;
+begin
+  {$ifdef UNICODE}
+    Result := UpperCase(Str);
+  {$else}
+    Result := Str;
+    CharUpperBuffW(@Result[1], Length(Result));
+  {$endif}
+end;
+
+//-- BG ---------------------------------------------------------- 21.08.2011 --
+function IsAlpha(Ch: ThtChar): Boolean; {$ifdef UseInline} inline; {$endif}
+begin
+  case Ch of
+    'a'..'z', 'A'..'Z':
+      Result := True;
+  else
+    Result := False;
   end;
+end;
+
+//-- BG ---------------------------------------------------------- 21.08.2011 --
+function IsDigit(Ch: ThtChar): Boolean; {$ifdef UseInline} inline; {$endif}
+begin
+  case Ch of
+    '0'..'9':
+      Result := True;
+  else
+    Result := False;
+  end;
+end;
+
+{ ThtEdit }
+
+procedure ThtEdit.KeyDown(var Key: Word; Shift: TShiftState);
+begin
+  if (Key = Ord('A')) and ([ssCtrl] = Shift) then
+    SelectAll;
+end;
+
+{ ThtCanvas }
+
+procedure ThtCanvas.htTextRect(const Rect: TRect; X, Y: Integer; const Text: ThtString);
+{$ifdef LCL}
+{$else}
+var
+  Options: Longint;
+{$endif LCL}
+begin
+{$ifdef LCL}
+  inherited TextRect(Rect, X, Y, Utf8Encode(Text));
+{$else}
+  Changing;
+  RequiredState([csHandleValid, csFontValid, csBrushValid]);
+  Options := ETO_CLIPPED or TextFlags;
+  if Brush.Style <> bsClear then
+    Options := Options or ETO_OPAQUE;
+  if ((TextFlags and ETO_RTLREADING) <> 0) and
+     (CanvasOrientation = coRightToLeft) then Inc(X, TextWidth(Text) + 1);
+  Windows.ExtTextOutW(Handle, X, Y, Options, @Rect, PWideChar(Text), Length(Text), nil);
+  Changed;
+{$endif LCL}
 end;
 
 { initialization }
@@ -628,8 +623,13 @@ initialization
   SystemPalette16 := GetStockObject(DEFAULT_PALETTE);
 {$endif}
 
+{$ifdef FPC}
+  IsWin95 := False;           // Use the same always with FPC
+  IsWin32Platform := False;
+{$else}
   IsWin95 := (Win32Platform = VER_PLATFORM_WIN32_WINDOWS) and (Win32MinorVersion in [0..9]);
   IsWin32Platform := Win32Platform = VER_PLATFORM_WIN32_WINDOWS;
+{$endif FPC}
 finalization
   if ThePalette <> 0 then
     DeleteObject(ThePalette);

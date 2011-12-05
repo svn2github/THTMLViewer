@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 *********************************************************
@@ -49,7 +49,7 @@ Key Variables:
   Ch:
       The same character in upper case.
   LCToken:
-      A string which is associated with the current token.  If Sy is TextSy,
+      A ThtString which is associated with the current token.  If Sy is TextSy,
       then LCToken contains the text.
   Attributes:
       A list of TAttribute's for tokens such as <img>, <a>, which have
@@ -71,298 +71,347 @@ Key Routines:
       parser is responsible for calling Next after it does its thing.
 }
 
-unit Readhtml;
+unit ReadHTML;
 
 interface
+
 uses
-  Messages, Classes, Graphics, Controls,
-  HtmlGlobals, HtmlUn2, StyleUn;
+{$ifdef LCL}
+  LclIntf, LclType, HtmlMisc,
+{$else}
+  Windows,
+{$endif}
+  SysUtils, Math, Variants, Classes, Graphics, Controls, Contnrs,
+  HtmlGlobals,
+  HtmlBuffer,
+  HTMLUn2,
+  HTMLSubs,
+  HtmlSbs1,
+  StyleUn;
 
 type
   LoadStyleType = (lsFile, lsString, lsInclude);
+  SymbSet = set of Symb;
 
-procedure ParseHTMLString(const S: string; ASectionList: TList;
-  AIncludeEvent: TIncludeType;
-  ASoundEvent: TSoundType; AMetaEvent: TMetaType; ALinkEvent: TLinkType);
-procedure ParseTextString(const S: string; ASectionList: TList);
+  { THtmlParser }
 
-procedure FrameParseString(FrameViewer: TFrameViewerBase; FrameSet: TObject;
-  ALoadStyle: LoadStyleType; const FName, S: string; AMetaEvent: TMetaType);
-function IsFrameString(ALoadStyle: LoadStyleType; const FName, S: string;
-  FrameViewer: TFrameViewerBase): boolean;
-function TranslateCharset(const Content: string; var Charset: TFontCharset): boolean;
-procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties);
-procedure PopAProp(const Tag: string);
+  THtmlParser = class
+  private
+    TitleStart: Integer;
+    TitleEnd: Integer;
+    Base: ThtString;
+    BaseTarget: ThtString;
+
+    LCh: ThtChar;
+    LastChar: (lcOther, lcCR, lcLF);
+    HeadingLevel: Integer;
+    LCToken: TokenObj;
+
+    Doc: TBuffer;
+    DocStack: TStack;
+    CharCount: Integer;
+
+    Sy: Symb;
+    Attributes: TAttributeList;
+
+    BaseFontSize: Integer;
+    BodyBlock: TBodyBlock;
+    Section: TSection;
+    SectionList: TCellBasic;
+    CurrentURLTarget: TURLTarget;
+    TableLevel: Integer;
+    TagIndex: Integer;
+
+    InComment: Boolean;
+    InHref: Boolean;
+    InScript: Boolean; {when in a <SCRIPT>}
+    LinkSearch: Boolean;
+    ListLevel: Integer;
+
+    IncludeEvent: TIncludeType;
+    CallingObject: TViewerBase;
+    SoundEvent: TSoundType;
+    MetaEvent: TMetaType;
+    LinkEvent: TLinkType;
+
+    procedure GetCh;
+
+    function DoCharSet(Content: ThtString): Boolean;
+    function DoObjectTag(var C: ThtChar; var N, IX: Integer): Boolean;
+    function FindAlignment: ThtString;
+    function GetEntityStr(CodePage: Integer): ThtString;
+    function GetIdentifier(out Identifier: ThtString): Boolean;
+    function GetValue(var S: ThtString; var Value: Integer): Boolean;
+    function IsFrame(FrameViewer: TFrameViewerBase; Doc: TBuffer; const FName: ThtString): Boolean;
+    procedure CheckForAlign;
+    procedure DoAEnd;
+    procedure DoBase;
+    procedure DoBody(const TermSet: SymbSet);
+    procedure DoBr(const TermSet: SymbSet);
+    procedure DoColGroup(Table: ThtmlTable; ColOK: Boolean);
+    procedure DoCommonSy;
+    procedure DoDivEtc(Sym: Symb; const TermSet: SymbSet);
+    procedure DoFrameSet(FrameViewer: TFrameViewerBase; FrameSet: TObject; const FName: ThtString);
+    procedure DoListItem(var LiBlock: TBlockLi; var LiSection: TSection; BlockType, Sym: Symb; LineCount: Integer; Index: ThtChar; Plain: Boolean; const TermSet: SymbSet);
+    procedure DoLists(Sym: Symb; const TermSet: SymbSet);
+    procedure DoMap;
+    procedure DoMeta(Sender: TObject);
+    procedure DoP(const TermSet: SymbSet);
+    procedure DoScript(Ascript: TScriptEvent);
+    procedure DoSound;
+    procedure DoStyleLink;
+    procedure DoTable;
+    procedure DoText;
+    procedure DoTextArea(TxtArea: TTextAreaFormControlObj);
+    procedure DoTitle;
+    procedure GetOptions(Select: TOptionsFormControlObj);
+    procedure Next;
+    procedure ParseFrame(FrameViewer: TFrameViewerBase; FrameSet: TObject; Doc: TBuffer; const FName: ThtString; AMetaEvent: TMetaType);
+    procedure ParseHtml(Doc: TBuffer; ASectionList: ThtDocument; AIncludeEvent: TIncludeType; ASoundEvent: TSoundType; AMetaEvent: TMetaType; ALinkEvent: TLinkType);
+    procedure ParseInit(ASectionList: ThtDocument; AIncludeEvent: TIncludeType);
+    procedure ParseText(Doc: TBuffer; ASectionList: ThtDocument);
+    procedure SkipWhiteSpace; {$ifdef UseInline} inline; {$endif}
+    procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: ThtString; AProp: TProperties); {$ifdef UseInline} inline; {$endif}
+    procedure PopAProp(const Tag: ThtString); {$ifdef UseInline} inline; {$endif}
+    function Peek: ThtChar;
+    function getTitle: ThtString;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    property Title: ThtString read getTitle;
+  end;
+
+  procedure ParseHtml(Viewer: THtmlViewerBase; Doc: TBuffer; AIncludeEvent: TIncludeType; ASoundEvent: TSoundType; AMetaEvent: TMetaType; ALinkEvent: TLinkType);
+  procedure ParseText(Viewer: THtmlViewerBase; Doc: TBuffer);
+
+  procedure ParseFrame(Viewer: TFrameViewerBase; FrameSet: TObject; Doc: TBuffer; const FName: ThtString; AMetaEvent: TMetaType);
+  function IsFrame(FrameViewer: TFrameViewerBase; Doc: TBuffer; const FName: ThtString): Boolean;
 
 implementation
 
 uses
-  Windows, SysUtils, Math, {$IFDEF Delphi6_Plus}Variants, {$ENDIF}
-  HtmlSubs, HtmlSbs1, HtmlView, StylePars, UrlSubs;
-
-const
-  Tab = #9;
-  EofChar = #0;
-
-var
-  Sy: Symb;
-  Section: TSection;
-  SectionList: TCellBasic;
-  CurrentURLTarget: TURLTarget;
-  InHref: boolean;
-  Attributes: TAttributeList;
-  BaseFontSize: integer;
-  InScript: boolean; {when in a <SCRIPT>}
-  TagIndex: integer;
-  BodyBlock: TBodyBlock;
-  ListLevel: integer;
-  TableLevel: integer;
-  Entities: TStringList;
-  InComment: boolean;
-  LinkSearch: boolean;
-  IsUTF8: boolean;
-
-
-const
-  MaxRes = 82;
-  MaxEndRes = 62;
-  ResWords: array[1..MaxRes] of string = (
-    'HTML', 'TITLE', 'BODY', 'HEAD', 'B', 'I', 'H', 'EM', 'STRONG', 'U',
-    'CITE', 'VAR', 'TT', 'CODE', 'KBD', 'SAMP', 'OL', 'UL', 'DIR', 'MENU',
-    'DL', 'A', 'ADDRESS', 'BLOCKQUOTE', 'PRE', 'CENTER', 'TABLE', 'TD', 'TH', 'CAPTION',
-    'FORM', 'TEXTAREA', 'SELECT', 'OPTION', 'FONT', 'SUB', 'SUP', 'BIG', 'SMALL', 'P',
-    'MAP', 'FRAMESET', 'NOFRAMES', 'SCRIPT', 'DIV', 'S', 'STRIKE', 'TR', 'NOBR', 'STYLE',
-    'SPAN', 'COLGROUP', 'LABEL', 'THEAD', 'TBODY', 'TFOOT', 'OBJECT', 'DD', 'DT', 'LI',
-    'FIELDSET', 'LEGEND',
-
-    'BR', 'HR', 'IMG', 'BASE', 'BUTTON', 'INPUT', 'SELECTED', 'BASEFONT',
-    'AREA', 'FRAME', 'PAGE', 'BGSOUND', 'WRAP', 'META', 'PANEL', 'WBR', 'LINK', 'COL',
-    'PARAM', 'READONLY');
-
-  ResSy: array[1..MaxRes] of Symb = (
-    htmlSy, TitleSy, BodySy, HeadSy, BSy, ISy, HeadingSy, EmSy, StrongSy, USy,
-    CiteSy, VarSy, TTSy, CodeSy, KbdSy, SampSy, OLSy, ULSy, DirSy, MenuSy,
-    DLSy, ASy, AddressSy, BlockQuoteSy, PreSy, CenterSy, TableSy, TDsy, THSy, CaptionSy,
-    FormSy, TextAreaSy, SelectSy, OptionSy, FontSy, SubSy, SupSy, BigSy, SmallSy, PSy,
-    MapSy, FrameSetSy, NoFramesSy, ScriptSy, DivSy, SSy, StrikeSy, TRSy, NoBrSy, StyleSy,
-    SpanSy, ColGroupSy, LabelSy, THeadSy, TBodySy, TFootSy, ObjectSy, DDSy, DTSy, LISy,
-    FieldsetSy, LegendSy,
-
-    BRSy, HRSy, ImageSy, BaseSy, ButtonSy, InputSy, SelectedSy, BaseFontSy,
-    AreaSy, FrameSy, PageSy, BgSoundSy, WrapSy, MetaSy, PanelSy, WbrSy, LinkSy, ColSy,
-    ParamSy, ReadonlySy);
-
-  {keep these in order with those above}
-  EndResSy: array[1..MaxEndRes] of Symb = (
-    HtmlEndSy, TitleEndSy, BodyEndSy, HeadEndSy, BEndSy,
-    IEndSy, HeadingEndSy, EmEndSy, StrongEndSy, UEndSy,
-    CiteEndSy, VarEndSy, TTEndSy, CodeEndSy, KbdEndSy,
-    SampEndSy, OLEndSy, ULEndSy, DirEndSy, MenuEndSy,
-    DLEndSy, AEndSy, AddressEndSy, BlockQuoteEndSy, PreEndSy,
-    CenterEndSy, TableEndSy, TDEndSy, THEndSy, CaptionEndSy,
-    FormEndSy, TextAreaEndSy, SelectEndSy, OptionEndSy, FontEndSy,
-    SubEndSy, SupEndSy, BigEndSy, SmallEndSy, PEndSy,
-    MapEndSy, FrameSetEndSy, NoFramesEndSy, ScriptEndSy, DivEndSy,
-    SEndSy, StrikeEndSy, TREndSy, NoBrEndSy, StyleEndSy,
-    SpanEndSy, ColGroupEndSy, LabelEndSy, THeadEndSy, TBodyEndSy,
-    TFootEndSy, ObjectEndSy, DDEndSy, DTEndSy, LIEndSy,
-    FieldsetEndSy, LegendEndSy);
+  HtmlView, FramView, StylePars, UrlSubs;
 
 type
-  EParseError = class(Exception);
+  PEntity = ^TEntity;
+  TEntity = record
+    Name: ThtString;
+    Value: Integer;
+  end;
+
+  PSymbol = ^TSymbolRec;
+  TSymbolRec = record
+    Name: ThtString;
+    Value: Symb;
+  end;
+
+  PResWord = ^TResWord;
+  TResWord = record
+    Name: ThtString;
+    Symbol: Symb;
+    EndSym: Symb; // CommandSy == no end symbol
+  end;
+
 var
-  LCh, Ch: Char;
-  LastChar: (lcOther, lcCR, lcLF);
-  Value: integer;
-  LCToken: TokenObj;
-  LoadStyle: LoadStyleType;
-  Buff, BuffEnd: PChar;
-  DocS: string;
-  HaveTranslated: boolean;
+  Entities: ThtStringList;
+  ReservedWords: ThtStringList;
+  ReservedWordsIndex: array [Symb] of Integer;
+  AttributeNames: ThtStringList;
+  SymbolNames: array [Symb] of ThtString;
 
-  IBuff, IBuffEnd: PChar;
-  SIBuff: string;
-  IncludeEvent: TIncludeType;
-  CallingObject: TViewerBase;
-  SaveLoadStyle: LoadStyleType;
-  SoundEvent: TSoundType;
-  MetaEvent: TMetaType;
-  LinkEvent: TLinkType;
-
-function PropStackIndex: integer;
+function PropStackIndex: Integer;
 begin
   Result := PropStack.Count - 1;
 end;
 
-function SymbToStr(Sy: Symb): string;
-var
-  I: integer;
+function SymbToStr(Sy: Symb): ThtString; {$ifdef UseInline} inline; {$endif}
 begin
-  for I := 1 to MaxRes do
-    if ResSy[I] = Sy then
-    begin
-      Result := Lowercase(ResWords[I]);
-      Exit;
-    end;
-  Result := '';
+  Result := SymbolNames[Sy];
 end;
 
-function EndSymbToStr(Sy: Symb): string;
-var
-  I: integer;
+function EndSymbToStr(Sy: Symb): ThtString; {$ifdef UseInline} inline; {$endif}
 begin
-  for I := 1 to MaxEndRes do
-    if EndResSy[I] = Sy then
-    begin
-      Result := Lowercase(ResWords[I]);
-      Exit;
-    end;
-  Result := '';
+  Result := SymbolNames[Sy];
 end;
 
-function EndSymbFromSymb(Sy: Symb): Symb;
+function EndSymbFromSymb(Sy: Symb): Symb; {$ifdef UseInline} inline; {$endif}
 var
-  I: integer;
+  I: Integer;
 begin
-  for I := 1 to MaxEndRes do
-    if ResSy[I] = Sy then
-    begin
-      Result := EndResSy[I];
-      Exit;
-    end;
-  Result := HtmlSy; {won't match}
-end;
-
-function StrToSymb(const S: string): Symb;
-var
-  I: integer;
-  S1: string;
-begin
-  S1 := UpperCase(S);
-  for I := 1 to MaxRes do
-    if ResWords[I] = S1 then
-    begin
-      Result := ResSy[I];
-      Exit;
-    end;
-  Result := OtherSy;
-end;
-
-function GetNameValueParameter(var Name, Value: string): boolean; forward;
-
-function ReadChar: char;
-begin
-  case LoadStyle of
-    lsString:
-      begin
-        if Buff < BuffEnd then
-        begin
-          Result := Buff^;
-          Inc(Buff);
-          Inc(PropStack.SIndex);
-        end
-        else
-          Result := EOFChar;
-      end;
-
-    lsInclude:
-      if IBuff < IBuffEnd then
-      begin
-        Result := IBuff^;
-        Inc(IBuff);
-      end
-      else
-      begin
-        IBuff := nil; {reset for next include}
-        LoadStyle := SaveLoadStyle;
-        Result := ReadChar;
-      end;
+  I := ReservedWordsIndex[Sy];
+  if I >= 0 then
+    Result := PResWord(ReservedWords.Objects[I]).EndSym
   else
-    Result := #0; {to prevent warning msg}
-  end;
-  if (Cardinal(Buff) and $FFF = 0) {about every 4000 chars}
-    and not LinkSearch and Assigned(PropStack.MasterList) and (DocS <> '') then
-    THtmlViewerBase(CallingObject).htProgress(((Buff - PChar(DocS)) * PropStack.MasterList.ProgressStart) div (BuffEnd - PChar(DocS)));
+    Result := CommandSy; // no match
 end;
 
-{----------------GetchBasic; }
 
-function GetchBasic: char; {read a character}
+//-- BG ---------------------------------------------------------- 27.12.2010 --
+function IsFrame(FrameViewer: TFrameViewerBase; Doc: TBuffer; const FName: ThtString): Boolean;
+var
+  Parser: THtmlParser;
 begin
-  LCh := ReadChar;
-  case LCh of {skip a ^J after a ^M or a ^M after a ^J}
-    ^M: if LastChar = lcLF then
-        LCh := ReadChar;
-    ^J: if LastChar = lcCR then
-        LCh := ReadChar;
+  Parser := THtmlParser.Create;
+  try
+    Result := Parser.IsFrame(FrameViewer, Doc, FName);
+  finally
+    Parser.Free;
   end;
-  case LCh of
-    ^M: LastChar := lcCR;
-    ^J:
-      begin
-        LastChar := lcLF;
-        LCh := ^M;
-      end;
-  else
-    begin
-      LastChar := lcOther;
-      if LCh = Tab then
-        LCh := ' ';
-    end;
+end;
+
+//-- BG ---------------------------------------------------------- 27.12.2010 --
+procedure ParseFrame(Viewer: TFrameViewerBase; FrameSet: TObject; Doc: TBuffer; const FName: ThtString; AMetaEvent: TMetaType);
+var
+  Parser: THtmlParser;
+begin
+  Parser := THtmlParser.Create;
+  try
+    Parser.ParseFrame(Viewer, FrameSet, Doc, FName, AMetaEvent);
+  finally
+    Parser.Free;
   end;
-  Ch := UpCase(LCh);
-  if (LCh = EofChar) and InComment then
-    raise EParseError.Create('Open Comment at End of HTML File');
-  Result := LCh
+end;
+
+//-- BG ---------------------------------------------------------- 27.12.2010 --
+procedure ParseHtml(Viewer: THtmlViewerBase; Doc: TBuffer;
+  AIncludeEvent: TIncludeType;
+  ASoundEvent: TSoundType; AMetaEvent: TMetaType; ALinkEvent: TLinkType);
+var
+  Parser: THtmlParser;
+begin
+  Parser := THtmlParser.Create;
+  try
+    Parser.ParseHtml(Doc, THtmlViewer(Viewer).SectionList, AIncludeEvent, ASoundEvent, AMetaEvent, ALinkEvent);
+    Viewer.Parsed(Parser.Title, Parser.Base, Parser.BaseTarget);
+  finally
+    Parser.Free;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 25.12.2010 --
+procedure ParseText(Viewer: THtmlViewerBase; Doc: TBuffer);
+var
+  Parser: THtmlParser;
+begin
+  Parser := THtmlParser.Create;
+  try
+    Parser.ParseText(Doc, THtmlViewer(Viewer).SectionList);
+    Viewer.Parsed(Parser.Title, Parser.Base, Parser.BaseTarget);
+  finally
+    Parser.Free;
+  end;
+end;
+
+
+{ THtmlParser }
+
+constructor THtmlParser.Create;
+begin
+  inherited;
+  LCToken := TokenObj.Create;
+  DocStack := TStack.Create;
+end;
+
+destructor THtmlParser.Destroy;
+begin
+  DocStack.Free;
+  LCToken.Free;
+  inherited;
+end;
+
+//-- BG ---------------------------------------------------------- 26.12.2010 --
+function THtmlParser.Peek: ThtChar; {take a look at the next ThtChar}
+begin
+  Result := Doc.PeekChar;
+  while (Result = EofChar) and DocStack.AtLeast(1) do
+  begin
+    Doc.Free;
+    Doc := DocStack.Pop;
+    Result := Doc.PeekChar;
+  end;
 end;
 
 {-------------GetCh}
 
-procedure GetCh;
-{Return next char in Lch, its uppercase value in Ch.  Ignore comments}
-var
-  Done, Comment: boolean;
+procedure THtmlParser.GetCh;
+{Return next ThtChar in Lch, its uppercase value in Ch.  Ignore comments}
 
-  function Peek: char; {take a look at the next char}
-  begin
-    case LoadStyle of
-      lsString:
+  procedure GetChBasic; {read a character}
+
+    function ReadChar: ThtChar;
+    begin
+      repeat
+        if DocStack.Count = 0 then
+          // update document position only for outmost document
+          PropStack.SIndex := Doc.Position;
+        Result := Doc.NextChar;
+        if (Result = EofChar) and DocStack.AtLeast(1) then
         begin
-          if Buff < BuffEnd then
-            Result := Buff^
-          else
-            Result := EOFChar;
-        end;
-
-      lsInclude:
-        if IBuff < IBuffEnd then
-          Result := IBuff^
+          Doc.Free;
+          Doc := DocStack.Pop;
+        end
         else
-        begin
-          IBuff := nil;
-          LoadStyle := SaveLoadStyle;
-          Result := Peek;
-        end;
-    else
-      Result := #0; {to prevent warning msg}
+          break;
+      until false;
+
+      if not LinkSearch and (PropStack.MasterList <> nil) then
+      begin
+        Inc(CharCount);
+        if (Result = EofChar) or (CharCount and $FFF = 0) {about every 4000 chars} then
+          if Doc.Size > 0 then
+            THtmlViewerBase(CallingObject).htProgress((Doc.Position * PropStack.MasterList.ProgressStart) div Doc.Size);
+      end;
     end;
+
+  begin
+    LCh := ReadChar;
+    case LCh of {skip a LfChar after a CrChar or a CrChar after a LfChar}
+      ThtChar(^M): if LastChar = lcLF then
+          LCh := ReadChar;
+      ThtChar(^J): if LastChar = lcCR then
+          LCh := ReadChar;
+    end;
+    case LCh of
+      ThtChar(^I):
+        LCh := SpcChar;
+
+      ThtChar(^J):
+        begin
+          LastChar := lcLF;
+          LCh := CrChar;
+        end;
+
+      ThtChar(^M):
+        LastChar := lcCR;
+    else
+      begin
+        LastChar := lcOther;
+        if LCh = TabChar then
+          LCh := SpcChar;
+      end;
+    end;
+    if (LCh = EofChar) and InComment then
+      raise EParseError.Create('Open Comment at End of HTML File');
   end;
+
+var
+  Done, Comment: Boolean;
 
   procedure DoDashDash; {do the comment after a <!-- }
   begin
     repeat
-      while Ch <> '-' do
+      while LCh <> '-' do
         GetChBasic; {get first '-'}
       GetChBasic;
-      if Ch = '-' then {second '-'}
+      if LCh = '-' then {second '-'}
       begin
-        while Ch = '-' do
+        while LCh = '-' do
           GetChBasic; {any number of '-'}
-        while (Ch = ' ') or (Ch = ^M) do
+        while (LCh = SpcChar) or (LCh = CrChar) do
           GetChBasic; {eat white space}
-        if Ch = '!' then
+        if LCh = '!' then
           GetChBasic; {accept --!> also}
-        Done := Ch = '>';
+        Done := LCh = GreaterChar;
       end
       else
         Done := False;
@@ -370,19 +419,78 @@ var
     InComment := False;
   end;
 
-  procedure ReadToGT; {read to the next '>' }
+  procedure ReadToGT; {read to the next GreaterChar }
   begin
-    while Ch <> '>' do
+    while LCh <> GreaterChar do
       GetChBasic;
     InComment := False;
   end;
 
   procedure DoInclude;
-  {recursive suggestions by Ben Geerdes}
+
+    function GetNameValueParameter(var Name, Value: ThtString): Boolean;
+
+      function GetQuotedValue(var S: ThtString): Boolean;
+      {get a quoted ThtString but strip the quotes}
+      var
+        Term: ThtChar;
+        SaveSy: Symb;
+      begin
+        Result := False;
+        Term := LCh;
+        if (Term <> ThtChar('"')) and (Term <> ThtChar('''')) then
+          Exit;
+        Result := True;
+        SaveSy := Sy;
+        GetCh;
+        while (LCh <> Term) and (LCh <> EofChar) do
+        begin
+          if LCh = AmperChar then
+            htAppendStr(S, GetEntityStr(CP_ACP))
+          else
+          begin
+            if LCh = CrChar then
+              htAppendChr(S, SpcChar)
+            else
+              htAppendChr(S, LCh);
+            GetCh;
+          end;
+        end;
+        if LCh = Term then
+          GetCh; {pass termination ThtChar}
+        Sy := SaveSy;
+      end;
+
+    begin
+      Result := False;
+      SkipWhiteSpace;
+      if GetIdentifier(Name) then
+      begin
+        SkipWhiteSpace;
+        Value := '';
+        Result := True; {at least have an ID}
+        if LCh <> '=' then
+          Exit;
+        GetCh;
+
+        SkipWhiteSpace;
+        if not GetQuotedValue(Value) then
+        {in case quotes left off ThtString}
+          while True do
+            case LCh of
+              SpcChar, TabChar, CrChar, MinusChar, GreaterChar, EofChar: {need to exclude '-' to find '-->'}
+                break;
+            else
+              htAppendChr(Value, LCh);
+              GetCh;
+            end;
+      end;
+    end;
+
   var
-    S, Name, Value: string;
-    Rest: string;
-    SL: TStringList;
+    S, Name, Value: ThtString;
+    Include: TBuffer;
+    SL: ThtStringList;
     SaveLCToken: TokenObj;
   begin
     S := '';
@@ -390,26 +498,17 @@ var
     LCToken := TokenObj.Create;
     try
       GetChBasic;
-      while Ch in ['A'..'Z', '_', '0'..'9'] do
-      begin
-        S := S + LCh;
-        GetChBasic;
-      end;
-      SL := TStringList.Create;
+      GetIdentifier(S);
+      SL := ThtStringList.Create;
       while GetNameValueParameter(Name, Value) do
         SL.Add(Name + '=' + Value);
       DoDashDash;
-      Rest := IBuff;
-      SIBuff := '';
-      IncludeEvent(CallingObject, S, SL, SIBuff);
-      if Length(SIBuff) > 0 then
+      Include := nil;
+      IncludeEvent(CallingObject, S, SL, Include);
+      if Include <> nil then
       begin
-        if LoadStyle <> lsInclude then
-          SaveLoadStyle := LoadStyle;
-        LoadStyle := lsInclude;
-        SIBuff := SIBuff + Rest;
-        IBuff := PChar(SIBuff);
-        IBuffEnd := IBuff + Length(SIBuff);
+        DocStack.Push(Doc);
+        Doc := Include;
       end;
     finally
       LCToken.Free;
@@ -422,150 +521,140 @@ begin {Getch}
    {comments may be either '<! stuff >' or '<!-- stuff -->'  }
     Comment := False;
     GetchBasic;
-    if (Ch = '<') and not InScript then
+    if (LCh = LessChar) and not InScript then
     begin
-      if Peek = '!' then
-      begin
-        GetChBasic;
-        Comment := True;
-        InComment := True;
-        GetChBasic;
-        if Ch = '-' then
+      case Peek of
+        '!':
         begin
           GetChBasic;
-          if Ch = '-' then
+          Comment := True;
+          InComment := True;
+          GetChBasic;
+          if LCh = '-' then
           begin
             GetChBasic;
-            if Assigned(IncludeEvent) and (Ch = '#') then
-              DoInclude
+            if LCh = '-' then
+            begin
+              GetChBasic;
+              if Assigned(IncludeEvent) and (LCh = '#') then
+                DoInclude
+              else
+                DoDashDash; {a <!-- comment}
+            end
             else
-              DoDashDash; {a <!-- comment}
+              ReadToGT;
           end
           else
             ReadToGT;
-        end
-        else
-          ReadToGT;
-      end
-      else if Peek = '%' then { <%....%> regarded as comment }
-      begin
-        Comment := True;
-        GetChBasic;
-        repeat
+        end;
+
+        '%': { <%....%> regarded as comment }
+        begin
           GetChBasic;
-        until (Ch = '%') and (Peek = '>') or (Ch = EOFChar);
-        GetChBasic;
+          Comment := True;
+          repeat
+            GetChBasic;
+          until (LCh = '%') and (Peek = GreaterChar) or (LCh = EOFChar);
+          GetChBasic;
+        end;
       end;
     end;
   until not Comment;
 end;
 
+//-- BG ---------------------------------------------------------- 27.03.2011 --
+function THtmlParser.GetIdentifier(out Identifier: ThtString): Boolean;
+begin
+  // An identifier can contain only the characters a..z, A..Z, 0..9, -, and _
+  // and start with a..z, A..Z or _] or underscore;
+  SetLength(Identifier, 0);
+  case LCh of
+    'A'..'Z', 'a'..'z', '_':
+      Result := True;
+  else
+    Result := False;
+  end;
+
+  // loop through all allowed characters:
+  while Result do
+  begin
+    case LCh of
+      'A'..'Z', 'a'..'z', '0'..'9', '_', '-': ;
+    else
+      break;
+    end;
+    htAppendChr(Identifier, LCh);
+    GetCh;
+  end;
+
+  if Result then
+    Result := Length(Identifier) > 0;
+end;
+
+function IsWhiteSpace(Ch: ThtChar): Boolean;
+begin
+  case Ch of
+    SpcChar,
+    TabChar,
+    CrChar,
+    LfChar,
+    FfChar:
+      Result := True;
+  else
+    Result := False;
+  end;
+end;
+
 {-------------SkipWhiteSpace}
 
-procedure SkipWhiteSpace;
+procedure THtmlParser.SkipWhiteSpace;
 begin
-  while (LCh in [' ', Tab, ^M]) do
+  while IsWhiteSpace(LCh) do
     GetCh;
-end;
-
-procedure GetEntity(T: TokenObj; CodePage: integer); forward;
-function GetEntityStr(CodePage: integer): string; forward;
-
-function GetQuotedValue(var S: string): boolean;
-{get a quoted string but strip the quotes}
-var
-  Term: char;
-  SaveSy: Symb;
-begin
-  Result := False;
-  Term := Ch;
-  if (Term <> '"') and (Term <> '''') then
-    Exit;
-  Result := True;
-  SaveSy := Sy;
-  GetCh;
-  while not (Ch in [Term, EofChar]) do
-  begin
-    if LCh = '&' then
-      S := S + GetEntityStr(CP_ACP)
-    else
-    begin
-      if LCh = ^M then
-        S := S + ' '
-      else
-        S := S + LCh;
-      GetCh;
-    end;
-  end;
-  if Ch = Term then
-    GetCh; {pass termination char}
-  Sy := SaveSy;
-end;
-
-{----------------GetNameValueParameter}
-
-function GetNameValueParameter(var Name, Value: string): boolean;
-begin
-  Result := False;
-  SkipWhiteSpace;
-  Name := '';
-  if not (Ch in ['A'..'Z']) then
-    Exit;
-  while Ch in ['A'..'Z', '_', '0'..'9'] do
-  begin
-    Name := Name + LCh;
-    GetCh;
-  end;
-
-  SkipWhiteSpace;
-  Value := '';
-  Result := True; {at least have an ID}
-  if Ch <> '=' then
-    Exit;
-  GetCh;
-
-  SkipWhiteSpace;
-  if not GetQuotedValue(Value) then
-  {in case quotes left off string}
-    while not (Ch in [' ', Tab, ^M, '-', '>', EofChar]) do {need to exclude '-' to find '-->'}
-    begin
-      Value := Value + LCh;
-      GetCh;
-    end;
 end;
 
 {----------------GetValue}
 
-function GetValue(var S: string; var Value: integer): boolean;
-{read a numeric.  Also reads a string if it looks like a numeric initially}
+function THtmlParser.GetValue(var S: ThtString; var Value: Integer): Boolean;
+{read a numeric.  Also reads a ThtString if it looks like a numeric initially}
 var
-  Code: integer;
   ValD: double;
 begin
-  Result := Ch in ['-', '+', '0'..'9'];
-  if not Result then
-    Exit;
-  Value := 0;
-  if Ch in ['-', '+'] then
-  begin
-    S := Ch;
-    GetCh;
-  end
+  case LCh of
+    '-', '+':
+      begin
+        S := LCh;
+        GetCh;
+      end;
+
+    '0'..'9':
+      S := '';
+
   else
-    S := '';
-  while not (Ch in [' ', Tab, ^M, '>', '%', EofChar]) do
-    if LCh = '&' then
-      S := S + GetEntityStr(PropStack.Last.CodePage)
+    Result := False;
+    exit;
+  end;
+
+  Result := True;
+  Value := 0;
+  while True do
+    case LCh of
+      SpcChar, TabChar, CrChar, GreaterChar, PercentChar, EofChar:
+        break;
+
+      AmperChar:
+        S := S + GetEntityStr(PropStack.Last.CodePage);
     else
-    begin
-      S := S + LCh;
+      // this is faster than: S := S + LCh;
+      SetLength(S, Length(S) + 1);
+      S[Length(S)] := LCh;
       GetCh;
     end;
   SkipWhiteSpace;
 {see if a numerical value is appropriate.
  avoid the exception that happens when the likes of 'e1234' occurs}
   try
-    Val(S, ValD, Code);
+    TryStrToFloat(S, ValD);
     Value := Round(ValD);
   except
   end;
@@ -577,333 +666,327 @@ begin
   end;
 end;
 
-{----------------GetQuotedStr}
-
-function GetQuotedStr(var S: string; var Value: integer; WantCrLf: boolean; Sym: Symb): boolean;
-{get a quoted string but strip the quotes, check to see if it is numerical}
-var
-  Term: char;
-  S1: string;
-  Code: integer;
-  ValD: double;
-  SaveSy: Symb;
+//-- BG ---------------------------------------------------------- 31.01.2011 --
+function THtmlParser.getTitle: ThtString;
 begin
-  Result := False;
-  Term := Ch;
-  if (Term <> '"') and (Term <> '''') then
-    Exit;
-  Result := True;
-  SaveSy := Sy;
-  GetCh;
-  while not (Ch in [Term, EofChar]) do
-  begin
-    if LCh <> ^M then
-    begin
-      if LCh = '&' then
-      begin
-{$ifdef UNICODE}
-{$else}
-        if (Sym = ValueSy) and UnicodeControls then
-          S := S + GetEntityStr(PropStack.Last.CodePage)
-        else
-{$endif}
-          S := S + GetEntityStr(PropStack.Last.CodePage); //CP_ACP);
-      end
-      else
-      begin
-        S := S + LCh;
-        GetCh;
-      end;
-    end
-    else if WantCrLf then
-    begin
-      S := S + ^M + ^J;
-      GetCh;
-    end
-    else
-      GetCh;
-  end;
-  if Ch = Term then
-    GetCh; {pass termination char}
-  S1 := Trim(S);
-  if Pos('%', S1) = Length(S1) then
-    SetLength(S1, Length(S1) - 1);
-{see if S1 evaluates to a numerical value.  Note that something like
- S1 = 'e8196' can give exception because of the 'e'}
-  Value := 0;
-  if (Length(S1) > 0) and (S1[1] in ['0'..'9', '+', '-', '.']) then
-  try
-    Val(S1, ValD, Code);
-    Value := Round(ValD);
-  except
-  end;
-  Sy := SaveSy;
-end;
-
-{----------------GetSomething}
-
-procedure GetSomething(var S: string);
-begin
-  while not (Ch in [' ', Tab, ^M, '>', EofChar]) do
-    if LCh = '&' then
-      S := S + GetEntityStr(PropStack.Last.CodePage)
-    else
-    begin
-      S := S + LCh;
-      GetCh;
-    end;
-end;
-
-{----------------GetID}
-
-function GetID(var S: string): boolean;
-
-begin
-  Result := False;
-  if not (Ch in ['A'..'Z']) then
-    Exit;
-  while Ch in ['A'..'Z', '-', '0'..'9'] do
-  begin
-    S := S + Ch;
-    GetCh;
-  end;
-  Result := True;
-end;
-
-{----------------GetAttribute}
-
-function GetAttribute(var Sym: Symb; var St: string;
-  var S: string; var Val: integer): boolean;
-
-const
-  MaxAttr = 84;
-  Attrib: array[1..MaxAttr] of string =
-  ('HREF', 'NAME', 'SRC', 'ALT', 'ALIGN', 'TEXT', 'BGCOLOR', 'LINK',
-    'BACKGROUND', 'COLSPAN', 'ROWSPAN', 'BORDER', 'CELLPADDING',
-    'CELLSPACING', 'VALIGN', 'WIDTH', 'START', 'VALUE', 'TYPE',
-    'CHECKBOX', 'RADIO', 'METHOD', 'ACTION', 'CHECKED', 'SIZE',
-    'MAXLENGTH', 'COLS', 'ROWS', 'MULTIPLE', 'VALUE', 'SELECTED',
-    'FACE', 'COLOR', 'TRANSP', 'CLEAR', 'ISMAP', 'BORDERCOLOR',
-    'USEMAP', 'SHAPE', 'COORDS', 'NOHREF', 'HEIGHT', 'PLAIN', 'TARGET',
-    'NORESIZE', 'SCROLLING', 'HSPACE', 'LANGUAGE', 'FRAMEBORDER',
-    'MARGINWIDTH', 'MARGINHEIGHT', 'LOOP', 'ONCLICK', 'WRAP', 'NOSHADE',
-    'HTTP-EQUIV', 'CONTENT', 'ENCTYPE', 'VLINK', 'OLINK', 'ACTIVE',
-    'VSPACE', 'CLASS', 'ID', 'STYLE', 'REL', 'REV', 'NOWRAP',
-    'BORDERCOLORLIGHT', 'BORDERCOLORDARK', 'CHARSET', 'RATIO',
-    'TITLE', 'ONFOCUS', 'ONBLUR', 'ONCHANGE', 'SPAN', 'TABINDEX',
-    'BGPROPERTIES', 'DISABLED', 'TOPMARGIN', 'LEFTMARGIN', 'LABEL',
-    'READONLY');
-  AttribSym: array[1..MaxAttr] of Symb =
-  (HrefSy, NameSy, SrcSy, AltSy, AlignSy, TextSy, BGColorSy, LinkSy,
-    BackgroundSy, ColSpanSy, RowSpanSy, BorderSy, CellPaddingSy,
-    CellSpacingSy, VAlignSy, WidthSy, StartSy, ValueSy, TypeSy,
-    CheckBoxSy, RadioSy, MethodSy, ActionSy, CheckedSy, SizeSy,
-    MaxLengthSy, ColsSy, RowsSy, MultipleSy, ValueSy, SelectedSy,
-    FaceSy, ColorSy, TranspSy, ClearSy, IsMapSy, BorderColorSy,
-    UseMapSy, ShapeSy, CoordsSy, NoHrefSy, HeightSy, PlainSy, TargetSy,
-    NoResizeSy, ScrollingSy, HSpaceSy, LanguageSy, FrameBorderSy,
-    MarginWidthSy, MarginHeightSy, LoopSy, OnClickSy, WrapSy, NoShadeSy,
-    HttpEqSy, ContentSy, EncTypeSy, VLinkSy, OLinkSy, ActiveSy,
-    VSpaceSy, ClassSy, IDSy, StyleSy, RelSy, RevSy, NoWrapSy,
-    BorderColorLightSy, BorderColorDarkSy, CharSetSy, RatioSy,
-    TitleSy, OnFocusSy, OnBlurSy, OnChangeSy, SpanSy, TabIndexSy,
-    BGPropertiesSy, DisabledSy, TopMarginSy, LeftMarginSy, LabelSy,
-    ReadonlySy);
-var
-  I: integer;
-begin
-  Sym := OtherAttribute;
-  Result := False;
-  SkipWhiteSpace;
-  St := '';
-  if GetID(St) then
-  begin
-    for I := 1 to MaxAttr do
-      if St = Attrib[I] then
-      begin
-        Sym := AttribSym[I];
-        Break;
-      end;
-  end
+  if TitleEnd > TitleStart then
+    Result := Doc.GetString(TitleStart, TitleEnd)
   else
-    Exit; {no ID}
-  SkipWhiteSpace;
-  S := '';
-  if Sym = BorderSy then
-    Val := 1
-  else
-    Val := 0;
-  Result := True; {at least have an ID}
-  if Ch <> '=' then
-    Exit;
-  GetCh;
-
-  SkipWhiteSpace;
-  if not GetQuotedStr(S, Val, Sym in [TitleSy, AltSy], Sym) then {either it's a quoted string or a number}
-    if not GetValue(S, Val) then
-      GetSomething(S); {in case quotes left off string}
-  if (Sym = IDSy) and (S <> '') and Assigned(PropStack.MasterList) and not LinkSearch then
-    PropStack.MasterList.IDNameList.AddChPosObject(S, PropStack.SIndex);
-end;
-
-{-------------GetTag}
-
-function GetTag: boolean; {Pick up a Tag or pass a single '<'}
-var
-  Done, EndTag: Boolean;
-  Compare: string;
-  SymStr: string;
-  AttrStr: string;
-  I: Integer;
-  L: integer;
-  Save: integer;
-  Sym: Symb;
-begin
-  if Ch <> '<' then
-  begin
-    Result := False;
-    Exit;
-  end
-  else
-    Result := True;
-  Save := PropStack.SIndex;
-  TagIndex := PropStack.SIndex;
-  Compare := '';
-  GetCh;
-  if Ch = '/' then
-  begin
-    EndTag := True;
-    GetCh;
-  end
-  else
-  case Ch of
-    'A'..'Z', '?':
-      EndTag := False;
-
-  else
-    {an odd '<'}
-    Sy := TextSy;
-    LCToken.AddUnicodeChar('<', Save);
-    Exit;
-  end;
-  Sy := CommandSy;
-  Done := False;
-  while not Done do
-    case Ch of
-      'A'..'Z', '0'..'9', '/', '_':
-        begin
-          if (Ch = '/') and (Length(Compare) > 0) then {allow xhtml's <br/>, etc }
-            Done := True
-          else if Length(Compare) < 255 then
-          begin
-//              Inc(Compare[0]);
-//              Compare[Length(Compare)] := Ch;
-            Compare := Compare + Ch;
-          end;
-          GetCh;
-          Done := Done or (Ch in ['1'..'6']) and (Compare = 'H');
-        end;
-    else
-      Done := True;
-    end;
-  for I := 1 to MaxRes do
-    if Compare = ResWords[I] then
-    begin
-      if not EndTag then
-        Sy := ResSy[I]
-      else if I <= MaxEndRes then
-        Sy := EndResSy[I]; {else Sy  := CommandSy}
-      Break;
-    end;
-  SkipWhiteSpace;
-  Value := 0;
-  if ((Sy = HeadingSy) or (Sy = HeadingEndSy)) and (Ch in ['1'..'6']) then
-  begin
-    Value := ord(Ch) - ord('0');
-    GetCh;
-  end;
-
-  Attributes.Clear;
-  while GetAttribute(Sym, SymStr, AttrStr, L) do
-    Attributes.Add(TAttribute.Create(Sym, L, SymStr, AttrStr, PropStack.Last.Codepage));
-
-  while (Ch <> '>') and (Ch <> EofChar) do
-    GetCh;
-  if not (Sy in [StyleSy, ScriptSy]) then {in case <!-- comment immediately follows}
-    GetCh;
-end;
-
-function CollectText: boolean;
-// Considers the current data as pure text and collects everything until
-// the input end or one of the reserved tokens is found.
-var
-  SaveIndex: Integer;
-  Buffer: TCharCollection;
-  CodePage: Integer;
-
-begin
-  Sy := TextSy;
-  CodePage := PropStack.Last.CodePage;
-  Buffer := TCharCollection.Create;
-  try
-    Result := not (LCh in [#1..#8, EOFChar, '<']);
-    while not (LCh in [#1..#8, EOFChar, '<']) do
-    begin
-      while LCh = '&' do
-        GetEntity(LCToken, CodePage);
-
-      // Get any normal text.
-      repeat
-        SaveIndex := PropStack.SIndex;
-        // Collect all leading white spaces.
-        if LCh in [' ', #13, #10, Tab] then
-        begin
-          if not LinkSearch then
-            Buffer.Add(' ', SaveIndex);
-          // Skip other white spaces.
-          repeat
-            GetCh;
-          until not (LCh in [' ', #13, #10, Tab]);
-        end;
-        // Collect any non-white space characters which are not special.
-        while not (LCh in [#1..#8, EOFChar, '<', '&', ' ', #13, #10, Tab]) do
-        begin
-          if not LinkSearch then
-            Buffer.Add(LCh, PropStack.SIndex);
-          GetCh;
-        end;
-      until LCh in [#1..#8, EOFChar, '<', '&'];
-      if Buffer.Size > 0 then
-      begin
-        LCToken.AddString(Buffer, CodePage);
-        Buffer.Clear;
-      end;
-    end;
-
-    // Flush any pending ANSI string data.
-    if Buffer.Size > 0 then
-      LCToken.AddString(Buffer, CodePage);
-  finally
-    Buffer.Free;
-  end;
+    Result := '';
 end;
 
 {-----------Next}
 
-procedure Next;
-  {Get the next token}
+procedure THtmlParser.Next;
+{Get the next token}
+
+  procedure GetTag;
+  {Pick up a Tag or pass a single LessChar}
+
+    function GetAttribute(out Sym: Symb; out St: ThtString; out S: ThtString; out Val: Integer): Boolean;
+
+      function GetID(out S: ThtString): Boolean;
+      begin
+        S := '';
+        while True do
+          case LCh of
+            'a'..'z', 'A'..'Z', '-', '$', '0'..'9':
+              begin
+                htAppendChr(S, LCh);
+                GetCh;
+              end;
+          else
+            break;
+          end;
+        Result := Length(S) > 0;
+        if Result then
+          S := htUpperCase(S);
+      end;
+
+      function GetQuotedStr(var S: ThtString; var Value: Integer; WantCrLf: Boolean; Sym: Symb): Boolean;
+      {get a quoted ThtString but strip the quotes, check to see if it is numerical}
+      var
+        Term: ThtChar;
+        S1: ThtString;
+        ValD: double;
+        SaveSy: Symb;
+      begin
+        Result := False;
+        Term := LCh;
+        if (Term <> '"') and (Term <> '''') then
+          Exit;
+        Result := True;
+        SaveSy := Sy;
+        GetCh;
+        while (LCh <> Term) and (LCh <> EofChar) do
+        begin
+          if LCh <> CrChar then
+          begin
+            if LCh = AmperChar then
+            begin
+      {$ifdef UNICODE}
+      {$else}
+              if (Sym = ValueSy) and UnicodeControls then
+                S := S + GetEntityStr(PropStack.Last.CodePage)
+              else
+      {$endif}
+                S := S + GetEntityStr(PropStack.Last.CodePage); //CP_ACP);
+            end
+            else
+            begin
+              // this is faster than: S := S + LCh;
+              SetLength(S, Length(S) + 1);
+              S[Length(S)] := LCh;
+              GetCh;
+            end;
+          end
+          else if WantCrLf then
+          begin
+            S := S + ^M^J;
+            GetCh;
+          end
+          else
+            GetCh;
+        end;
+        if LCh = Term then
+          GetCh; {pass termination ThtChar}
+        S1 := Trim(S);
+        if Pos('%', S1) = Length(S1) then
+          SetLength(S1, Length(S1) - 1);
+      {see if S1 evaluates to a numerical value.  Note that something like
+       S1 = 'e8196' can give exception because of the 'e'}
+        Value := 0;
+        if Length(S1) > 0 then
+          case S1[1] of
+            '0'..'9', '+', '-', '.':
+              try
+                TryStrToFloat(S1, ValD);
+                Value := Round(ValD);
+              except
+              end;
+          end;
+        Sy := SaveSy;
+      end;
+
+    var
+      I: Integer;
+    begin
+      Sym := OtherAttribute;
+      Result := False;
+      SkipWhiteSpace;
+      St := '';
+      if not GetID(St) then
+        Exit; {no ID}
+
+      if AttributeNames.Find(St, I) then
+        Sym := PSymbol(AttributeNames.Objects[I]).Value;
+      SkipWhiteSpace;
+      S := '';
+      if Sym = BorderSy then
+        Val := 1
+      else
+        Val := 0;
+      Result := True; {at least have an ID}
+      if LCh <> '=' then
+        Exit;
+      GetCh;
+
+      SkipWhiteSpace;
+      if not GetQuotedStr(S, Val, Sym in [TitleSy, AltSy], Sym) then {either it's a quoted ThtString or a number}
+        if not GetValue(S, Val) then
+          while True do
+            case LCh of
+              SpcChar,
+              TabChar,
+              CrChar,
+              GreaterChar,
+              EofChar:
+                break;
+
+              AmperChar:
+                htAppendStr(S, GetEntityStr(PropStack.Last.CodePage));
+            else
+              htAppendChr(S, LCh);
+              GetCh;
+            end;
+
+      if (Sym = IDSy) and (S <> '') and Assigned(PropStack.MasterList) and not LinkSearch then
+        PropStack.MasterList.AddChPosObjectToIDNameList(S, PropStack.SIndex);
+    end;
+
+  var
+    EndTag: Boolean;
+    Compare: ThtString;
+    SymStr: ThtString;
+    AttrStr: ThtString;
+    I: Integer;
+    L: Integer;
+    Save: Integer;
+    Sym: Symb;
+  begin
+    Save := PropStack.SIndex;
+    TagIndex := PropStack.SIndex;
+    GetCh;
+    case LCh of
+      '/':
+      begin
+        EndTag := True;
+        GetCh;
+      end;
+
+      'a'..'z', 'A'..'Z', '?':
+      begin
+        EndTag := False;
+      end;
+    else
+      {an odd LessChar}
+      Sy := TextSy;
+      LCToken.AddUnicodeChar('<', Save);
+      Exit;
+    end;
+    Sy := CommandSy;
+    Compare := '';
+    while True do
+      case LCh of
+        '/':
+        begin
+          if Length(Compare) > 0 then {allow xhtml's <br/>, etc }
+            break;
+          // faster than: Compare := Compare + LCh;
+          SetLength(Compare, Length(Compare) + 1);
+          Compare[Length(Compare)] := LCh;
+          GetCh;
+        end;
+
+        'a'..'z', 'A'..'Z', '_':
+        begin
+          // faster than: Compare := Compare + LCh;
+          SetLength(Compare, Length(Compare) + 1);
+          Compare[Length(Compare)] := LCh;
+          GetCh;
+        end;
+
+        '0'..'9':
+        begin
+          if (Compare = 'H') or (Compare = 'h') then
+            break;
+          // faster than: Compare := Compare + LCh;
+          SetLength(Compare, Length(Compare) + 1);
+          Compare[Length(Compare)] := LCh;
+          GetCh;
+        end;
+      else
+        break;
+      end;
+
+    if Length(Compare) > 0 then
+    begin
+      if ReservedWords.Find(htUpperCase(Compare), I) then
+        if not EndTag then
+          Sy := PResWord(ReservedWords.Objects[I]).Symbol
+        else
+        begin
+          Sy := PResWord(ReservedWords.Objects[I]).EndSym;
+          if Sy = HtmlSy then
+            Sy := CommandSy;
+        end;
+    end;
+
+    SkipWhiteSpace;
+    HeadingLevel := 0;
+    case Sy of
+      HeadingSy,
+      HeadingEndSy:
+        case LCh of
+          '1'..'6':
+            begin
+              HeadingLevel := ord(LCh) - ord('0');
+              GetCh;
+            end;
+        end;
+    end;
+
+    Attributes.Clear;
+    while GetAttribute(Sym, SymStr, AttrStr, L) do
+      Attributes.Add(TAttribute.Create(Sym, L, SymStr, AttrStr, PropStack.Last.Codepage));
+
+    while (LCh <> GreaterChar) and (LCh <> EofChar) do
+      GetCh;
+    if not (Sy in [StyleSy, ScriptSy]) then {in case <!-- comment immediately follows}
+      GetCh;
+  end;
+
+  procedure CollectText;
+  // Considers the current data as pure text and collects everything until
+  // the input end or one of the reserved tokens is found.
+  var
+    Buffer: TCharCollection;
+    CodePage, SaveIndex: Integer;
+    Entity: ThtString;
+  begin
+    CodePage := PropStack.Last.CodePage;
+    Buffer := TCharCollection.Create;
+    try
+      while True do
+      begin
+        case LCh of
+          #1..#8, EOFChar, LessChar:
+            break;
+
+          AmperChar:
+            begin
+              SaveIndex := PropStack.SIndex;
+              Entity := GetEntityStr(CodePage);
+              if not LinkSearch then
+//                if Length(Entity) = 1 then
+//                  Buffer.Add(Entity[1], SaveIndex)
+//                else
+                  Buffer.Add(Entity, SaveIndex);
+            end;
+
+          SpcChar, CrChar, LfChar, TabChar:
+            begin
+              if not LinkSearch then
+                Buffer.Add(ThtChar(SpcChar), PropStack.SIndex);
+              GetCh;
+              // Skip other white spaces.
+              SkipWhiteSpace;
+            end;
+        else
+          if not LinkSearch then
+            Buffer.Add(LCh, PropStack.SIndex);
+          GetCh;
+        end;
+      end;
+      if Buffer.Size > 0 then
+        LCToken.AddString(Buffer);
+    finally
+      Buffer.Free;
+    end;
+  end;
+
 begin {already have fresh character loaded here}
   LCToken.Clear;
-  if LCh = EofChar then
-    Sy := EofSy
-  else if not GetTag then
-    if not CollectText then
-      if LCh in [#0..#8] then
+  case LCh of
+    '<':
+      GetTag;
+
+    #1..#8:
+      begin
+        Sy := TextSy;
         LCh := '?';
+      end;
+
+    EofChar:
+      Sy := EofSy;
+  else
+    Sy := TextSy;
+    CollectText;
+  end;
 end;
 
 { Add a TProperties to the PropStack. }
-procedure PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: string; AProp: TProperties);
+procedure THtmlParser.PushNewProp(const Tag, AClass, AnID, APseudo, ATitle: ThtString; AProp: TProperties);
 begin
   PropStack.PushNewProp(Tag, AClass, AnID, APseudo, ATitle, AProp);
 end;
@@ -914,59 +997,49 @@ begin
   PropStack.PopProp;
 end;
 
-procedure PopAProp(const Tag: string);
-{pop and free a TProperties from the Prop stack.  It should be on top but in
- case of a nesting error, find it anyway}
-//var
-//  I, J: integer;
+procedure THtmlParser.PopAProp(const Tag: ThtString);
 begin
-//  for I := PropStackIndex downto 1 do
-//    if PropStack[I].Proptag = Tag then
-//    begin
-//      if PropStack[I].GetBorderStyle <> bssNone then
-//      {this would be the end of an inline border}
-//        PropStack.MasterList.ProcessInlines(PropStack.SIndex, PropStack[I], False);
-//      PropStack.Delete(I);
-//      if I > 1 then {update any stack items which follow the deleted one}
-//        for J := I to PropStackIndex do
-//          PropStack[J].Update(PropStack[J - 1], PropStack.MasterList.Styles, J);
-//      Break;
-//    end;
   PropStack.PopAProp(Tag);
 end;
 
-procedure DoTextArea(TxtArea: TTextAreaFormControlObj);
+procedure THtmlParser.DoTextArea(TxtArea: TTextAreaFormControlObj);
 {read and save the text for a TextArea form control}
 var
-  S: string;
-  Token: string;
+  S: ThtString;
+  Token: ThtString;
 
   procedure Next1;
     {Special Next routine to get the next token}
 
     procedure GetTag1; {simplified Pick up a Tag routine}
     begin
-      Token := '<';
+      Token := LessChar;
       GetCh;
       Sy := CommandSy;
-      while not (LCh in [' ', ^M, Tab, '>']) do
-      begin
-        Token := Token + LCh;
-        GetCh;
-      end;
+      while True do
+        case LCh of
+          SpcChar, CrChar, TabChar, GreaterChar:
+            break;
+        else
+          htAppendChr(Token, LCh);
+          GetCh;
+        end;
       if CompareText(Token, '</textarea') = 0 then
         Sy := TextAreaEndSy
       else
         Sy := CommandSy; {anything else}
     end;
 
-    function IsText1: boolean;
+    function IsText1: Boolean;
     begin
-      while (Length(Token) < 100) and not (LCh in [^M, '<', '&', EofChar]) do
-      begin
-        Token := Token + LCh;
-        GetCh;
-      end;
+      while Length(Token) < 100 do
+        case LCh of
+          CrChar, LessChar, AmperChar, EofChar:
+            break;
+        else
+          htAppendChr(Token, LCh);
+          GetCh;
+        end;
       if Length(Token) > 0 then
       begin
         Sy := TextSy;
@@ -981,14 +1054,14 @@ var
     LCToken.Clear;
     if LCh = EofChar then
       Sy := EofSy
-    else if LCh = ^M then
+    else if LCh = CrChar then
     begin
       Sy := EolSy;
       GetCh;
     end
-    else if LCh = '<' then
+    else if LCh = LessChar then
     begin GetTag1; Exit; end
-    else if LCh = '&' then
+    else if LCh = AmperChar then
     begin
 {$ifdef UNICODE}
 {$else}
@@ -1017,7 +1090,7 @@ begin
       TextSy: S := S + Token;
       EolSy:
         begin
-          S := S + ^M + ^J;
+          S := S + CrChar + ^J;
           TxtArea.AddStr(S);
           S := '';
         end;
@@ -1026,18 +1099,23 @@ begin
     end;
     Next1;
   end;
-  while not (LCh in ['>', EofChar]) do
-    GetCh; {remove chars to and past '>'}
+  while True do
+    case LCh of
+      GreaterChar, EofChar:
+        break;
+    else
+      GetCh; {remove chars to and past GreaterChar}
+    end;
   GetCh;
   if S <> '' then
     TxtArea.AddStr(S);
   TxtArea.ResetToValue;
 end;
 
-function FindAlignment: string; {pick up Align= attribute}
+function THtmlParser.FindAlignment: ThtString; {pick up Align= attribute}
 var
   T: TAttribute;
-  S: string;
+  S: ThtString;
 begin
   Result := '';
   if Attributes.Find(AlignSy, T) then
@@ -1050,26 +1128,20 @@ begin
   end;
 end;
 
-procedure CheckForAlign;
+procedure THtmlParser.CheckForAlign;
 var
-  S: string;
+  S: ThtString;
 begin
   S := FindAlignment;
   if S <> '' then
     PropStack.Last.Assign(S, TextAlign);
 end;
 
-type
-  SymbSet = set of Symb;
 const
   TableTermSet = [TableEndSy, TDSy, TRSy, TREndSy, THSy, THEndSy, TDEndSy,
     CaptionSy, CaptionEndSy, ColSy, ColgroupSy];
 
-procedure DoBody(const TermSet: SymbSet); forward;
-
-procedure DoLists(Sym: Symb; const TermSet: SymbSet); forward;
-
-procedure DoAEnd; {do the </a>}
+procedure THtmlParser.DoAEnd; {do the </a>}
 begin
   if InHref then {see if we're in an href}
   begin
@@ -1082,7 +1154,7 @@ begin
     Section.HRef(AEndSy, PropStack.MasterList, CurrentUrlTarget, nil, PropStack.Last);
 end;
 
-procedure DoDivEtc(Sym: Symb; const TermSet: SymbSet);
+procedure THtmlParser.DoDivEtc(Sym: Symb; const TermSet: SymbSet);
 var
   FormBlock, DivBlock: TBlock;
   FieldsetBlock: TFieldsetBlock;
@@ -1099,8 +1171,7 @@ begin
         SectionList.Add(DivBlock, TagIndex);
         SectionList := DivBlock.MyCell;
 
-        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
-          CurrentUrlTarget, SectionList, True);
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last, CurrentUrlTarget, SectionList, True);
         Next;
         DoBody([DivEndSy] + TermSet);
         SectionList.Add(Section, TagIndex);
@@ -1112,12 +1183,11 @@ begin
         end;
         SectionList := DivBlock.OwnerCell;
 
-        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
-          CurrentUrlTarget, SectionList, True);
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last, CurrentUrlTarget, SectionList, True);
         if Sy = DivEndSy then
           Next;
       end;
-      
+
     FieldsetSy:
       begin
         SectionList.Add(Section, TagIndex);
@@ -1128,8 +1198,7 @@ begin
         SectionList.Add(FieldsetBlock, TagIndex);
         SectionList := FieldsetBlock.MyCell;
 
-        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
-          CurrentUrlTarget, SectionList, True);
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last, CurrentUrlTarget, SectionList, True);
         Next;
         DoBody([FieldsetEndSy] + TermSet);
         SectionList.Add(Section, TagIndex);
@@ -1141,8 +1210,7 @@ begin
         end;
         SectionList := FieldsetBlock.OwnerCell;
 
-        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
-          CurrentUrlTarget, SectionList, True);
+        Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last, CurrentUrlTarget, SectionList, True);
         if Sy = FieldsetEndSy then
           Next;
       end;
@@ -1232,16 +1300,16 @@ begin
 end;
 
 type
-  TCellManager = class(TStringList)
+  TCellManager = class(ThtStringList)
     Table: ThtmlTable;
     constructor Create(ATable: ThtmlTable);
-    function FindColNum(Row: integer): integer;
-    procedure AddCell(Row: integer; CellObj: TCellObj);
+    function FindColNum(Row: Integer): Integer;
+    procedure AddCell(Row: Integer; CellObj: TCellObj);
   end;
 {TCellManager is used to keep track of the column where the next table cell is
  going when handling the <col> tag.  Because of colspan and rowspan attributes,
- this can be a messy process.  A StringList is used with a string for each
- row.  Initially, the string is filled with 'o's.  As each cell is added, 'o's
+ this can be a messy process.  A StringList is used with a ThtString for each
+ row.  Initially, the ThtString is filled with 'o's.  As each cell is added, 'o's
  are changed to 'x's in accordance with the sixe of the cell.
 }
 {----------------TCellManager.Create}
@@ -1252,7 +1320,7 @@ begin
   Table := ATable;
 end;
 
-function TCellManager.FindColNum(Row: integer): integer;
+function TCellManager.FindColNum(Row: Integer): Integer;
 {given the row of insertion, returns the column number where the next cell will
  go or -1 if out of range.  Columns beyond any <col> definitions are ignored}
 begin
@@ -1261,11 +1329,11 @@ begin
   Result := Pos('o', Strings[Row]) - 1;
 end;
 
-procedure TCellManager.AddCell(Row: integer; CellObj: TCellObj);
+procedure TCellManager.AddCell(Row: Integer; CellObj: TCellObj);
 {Adds this cell to the specified row}
 var
-  I, J, K, Span: integer;
-  S1: string;
+  I, J, K, Span: Integer;
+  S1: ThtString;
 begin
 {make sure there's enough rows to handle any RowSpan for this cell}
   while Count < Row + CellObj.RowSpan do
@@ -1294,23 +1362,41 @@ begin
     end;
 end;
 
+function THtmlParser.DoCharSet(Content: ThtString): Boolean;
+var
+  Info: TBuffCharSetCodePageInfo;
+begin
+  Info := GetCharSetCodePageInfo(Content);
+  Result := Info <> nil;
+  if Result then
+  begin
+    case Info.CodePage of
+      CP_UTF8,
+      CP_UTF16LE,
+      CP_UTF16BE:
+        PropStack.Last.CodePage := Info.CodePage;
+    else
+      PropStack.Last.CharSet := Info.CharSet;
+    end;
+    Doc.CharSet := PropStack.Last.CharSet;
+    Doc.CodePage := PropStack.Last.CodePage;
+  end;
+end;
 
-{----------------DoColGroup}
-
-procedure DoColGroup(Table: ThtmlTable; ColOK: boolean);
+procedure THtmlParser.DoColGroup(Table: ThtmlTable; ColOK: Boolean);
 {reads the <colgroup> and <col> tags.  Put the info in ThtmlTable's ConInfo list}
 var
-  I, Span: integer;
-  xWidth, cWidth: integer;
-  xAsPercent, cAsPercent: boolean;
+  I, Span: Integer;
+  xWidth, cWidth: Integer;
+  xAsPercent, cAsPercent: Boolean;
   xVAlign, cVAlign: AlignmentType;
-  xAlign, cAlign: string;
+  xAlign, cAlign: ThtString;
   Algn: AlignmentType;
 
-  procedure ReadColAttributes(var Width: integer; var AsPercent: boolean;
-    var Valign: AlignmentType; var Align: string; var Span: integer);
+  procedure ReadColAttributes(var Width: Integer; var AsPercent: Boolean;
+    var Valign: AlignmentType; var Align: ThtString; var Span: Integer);
   var
-    I: integer;
+    I: Integer;
   begin
     for I := 0 to Attributes.Count - 1 do
       with TAttribute(Attributes[I]) do
@@ -1376,31 +1462,31 @@ end;
 
 {----------------DoTable}
 
-procedure DoTable;
+procedure THtmlParser.DoTable;
 var
   Table: ThtmlTable;
   SaveSectionList, JunkSaveSectionList: TCellBasic;
   SaveStyle: TFontStyles;
-  SaveNoBreak: boolean;
-  SaveListLevel: integer;
+  SaveNoBreak: Boolean;
+  SaveListLevel: Integer;
   RowVAlign, VAlign: AlignmentType;
   Row: TCellList;
   CellObj: TCellObj;
   T: TAttribute;
-  RowStack: integer;
+  RowStack: Integer;
   NewBlock: TTableBlock;
   SetJustify: JustifyType;
   CM: TCellManager;
-  CellNum: integer;
-  TdTh: string;
-  ColOK: boolean;
+  CellNum: Integer;
+  TdTh: ThtString;
+  ColOK: Boolean;
   CaptionBlock: TBlock;
   CombineBlock: TTableAndCaptionBlock;
-  TopCaption: boolean;
+  TopCaption: Boolean;
   RowType: TRowType;
-  HFStack: integer;
+  HFStack: Integer;
   FootList: TList;
-  I: integer;
+  I: Integer;
   TrDisplay: TPropDisplay; // Yunqa.de.
   S: PropIndices;
   V: Variant;
@@ -1408,7 +1494,7 @@ var
 
   function GetVAlign(Default: AlignmentType): AlignmentType;
   var
-    S: string;
+    S: ThtString;
     T: TAttribute;
   begin
     Result := Default;
@@ -1679,7 +1765,7 @@ begin
           end;
       else
         begin
-          if ((Sy = TextSy) and (LCToken.S = ' ')) or (Sy = CommandSy) then
+          if ((Sy = TextSy) and (LCToken.S = SpcChar)) or (Sy = CommandSy) then
             Next {discard single spaces here}
           else
           begin
@@ -1737,14 +1823,14 @@ begin
   Next;
 end;
 
-procedure GetOptions(Select: TListBoxFormControlObj);
+procedure THtmlParser.GetOptions(Select: TOptionsFormControlObj);
  {get the <option>s for Select form control}
 var
-  InOption, Selected: boolean;
+  InOption, Selected: Boolean;
   WS: WideString;
-  SaveNoBreak: boolean;
-  CodePage: integer;
-  Attr: TStringList;
+  SaveNoBreak: Boolean;
+  CodePage: Integer;
+  Attr: ThtStringList;
   T: TAttribute;
 begin
   SaveNoBreak := NoBreak;
@@ -1788,11 +1874,11 @@ end;
 
 {----------------DoMap}
 
-procedure DoMap;
+procedure THtmlParser.DoMap;
 var
   Item: TMapItem;
   T: TAttribute;
-  ErrorCnt: integer;
+  ErrorCnt: Integer;
 begin
   Item := TMapItem.Create;
   ErrorCnt := 0;
@@ -1819,45 +1905,61 @@ begin
   Next;
 end;
 
-procedure DoScript(Ascript: TScriptEvent);
+procedure THtmlParser.DoScript(Ascript: TScriptEvent);
 var
-  Text: string;
+  Text: ThtString;
 
   procedure Next1;
     {Special Next routine to get the next token}
 
     procedure GetTag1; {simplified 'Pick up a Tag' routine}
+
+      function IsTagChar(Ch: ThtChar): Boolean; {$ifdef UseInline} inline; {$endif}
+      begin
+        case Ch of
+          'a'..'z', 'A'..'Z', '/':
+            Result := True;
+        else
+          Result := False;
+        end;
+      end;
+
     var
-      Count: integer;
+      Count: Integer;
     begin
-      Text := '<';
+      Text := LessChar;
       GetCh;
-      if not (Ch in ['A'..'Z', '/']) then
+      if not IsTagChar(LCh) then
       begin
         Sy := TextSy;
         Exit;
       end;
       Sy := CommandSy; {catch all}
-      while (Ch in ['A'..'Z', '/']) do
+      while IsTagChar(LCh) do
       begin
-        Text := Text + LCh;
+        htAppendChr(Text, LCh);
         GetCh;
       end;
       if CompareText(Text, '</script') = 0 then
         Sy := ScriptEndSy;
       Count := 0;
-      while not (LCh in ['>', EofChar]) and (Count < 6) do
+      while Count < 6 do
       begin
-        if LCh = ^M then
-          Text := Text + ' '
+        case LCh of
+          CrChar, TabChar:
+            htAppendChr(Text, SpcChar);
+
+          GreaterChar, EofChar:
+            break;
         else
-          Text := Text + LCh;
+          htAppendChr(Text, LCh);
+        end;
         GetCh;
         Inc(Count);
       end;
-      if LCh = '>' then
+      if LCh = GreaterChar then
       begin
-        Text := Text + '>';
+        Text := Text + GreaterChar;
         if Sy = ScriptEndSy then
           InScript := False;
         GetCh;
@@ -1866,30 +1968,36 @@ var
 
   begin {already have fresh character loaded here}
     Text := '';
-    if LCh = EofChar then
-      Sy := EofSy
-    else if LCh = ^M then
-    begin
-      Sy := EolSy;
-      GetCh;
-    end
-    else if LCh = '<' then
-      GetTag1
+    case LCh of
+      EofChar:
+        Sy := EofSy;
+
+      CrChar:
+        begin
+          Sy := EolSy;
+          GetCh;
+        end;
+
+      LessChar:
+        GetTag1;
+
     else
-    begin
       Sy := TextSy;
-      while not (LCh in [^M, '<', EofChar]) do
-      begin
-        Text := Text + LCh;
-        GetCh;
-      end;
+      while True do
+        case LCh of
+          CrChar, LessChar, EofChar:
+            break;
+        else
+          htAppendChr(Text, LCh);
+          GetCh;
+        end;
     end;
   end;
 
 var
-  Lang, Name: string;
+  Lang, Name: ThtString;
   T: TAttribute;
-  S, Src: string;
+  S, Src: ThtString;
 begin
   {on entry, do not have the next character for <script>}
   if Assigned(AScript) then
@@ -1920,7 +2028,7 @@ begin
       while (Sy <> ScriptEndSy) and (Sy <> EofSy) do
       begin
         if Sy = EolSy then
-          S := S + ^M^J
+          S := S + CrChar + LfChar
         else
           S := S + Text;
         Next1;
@@ -1939,22 +2047,19 @@ begin
   end;
 end;
 
-procedure DoP(const TermSet: SymbSet); forward;
-procedure DoBr(const TermSet: SymbSet); forward;
-
-function DoObjectTag(var C: Char; var N, IX: integer): boolean;
+function THtmlParser.DoObjectTag(var C: ThtChar; var N, IX: Integer): Boolean;
 var
-  WantPanel: boolean;
-  SL, Params: TStringList;
+  WantPanel: Boolean;
+  SL, Params: ThtStringList;
   Prop: TProperties;
   PO: TPanelObj;
-  S: string;
+  S: ThtString;
   T: TAttribute;
 
   procedure SavePosition;
   begin
     C := LCh;
-    N := Buff - PChar(DocS);
+    N := Doc.Position;
     IX := PropStack.SIndex;
   end;
 
@@ -1979,7 +2084,7 @@ begin
       PO := Section.CreatePanel(Attributes, SectionList);
       PO.ProcessProperties(PropStack.Last);
       WantPanel := False;
-      Params := TStringList.Create;
+      Params := ThtStringList.Create;
       Params.Sorted := False;
       repeat
         SavePosition;
@@ -2026,43 +2131,46 @@ end;
 
 {----------------DoCommonSy}
 
-procedure DoCommonSy;
+procedure THtmlParser.DoCommonSy;
 var
-  I: integer;
+  I: Integer;
   TxtArea: TTextAreaFormControlObj;
   FormControl: TFormControlObj;
   T: TAttribute;
-  Tmp: string;
+  Tmp: ThtString;
   HeadingBlock: TBlock;
   HRBlock: THRBlock;
   HorzLine: THorzLine;
-  HeadingStr, Link: string;
-  Done, FoundHRef: boolean;
+  HeadingStr, Link: ThtString;
+  Done, FoundHRef: Boolean;
   IO: TFloatingObj;
   Page: TPage;
   SaveSy: Symb;
   Prop: TProperties;
-  C: Char;
-  N, IX: integer;
+  C: ThtChar;
+  N, IX: Integer;
 
-  procedure ChangeTheFont(Sy: Symb; Pre: boolean);
+  procedure ChangeTheFont(Sy: Symb; Pre: Boolean);
   var
-    FaceName: string;
+    FaceName: ThtString;
     CharSet: TFontCharSet;
+    CodePage: Integer;
     NewColor: TColor;
-    NewSize, I: integer;
+    NewSize, I: Integer;
     FontResults: set of (Face, Colr, Siz, CharS);
     DNewSize: double;
     Prop: TProperties;
   begin
     FontResults := [];
     NewSize := 0; {get rid of warning}
+    CodePage := CP_UNKNOWN;
+    CharSet := DEFAULT_CHARSET;
     for I := 0 to Attributes.Count - 1 do
       with TAttribute(Attributes[I]) do
         case Which of
           SizeSy:
             begin
-              if (Length(Name) >= 2) and (Name[1] in ['+', '-']) then
+              if (Length(Name) >= 2) and ((Name[1] = ThtChar('+')) or (Name[1] = ThtChar('-'))) then
                 Value := BaseFontSize + Value;
               NewSize := Max(1, Min(7, Value)); {limit 1..7}
               if (Sy = BaseFontSy) then
@@ -2080,8 +2188,12 @@ var
                 Include(FontResults, Face);
             end;
           CharSetSy:
-            if not IsUTF8 and TranslateCharSet(Name, CharSet) then
+            if DoCharSet(Name) then
+            begin
               Include(FontResults, CharS);
+              CharSet := PropStack.Last.CharSet;
+              CodePage := PropStack.Last.CodePage;
+            end;
         end;
     PushNewProp('font', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
     Prop := TProperties(PropStack.Last);
@@ -2105,52 +2217,56 @@ var
       PropStack.Last.Assign(ReadFontName(FaceName), FontFamily);
     end;
     if CharS in FontResults then
-      PropStack.Last.AssignCharset(CharSet);
+      PropStack.Last.AssignCharSetAndCodePage(CharSet, CodePage);
   end;
 
   procedure DoPreSy;
   var
     S: TokenObj;
-    Tmp, Link: string;
-    Done, InForm, InP: boolean;
-    I, InitialStackIndex: integer;
+    Tmp, Link: ThtString;
+    Done, InForm, InP: Boolean;
+    I, InitialStackIndex: Integer;
     PreBlock, FormBlock, PBlock: TBlock;
     SaveSy: Symb;
-    FoundHRef: boolean;
+    FoundHRef: Boolean;
     Prop: TProperties;
-    C: Char;
-    N, IX: integer;
-    Before, After, Intact: boolean;
+    C: ThtChar;
+    N, IX: Integer;
+    Before, After, Intact: Boolean;
 
-    function CollectPreText: boolean;
+    procedure CollectPreText;
     // Considers the current data as pure text and collects everything until
-    // the input end or one of the reserved tokens is found.
+    // the input ends or one of the reserved tokens is found.
     var
       Buffer: TCharCollection;
-      CodePage: Integer;
+      CodePage, SaveIndex: Integer;
+      Entity: ThtString;
     begin
-      Sy := TextSy;
       CodePage := PropStack.Last.CodePage;
       Buffer := TCharCollection.Create;
       try
-        Result := not (LCh in [#1..#8, EOFChar, '<', ^M]);
-        while not (LCh in [#1..#8, EOFChar, '<', ^M]) do
-        begin
-          while LCh = '&' do {look for entities}
-            GetEntity(S, CodePage);
+        while True do
+          case LCh of
+            #1..#8, EOFChar, LessChar, CrChar:
+              break;
 
-        {Get any normal text, includein spaces}
-          while not (LCh in [#1..#8, EOFChar, '<', '&', ^M]) do
-          begin
-            Buffer.Add(LCh, PropStack.SIndex);
+            AmperChar:
+              begin
+                SaveIndex := PropStack.SIndex;
+                Entity := GetEntityStr(CodePage);
+                if not LinkSearch then
+                  Buffer.Add(Entity, SaveIndex);
+              end;
+
+          else
+            {Get any normal text, including spaces}
+            if not LinkSearch then
+              Buffer.Add(LCh, PropStack.SIndex);
             GetCh;
           end;
-          if Buffer.Size > 0 then
-          begin
-            S.AddString(Buffer, CodePage);
-            Buffer.Clear;
-          end;
-        end;
+
+        if Buffer.Size > 0 then
+          S.AddString(Buffer);
       finally
         Buffer.Free;
       end;
@@ -2213,12 +2329,12 @@ var
         CurrentUrlTarget, SectionList, True);
       Done := False;
       while not Done do
-        case Ch of
+        case LCh of
           '<':
             begin
               Next;
               case Sy of
-                TextSy: {this would be an isolated '<'}
+                TextSy: {this would be an isolated LessChar}
                   S.AddUnicodeChar('<', PropStack.SIndex);
                 BRSy:
                   begin
@@ -2233,14 +2349,14 @@ var
                     PopAProp('br');
                     Section := TPreFormated.Create(PropStack.MasterList, nil, PropStack.Last,
                       CurrentUrlTarget, SectionList, False);
-                    if Ch = ^M then
+                    if LCh = CrChar then
                       GetCh;
                   end;
                 PSy:
                   begin
                     if InP then
                       PEnd
-                    else if S.Leng <> 0 then
+                    else if S.Count <> 0 then
                     begin
                       Section.AddTokenObj(S);
                       S.Clear;
@@ -2251,7 +2367,7 @@ var
                       Section.CheckFree;
                       Section.Free;
                     end;
-                    if Ch = ^M then
+                    if LCh = CrChar then
                       GetCh;
                     PushNewProp('p', Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
                     PBlock := TBlock.Create(PropStack.MasterList, PropStack.Last, SectionList, Attributes);
@@ -2354,7 +2470,7 @@ var
                  {Author may have added '#' by mistake}
                       if (Length(Tmp) > 0) and (Tmp[1] = '#') then
                         Delete(Tmp, 1, 1);
-                      PropStack.MasterList.IDNameList.AddChPosObject(Tmp, PropStack.SIndex);
+                      PropStack.MasterList.AddChPosObjectToIDNameList(Tmp, PropStack.SIndex);
                       Section.AnchorName := True;
                     end;
                     if FoundHRef then
@@ -2389,14 +2505,13 @@ var
                     Section.AddTokenObj(S);
                     S.Clear;
                     C := LCh;
-                    N := Buff - PChar(DocS);
+                    N := Doc.Position;
                     IX := PropStack.SIndex;
                     DoObjectTag(C, N, IX);
                     LCh := C;
-                    Ch := UpCase(LCh);
-                    Buff := PChar(DocS) + N;
+                    Doc.Position := N;
                     PropStack.SIndex := IX;
-                    if Ch = ^M then
+                    if LCh = CrChar then
                       GetCh;
                   end;
                 PageSy:
@@ -2417,7 +2532,7 @@ var
                       Attributes, SectionList, TagIndex, PropStack.Last);
                     FormControl.ProcessProperties(PropStack.Last);
                     if Sy = SelectSy then
-                      GetOptions(FormControl as TListBoxFormControlObj);
+                      GetOptions(FormControl as TOptionsFormControlObj);
                     PopAProp(SymbToStr(SaveSy));
                     S.Clear; ;
                   end;
@@ -2468,13 +2583,18 @@ var
                 ScriptSy: DoScript(PropStack.MasterList.ScriptEvent);
               end;
             end;
+
           ^M:
             begin NewSection; GetCh; end;
-          EofChar: Done := True;
+
+          #0:
+            Done := True;
         else
-          begin {all other chars}
-            if not CollectPreText then
+          case LCh of
+            #1..#8, EOFChar, LessChar, CrChar:
               GetCh;
+          else
+            CollectPreText;
           end;
         end;
       if InForm then
@@ -2501,7 +2621,7 @@ begin
       begin
         if not Assigned(Section) then
         begin {don't create a section for a single space}
-          if (LCToken.Leng >= 1) and (LCToken.S <> ' ') then
+          if (LCToken.Count >= 1) and (LCToken.S <> SpcChar) then
           begin
             Section := TSection.Create(PropStack.MasterList, nil, PropStack.Last,
               CurrentUrlTarget, SectionList, True);
@@ -2547,7 +2667,7 @@ begin
         FormControl := Section.AddFormControl(Sy, PropStack.MasterList, Attributes,
           SectionList, TagIndex, PropStack.Last);
         if Sy = SelectSy then
-          GetOptions(FormControl as TListBoxFormControlObj);
+          GetOptions(FormControl as TOptionsFormControlObj);
         FormControl.ProcessProperties(PropStack.Last);
         PopAProp(SymbToStr(SaveSy));
         Next;
@@ -2707,7 +2827,7 @@ begin
       {Author may have added '#' by mistake}
           if (Length(Tmp) > 0) and (Tmp[1] = '#') then
             Delete(Tmp, 1, 1);
-          PropStack.MasterList.IDNameList.AddChPosObject(Tmp, PropStack.SIndex);
+          PropStack.MasterList.AddChPosObjectToIDNameList(Tmp, PropStack.SIndex);
           Section.AnchorName := True;
         end;
         if FoundHRef then
@@ -2720,10 +2840,10 @@ begin
         Next;
       end;
     HeadingSy:
-      if (Value in [1..6]) then
+      if (HeadingLevel in [1..6]) then
       begin
         SectionList.Add(Section, TagIndex);
-        HeadingStr := 'h' + IntToStr(Value);
+        HeadingStr := 'h' + IntToStr(HeadingLevel);
         PushNewProp(HeadingStr, Attributes.TheClass, Attributes.TheID, '', Attributes.TheTitle, Attributes.TheStyle);
         CheckForAlign;
         SkipWhiteSpace;
@@ -2812,7 +2932,7 @@ begin
       end;
   else
     begin
-      Assert(False, 'DoCommon can''t handle <' + SymbToStr(Sy) + '>');
+      Assert(False, 'DoCommon can''t handle <' + SymbToStr(Sy) + GreaterChar);
       Next; {as loop protection}
     end;
   end;
@@ -2820,10 +2940,10 @@ end; {DoCommon}
 
 {----------------DoP}
 
-procedure DoP(const TermSet: SymbSet);
+procedure THtmlParser.DoP(const TermSet: SymbSet);
 var
   NewBlock: TBlock;
-  LastAlign, LastClass, LastID, LastTitle: string;
+  LastAlign, LastClass, LastID, LastTitle: ThtString;
   LastStyle: TProperties;
 begin
   if PSy in TermSet then
@@ -2886,10 +3006,10 @@ end;
 
 {----------------DoBr}
 
-procedure DoBr(const TermSet: SymbSet);
+procedure THtmlParser.DoBr(const TermSet: SymbSet);
 var
   T: TAttribute;
-  Before, After, Intact: boolean;
+  Before, After, Intact: Boolean;
 begin
   if BRSy in TermSet then
     Exit;
@@ -2925,9 +3045,9 @@ begin
   Next;
 end;
 
-procedure DoListItem(var LiBlock: TBlockLi; var LiSection: TSection; BlockType, Sym: Symb; LineCount: integer; Index: char; Plain: boolean; const TermSet: SymbSet);
+procedure THtmlParser.DoListItem(var LiBlock: TBlockLi; var LiSection: TSection; BlockType, Sym: Symb; LineCount: Integer; Index: ThtChar; Plain: Boolean; const TermSet: SymbSet);
 var
-  Done: boolean;
+  Done: Boolean;
   //LiBlock: TBlock;
   //LISection: TSection;
   IsInline: Boolean;
@@ -3000,12 +3120,12 @@ end;
 
 {-------------DoLists}
 
-procedure DoLists(Sym: Symb; const TermSet: SymbSet);
+procedure THtmlParser.DoLists(Sym: Symb; const TermSet: SymbSet);
 var
   T: TAttribute;
-  LineCount: integer;
-  Plain: boolean;
-  Index: char;
+  LineCount: Integer;
+  Plain: Boolean;
+  Index: ThtChar;
   NewBlock: TBlock;
   EndSym: Symb;
   LiBlock: TBlockLi;
@@ -3016,6 +3136,8 @@ begin
   LineCount := 1;
   Index := '1';
   EndSym := EndSymbFromSymb(Sym);
+  if EndSym = CommandSy then
+    EndSym := HtmlSy;
   Plain := False;
   if (Sym = OLSy) then
   begin
@@ -3100,9 +3222,9 @@ end;
 
 {----------------DoBase}
 
-procedure DoBase;
+procedure THtmlParser.DoBase;
 var
-  I: integer;
+  I: Integer;
 begin
   with Attributes do
     for I := 0 to Count - 1 do
@@ -3116,9 +3238,9 @@ end;
 
 {----------------DoSound}
 
-procedure DoSound;
+procedure THtmlParser.DoSound;
 var
-  Loop: integer;
+  Loop: Integer;
   T, T1: TAttribute;
 begin
   if Assigned(SoundEvent) and Attributes.Find(SrcSy, T) then
@@ -3132,196 +3254,12 @@ begin
   Next;
 end;
 
-function EUCToShiftJis(const E: string): string;
-var
-  i, j, k, s, t: integer;
-  WhichByte: 0..2;
-begin
-  Result := '';
-  WhichByte := 0;
-  j := 0; {prevent warning}
-  for I := 1 to Length(E) do
-    if Ord(E[I]) <= $A0 then
-    begin
-      WhichByte := 0;
-      Result := Result + E[I];
-    end
-    else if WhichByte in [0, 2] then
-    begin {first byte}
-      WhichByte := 1;
-      j := ord(E[I]) and $7F; {-128}
-      if (j in [33..96]) then
-        s := (j + 1) div 2 + 112
-      else
-        s := (j + 1) div 2 + 176;
-      Result := Result + char(s);
-    end
-    else
-    begin {second byte}
-      WhichByte := 2;
-      k := ord(E[I]) and $7F; {-128}
-      if odd(j) then
-      begin
-        t := k + 31;
-        if k > 95 then
-          inc(t);
-      end
-      else
-        t := k + 126;
-      Result := Result + char(t);
-    end;
-end;
-
-function JISToShiftJis(const E: string): string;
-var
-  i, j, k, s, t, Len: integer;
-  WhichByte: 0..2;
-  C: char;
-begin
-  Len := Length(E);
-  i := 1;
-  WhichByte := 0;
-  j := 0; {prevent warning}
-  Result := '';
-  while i <= Len do
-  begin
-    C := chr(ord(E[i]) and $7F);
-    if (C = chr($1B)) and (i <= Len - 2) then
-    begin
-      if (E[I + 1] = '(') and (E[i + 2] in ['B', 'J']) then
-      begin
-        WhichByte := 0;
-        Inc(I, 3);
-        Continue;
-      end
-      else if (E[I + 1] = '$') and (E[I + 2] in ['@', 'B']) then
-      begin
-        WhichByte := 1;
-        Inc(I, 3);
-        Continue;
-      end;
-    end;
-    case WhichByte of
-      0: Result := Result + C;
-      1:
-        begin
-          j := ord(C) and $7F; {and $7F just for safety}
-          if (j in [33..96]) then
-            s := (j + 1) div 2 + 112
-          else
-            s := (j + 1) div 2 + 176;
-          Result := Result + char(s);
-          WhichByte := 2;
-        end;
-      2:
-        begin
-          k := ord(C) and $7F; {and $7F just for safety}
-          if odd(j) then
-          begin
-            t := k + 31;
-            if k > 95 then
-              inc(t);
-          end
-          else
-            t := k + 126;
-          Result := Result + char(t);
-          WhichByte := 1;
-        end;
-    end;
-    Inc(i);
-  end;
-end;
-
-//  The official CharSet definitions:
-//    http://www.iana.org/assignments/character-sets
-//    http://www.iana.org/assignments/ianacharset-mib
-type
-  XRec = record S: string; CSet: TFontCharset; end;
-const
-  MaxX = 47;
-  EUCJP_CharSet = 30; {unused number}
-  XTable: array[1..MaxX] of XRec =
-  ((S: '1252'; CSet: ANSI_CHARSET),
-    (S: '8859-1'; CSet: ANSI_CHARSET),
-    (S: '1253'; CSet: GREEK_CHARSET),
-    (S: '8859-7'; CSet: GREEK_CHARSET),
-    (S: '1250'; CSet: EASTEUROPE_CHARSET),
-    (S: '8859-2'; CSet: EastEurope8859_2),
-    (S: '1251'; CSet: RUSSIAN_CHARSET),
-    (S: '8859-5'; CSet: RUSSIAN_CHARSET),
-    (S: 'koi'; CSet: RUSSIAN_CHARSET),
-    (S: '866'; CSet: RUSSIAN_CHARSET),
-    (S: '1254'; CSet: TURKISH_CHARSET),
-    (S: '8859-3'; CSet: TURKISH_CHARSET),
-    (S: '8859-9'; CSet: TURKISH_CHARSET),
-    (S: '1257'; CSet: BALTIC_CHARSET),
-    (S: '8859-4'; CSet: BALTIC_CHARSET),
-    (S: '932'; CSet: SHIFTJIS_CHARSET),
-    (S: '949'; CSet: HANGEUL_CHARSET),
-    (S: '936'; CSet: GB2312_CHARSET),
-    (S: '950'; CSet: CHINESEBIG5_CHARSET),
-    (S: '1255'; CSet: HEBREW_CHARSET),
-    (S: '1256'; CSet: ARABIC_CHARSET),
-    (S: '1258'; CSet: VIETNAMESE_CHARSET),
-    (S: '874'; CSet: THAI_CHARSET),
-    (S: 'ansi'; CSet: ANSI_CHARSET),
-    (S: 'default'; CSet: DEFAULT_CHARSET),
-    (S: 'symbol'; CSet: SYMBOL_CHARSET),
-    (S: 'shiftjis'; CSet: SHIFTJIS_CHARSET),
-    (S: 'shift_jis'; CSet: SHIFTJIS_CHARSET),
-    (S: 'x-sjis'; CSet: SHIFTJIS_CHARSET),
-    (S: 'hangeul'; CSet: HANGEUL_CHARSET),
-    (S: 'gb2312'; CSet: GB2312_CHARSET), {simplified Chinese}
-    (S: 'big5'; CSet: CHINESEBIG5_CHARSET), {traditional Chinese}
-    (S: 'oem'; CSet: OEM_CHARSET),
-    (S: 'johab'; CSet: JOHAB_CHARSET),
-    (S: 'hebrew'; CSet: HEBREW_CHARSET),
-    (S: 'arabic'; CSet: ARABIC_CHARSET),
-    (S: 'greek'; CSet: GREEK_CHARSET),
-    (S: 'turkish'; CSet: TURKISH_CHARSET),
-    (S: 'vietnamese'; CSet: VIETNAMESE_CHARSET),
-    (S: 'thai'; CSet: THAI_CHARSET),
-    (S: 'easteurope'; CSet: EASTEUROPE_CHARSET),
-    (S: 'russian'; CSet: RUSSIAN_CHARSET),
-    (S: 'euc-kr'; CSet: HANGEUL_CHARSET),
-    (S: '5601'; CSet: HANGEUL_CHARSET), {Korean}
-    (S: 'euc-jp'; CSet: EUCJP_CHARSET),
-    (S: '8859-15'; CSet: ANSI_CHARSET), {almost Ansi, but not quite}
-    (S: 'tis-620'; CSet: THAI_CHARSET));
-
-function TranslateCharset(const Content: string; var Charset: TFontCharset): boolean;
-var
-  I, N: integer;
-begin
-  Result := False;
-  for I := 1 to MaxX do
-    if Pos(XTable[I].S, Lowercase(Content)) > 0 then
-    begin
-      Charset := XTable[I].CSet;
-      Result := True;
-      if CharSet = EUCJP_CharSet then
-      begin
-        if not HaveTranslated then
-        begin
-          N := Buff - PChar(DocS);
-          DocS := EUCToShiftJis(DocS); {translate to ShiftJis}
-          Buff := PChar(DocS) + N; {DocS probably moves}
-          BuffEnd := PChar(Docs) + Length(DocS);
-          HaveTranslated := True;
-        end;
-        CharSet := SHIFTJIS_CHARSET;
-      end;
-      Break;
-    end;
-end;
-
 {----------------DoMeta}
 
-procedure DoMeta(Sender: TObject);
+procedure THtmlParser.DoMeta(Sender: TObject);
 var
   T: TAttribute;
-  HttpEq, Name, Content: string;
-  CharSet: TFontCharset;
+  HttpEq, Name, Content: ThtString;
 begin
   if Attributes.Find(HttpEqSy, T) then
     HttpEq := T.Name
@@ -3335,14 +3273,9 @@ begin
     Content := T.Name
   else
     Content := '';
-  if not IsUTF8 and (Sender is ThtmlViewer) and (CompareText(HttpEq, 'content-type') = 0) then
+  if (Sender is ThtmlViewer) and (CompareText(HttpEq, 'content-type') = 0) then
   begin
-    if TranslateCharset(Content, CharSet) then
-      PropStack.Last.AssignCharset(Charset)
-    else if Pos('utf-8', Lowercase(Content)) > 0 then
-    begin
-      PropStack.Last.AssignUTF8;
-    end;
+    DoCharset(Content);
     if CallingObject is ThtmlViewer then
     begin
       ThtmlViewer(CallingObject).Charset := PropStack.Last.Charset;
@@ -3356,52 +3289,31 @@ end;
 
 {----------------DoTitle}
 
-procedure DoTitle;
+procedure THtmlParser.DoTitle;
 begin
-  Title := '';
+  TitleStart := PropStack.SIndex;
+  TitleEnd := TitleStart;
   Next;
   while Sy = TextSy do
   begin
-    Title := Title + LCToken.S;
+    TitleEnd := PropStack.SIndex;
     Next;
   end;
 end;
 
+procedure THtmlParser.DoStyleLink; {handle <link> for stylesheets}
 var
-  slS: string;
-  slI: integer;
-
-function slGet: char;
-
-function Get: char;
-  begin
-    if slI <= Length(slS) then
-    begin
-      Result := slS[slI];
-      Inc(slI);
-    end
-    else
-      Result := EofChar;
-  end;
-begin
-  repeat
-    Result := Get;
-  until (Result <> ^J);
-  if Result = Tab then
-    Result := ' ';
-end;
-
-procedure DoStyleLink; {handle <link> for stylesheets}
-var
-  Style: String;
-  C: char;
-  I: integer;
-  Url, Rel, Rev: string;
-  OK: boolean;
+  Style: TBuffer;
+  C: ThtChar;
+  I: Integer;
+  Url, Rel, Rev: ThtString;
+  OK: Boolean;
   Request: TGetStreamEvent;
+  DStream: TStream;
   RStream: TMemoryStream;
   Viewer: ThtmlViewer;
-  Path: string;
+  Path: ThtString;
+  FreeDStream: Boolean;
 begin
   OK := False;
   for I := 0 to Attributes.Count - 1 do
@@ -3413,58 +3325,81 @@ begin
             if CompareText(Rel, 'stylesheet') = 0 then
               OK := True;
           end;
-        RevSy: Rev := Name;
+
+        RevSy:
+          Rev := Name;
+
         HRefSy:
           Url := Name;
+
+        MediaSy:
+          //BG, 12.02.2011: currently we cannot distinguish media, therefore process 'screen' only.
+          if (Pos('screen', Name) = 0) and (Pos('all', Name) = 0) then
+          begin
+            OK := False;
+            break;
+          end;
       end;
   if OK and (Url <> '') then
   begin
-    Style := '';
+    DStream := nil;
+    FreeDStream := True;
     try
-      Viewer := (CallingObject as ThtmlViewer);
-      Request := Viewer.OnHtStreamRequest;
-      if Assigned(Request) then
-      begin
-        RStream := nil;
-        if Assigned(Viewer.OnExpandName) then
-        begin {must be using TFrameBrowser}
-          Viewer.OnExpandName(Viewer, Url, Url);
-          Path := GetURLBase(Url);
-          Request(Viewer, Url, RStream);
-          if Assigned(RStream) then
-            Style := LoadStringFromStream(RStream);
-        end
-        else
+      try
+        Viewer := (CallingObject as ThtmlViewer);
+        Request := Viewer.OnHtStreamRequest;
+        if Assigned(Request) then
         begin
-          Path := ''; {for TFrameViewer requests, don't know path}
-          Request(Viewer, Url, RStream);
-          if Assigned(RStream) then
-            Style := LoadStringFromStream(RStream)
+          RStream := nil;
+          if Assigned(Viewer.OnExpandName) then
+          begin {must be using TFrameBrowser}
+            Viewer.OnExpandName(Viewer, Url, Url);
+            Path := GetURLBase(Url);
+            Request(Viewer, Url, RStream);
+            DStream := RStream;
+            FreeDStream := False;
+          end
           else
-          begin {try it as a file}
-            Url := Viewer.HTMLExpandFilename(Url);
-            Path := ExtractFilePath(Url);
-            if FileExists(Url) then
-              Style := LoadStringFromFile(Url);
+          begin
+            Path := ''; {for TFrameViewer requests, don't know path}
+            Request(Viewer, Url, RStream);
+            if Assigned(RStream) then
+            begin
+              DStream := RStream;
+              FreeDStream := False;
+            end
+            else
+            begin {try it as a file}
+              Url := Viewer.HTMLExpandFilename(Url);
+              Path := ExtractFilePath(Url);
+              if FileExists(Url) then
+                DStream := TFileStream.Create(Url, fmOpenRead or fmShareDenyWrite);
+            end;
+          end;
+        end
+        else {assume it's a file}
+        begin
+          Url := Viewer.HTMLExpandFilename(Url);
+          Path := ExtractFilePath(Url);
+          if FileExists(Url) then
+            DStream := TFileStream.Create(Url, fmOpenRead or fmShareDenyWrite);
+        end;
+        if DStream <> nil then
+        begin
+          DStream.Position := 0;
+          Style := TBuffer.Create(DStream, Url);
+          try
+            C := SpcChar;
+            DoStyle(PropStack.MasterList.Styles, C, Style, Path, True);
+          finally
+            Style.Free;
           end;
         end;
-      end
-      else {assume it's a file}
-      begin
-        Url := Viewer.HTMLExpandFilename(Url);
-        Path := ExtractFilePath(Url);
-        Style := LoadStringFromFile(Url);
+      except
       end;
-      if Style <> '' then
-      begin
-        slS := AdjustLineBreaks(Style); {put in uniform CRLF format}
-        slI := 1;
-        C := slGet;
-        DoStyle(PropStack.MasterList.Styles, C, slGet, Path, True);
-      end;
-      slS := '';
-    except
-      slS := '';
+    finally
+      if FreeDStream then
+        DStream.Free;
     end;
   end;
   if Assigned(LinkEvent) then
@@ -3474,11 +3409,11 @@ end;
 
 {-------------DoBody}
 
-procedure DoBody(const TermSet: SymbSet);
+procedure THtmlParser.DoBody(const TermSet: SymbSet);
 var
-  I: integer;
+  I: Integer;
   Val: TColor;
-  AMarginHeight, AMarginWidth: integer;
+  AMarginHeight, AMarginWidth: Integer;
   LiBlock: TBlockLi;
   LiSection: TSection;
 begin
@@ -3593,8 +3528,7 @@ begin
 
       StyleSy:
         begin
-          DoStyle(PropStack.MasterList.Styles, LCh, GetChBasic, '', False);
-          Ch := UpCase(LCh); {LCh is returned so next char is available}
+          DoStyle(PropStack.MasterList.Styles, LCh, Doc, '', False);
           Next;
         end;
 
@@ -3611,7 +3545,7 @@ begin
   Next;
 end;
 
-procedure DoFrameSet(FrameViewer: TFrameViewerBase; FrameSet: TObject; const FName: string);
+procedure THtmlParser.DoFrameSet(FrameViewer: TFrameViewerBase; FrameSet: TObject; const FName: ThtString);
 var
   NewFrameSet: TObject;
 begin
@@ -3643,80 +3577,25 @@ begin
     end;
     Next;
   end;
-  FrameViewer.EndFrameSet(FrameSet);
-end;
-
-{----------------IsIso2022JP:}
-
-function IsIso2022JP: boolean;
-{look for iso-2022-jp Japanese file}
-var
-  I, J, K, L: integer;
-begin
-  Result := False;
-  I := Pos(#$1b'$@', DocS); {look for starting sequence}
-  J := Pos(#$1b'$B', DocS);
-  I := Max(I, J); {pick a positive value}
-  if I > 0 then
-  begin {now look for ending sequence after the start}
-    K := PosX(#$1b'(J', DocS, I);
-    L := PosX(#$1b'(B', DocS, I);
-    K := Max(K, L); {pick a positive value}
-    if K > 0 then {start and end sequence found}
-      Result := True;
-  end;
+  TSubFrameSetBase(FrameSet).Parsed(Title, Base, BaseTarget);
 end;
 
 {----------------ParseInit}
 
-procedure ParseInit(ASectionList: TList; AIncludeEvent: TIncludeType);
-const
-  NullsAllowed = 100;
-var
-  I, Num: integer;
+procedure THtmlParser.ParseInit(ASectionList: ThtDocument; AIncludeEvent: TIncludeType);
 begin
-  LoadStyle := lsString;
-  SectionList := TSectionList(ASectionList);
-  PropStack.MasterList := TSectionList(SectionList);
-  CallingObject := TSectionList(ASectionList).TheOwner;
+  SectionList := ASectionList;
+  
+  PropStack.MasterList := ASectionList;
+  CallingObject := ASectionList.TheOwner;
   IncludeEvent := AIncludeEvent;
   PropStack.Clear;
-  PropStack.Add(TProperties.Create);
+  PropStack.Add(TProperties.Create(PropStack));
   PropStack[0].CopyDefault(PropStack.MasterList.Styles.DefProp);
   PropStack.SIndex := -1;
 
-  HaveTranslated := False;
-  IsUTF8 := False;
-  Num := 0;
-  I := Pos(#0, DocS);
-  while (I > 0) and (Num < NullsAllowed) do
-  begin {be somewhat forgiving if there are a few nulls}
-    DocS[I] := ' ';
-    I := Pos(#0, DocS);
-    Inc(Num);
-  end;
-  if I > 0 then
-    SetLength(DocS, I - 1); {file has a problem, too many Nulls}
-{look for UTF-8 marker}
-  if (Length(DocS) > 3) and (DocS[1] = #$EF) and (DocS[2] = #$BB) and (DocS[3] = #$BF) then
-  begin
-    PropStack[0].AssignUTF8;
-    Delete(DocS, 1, 3);
-    PropStack.SIndex := 2;
-    IsUTF8 := True;
-  end
-  else
-  {look for iso-2022-jp Japanese file} if IsIso2022Jp then
-    begin
-      DocS := JISToShiftJis(DocS); {watch it, changes PChar(DocS) }
-      HaveTranslated := True;
-      PropStack[0].AssignCharSet(ShiftJIS_CharSet);
-    end;
   if CallingObject is ThtmlViewer then
     ThtmlViewer(CallingObject).CodePage := PropStack[0].CodePage;
-  Buff := PChar(DocS);
-  BuffEnd := Buff + Length(DocS);
-  IBuff := nil;
 
   BodyBlock := TBodyBlock.Create(PropStack.MasterList, PropStack[0], SectionList, nil);
   SectionList.Add(BodyBlock, TagIndex);
@@ -3726,7 +3605,6 @@ begin
   InHref := False;
   BaseFontSize := 3;
 
-  Title := '';
   Base := '';
   BaseTarget := '';
   CurrentStyle := [];
@@ -3741,25 +3619,25 @@ begin
   LinkSearch := False;
 end;
 
-{----------------ParseHTMLString}
-
-procedure ParseHTMLString(const S: string; ASectionList: TList;
-  AIncludeEvent: TIncludeType;
-  ASoundEvent: TSoundType; AMetaEvent: TMetaType; ALinkEvent: TLinkType);
+//-- BG ---------------------------------------------------------- 27.12.2010 --
+procedure THtmlParser.ParseHtml(Doc: TBuffer; ASectionList: ThtDocument;
+  AIncludeEvent: TIncludeType; ASoundEvent: TSoundType;
+  AMetaEvent: TMetaType; ALinkEvent: TLinkType);
 {$IFNDEF NoTabLink}
 const
   MaxTab = 400; {maximum number of links before tabbing of links aborted}
 var
-  TabCount, SaveSIndex: integer;
+  TabCount, SaveSIndex, SavePosition: Integer;
   T: TAttribute;
 {$ENDIF}
 begin
-  DocS := S;
+  Self.Doc := Doc;
   ParseInit(ASectionList, nil);
 
   try
 {$IFNDEF NoTabLink}
     SaveSIndex := PropStack.SIndex;
+    SavePosition := Doc.Position;
     LinkSearch := True;
     SoundEvent := nil;
     MetaEvent := nil;
@@ -3778,12 +3656,12 @@ begin
         end;
         Next;
       end;
-      TSectionList(ASectionList).StopTab := TabCount > MaxTab;
+      ASectionList.StopTab := TabCount > MaxTab;
     except
     end;
   {reset a few things}
     PropStack.SIndex := SaveSIndex;
-    Buff := PChar(DocS);
+    Doc.Position := SavePosition;
 {$ENDIF}
 
     LinkSearch := False;
@@ -3806,16 +3684,15 @@ begin
       SectionList.Add(Section, TagIndex);
     PropStack.Clear;
     CurrentURLTarget.Free;
-    DocS := '';
   end; {finally}
 end;
 
 {----------------DoText}
 
-procedure DoText;
+procedure THtmlParser.DoText;
 var
   S: TokenObj;
-  Done: boolean;
+  Done: Boolean;
   PreBlock: TBlock;
 
   procedure NewSection;
@@ -3839,14 +3716,14 @@ begin
       CurrentUrlTarget, SectionList, False);
     Done := False;
     while not Done do
-      case Ch of
+      case LCh of
         ^M:
           begin NewSection; GetCh; end;
-        EofChar: Done := True;
+        #0: Done := True;
       else
         begin {all other chars}
           S.AddUnicodeChar(WideChar(LCh), PropStack.SIndex);
-          if S.Leng > 200 then
+          if S.Count > 200 then
           begin
             Section.AddTokenObj(S);
             S.Clear;
@@ -3864,11 +3741,9 @@ begin
   end;
 end;
 
-{----------------ParseTextString}
-
-procedure ParseTextString(const S: string; ASectionList: TList);
+//-- BG ---------------------------------------------------------- 27.12.2010 --
+procedure THtmlParser.ParseText(Doc: TBuffer; ASectionList: ThtDocument);
 begin
-  DocS := S;
   ParseInit(ASectionList, nil);
   InScript := True;
 
@@ -3887,16 +3762,20 @@ end;
 
 {-------------FrameParseString}
 
-procedure FrameParseString(FrameViewer: TFrameViewerBase; FrameSet: TObject;
-  ALoadStyle: LoadStyleType; const FName, S: string; AMetaEvent: TMetaType);
+procedure THtmlParser.ParseFrame(FrameViewer: TFrameViewerBase; FrameSet: TObject;
+  Doc: TBuffer;
+  //ALoadStyle: LoadStyleType;
+  const FName: ThtString;
+  //const S: ThtString;
+  AMetaEvent: TMetaType);
 
   procedure Parse;
   var
-    SetExit: boolean;
+    SetExit: Boolean;
   begin
     SetExit := False;
     PropStack.Clear;
-    PropStack.Add(TProperties.Create);
+    PropStack.Add(TProperties.Create(PropStack));
     GetCh; {get the reading started}
     Next;
     repeat
@@ -3929,16 +3808,14 @@ procedure FrameParseString(FrameViewer: TFrameViewerBase; FrameSet: TObject;
   end;
 
 begin
+  Self.Doc := Doc;
   PropStack.MasterList := nil;
-  if (ALoadStyle <> lsFile) and (S = '') then
-    Exit;
   CallingObject := FrameViewer;
   IncludeEvent := FrameViewer.OnInclude;
   SoundEvent := FrameViewer.OnSoundRequest;
   MetaEvent := AMetaEvent;
   LinkEvent := FrameViewer.OnLink;
-  Attributes := TAttributeList.Create;
-  Title := '';
+
   Base := '';
   BaseTarget := '';
   InScript := False;
@@ -3946,47 +3823,30 @@ begin
   InComment := False;
   ListLevel := 0;
 
+  Attributes := TAttributeList.Create;
   try
-    if ALoadStyle = lsFile then
-      DocS := LoadStringFromFile(FName)
-    else
-      DocS := S;
-    LoadStyle := lsString;
-  {look for iso-2022-jp Japanese file}
-    if IsIso2022Jp then
-    begin
-      DocS := JISToShiftJis(DocS);
-      HaveTranslated := True;
-    end
-    else
-      HaveTranslated := False;
-
-    Buff := PChar(DocS);
-    BuffEnd := Buff + Length(DocS);
     try
-      Parse;                                          
+      Parse;
     except {ignore error}
       on E: Exception do
         Assert(False, E.Message);
     end;
   finally
     Attributes.Free;
-    DocS := '';
   end;
 end;
 
 {----------------IsFrameString}
 
-function IsFrameString(ALoadStyle: LoadStyleType; const FName, S: string;
-  FrameViewer: TFrameViewerBase): boolean;
+function THtmlParser.IsFrame(FrameViewer: TFrameViewerBase; Doc: TBuffer; const FName: ThtString): Boolean;
 
-  function Parse: boolean;
+  function Parse: Boolean;
   var
-    SetExit: boolean;
+    SetExit: Boolean;
   begin
     Result := False;
     PropStack.Clear;
-    PropStack.Add(TProperties.Create);
+    PropStack.Add(TProperties.Create(PropStack));
     SetExit := False;
     GetCh; {get the reading started}
     Next;
@@ -4010,16 +3870,18 @@ function IsFrameString(ALoadStyle: LoadStyleType; const FName, S: string;
     PropStack.Clear;
   end;
 
+var
+  Pos: Integer;
 begin
+  if Doc = nil then
+  begin
+    Result := False;
+    exit;
+  end;
   PropStack.MasterList := nil;
-  LoadStyle := lsString;
-  Result := False;
-  if (ALoadStyle <> lsFile) and (S = '') then
-    Exit;
   CallingObject := FrameViewer;
   SoundEvent := nil;
-  Attributes := TAttributeList.Create;
-  Title := '';
+
   Base := '';
   BaseTarget := '';
   Result := False;
@@ -4027,262 +3889,144 @@ begin
   NoBreak := False;
   InComment := False;
 
+  Pos := Doc.Position;
+  Attributes := TAttributeList.Create;
   try
-    if ALoadStyle = lsFile then
-      Docs := LoadStringFromFile(FName)
-    else
-      DocS := S;
-    LoadStyle := lsString;
-    Buff := PChar(DocS);
-    BuffEnd := Buff + Length(DocS);
+    Self.Doc := Doc;
     try
       Result := Parse;
     except {ignore error}
+      on E: Exception do
+        Assert(False, E.Message);
     end;
   finally
     Attributes.Free;
-    DocS := '';
+    Doc.Position := Pos;
   end;
 end;
 
-{----------------GetEntity}
-
-procedure GetEntity(T: TokenObj; CodePage: integer);
-var
-  I, N: Integer;
-  SaveIndex: Integer;
-  Buffer,
-    Entity: TCharCollection;
-  X: char;
+function THtmlParser.GetEntityStr(CodePage: Integer): ThtString;
+{read an entity and return it as a ThtString.}
 
   procedure AddNumericChar(I: Integer; ForceUnicode: Boolean);
-  // Adds the given value as new char to the buffer.
-  begin
-    // If the given value is less than 256 then it is considered as a character which
-    // must be converted to Unicode, otherwise it is already a Unicode character.
-    if I = 9 then
-      Buffer.Add(' ', SaveIndex)
-    else if I < ord(' ') then {control char}
-      Buffer.Add('?', SaveIndex) {is there an error symbol to use here?}
-    else if (I >= 127) and (I <= 159) and not ForceUnicode then
-      Buffer.Add(Char(I), SaveIndex) {127 to 159 not valid Unicode}
-    else
-    begin
-      // Unicode character. Flush any pending ANSI string data before storing it.
-      if Buffer.Size > 0 then
-      begin
-        T.AddString(Buffer, CodePage);
-        Buffer.Clear;
-      end;
-      T.AddUnicodeChar(WideChar(I), SaveIndex);
-    end;
-  end;
-
-begin
-  Buffer := TCharCollection.Create;
-  try
-    begin
-    // A mask character. This introduces special characters and must be followed
-    // by a '#' char or one of the predefined (named) entities.
-      SaveIndex := PropStack.SIndex;
-      GetCh;
-      case LCh of
-        '#': // Numeric value.
-          begin
-            GetCh;
-            if Ch = 'X' then
-            begin
-            // Hex digits given.
-              X := LCh; {either 'x' or 'X', save in case of error}
-              GetCh;
-              if Ch in ['A'..'F', '0'..'9'] then
-              begin
-                I := 0;
-                while Ch in ['A'..'F', '0'..'9'] do
-                begin
-                  if Ch in ['0'..'9'] then
-                    I := 16 * I + (Ord(Ch) - Ord('0'))
-                  else
-                    I := 16 * I + (Ord(Ch) - Ord('A') + 10);
-                  GetCh;
-                end;
-                AddNumericChar(I, False);
-              // Skip the trailing semicolon.
-                if Ch = ';' then
-                  GetCh;
-              end
-              else
-              begin
-                Buffer.Add('&', SaveIndex);
-                Buffer.Add(X, SaveIndex + 1);
-              end;
-            end
-            else
-            begin
-            // Decimal digits given.
-              if Ch in ['0'..'9'] then
-              begin
-                I := 0;
-                while Ch in ['0'..'9'] do
-                begin
-                  I := 10 * I + (Ord(Ch) - Ord('0'));
-                  GetCh;
-                end;
-                AddNumericChar(I, False);
-              // Skip the trailing semicolon.
-                if Ch = ';' then
-                  GetCh;
-              end
-              else
-                Buffer.Add('&', SaveIndex);
-            end;
-          end;
-      else
-        // Must be a predefined (named) entity.
-        Entity := TCharCollection.Create;
-        try
-          N := 0;
-          // Pick up the entity name.
-          while (Ch in ['A'..'Z', '0'..'9']) and (N <= 10) do
-          begin
-            Entity.Add(LCh, PropStack.SIndex);
-            GetCh;
-            Inc(N);
-          end;
-          // Now convert entity string into a character value. If there is no
-          // entity with that name simply add all characters as they are.
-          if Entities.Find(Entity.AsString, I) then
-          begin
-            AddNumericChar(Integer(Entities.Objects[I]), True);
-            // Advance current pointer to first character after the semicolon.
-            if Ch = ';' then
-              GetCh;
-          end
-          else
-          begin
-            Buffer.Add('&', SaveIndex);
-            Buffer.Concat(Entity);
-          end;
-        finally
-          Entity.Free;
-        end;
-      end; {case}
-    end; {while}
-    if Buffer.Size > 0 then
-      T.AddString(Buffer, CodePage);
-  finally
-    Buffer.Free;
-  end;
-end;
-
-function GetEntityStr(CodePage: integer): string;
-{read an entity and return it as a string.}
-var
-  I, N: Integer;
-  Collect,
-    Entity: string;
-
-  procedure AddNumericChar(I: Integer; ForceUnicode: Boolean);
-  // Adds the given value as new char to the string.
+  // Adds the given value as new ThtChar to the ThtString.
   var
-    W: WideChar;
-    Buffer: array[0..10] of char;
+    Buf: array[0..10] of ThtChar;
   begin
     if I = 9 then
-      Result := ' '
-    else if I < ord(' ') then {control char}
+      Result := SpcChar
+    else if I < ord(SpcChar) then {control ThtChar}
       Result := '?' {is there an error symbol to use here?}
     else if (I >= 127) and (I <= 159) and not ForceUnicode then
-      Result := Chr(I)
-    else
     begin
-    // Unicode character, Convert to this Code Page.
-      W := WideChar(I);
-      SetString(Result, Buffer, WideCharToMultiByte(CodePage, 0,
-        @W, 1, @Buffer, SizeOf(Buffer), nil, nil))
-    end;
+      {127 to 159 not valid Unicode}
+      if MultiByteToWideChar(CodePage, 0, @I, 1, @Buf, SizeOf(Buf)) = 0 then
+        Buf[0] := ThtChar(I);
+      SetString(Result, Buf, 1);
+    end
+    else
+      Result := WideChar(I);
   end;
+
+var
+  Collect: ThtString;
 
   procedure NextCh;
   begin
-    Collect := Collect + LCh;
+    SetLength(Collect, Length(Collect) + 1);
+    Collect[Length(Collect)] := LCh;
     GetCh;
   end;
 
+var
+  I, N: Integer;
+  Entity: ThtString;
 begin
-  if LCh = '&' then
+  if LCh = AmperChar then
   begin
   // A mask character. This introduces special characters and must be followed
-  // by a '#' char or one of the predefined (named) entities.
+  // by a '#' ThtChar or one of the predefined (named) entities.
     Collect := '';
     NextCh;
     case LCh of
       '#': // Numeric value.
-        begin
-          NextCh;
-          if Ch = 'X' then
+      begin
+        NextCh;
+        N := 0;
+        I := 0;
+        case LCh of
+          'x', 'X':
           begin
-          // Hex digits given.
+            // Hex digits given.
             NextCh;
-            if Ch in ['A'..'F', '0'..'9'] then
-            begin
-              I := 0;
-              while Ch in ['A'..'F', '0'..'9'] do
-              begin
-                if Ch in ['0'..'9'] then
-                  I := 16 * I + (Ord(Ch) - Ord('0'))
-                else
-                  I := 16 * I + (Ord(Ch) - Ord('A') + 10);
-                NextCh;
+            repeat
+              case LCh of
+                '0'..'9': I := 16 * I + (Ord(LCh) - Ord('0'));
+                'A'..'Z': I := 16 * I + (Ord(LCh) - Ord('A') + 10);
+                'a'..'z': I := 16 * I + (Ord(LCh) - Ord('a') + 10);
+              else
+                break;
               end;
-              AddNumericChar(I, False);
-            // Skip the trailing semicolon.
-              if Ch = ';' then
-                NextCh;
-            end
-            else
-              Result := Collect;
-          end
-          else
-          begin
-          // Decimal digits given.
-            if Ch in ['0'..'9'] then
-            begin
-              I := 0;
-              while Ch in ['0'..'9'] do
-              begin
-                I := 10 * I + (Ord(Ch) - Ord('0'));
-                NextCh;
-              end;
-              AddNumericChar(I, False);
-            // Skip the trailing semicolon.
-              if Ch = ';' then
-                NextCh;
-            end
-            else
-              Result := Collect;
+              Inc(N);
+              NextCh;
+            until False;
           end;
+        else
+          // Decimal digits given.
+          repeat
+            case LCh of
+              '0'..'9': I := 10 * I + (Ord(LCh) - Ord('0'));
+            else
+              break;
+            end;
+            Inc(N);
+            NextCh;
+          until False;
         end;
+        if N > 0 then
+        begin
+          AddNumericChar(I, False);
+          // Skip the trailing semicolon.
+          if LCh = ';' then
+            GetCh;
+        end
+        else
+          Result := Collect;
+      end;
     else
       // Must be a predefined (named) entity.
       Entity := '';
       N := 0;
       // Pick up the entity name.
-      while (Ch in ['A'..'Z', '0'..'9']) and (N <= 10) do
-      begin
-        Entity := Entity + LCh;
-        NextCh;
+      repeat
+        case LCh of
+          'a'..'z',
+          'A'..'Z',
+          '0'..'9':
+          begin
+            SetLength(Entity, Length(Entity) + 1);
+            Entity[Length(Entity)] := LCh;
+          end;
+        else
+          break;
+        end;
         Inc(N);
-      end;
+        NextCh;
+      until N > 10;
 
-      // Now convert entity string into a character value. If there is no
+      // Now convert entity ThtString into a character value. If there is no
       // entity with that name simply add all characters as they are.
-      if Entities.Find(Entity, I) and ((Ch = ';') or (Integer(Entities.Objects[I]) <= 255)) then
+      if Entities.Find(Entity, I) then
       begin
-        AddNumericChar(Integer(Entities.Objects[I]), True);
-        // Advance current pointer to first character after the semicolon.
-        if Ch = ';' then
+        I := PEntity(Entities.Objects[I]).Value;
+        if LCh = ';' then
+        begin
+          AddNumericChar(I, True);
+          // Advance current pointer to first character after the semicolon.
           NextCh;
+        end
+        else if I <= 255 then
+          AddNumericChar(I, True);
       end
       else
         Result := Collect;
@@ -4292,397 +4036,567 @@ end;
 
 // Taken from http://www.w3.org/TR/REC-html40/sgml/entities.html.
 
-type
-  TEntity = record
-    Name: string;
-    Value: WideChar;
-  end;
-
 const
-  EntityCount = 253;
-  // Note: the entities will be sorted into a string list to make binary search possible.
-  EntityDefinitions: array[0..EntityCount - 1] of TEntity = (
+  // Note: the entities will be sorted into a ThtStringList to make binary search possible.
+  EntityDefinitions: array[1..253] of TEntity = (
     // ISO 8859-1 characters
-    (Name: 'nbsp'; Value: #160), // no-break space = non-breaking space, U+00A0 ISOnum
-    (Name: 'iexcl'; Value: #161), // inverted exclamation mark, U+00A1 ISOnum
-    (Name: 'cent'; Value: #162), // cent sign, U+00A2 ISOnum
-    (Name: 'pound'; Value: #163), // pound sign, U+00A3 ISOnum
-    (Name: 'curren'; Value: #164), // currency sign, U+00A4 ISOnum
-    (Name: 'yen'; Value: #165), // yen sign = yuan sign, U+00A5 ISOnum
-    (Name: 'brvbar'; Value: #166), // broken bar = broken vertical bar, U+00A6 ISOnum
-    (Name: 'sect'; Value: #167), // section sign, U+00A7 ISOnum
-    (Name: 'uml'; Value: #168), // diaeresis = spacing diaeresis, U+00A8 ISOdia
-    (Name: 'copy'; Value: #169), // copyright sign, U+00A9 ISOnum
-    (Name: 'ordf'; Value: #170), // feminine ordinal indicator, U+00AA ISOnum
-    (Name: 'laquo'; Value: #171), // left-pointing double angle quotation mark = left pointing guillemet, U+00AB ISOnum
-    (Name: 'not'; Value: #172), // not sign, U+00AC ISOnum
-    (Name: 'shy'; Value: #173), // soft hyphen = discretionary hyphen, U+00AD ISOnum
-    (Name: 'reg'; Value: #174), // registered sign = registered trade mark sign, U+00AE ISOnum
-    (Name: 'macr'; Value: #175), // macron = spacing macron = overline = APL overbar, U+00AF ISOdia
-    (Name: 'deg'; Value: #176), // degree sign, U+00B0 ISOnum
-    (Name: 'plusmn'; Value: #177), // plus-minus sign = plus-or-minus sign, U+00B1 ISOnum
-    (Name: 'sup2'; Value: #178), // superscript two = superscript digit two = squared, U+00B2 ISOnum
-    (Name: 'sup3'; Value: #179), // superscript three = superscript digit three = cubed, U+00B3 ISOnum
-    (Name: 'acute'; Value: #180), // acute accent = spacing acute, U+00B4 ISOdia
-    (Name: 'micro'; Value: #181), // micro sign, U+00B5 ISOnum
-    (Name: 'para'; Value: #182), // pilcrow sign = paragraph sign, U+00B6 ISOnum
-    (Name: 'middot'; Value: #183), // middle dot = Georgian comma = Greek middle dot, U+00B7 ISOnum
-    (Name: 'cedil'; Value: #184), // cedilla = spacing cedilla, U+00B8 ISOdia
-    (Name: 'sup1'; Value: #185), // superscript one = superscript digit one, U+00B9 ISOnum
-    (Name: 'ordm'; Value: #186), // masculine ordinal indicator, U+00BA ISOnum
-    (Name: 'raquo'; Value: #187), // right-pointing double angle quotation mark = right pointing guillemet, U+00BB ISOnum
-    (Name: 'frac14'; Value: #188), // vulgar fraction one quarter = fraction one quarter, U+00BC ISOnum
-    (Name: 'frac12'; Value: #189), // vulgar fraction one half = fraction one half, U+00BD ISOnum
-    (Name: 'frac34'; Value: #190), // vulgar fraction three quarters = fraction three quarters, U+00BE ISOnum
-    (Name: 'iquest'; Value: #191), // inverted question mark = turned question mark, U+00BF ISOnum
-    (Name: 'Agrave'; Value: #192), // latin capital letter A with grave = latin capital letter A grave, U+00C0 ISOlat1
-    (Name: 'Aacute'; Value: #193), // latin capital letter A with acute, U+00C1 ISOlat1
-    (Name: 'Acirc'; Value: #194), // latin capital letter A with circumflex, U+00C2 ISOlat1
-    (Name: 'Atilde'; Value: #195), // latin capital letter A with tilde, U+00C3 ISOlat1
-    (Name: 'Auml'; Value: #196), // latin capital letter A with diaeresis, U+00C4 ISOlat1
-    (Name: 'Aring'; Value: #197), // latin capital letter A with ring above = latin capital letter A ring, U+00C5 ISOlat1
-    (Name: 'AElig'; Value: #198), // latin capital letter AE = latin capital ligature AE, U+00C6 ISOlat1
-    (Name: 'Ccedil'; Value: #199), // latin capital letter C with cedilla, U+00C7 ISOlat1
-    (Name: 'Egrave'; Value: #200), // latin capital letter E with grave, U+00C8 ISOlat1
-    (Name: 'Eacute'; Value: #201), // latin capital letter E with acute, U+00C9 ISOlat1
-    (Name: 'Ecirc'; Value: #202), // latin capital letter E with circumflex, U+00CA ISOlat1
-    (Name: 'Euml'; Value: #203), // latin capital letter E with diaeresis, U+00CB ISOlat1
-    (Name: 'Igrave'; Value: #204), // latin capital letter I with grave, U+00CC ISOlat1
-    (Name: 'Iacute'; Value: #205), // latin capital letter I with acute, U+00CD ISOlat1
-    (Name: 'Icirc'; Value: #206), // latin capital letter I with circumflex, U+00CE ISOlat1
-    (Name: 'Iuml'; Value: #207), // latin capital letter I with diaeresis, U+00CF ISOlat1
-    (Name: 'ETH'; Value: #208), // latin capital letter ETH, U+00D0 ISOlat1
-    (Name: 'Ntilde'; Value: #209), // latin capital letter N with tilde, U+00D1 ISOlat1
-    (Name: 'Ograve'; Value: #210), // latin capital letter O with grave, U+00D2 ISOlat1
-    (Name: 'Oacute'; Value: #211), // latin capital letter O with acute, U+00D3 ISOlat1
-    (Name: 'Ocirc'; Value: #212), // latin capital letter O with circumflex, U+00D4 ISOlat1
-    (Name: 'Otilde'; Value: #213), // latin capital letter O with tilde, U+00D5 ISOlat1
-    (Name: 'Ouml'; Value: #214), // latin capital letter O with diaeresis, U+00D6 ISOlat1
-    (Name: 'times'; Value: #215), // multiplication sign, U+00D7 ISOnum
-    (Name: 'Oslash'; Value: #216), // latin capital letter O with stroke = latin capital letter O slash, U+00D8 ISOlat1
-    (Name: 'Ugrave'; Value: #217), // latin capital letter U with grave, U+00D9 ISOlat1
-    (Name: 'Uacute'; Value: #218), // latin capital letter U with acute, U+00DA ISOlat1
-    (Name: 'Ucirc'; Value: #219), // latin capital letter U with circumflex, U+00DB ISOlat1
-    (Name: 'Uuml'; Value: #220), // latin capital letter U with diaeresis, U+00DC ISOlat1
-    (Name: 'Yacute'; Value: #221), // latin capital letter Y with acute, U+00DD ISOlat1
-    (Name: 'THORN'; Value: #222), // latin capital letter THORN, U+00DE ISOlat1
-    (Name: 'szlig'; Value: #223), // latin small letter sharp s = ess-zed, U+00DF ISOlat1
-    (Name: 'agrave'; Value: #224), // latin small letter a with grave = latin small letter a grave, U+00E0 ISOlat1
-    (Name: 'aacute'; Value: #225), // latin small letter a with acute, U+00E1 ISOlat1
-    (Name: 'acirc'; Value: #226), // latin small letter a with circumflex, U+00E2 ISOlat1
-    (Name: 'atilde'; Value: #227), // latin small letter a with tilde, U+00E3 ISOlat1
-    (Name: 'auml'; Value: #228), // latin small letter a with diaeresis, U+00E4 ISOlat1
-    (Name: 'aring'; Value: #229), // latin small letter a with ring above = latin small letter a ring, U+00E5 ISOlat1
-    (Name: 'aelig'; Value: #230), // latin small letter ae = latin small ligature ae, U+00E6 ISOlat1
-    (Name: 'ccedil'; Value: #231), // latin small letter c with cedilla, U+00E7 ISOlat1
-    (Name: 'egrave'; Value: #232), // latin small letter e with grave, U+00E8 ISOlat1
-    (Name: 'eacute'; Value: #233), // latin small letter e with acute, U+00E9 ISOlat1
-    (Name: 'ecirc'; Value: #234), // latin small letter e with circumflex, U+00EA ISOlat1
-    (Name: 'euml'; Value: #235), // latin small letter e with diaeresis, U+00EB ISOlat1
-    (Name: 'igrave'; Value: #236), // latin small letter i with grave, U+00EC ISOlat1
-    (Name: 'iacute'; Value: #237), // latin small letter i with acute, U+00ED ISOlat1
-    (Name: 'icirc'; Value: #238), // latin small letter i with circumflex, U+00EE ISOlat1
-    (Name: 'iuml'; Value: #239), // latin small letter i with diaeresis, U+00EF ISOlat1
-    (Name: 'eth'; Value: #240), // latin small letter eth, U+00F0 ISOlat1
-    (Name: 'ntilde'; Value: #241), // latin small letter n with tilde, U+00F1 ISOlat1
-    (Name: 'ograve'; Value: #242), // latin small letter o with grave, U+00F2 ISOlat1
-    (Name: 'oacute'; Value: #243), // latin small letter o with acute, U+00F3 ISOlat1
-    (Name: 'ocirc'; Value: #244), // latin small letter o with circumflex, U+00F4 ISOlat1
-    (Name: 'otilde'; Value: #245), // latin small letter o with tilde, U+00F5 ISOlat1
-    (Name: 'ouml'; Value: #246), // latin small letter o with diaeresis, U+00F6 ISOlat1
-    (Name: 'divide'; Value: #247), // division sign, U+00F7 ISOnum
-    (Name: 'oslash'; Value: #248), // latin small letter o with stroke, = latin small letter o slash, U+00F8 ISOlat1
-    (Name: 'ugrave'; Value: #249), // latin small letter u with grave, U+00F9 ISOlat1
-    (Name: 'uacute'; Value: #250), // latin small letter u with acute, U+00FA ISOlat1
-    (Name: 'ucirc'; Value: #251), // latin small letter u with circumflex, U+00FB ISOlat1
-    (Name: 'uuml'; Value: #252), // latin small letter u with diaeresis, U+00FC ISOlat1
-    (Name: 'yacute'; Value: #253), // latin small letter y with acute, U+00FD ISOlat1
-    (Name: 'thorn'; Value: #254), // latin small letter thorn, U+00FE ISOlat1
-    (Name: 'yuml'; Value: #255), // latin small letter y with diaeresis, U+00FF ISOlat1
+    (Name: 'nbsp'; Value: 160), // no-break space = non-breaking space, U+00A0 ISOnum
+    (Name: 'iexcl'; Value: 161), // inverted exclamation mark, U+00A1 ISOnum
+    (Name: 'cent'; Value: 162), // cent sign, U+00A2 ISOnum
+    (Name: 'pound'; Value: 163), // pound sign, U+00A3 ISOnum
+    (Name: 'curren'; Value: 164), // currency sign, U+00A4 ISOnum
+    (Name: 'yen'; Value: 165), // yen sign = yuan sign, U+00A5 ISOnum
+    (Name: 'brvbar'; Value: 166), // broken bar = broken vertical bar, U+00A6 ISOnum
+    (Name: 'sect'; Value: 167), // section sign, U+00A7 ISOnum
+    (Name: 'uml'; Value: 168), // diaeresis = spacing diaeresis, U+00A8 ISOdia
+    (Name: 'copy'; Value: 169), // copyright sign, U+00A9 ISOnum
+    (Name: 'ordf'; Value: 170), // feminine ordinal indicator, U+00AA ISOnum
+    (Name: 'laquo'; Value: 171), // left-pointing double angle quotation mark = left pointing guillemet, U+00AB ISOnum
+    (Name: 'not'; Value: 172), // not sign, U+00AC ISOnum
+    (Name: 'shy'; Value: 173), // soft hyphen = discretionary hyphen, U+00AD ISOnum
+    (Name: 'reg'; Value: 174), // registered sign = registered trade mark sign, U+00AE ISOnum
+    (Name: 'macr'; Value: 175), // macron = spacing macron = overline = APL overbar, U+00AF ISOdia
+    (Name: 'deg'; Value: 176), // degree sign, U+00B0 ISOnum
+    (Name: 'plusmn'; Value: 177), // plus-minus sign = plus-or-minus sign, U+00B1 ISOnum
+    (Name: 'sup2'; Value: 178), // superscript two = superscript digit two = squared, U+00B2 ISOnum
+    (Name: 'sup3'; Value: 179), // superscript three = superscript digit three = cubed, U+00B3 ISOnum
+    (Name: 'acute'; Value: 180), // acute accent = spacing acute, U+00B4 ISOdia
+    (Name: 'micro'; Value: 181), // micro sign, U+00B5 ISOnum
+    (Name: 'para'; Value: 182), // pilcrow sign = paragraph sign, U+00B6 ISOnum
+    (Name: 'middot'; Value: 183), // middle dot = Georgian comma = Greek middle dot, U+00B7 ISOnum
+    (Name: 'cedil'; Value: 184), // cedilla = spacing cedilla, U+00B8 ISOdia
+    (Name: 'sup1'; Value: 185), // superscript one = superscript digit one, U+00B9 ISOnum
+    (Name: 'ordm'; Value: 186), // masculine ordinal indicator, U+00BA ISOnum
+    (Name: 'raquo'; Value: 187), // right-pointing double angle quotation mark = right pointing guillemet, U+00BB ISOnum
+    (Name: 'frac14'; Value: 188), // vulgar fraction one quarter = fraction one quarter, U+00BC ISOnum
+    (Name: 'frac12'; Value: 189), // vulgar fraction one half = fraction one half, U+00BD ISOnum
+    (Name: 'frac34'; Value: 190), // vulgar fraction three quarters = fraction three quarters, U+00BE ISOnum
+    (Name: 'iquest'; Value: 191), // inverted question mark = turned question mark, U+00BF ISOnum
+    (Name: 'Agrave'; Value: 192), // latin capital letter A with grave = latin capital letter A grave, U+00C0 ISOlat1
+    (Name: 'Aacute'; Value: 193), // latin capital letter A with acute, U+00C1 ISOlat1
+    (Name: 'Acirc'; Value: 194), // latin capital letter A with circumflex, U+00C2 ISOlat1
+    (Name: 'Atilde'; Value: 195), // latin capital letter A with tilde, U+00C3 ISOlat1
+    (Name: 'Auml'; Value: 196), // latin capital letter A with diaeresis, U+00C4 ISOlat1
+    (Name: 'Aring'; Value: 197), // latin capital letter A with ring above = latin capital letter A ring, U+00C5 ISOlat1
+    (Name: 'AElig'; Value: 198), // latin capital letter AE = latin capital ligature AE, U+00C6 ISOlat1
+    (Name: 'Ccedil'; Value: 199), // latin capital letter C with cedilla, U+00C7 ISOlat1
+    (Name: 'Egrave'; Value: 200), // latin capital letter E with grave, U+00C8 ISOlat1
+    (Name: 'Eacute'; Value: 201), // latin capital letter E with acute, U+00C9 ISOlat1
+    (Name: 'Ecirc'; Value: 202), // latin capital letter E with circumflex, U+00CA ISOlat1
+    (Name: 'Euml'; Value: 203), // latin capital letter E with diaeresis, U+00CB ISOlat1
+    (Name: 'Igrave'; Value: 204), // latin capital letter I with grave, U+00CC ISOlat1
+    (Name: 'Iacute'; Value: 205), // latin capital letter I with acute, U+00CD ISOlat1
+    (Name: 'Icirc'; Value: 206), // latin capital letter I with circumflex, U+00CE ISOlat1
+    (Name: 'Iuml'; Value: 207), // latin capital letter I with diaeresis, U+00CF ISOlat1
+    (Name: 'ETH'; Value: 208), // latin capital letter ETH, U+00D0 ISOlat1
+    (Name: 'Ntilde'; Value: 209), // latin capital letter N with tilde, U+00D1 ISOlat1
+    (Name: 'Ograve'; Value: 210), // latin capital letter O with grave, U+00D2 ISOlat1
+    (Name: 'Oacute'; Value: 211), // latin capital letter O with acute, U+00D3 ISOlat1
+    (Name: 'Ocirc'; Value: 212), // latin capital letter O with circumflex, U+00D4 ISOlat1
+    (Name: 'Otilde'; Value: 213), // latin capital letter O with tilde, U+00D5 ISOlat1
+    (Name: 'Ouml'; Value: 214), // latin capital letter O with diaeresis, U+00D6 ISOlat1
+    (Name: 'times'; Value: 215), // multiplication sign, U+00D7 ISOnum
+    (Name: 'Oslash'; Value: 216), // latin capital letter O with stroke = latin capital letter O slash, U+00D8 ISOlat1
+    (Name: 'Ugrave'; Value: 217), // latin capital letter U with grave, U+00D9 ISOlat1
+    (Name: 'Uacute'; Value: 218), // latin capital letter U with acute, U+00DA ISOlat1
+    (Name: 'Ucirc'; Value: 219), // latin capital letter U with circumflex, U+00DB ISOlat1
+    (Name: 'Uuml'; Value: 220), // latin capital letter U with diaeresis, U+00DC ISOlat1
+    (Name: 'Yacute'; Value: 221), // latin capital letter Y with acute, U+00DD ISOlat1
+    (Name: 'THORN'; Value: 222), // latin capital letter THORN, U+00DE ISOlat1
+    (Name: 'szlig'; Value: 223), // latin small letter sharp s = ess-zed, U+00DF ISOlat1
+    (Name: 'agrave'; Value: 224), // latin small letter a with grave = latin small letter a grave, U+00E0 ISOlat1
+    (Name: 'aacute'; Value: 225), // latin small letter a with acute, U+00E1 ISOlat1
+    (Name: 'acirc'; Value: 226), // latin small letter a with circumflex, U+00E2 ISOlat1
+    (Name: 'atilde'; Value: 227), // latin small letter a with tilde, U+00E3 ISOlat1
+    (Name: 'auml'; Value: 228), // latin small letter a with diaeresis, U+00E4 ISOlat1
+    (Name: 'aring'; Value: 229), // latin small letter a with ring above = latin small letter a ring, U+00E5 ISOlat1
+    (Name: 'aelig'; Value: 230), // latin small letter ae = latin small ligature ae, U+00E6 ISOlat1
+    (Name: 'ccedil'; Value: 231), // latin small letter c with cedilla, U+00E7 ISOlat1
+    (Name: 'egrave'; Value: 232), // latin small letter e with grave, U+00E8 ISOlat1
+    (Name: 'eacute'; Value: 233), // latin small letter e with acute, U+00E9 ISOlat1
+    (Name: 'ecirc'; Value: 234), // latin small letter e with circumflex, U+00EA ISOlat1
+    (Name: 'euml'; Value: 235), // latin small letter e with diaeresis, U+00EB ISOlat1
+    (Name: 'igrave'; Value: 236), // latin small letter i with grave, U+00EC ISOlat1
+    (Name: 'iacute'; Value: 237), // latin small letter i with acute, U+00ED ISOlat1
+    (Name: 'icirc'; Value: 238), // latin small letter i with circumflex, U+00EE ISOlat1
+    (Name: 'iuml'; Value: 239), // latin small letter i with diaeresis, U+00EF ISOlat1
+    (Name: 'eth'; Value: 240), // latin small letter eth, U+00F0 ISOlat1
+    (Name: 'ntilde'; Value: 241), // latin small letter n with tilde, U+00F1 ISOlat1
+    (Name: 'ograve'; Value: 242), // latin small letter o with grave, U+00F2 ISOlat1
+    (Name: 'oacute'; Value: 243), // latin small letter o with acute, U+00F3 ISOlat1
+    (Name: 'ocirc'; Value: 244), // latin small letter o with circumflex, U+00F4 ISOlat1
+    (Name: 'otilde'; Value: 245), // latin small letter o with tilde, U+00F5 ISOlat1
+    (Name: 'ouml'; Value: 246), // latin small letter o with diaeresis, U+00F6 ISOlat1
+    (Name: 'divide'; Value: 247), // division sign, U+00F7 ISOnum
+    (Name: 'oslash'; Value: 248), // latin small letter o with stroke, = latin small letter o slash, U+00F8 ISOlat1
+    (Name: 'ugrave'; Value: 249), // latin small letter u with grave, U+00F9 ISOlat1
+    (Name: 'uacute'; Value: 250), // latin small letter u with acute, U+00FA ISOlat1
+    (Name: 'ucirc'; Value: 251), // latin small letter u with circumflex, U+00FB ISOlat1
+    (Name: 'uuml'; Value: 252), // latin small letter u with diaeresis, U+00FC ISOlat1
+    (Name: 'yacute'; Value: 253), // latin small letter y with acute, U+00FD ISOlat1
+    (Name: 'thorn'; Value: 254), // latin small letter thorn, U+00FE ISOlat1
+    (Name: 'yuml'; Value: 255), // latin small letter y with diaeresis, U+00FF ISOlat1
 
     // symbols, mathematical symbols, and Greek letters
     // Latin Extended-B
-    (Name: 'fnof'; Value: #402), // latin small f with hook = function = florin, U+0192 ISOtech
+    (Name: 'fnof'; Value: 402), // latin small f with hook = function = florin, U+0192 ISOtech
 
     // Greek
-    (Name: 'Alpha'; Value: #913), // greek capital letter alpha, U+0391
-    (Name: 'Beta'; Value: #914), // greek capital letter beta, U+0392
-    (Name: 'Gamma'; Value: #915), // greek capital letter gamma, U+0393 ISOgrk3
-    (Name: 'Delta'; Value: #916), // greek capital letter delta, U+0394 ISOgrk3
-    (Name: 'Epsilon'; Value: #917), // greek capital letter epsilon, U+0395
-    (Name: 'Zeta'; Value: #918), // greek capital letter zeta, U+0396
-    (Name: 'Eta'; Value: #919), // greek capital letter eta, U+0397
-    (Name: 'Theta'; Value: #920), // greek capital letter theta, U+0398 ISOgrk3
-    (Name: 'Iota'; Value: #921), // greek capital letter iota, U+0399
-    (Name: 'Kappa'; Value: #922), // greek capital letter kappa, U+039A
-    (Name: 'Lambda'; Value: #923), // greek capital letter lambda, U+039B ISOgrk3
-    (Name: 'Mu'; Value: #924), // greek capital letter mu, U+039C
-    (Name: 'Nu'; Value: #925), // greek capital letter nu, U+039D
-    (Name: 'Xi'; Value: #926), // greek capital letter xi, U+039E ISOgrk3
-    (Name: 'Omicron'; Value: #927), // greek capital letter omicron, U+039F
-    (Name: 'Pi'; Value: #928), // greek capital letter pi, U+03A0 ISOgrk3
-    (Name: 'Rho'; Value: #929), // greek capital letter rho, U+03A1
-    (Name: 'Sigma'; Value: #931), // greek capital letter sigma, U+03A3 ISOgrk3,
+    (Name: 'Alpha'; Value: 913), // greek capital letter alpha, U+0391
+    (Name: 'Beta'; Value: 914), // greek capital letter beta, U+0392
+    (Name: 'Gamma'; Value: 915), // greek capital letter gamma, U+0393 ISOgrk3
+    (Name: 'Delta'; Value: 916), // greek capital letter delta, U+0394 ISOgrk3
+    (Name: 'Epsilon'; Value: 917), // greek capital letter epsilon, U+0395
+    (Name: 'Zeta'; Value: 918), // greek capital letter zeta, U+0396
+    (Name: 'Eta'; Value: 919), // greek capital letter eta, U+0397
+    (Name: 'Theta'; Value: 920), // greek capital letter theta, U+0398 ISOgrk3
+    (Name: 'Iota'; Value: 921), // greek capital letter iota, U+0399
+    (Name: 'Kappa'; Value: 922), // greek capital letter kappa, U+039A
+    (Name: 'Lambda'; Value: 923), // greek capital letter lambda, U+039B ISOgrk3
+    (Name: 'Mu'; Value: 924), // greek capital letter mu, U+039C
+    (Name: 'Nu'; Value: 925), // greek capital letter nu, U+039D
+    (Name: 'Xi'; Value: 926), // greek capital letter xi, U+039E ISOgrk3
+    (Name: 'Omicron'; Value: 927), // greek capital letter omicron, U+039F
+    (Name: 'Pi'; Value: 928), // greek capital letter pi, U+03A0 ISOgrk3
+    (Name: 'Rho'; Value: 929), // greek capital letter rho, U+03A1
+    (Name: 'Sigma'; Value: 931), // greek capital letter sigma, U+03A3 ISOgrk3,
                                      // there is no Sigmaf, and no U+03A2 character either
-    (Name: 'Tau'; Value: #932), // greek capital letter tau, U+03A4
-    (Name: 'Upsilon'; Value: #933), // greek capital letter upsilon, U+03A5 ISOgrk3
-    (Name: 'Phi'; Value: #934), // greek capital letter phi, U+03A6 ISOgrk3
-    (Name: 'Chi'; Value: #935), // greek capital letter chi, U+03A7
-    (Name: 'Psi'; Value: #936), // greek capital letter psi, U+03A8 ISOgrk3
-    (Name: 'Omega'; Value: #937), // greek capital letter omega, U+03A9 ISOgrk3
-    (Name: 'alpha'; Value: #945), // greek small letter alpha, U+03B1 ISOgrk3
-    (Name: 'beta'; Value: #946), // greek small letter beta, U+03B2 ISOgrk3
-    (Name: 'gamma'; Value: #947), // greek small letter gamma, U+03B3 ISOgrk3
-    (Name: 'delta'; Value: #948), // greek small letter delta, U+03B4 ISOgrk3
-    (Name: 'epsilon'; Value: #949), // greek small letter epsilon, U+03B5 ISOgrk3
-    (Name: 'zeta'; Value: #950), // greek small letter zeta, U+03B6 ISOgrk3
-    (Name: 'eta'; Value: #951), // greek small letter eta, U+03B7 ISOgrk3
-    (Name: 'theta'; Value: #952), // greek small letter theta, U+03B8 ISOgrk3
-    (Name: 'iota'; Value: #953), // greek small letter iota, U+03B9 ISOgrk3
-    (Name: 'kappa'; Value: #954), // greek small letter kappa, U+03BA ISOgrk3
-    (Name: 'lambda'; Value: #955), // greek small letter lambda, U+03BB ISOgrk3
-    (Name: 'mu'; Value: #956), // greek small letter mu, U+03BC ISOgrk3
-    (Name: 'nu'; Value: #957), // greek small letter nu, U+03BD ISOgrk3
-    (Name: 'xi'; Value: #958), // greek small letter xi, U+03BE ISOgrk3
-    (Name: 'omicron'; Value: #959), // greek small letter omicron, U+03BF NEW
-    (Name: 'pi'; Value: #960), // greek small letter pi, U+03C0 ISOgrk3
-    (Name: 'rho'; Value: #961), // greek small letter rho, U+03C1 ISOgrk3
-    (Name: 'sigmaf'; Value: #962), // greek small letter final sigma, U+03C2 ISOgrk3
-    (Name: 'sigma'; Value: #963), // greek small letter sigma, U+03C3 ISOgrk3
-    (Name: 'tau'; Value: #964), // greek small letter tau, U+03C4 ISOgrk3
-    (Name: 'upsilon'; Value: #965), // greek small letter upsilon, U+03C5 ISOgrk3
-    (Name: 'phi'; Value: #966), // greek small letter phi, U+03C6 ISOgrk3
-    (Name: 'chi'; Value: #967), // greek small letter chi, U+03C7 ISOgrk3
-    (Name: 'psi'; Value: #968), // greek small letter psi, U+03C8 ISOgrk3
-    (Name: 'omega'; Value: #969), // greek small letter omega, U+03C9 ISOgrk3
-    (Name: 'thetasym'; Value: #977), // greek small letter theta symbol, U+03D1 NEW
-    (Name: 'upsih'; Value: #978), // greek upsilon with hook symbol, U+03D2 NEW
-    (Name: 'piv'; Value: #982), // greek pi symbol, U+03D6 ISOgrk3
+    (Name: 'Tau'; Value: 932), // greek capital letter tau, U+03A4
+    (Name: 'Upsilon'; Value: 933), // greek capital letter upsilon, U+03A5 ISOgrk3
+    (Name: 'Phi'; Value: 934), // greek capital letter phi, U+03A6 ISOgrk3
+    (Name: 'Chi'; Value: 935), // greek capital letter chi, U+03A7
+    (Name: 'Psi'; Value: 936), // greek capital letter psi, U+03A8 ISOgrk3
+    (Name: 'Omega'; Value: 937), // greek capital letter omega, U+03A9 ISOgrk3
+    (Name: 'alpha'; Value: 945), // greek small letter alpha, U+03B1 ISOgrk3
+    (Name: 'beta'; Value: 946), // greek small letter beta, U+03B2 ISOgrk3
+    (Name: 'gamma'; Value: 947), // greek small letter gamma, U+03B3 ISOgrk3
+    (Name: 'delta'; Value: 948), // greek small letter delta, U+03B4 ISOgrk3
+    (Name: 'epsilon'; Value: 949), // greek small letter epsilon, U+03B5 ISOgrk3
+    (Name: 'zeta'; Value: 950), // greek small letter zeta, U+03B6 ISOgrk3
+    (Name: 'eta'; Value: 951), // greek small letter eta, U+03B7 ISOgrk3
+    (Name: 'theta'; Value: 952), // greek small letter theta, U+03B8 ISOgrk3
+    (Name: 'iota'; Value: 953), // greek small letter iota, U+03B9 ISOgrk3
+    (Name: 'kappa'; Value: 954), // greek small letter kappa, U+03BA ISOgrk3
+    (Name: 'lambda'; Value: 955), // greek small letter lambda, U+03BB ISOgrk3
+    (Name: 'mu'; Value: 956), // greek small letter mu, U+03BC ISOgrk3
+    (Name: 'nu'; Value: 957), // greek small letter nu, U+03BD ISOgrk3
+    (Name: 'xi'; Value: 958), // greek small letter xi, U+03BE ISOgrk3
+    (Name: 'omicron'; Value: 959), // greek small letter omicron, U+03BF NEW
+    (Name: 'pi'; Value: 960), // greek small letter pi, U+03C0 ISOgrk3
+    (Name: 'rho'; Value: 961), // greek small letter rho, U+03C1 ISOgrk3
+    (Name: 'sigmaf'; Value: 962), // greek small letter final sigma, U+03C2 ISOgrk3
+    (Name: 'sigma'; Value: 963), // greek small letter sigma, U+03C3 ISOgrk3
+    (Name: 'tau'; Value: 964), // greek small letter tau, U+03C4 ISOgrk3
+    (Name: 'upsilon'; Value: 965), // greek small letter upsilon, U+03C5 ISOgrk3
+    (Name: 'phi'; Value: 966), // greek small letter phi, U+03C6 ISOgrk3
+    (Name: 'chi'; Value: 967), // greek small letter chi, U+03C7 ISOgrk3
+    (Name: 'psi'; Value: 968), // greek small letter psi, U+03C8 ISOgrk3
+    (Name: 'omega'; Value: 969), // greek small letter omega, U+03C9 ISOgrk3
+    (Name: 'thetasym'; Value: 977), // greek small letter theta symbol, U+03D1 NEW
+    (Name: 'upsih'; Value: 978), // greek upsilon with hook symbol, U+03D2 NEW
+    (Name: 'piv'; Value: 982), // greek pi symbol, U+03D6 ISOgrk3
    // General Punctuation
-    (Name: 'apos'; Value: #8217), // curly apostrophe,
-    (Name: 'bull'; Value: #8226), // bullet = black small circle, U+2022 ISOpub,
+    (Name: 'apos'; Value: 8217), // curly apostrophe,
+    (Name: 'bull'; Value: 8226), // bullet = black small circle, U+2022 ISOpub,
                                       // bullet is NOT the same as bullet operator, U+2219
-    (Name: 'hellip'; Value: #8230), // horizontal ellipsis = three dot leader, U+2026 ISOpub
-    (Name: 'prime'; Value: #8242), // prime = minutes = feet, U+2032 ISOtech
-    (Name: 'Prime'; Value: #8243), // double prime = seconds = inches, U+2033 ISOtech
-    (Name: 'oline'; Value: #8254), // overline = spacing overscore, U+203E NEW
-    (Name: 'frasl'; Value: #8260), // fraction slash, U+2044 NEW
+    (Name: 'hellip'; Value: 8230), // horizontal ellipsis = three dot leader, U+2026 ISOpub
+    (Name: 'prime'; Value: 8242), // prime = minutes = feet, U+2032 ISOtech
+    (Name: 'Prime'; Value: 8243), // double prime = seconds = inches, U+2033 ISOtech
+    (Name: 'oline'; Value: 8254), // overline = spacing overscore, U+203E NEW
+    (Name: 'frasl'; Value: 8260), // fraction slash, U+2044 NEW
     // Letterlike Symbols
-    (Name: 'weierp'; Value: #8472), // script capital P = power set = Weierstrass p, U+2118 ISOamso
-    (Name: 'image'; Value: #8465), // blackletter capital I = imaginary part, U+2111 ISOamso
-    (Name: 'real'; Value: #8476), // blackletter capital R = real part symbol, U+211C ISOamso
-    (Name: 'trade'; Value: #8482), // trade mark sign, U+2122 ISOnum
-    (Name: 'alefsym'; Value: #8501), // alef symbol = first transfinite cardinal, U+2135 NEW
+    (Name: 'weierp'; Value: 8472), // script capital P = power set = Weierstrass p, U+2118 ISOamso
+    (Name: 'image'; Value: 8465), // blackletter capital I = imaginary part, U+2111 ISOamso
+    (Name: 'real'; Value: 8476), // blackletter capital R = real part symbol, U+211C ISOamso
+    (Name: 'trade'; Value: 8482), // trade mark sign, U+2122 ISOnum
+    (Name: 'alefsym'; Value: 8501), // alef symbol = first transfinite cardinal, U+2135 NEW
                                       // alef symbol is NOT the same as hebrew letter alef, U+05D0 although the same
                                       // glyph could be used to depict both characters
     // Arrows
-    (Name: 'larr'; Value: #8592), // leftwards arrow, U+2190 ISOnum
-    (Name: 'uarr'; Value: #8593), // upwards arrow, U+2191 ISOnu
-    (Name: 'rarr'; Value: #8594), // rightwards arrow, U+2192 ISOnum
-    (Name: 'darr'; Value: #8595), // downwards arrow, U+2193 ISOnum
-    (Name: 'harr'; Value: #8596), // left right arrow, U+2194 ISOamsa
-    (Name: 'crarr'; Value: #8629), // downwards arrow with corner leftwards = carriage return, U+21B5 NEW
-    (Name: 'lArr'; Value: #8656), // leftwards double arrow, U+21D0 ISOtech
+    (Name: 'larr'; Value: 8592), // leftwards arrow, U+2190 ISOnum
+    (Name: 'uarr'; Value: 8593), // upwards arrow, U+2191 ISOnu
+    (Name: 'rarr'; Value: 8594), // rightwards arrow, U+2192 ISOnum
+    (Name: 'darr'; Value: 8595), // downwards arrow, U+2193 ISOnum
+    (Name: 'harr'; Value: 8596), // left right arrow, U+2194 ISOamsa
+    (Name: 'crarr'; Value: 8629), // downwards arrow with corner leftwards = carriage return, U+21B5 NEW
+    (Name: 'lArr'; Value: 8656), // leftwards double arrow, U+21D0 ISOtech
                                       // ISO 10646 does not say that lArr is the same as the 'is implied by' arrow but
                                       // also does not have any other charater for that function. So ? lArr can be used
                                       // for 'is implied by' as ISOtech sugg
-    (Name: 'uArr'; Value: #8657), // upwards double arrow, U+21D1 ISOamsa
-    (Name: 'rArr'; Value: #8658), // rightwards double arrow, U+21D2 ISOtech
+    (Name: 'uArr'; Value: 8657), // upwards double arrow, U+21D1 ISOamsa
+    (Name: 'rArr'; Value: 8658), // rightwards double arrow, U+21D2 ISOtech
                                       // ISO 10646 does not say this is the 'implies' character but does not have another
                                       // character with this function so ? rArr can be used for 'implies' as ISOtech suggests
-    (Name: 'dArr'; Value: #8659), // downwards double arrow, U+21D3 ISOamsa
-    (Name: 'hArr'; Value: #8660), // left right double arrow, U+21D4 ISOamsa
+    (Name: 'dArr'; Value: 8659), // downwards double arrow, U+21D3 ISOamsa
+    (Name: 'hArr'; Value: 8660), // left right double arrow, U+21D4 ISOamsa
     // Mathematical Operators
-    (Name: 'forall'; Value: #8704), // for all, U+2200 ISOtech
-    (Name: 'part'; Value: #8706), // partial differential, U+2202 ISOtech
-    (Name: 'exist'; Value: #8707), // there exists, U+2203 ISOtech
-    (Name: 'empty'; Value: #8709), // empty set = null set = diameter, U+2205 ISOamso
-    (Name: 'nabla'; Value: #8711), // nabla = backward difference, U+2207 ISOtech
-    (Name: 'isin'; Value: #8712), // element of, U+2208 ISOtech
-    (Name: 'notin'; Value: #8713), // not an element of, U+2209 ISOtech
-    (Name: 'ni'; Value: #8715), // contains as member, U+220B ISOtech
-    (Name: 'prod'; Value: #8719), // n-ary product = product sign, U+220F ISOamsb
+    (Name: 'forall'; Value: 8704), // for all, U+2200 ISOtech
+    (Name: 'part'; Value: 8706), // partial differential, U+2202 ISOtech
+    (Name: 'exist'; Value: 8707), // there exists, U+2203 ISOtech
+    (Name: 'empty'; Value: 8709), // empty set = null set = diameter, U+2205 ISOamso
+    (Name: 'nabla'; Value: 8711), // nabla = backward difference, U+2207 ISOtech
+    (Name: 'isin'; Value: 8712), // element of, U+2208 ISOtech
+    (Name: 'notin'; Value: 8713), // not an element of, U+2209 ISOtech
+    (Name: 'ni'; Value: 8715), // contains as member, U+220B ISOtech
+    (Name: 'prod'; Value: 8719), // n-ary product = product sign, U+220F ISOamsb
                                       // prod is NOT the same character as U+03A0 'greek capital letter pi' though the
                                       // same glyph might be used for both
-    (Name: 'sum'; Value: #8721), // n-ary sumation, U+2211 ISOamsb
+    (Name: 'sum'; Value: 8721), // n-ary sumation, U+2211 ISOamsb
                                       //  sum is NOT the same character as U+03A3 'greek capital letter sigma' though the
                                       // same glyph might be used for both
-    (Name: 'minus'; Value: #8722), // minus sign, U+2212 ISOtech
-    (Name: 'lowast'; Value: #8727), // asterisk operator, U+2217 ISOtech
-    (Name: 'radic'; Value: #8730), // square root = radical sign, U+221A ISOtech
-    (Name: 'prop'; Value: #8733), // proportional to, U+221D ISOtech
-    (Name: 'infin'; Value: #8734), // infinity, U+221E ISOtech
-    (Name: 'ang'; Value: #8736), // angle, U+2220 ISOamso
-    (Name: 'and'; Value: #8743), // logical and = wedge, U+2227 ISOtech
-    (Name: 'or'; Value: #8744), // logical or = vee, U+2228 ISOtech
-    (Name: 'cap'; Value: #8745), // intersection = cap, U+2229 ISOtech
-    (Name: 'cup'; Value: #8746), // union = cup, U+222A ISOtech
-    (Name: 'int'; Value: #8747), // integral, U+222B ISOtech
-    (Name: 'there4'; Value: #8756), // therefore, U+2234 ISOtech
-    (Name: 'sim'; Value: #8764), // tilde operator = varies with = similar to, U+223C ISOtech
+    (Name: 'minus'; Value: 8722), // minus sign, U+2212 ISOtech
+    (Name: 'lowast'; Value: 8727), // asterisk operator, U+2217 ISOtech
+    (Name: 'radic'; Value: 8730), // square root = radical sign, U+221A ISOtech
+    (Name: 'prop'; Value: 8733), // proportional to, U+221D ISOtech
+    (Name: 'infin'; Value: 8734), // infinity, U+221E ISOtech
+    (Name: 'ang'; Value: 8736), // angle, U+2220 ISOamso
+    (Name: 'and'; Value: 8743), // logical and = wedge, U+2227 ISOtech
+    (Name: 'or'; Value: 8744), // logical or = vee, U+2228 ISOtech
+    (Name: 'cap'; Value: 8745), // intersection = cap, U+2229 ISOtech
+    (Name: 'cup'; Value: 8746), // union = cup, U+222A ISOtech
+    (Name: 'int'; Value: 8747), // integral, U+222B ISOtech
+    (Name: 'there4'; Value: 8756), // therefore, U+2234 ISOtech
+    (Name: 'sim'; Value: 8764), // tilde operator = varies with = similar to, U+223C ISOtech
                                       // tilde operator is NOT the same character as the tilde, U+007E, although the same
                                       // glyph might be used to represent both
-    (Name: 'cong'; Value: #8773), // approximately equal to, U+2245 ISOtech
-    (Name: 'asymp'; Value: #8776), // almost equal to = asymptotic to, U+2248 ISOamsr
-    (Name: 'ne'; Value: #8800), // not equal to, U+2260 ISOtech
-    (Name: 'equiv'; Value: #8801), // identical to, U+2261 ISOtech
-    (Name: 'le'; Value: #8804), // less-than or equal to, U+2264 ISOtech
-    (Name: 'ge'; Value: #8805), // greater-than or equal to, U+2265 ISOtech
-    (Name: 'sub'; Value: #8834), // subset of, U+2282 ISOtech
-    (Name: 'sup'; Value: #8835), // superset of, U+2283 ISOtech
+    (Name: 'cong'; Value: 8773), // approximately equal to, U+2245 ISOtech
+    (Name: 'asymp'; Value: 8776), // almost equal to = asymptotic to, U+2248 ISOamsr
+    (Name: 'ne'; Value: 8800), // not equal to, U+2260 ISOtech
+    (Name: 'equiv'; Value: 8801), // identical to, U+2261 ISOtech
+    (Name: 'le'; Value: 8804), // less-than or equal to, U+2264 ISOtech
+    (Name: 'ge'; Value: 8805), // greater-than or equal to, U+2265 ISOtech
+    (Name: 'sub'; Value: 8834), // subset of, U+2282 ISOtech
+    (Name: 'sup'; Value: 8835), // superset of, U+2283 ISOtech
                                       // note that nsup, 'not a superset of, U+2283' is not covered by the Symbol font
                                       // encoding and is not included.
-    (Name: 'nsub'; Value: #8836), // not a subset of, U+2284 ISOamsn
-    (Name: 'sube'; Value: #8838), // subset of or equal to, U+2286 ISOtech
-    (Name: 'supe'; Value: #8839), // superset of or equal to, U+2287 ISOtech
-    (Name: 'oplus'; Value: #8853), // circled plus = direct sum, U+2295 ISOamsb
-    (Name: 'otimes'; Value: #8855), // circled times = vector product, U+2297 ISOamsb
-    (Name: 'perp'; Value: #8869), // up tack = orthogonal to = perpendicular, U+22A5 ISOtech
-    (Name: 'sdot'; Value: #8901), // dot operator, U+22C5 ISOamsb
+    (Name: 'nsub'; Value: 8836), // not a subset of, U+2284 ISOamsn
+    (Name: 'sube'; Value: 8838), // subset of or equal to, U+2286 ISOtech
+    (Name: 'supe'; Value: 8839), // superset of or equal to, U+2287 ISOtech
+    (Name: 'oplus'; Value: 8853), // circled plus = direct sum, U+2295 ISOamsb
+    (Name: 'otimes'; Value: 8855), // circled times = vector product, U+2297 ISOamsb
+    (Name: 'perp'; Value: 8869), // up tack = orthogonal to = perpendicular, U+22A5 ISOtech
+    (Name: 'sdot'; Value: 8901), // dot operator, U+22C5 ISOamsb
                                       // dot operator is NOT the same character as U+00B7 middle dot
     // Miscellaneous Technical
-    (Name: 'lceil'; Value: #8968), // left ceiling = apl upstile, U+2308 ISOamsc
-    (Name: 'rceil'; Value: #8969), // right ceiling, U+2309 ISOamsc
-    (Name: 'lfloor'; Value: #8970), // left floor = apl downstile, U+230A ISOamsc
-    (Name: 'rfloor'; Value: #8971), // right floor, U+230B ISOamsc
-    (Name: 'lang'; Value: #9001), // left-pointing angle bracket = bra, U+2329 ISOtech
+    (Name: 'lceil'; Value: 8968), // left ceiling = apl upstile, U+2308 ISOamsc
+    (Name: 'rceil'; Value: 8969), // right ceiling, U+2309 ISOamsc
+    (Name: 'lfloor'; Value: 8970), // left floor = apl downstile, U+230A ISOamsc
+    (Name: 'rfloor'; Value: 8971), // right floor, U+230B ISOamsc
+    (Name: 'lang'; Value: 9001), // left-pointing angle bracket = bra, U+2329 ISOtech
                                       // lang is NOT the same character as U+003C 'less than' or U+2039 'single
                                       // left-pointing angle quotation mark'
-    (Name: 'rang'; Value: #9002), // right-pointing angle bracket = ket, U+232A ISOtech
+    (Name: 'rang'; Value: 9002), // right-pointing angle bracket = ket, U+232A ISOtech
                                       // rang is NOT the same character as U+003E 'greater than' or U+203A 'single
                                       // right-pointing angle quotation mark'
     // Geometric Shapes
-    (Name: 'loz'; Value: #9674), // lozenge, U+25CA ISOpub
+    (Name: 'loz'; Value: 9674), // lozenge, U+25CA ISOpub
     // Miscellaneous Symbols
-    (Name: 'spades'; Value: #9824), // black spade suit, U+2660 ISOpub
+    (Name: 'spades'; Value: 9824), // black spade suit, U+2660 ISOpub
                                      // black here seems to mean filled as opposed to hollow
-    (Name: 'clubs'; Value: #9827), // black club suit = shamrock, U+2663 ISOpub
-    (Name: 'hearts'; Value: #9829), // black heart suit = valentine, U+2665 ISOpub
-    (Name: 'diams'; Value: #9830), // black diamond suit, U+2666 ISOpub
+    (Name: 'clubs'; Value: 9827), // black club suit = shamrock, U+2663 ISOpub
+    (Name: 'hearts'; Value: 9829), // black heart suit = valentine, U+2665 ISOpub
+    (Name: 'diams'; Value: 9830), // black diamond suit, U+2666 ISOpub
 
     // markup-significant and internationalization characters
     // C0 Controls and Basic Latin
-    (Name: 'quot'; Value: #34), // quotation mark = APL quote, U+0022 ISOnum
-    (Name: 'amp'; Value: #38), // ampersand, U+0026 ISOnum
-    (Name: 'lt'; Value: #60), // less-than sign, U+003C ISOnum
-    (Name: 'gt'; Value: #62), // greater-than sign, U+003E ISOnum
+    (Name: 'quot'; Value: 34), // quotation mark = APL quote, U+0022 ISOnum
+    (Name: 'amp'; Value: 38), // ampersand, U+0026 ISOnum
+    (Name: 'lt'; Value: 60), // less-than sign, U+003C ISOnum
+    (Name: 'gt'; Value: 62), // greater-than sign, U+003E ISOnum
     // Latin Extended-A
-    (Name: 'OElig'; Value: #338), // latin capital ligature OE, U+0152 ISOlat2
-    (Name: 'oelig'; Value: #339), // latin small ligature oe, U+0153 ISOlat2
+    (Name: 'OElig'; Value: 338), // latin capital ligature OE, U+0152 ISOlat2
+    (Name: 'oelig'; Value: 339), // latin small ligature oe, U+0153 ISOlat2
                                      // ligature is a misnomer, this is a separate character in some languages
-    (Name: 'Scaron'; Value: #352), // latin capital letter S with caron, U+0160 ISOlat2
-    (Name: 'scaron'; Value: #353), // latin small letter s with caron, U+0161 ISOlat2
-    (Name: 'Yuml'; Value: #376), // latin capital letter Y with diaeresis, U+0178 ISOlat2
+    (Name: 'Scaron'; Value: 352), // latin capital letter S with caron, U+0160 ISOlat2
+    (Name: 'scaron'; Value: 353), // latin small letter s with caron, U+0161 ISOlat2
+    (Name: 'Yuml'; Value: 376), // latin capital letter Y with diaeresis, U+0178 ISOlat2
     // Spacing Modifier Letters
-    (Name: 'circ'; Value: #710), // modifier letter circumflex accent, U+02C6 ISOpub
-    (Name: 'tilde'; Value: #732), // small tilde, U+02DC ISOdia
+    (Name: 'circ'; Value: 710), // modifier letter circumflex accent, U+02C6 ISOpub
+    (Name: 'tilde'; Value: 732), // small tilde, U+02DC ISOdia
     // General Punctuation
-    (Name: 'ensp'; Value: #8194), // en space, U+2002 ISOpub
-    (Name: 'emsp'; Value: #8195), // em space, U+2003 ISOpub
-    (Name: 'thinsp'; Value: #8201), // thin space, U+2009 ISOpub
-    (Name: 'zwnj'; Value: #8204), // zero width non-joiner, U+200C NEW RFC 2070
-    (Name: 'zwj'; Value: #8205), // zero width joiner, U+200D NEW RFC 2070
-    (Name: 'lrm'; Value: #8206), // left-to-right mark, U+200E NEW RFC 2070
-    (Name: 'rlm'; Value: #8207), // right-to-left mark, U+200F NEW RFC 2070
-    (Name: 'ndash'; Value: #8211), // en dash, U+2013 ISOpub
-    (Name: 'mdash'; Value: #8212), // em dash, U+2014 ISOpub
-    (Name: 'lsquo'; Value: #8216), // left single quotation mark, U+2018 ISOnum
-    (Name: 'rsquo'; Value: #8217), // right single quotation mark, U+2019 ISOnum
-    (Name: 'sbquo'; Value: #8218), // single low-9 quotation mark, U+201A NEW
-    (Name: 'ldquo'; Value: #8220), // left double quotation mark, U+201C ISOnum
-    (Name: 'rdquo'; Value: #8221), // right double quotation mark, U+201D ISOnum
-    (Name: 'bdquo'; Value: #8222), // double low-9 quotation mark, U+201E NEW
-    (Name: 'dagger'; Value: #8224), // dagger, U+2020 ISOpub
-    (Name: 'Dagger'; Value: #8225), // double dagger, U+2021 ISOpub
-    (Name: 'permil'; Value: #8240), // per mille sign, U+2030 ISOtech
-    (Name: 'lsaquo'; Value: #8249), // single left-pointing angle quotation mark, U+2039 ISO proposed
+    (Name: 'ensp'; Value: 8194), // en space, U+2002 ISOpub
+    (Name: 'emsp'; Value: 8195), // em space, U+2003 ISOpub
+    (Name: 'thinsp'; Value: 8201), // thin space, U+2009 ISOpub
+    (Name: 'zwnj'; Value: 8204), // zero width non-joiner, U+200C NEW RFC 2070
+    (Name: 'zwj'; Value: 8205), // zero width joiner, U+200D NEW RFC 2070
+    (Name: 'lrm'; Value: 8206), // left-to-right mark, U+200E NEW RFC 2070
+    (Name: 'rlm'; Value: 8207), // right-to-left mark, U+200F NEW RFC 2070
+    (Name: 'ndash'; Value: 8211), // en dash, U+2013 ISOpub
+    (Name: 'mdash'; Value: 8212), // em dash, U+2014 ISOpub
+    (Name: 'lsquo'; Value: 8216), // left single quotation mark, U+2018 ISOnum
+    (Name: 'rsquo'; Value: 8217), // right single quotation mark, U+2019 ISOnum
+    (Name: 'sbquo'; Value: 8218), // single low-9 quotation mark, U+201A NEW
+    (Name: 'ldquo'; Value: 8220), // left double quotation mark, U+201C ISOnum
+    (Name: 'rdquo'; Value: 8221), // right double quotation mark, U+201D ISOnum
+    (Name: 'bdquo'; Value: 8222), // double low-9 quotation mark, U+201E NEW
+    (Name: 'dagger'; Value: 8224), // dagger, U+2020 ISOpub
+    (Name: 'Dagger'; Value: 8225), // double dagger, U+2021 ISOpub
+    (Name: 'permil'; Value: 8240), // per mille sign, U+2030 ISOtech
+    (Name: 'lsaquo'; Value: 8249), // single left-pointing angle quotation mark, U+2039 ISO proposed
                                      // lsaquo is proposed but not yet ISO standardized
-    (Name: 'rsaquo'; Value: #8250), // single right-pointing angle quotation mark, U+203A ISO proposed
+    (Name: 'rsaquo'; Value: 8250), // single right-pointing angle quotation mark, U+203A ISO proposed
                                      // rsaquo is proposed but not yet ISO standardized
-    (Name: 'euro'; Value: #8364) //  euro sign, U+20AC NEW
+    (Name: 'euro'; Value: 8364) //  euro sign, U+20AC NEW
     );
 
-{$IFNDEF Delphi6_Plus}
-type
-  TCaseSensitiveStringList = class(TStringList)
-  public
-    function Find(const S: string; var Index: Integer): Boolean; override;
-  end;
-
-function TCaseSensitiveStringList.Find(const S: string; var Index: Integer): Boolean;
-{a case sensitive Find}
+procedure InitEntities;
 var
-  L, H, I, C: Integer;
+  I: Integer;
 begin
-  Result := False;
-  L := 0;
-  H := Count - 1;
-  while L <= H do
+  // Put the Entities into a sorted StringList for faster access.
+  if Entities = nil then
   begin
-    I := (L + H) shr 1;
-    C := AnsiCompareStr(Strings[I], S);
-    if C < 0 then
-      L := I + 1
-    else
+    Entities := ThtStringList.Create;
+    Entities.CaseSensitive := True;
+    for I := low(EntityDefinitions) to high(EntityDefinitions) do
+      Entities.AddObject(EntityDefinitions[I].Name, @EntityDefinitions[I]);
+    Entities.Sort;
+  end;
+end;
+
+
+const
+  ResWordDefinitions: array[1..82] of TResWord = (
+    (Name: 'HTML';        Symbol: HtmlSy;       EndSym: HtmlEndSy),
+    (Name: 'TITLE';       Symbol: TitleSy;      EndSym: TitleEndSy),
+    (Name: 'BODY';        Symbol: BodySy;       EndSym: BodyEndSy),
+    (Name: 'HEAD';        Symbol: HeadSy;       EndSym: HeadEndSy),
+    (Name: 'B';           Symbol: BSy;          EndSym: BEndSy),
+    (Name: 'I';           Symbol: ISy;          EndSym: IEndSy),
+    (Name: 'H';           Symbol: HeadingSy;    EndSym: HeadingEndSy),
+    (Name: 'EM';          Symbol: EmSy;         EndSym: EmEndSy),
+    (Name: 'STRONG';      Symbol: StrongSy;     EndSym: StrongEndSy),
+    (Name: 'U';           Symbol: USy;          EndSym: UEndSy),
+    (Name: 'CITE';        Symbol: CiteSy;       EndSym: CiteEndSy),
+    (Name: 'VAR';         Symbol: VarSy;        EndSym: VarEndSy),
+    (Name: 'TT';          Symbol: TTSy;         EndSym: TTEndSy),
+    (Name: 'CODE';        Symbol: CodeSy;       EndSym: CodeEndSy),
+    (Name: 'KBD';         Symbol: KbdSy;        EndSym: KbdEndSy),
+    (Name: 'SAMP';        Symbol: SampSy;       EndSym: SampEndSy),
+    (Name: 'OL';          Symbol: OLSy;         EndSym: OLEndSy),
+    (Name: 'UL';          Symbol: ULSy;         EndSym: ULEndSy),
+    (Name: 'DIR';         Symbol: DirSy;        EndSym: DirEndSy),
+    (Name: 'MENU';        Symbol: MenuSy;       EndSym: MenuEndSy),
+    (Name: 'DL';          Symbol: DLSy;         EndSym: DLEndSy),
+    (Name: 'A';           Symbol: ASy;          EndSym: AEndSy),
+    (Name: 'ADDRESS';     Symbol: AddressSy;    EndSym: AddressEndSy),
+    (Name: 'BLOCKQUOTE';  Symbol: BlockQuoteSy; EndSym: BlockQuoteEndSy),
+    (Name: 'PRE';         Symbol: PreSy;        EndSym: PreEndSy),
+    (Name: 'CENTER';      Symbol: CenterSy;     EndSym: CenterEndSy),
+    (Name: 'TABLE';       Symbol: TableSy;      EndSym: TableEndSy),
+    (Name: 'TD';          Symbol: TDsy;         EndSym: TDEndSy),
+    (Name: 'TH';          Symbol: THSy;         EndSym: THEndSy),
+    (Name: 'CAPTION';     Symbol: CaptionSy;    EndSym: CaptionEndSy),
+    (Name: 'FORM';        Symbol: FormSy;       EndSym: FormEndSy),
+    (Name: 'TEXTAREA';    Symbol: TextAreaSy;   EndSym: TextAreaEndSy),
+    (Name: 'SELECT';      Symbol: SelectSy;     EndSym: SelectEndSy),
+    (Name: 'OPTION';      Symbol: OptionSy;     EndSym: OptionEndSy),
+    (Name: 'FONT';        Symbol: FontSy;       EndSym: FontEndSy),
+    (Name: 'SUB';         Symbol: SubSy;        EndSym: SubEndSy),
+    (Name: 'SUP';         Symbol: SupSy;        EndSym: SupEndSy),
+    (Name: 'BIG';         Symbol: BigSy;        EndSym: BigEndSy),
+    (Name: 'SMALL';       Symbol: SmallSy;      EndSym: SmallEndSy),
+    (Name: 'P';           Symbol: PSy;          EndSym: PEndSy),
+    (Name: 'MAP';         Symbol: MapSy;        EndSym: MapEndSy),
+    (Name: 'FRAMESET';    Symbol: FrameSetSy;   EndSym: FrameSetEndSy),
+    (Name: 'NOFRAMES';    Symbol: NoFramesSy;   EndSym: NoFramesEndSy),
+    (Name: 'SCRIPT';      Symbol: ScriptSy;     EndSym: ScriptEndSy),
+    (Name: 'DIV';         Symbol: DivSy;        EndSym: DivEndSy),
+    (Name: 'S';           Symbol: SSy;          EndSym: SEndSy),
+    (Name: 'STRIKE';      Symbol: StrikeSy;     EndSym: StrikeEndSy),
+    (Name: 'TR';          Symbol: TRSy;         EndSym: TREndSy),
+    (Name: 'NOBR';        Symbol: NoBrSy;       EndSym: NoBrEndSy),
+    (Name: 'STYLE';       Symbol: StyleSy;      EndSym: StyleEndSy),
+    (Name: 'SPAN';        Symbol: SpanSy;       EndSym: SpanEndSy),
+    (Name: 'COLGROUP';    Symbol: ColGroupSy;   EndSym: ColGroupEndSy),
+    (Name: 'LABEL';       Symbol: LabelSy;      EndSym: LabelEndSy),
+    (Name: 'THEAD';       Symbol: THeadSy;      EndSym: THeadEndSy),
+    (Name: 'TBODY';       Symbol: TBodySy;      EndSym: TBodyEndSy),
+    (Name: 'TFOOT';       Symbol: TFootSy;      EndSym: TFootEndSy),
+    (Name: 'OBJECT';      Symbol: ObjectSy;     EndSym: ObjectEndSy),
+    (Name: 'DD';          Symbol: DDSy;         EndSym: DDEndSy),
+    (Name: 'DT';          Symbol: DTSy;         EndSym: DTEndSy),
+    (Name: 'LI';          Symbol: LISy;         EndSym: LIEndSy),
+    (Name: 'FIELDSET';    Symbol: FieldsetSy;   EndSym: FieldsetEndSy),
+    (Name: 'LEGEND';      Symbol: LegendSy;     EndSym: LegendEndSy),
+    (Name: 'BR';          Symbol: BRSy;         EndSym: CommandSy),
+    (Name: 'HR';          Symbol: HRSy;         EndSym: CommandSy),
+    (Name: 'IMG';         Symbol: ImageSy;      EndSym: CommandSy),
+    (Name: 'BASE';        Symbol: BaseSy;       EndSym: CommandSy),
+    (Name: 'BUTTON';      Symbol: ButtonSy;     EndSym: CommandSy),
+    (Name: 'INPUT';       Symbol: InputSy;      EndSym: CommandSy),
+    (Name: 'SELECTED';    Symbol: SelectedSy;   EndSym: CommandSy),
+    (Name: 'BASEFONT';    Symbol: BaseFontSy;   EndSym: CommandSy),
+    (Name: 'AREA';        Symbol: AreaSy;       EndSym: CommandSy),
+    (Name: 'FRAME';       Symbol: FrameSy;      EndSym: CommandSy),
+    (Name: 'PAGE';        Symbol: PageSy;       EndSym: CommandSy),
+    (Name: 'BGSOUND';     Symbol: BgSoundSy;    EndSym: CommandSy),
+    (Name: 'WRAP';        Symbol: WrapSy;       EndSym: CommandSy),
+    (Name: 'META';        Symbol: MetaSy;       EndSym: CommandSy),
+    (Name: 'PANEL';       Symbol: PanelSy;      EndSym: CommandSy),
+    (Name: 'WBR';         Symbol: WbrSy;        EndSym: CommandSy),
+    (Name: 'LINK';        Symbol: LinkSy;       EndSym: CommandSy),
+    (Name: 'COL';         Symbol: ColSy;        EndSym: CommandSy),
+    (Name: 'PARAM';       Symbol: ParamSy;      EndSym: CommandSy),
+    (Name: 'READONLY';    Symbol: ReadonlySy;   EndSym: CommandSy)
+    );
+
+procedure SetSymbolName(Sy: Symb; Name: ThtString);
+begin
+  Name := htLowerCase(Name);
+  if SymbolNames[Sy] <> '' then
+    assert(SymbolNames[Sy] = Name, 'Different names for same symbol!');
+  SymbolNames[Sy] := Name;
+end;
+
+procedure InitReservedWords;
+var
+  I: Integer;
+  P: PResWord;
+  S: Symb;
+begin
+  // Put the Attributes into a sorted StringList for faster access.
+  if ReservedWords = nil then
+  begin
+    ReservedWords := ThtStringList.Create;
+    ReservedWords.CaseSensitive := True;
+    for I := low(ResWordDefinitions) to high(ResWordDefinitions) do
+      ReservedWords.AddObject(ResWordDefinitions[I].Name, @ResWordDefinitions[I]);
+    ReservedWords.Sort;
+
+    // initialize ReservedWordsIndex and SymbolNames
+    for S := low(Symb) to high(Symb) do
+      ReservedWordsIndex[S] := -1;
+    for I := 0 to ReservedWords.Count - 1 do
     begin
-      H := I - 1;
-      if C = 0 then
+      P := PResWord(ReservedWords.Objects[I]);
+      ReservedWordsIndex[P.Symbol] := I;
+      SetSymbolName(P.Symbol, P.Name);
+      if P.EndSym <> CommandSy then
       begin
-        Result := True;
-        if Duplicates <> dupAccept then
-          L := I;
+        ReservedWordsIndex[P.EndSym] := I;
+        SetSymbolName(P.EndSym, P.Name);
       end;
     end;
   end;
-  Index := L;
 end;
 
-procedure SortEntities;
-var
-  I: integer;
-begin
-// Put the Entities into a sorted StringList for faster access.
-  if Entities = nil then
-  begin
-    Entities := TCaseSensitiveStringList.Create;
-    with Entities do
-    begin
-      Sorted := True;
-      for I := 0 to EntityCount - 1 do
-        Entities.AddObject(EntityDefinitions[I].Name, Pointer(EntityDefinitions[I].Value));
-    end;
-  end;
-end;
-{$ELSE}
+const
+  AttribDefinitions: array[1..85] of TSymbolRec = (
+    (Name: 'HREF';              Value: HrefSy),
+    (Name: 'NAME';              Value: NameSy),
+    (Name: 'SRC';               Value: SrcSy),
+    (Name: 'ALT';               Value: AltSy),
+    (Name: 'ALIGN';             Value: AlignSy),
+    (Name: 'TEXT';              Value: TextSy),
+    (Name: 'BGCOLOR';           Value: BGColorSy),
+    (Name: 'LINK';              Value: LinkSy),
+    (Name: 'BACKGROUND';        Value: BackgroundSy),
+    (Name: 'COLSPAN';           Value: ColSpanSy),
+    (Name: 'ROWSPAN';           Value: RowSpanSy),
+    (Name: 'BORDER';            Value: BorderSy),
+    (Name: 'CELLPADDING';       Value: CellPaddingSy),
+    (Name: 'CELLSPACING';       Value: CellSpacingSy),
+    (Name: 'VALIGN';            Value: VAlignSy),
+    (Name: 'WIDTH';             Value: WidthSy),
+    (Name: 'START';             Value: StartSy),
+    (Name: 'VALUE';             Value: ValueSy),
+    (Name: 'TYPE';              Value: TypeSy),
+    (Name: 'CHECKBOX';          Value: CheckBoxSy),
+    (Name: 'RADIO';             Value: RadioSy),
+    (Name: 'METHOD';            Value: MethodSy),
+    (Name: 'ACTION';            Value: ActionSy),
+    (Name: 'CHECKED';           Value: CheckedSy),
+    (Name: 'SIZE';              Value: SizeSy),
+    (Name: 'MAXLENGTH';         Value: MaxLengthSy),
+    (Name: 'COLS';              Value: ColsSy),
+    (Name: 'ROWS';              Value: RowsSy),
+    (Name: 'MULTIPLE';          Value: MultipleSy),
+    (Name: 'VALUE';             Value: ValueSy),
+    (Name: 'SELECTED';          Value: SelectedSy),
+    (Name: 'FACE';              Value: FaceSy),
+    (Name: 'COLOR';             Value: ColorSy),
+    (Name: 'TRANSP';            Value: TranspSy),
+    (Name: 'CLEAR';             Value: ClearSy),
+    (Name: 'ISMAP';             Value: IsMapSy),
+    (Name: 'BORDERCOLOR';       Value: BorderColorSy),
+    (Name: 'USEMAP';            Value: UseMapSy),
+    (Name: 'SHAPE';             Value: ShapeSy),
+    (Name: 'COORDS';            Value: CoordsSy),
+    (Name: 'NOHREF';            Value: NoHrefSy),
+    (Name: 'HEIGHT';            Value: HeightSy),
+    (Name: 'PLAIN';             Value: PlainSy),
+    (Name: 'TARGET';            Value: TargetSy),
+    (Name: 'NORESIZE';          Value: NoResizeSy),
+    (Name: 'SCROLLING';         Value: ScrollingSy),
+    (Name: 'HSPACE';            Value: HSpaceSy),
+    (Name: 'LANGUAGE';          Value: LanguageSy),
+    (Name: 'FRAMEBORDER';       Value: FrameBorderSy),
+    (Name: 'MARGINWIDTH';       Value: MarginWidthSy),
+    (Name: 'MARGINHEIGHT';      Value: MarginHeightSy),
+    (Name: 'LOOP';              Value: LoopSy),
+    (Name: 'ONCLICK';           Value: OnClickSy),
+    (Name: 'WRAP';              Value: WrapSy),
+    (Name: 'NOSHADE';           Value: NoShadeSy),
+    (Name: 'HTTP-EQUIV';        Value: HttpEqSy),
+    (Name: 'CONTENT';           Value: ContentSy),
+    (Name: 'ENCTYPE';           Value: EncTypeSy),
+    (Name: 'VLINK';             Value: VLinkSy),
+    (Name: 'OLINK';             Value: OLinkSy),
+    (Name: 'ACTIVE';            Value: ActiveSy),
+    (Name: 'VSPACE';            Value: VSpaceSy),
+    (Name: 'CLASS';             Value: ClassSy),
+    (Name: 'ID';                Value: IDSy),
+    (Name: 'STYLE';             Value: StyleSy),
+    (Name: 'REL';               Value: RelSy),
+    (Name: 'REV';               Value: RevSy),
+    (Name: 'NOWRAP';            Value: NoWrapSy),
+    (Name: 'BORDERCOLORLIGHT';  Value: BorderColorLightSy),
+    (Name: 'BORDERCOLORDARK';   Value: BorderColorDarkSy),
+    (Name: 'CHARSET';           Value: CharSetSy),
+    (Name: 'RATIO';             Value: RatioSy),
+    (Name: 'TITLE';             Value: TitleSy),
+    (Name: 'ONFOCUS';           Value: OnFocusSy),
+    (Name: 'ONBLUR';            Value: OnBlurSy),
+    (Name: 'ONCHANGE';          Value: OnChangeSy),
+    (Name: 'SPAN';              Value: SpanSy),
+    (Name: 'TABINDEX';          Value: TabIndexSy),
+    (Name: 'BGPROPERTIES';      Value: BGPropertiesSy),
+    (Name: 'DISABLED';          Value: DisabledSy),
+    (Name: 'TOPMARGIN';         Value: TopMarginSy),
+    (Name: 'LEFTMARGIN';        Value: LeftMarginSy),
+    (Name: 'LABEL';             Value: LabelSy),
+    (Name: 'READONLY';          Value: ReadonlySy),
+    (Name: 'MEDIA';             Value: MediaSy));
 
-procedure SortEntities; {Delphi 6 version}
+procedure InitAttributes;
 var
-  I: integer;
+  I: Integer;
+  P: PSymbol;
 begin
-// Put the Entities into a sorted StringList for faster access.
-  if Entities = nil then
+  // Put the Attributes into a sorted StringList for faster access.
+  if AttributeNames = nil then
   begin
-    Entities := TStringList.Create;
-    with Entities do
+    AttributeNames := ThtStringList.Create;
+    AttributeNames.CaseSensitive := True;
+    for I := low(AttribDefinitions) to high(AttribDefinitions) do
     begin
-      CaseSensitive := True;
-      for I := 0 to EntityCount - 1 do
-        Entities.AddObject(EntityDefinitions[I].Name, Pointer(EntityDefinitions[I].Value));
-      Sort;
+      P := @AttribDefinitions[I];
+      AttributeNames.AddObject(P.Name, Pointer(P));
+      SetSymbolName(P.Value, P.Name);
     end;
+    AttributeNames.Sort;
   end;
 end;
-{$ENDIF}
 
 initialization
-
-  LCToken := TokenObj.Create;
   PropStack := THtmlPropStack.Create;
-  SortEntities;
-
+  InitEntities;
+  InitAttributes;
+  InitReservedWords;
 finalization
-
-  LCToken.Free;
   PropStack.Free;
   Entities.Free;
+  AttributeNames.Free;
+  ReservedWords.Free;
 end.

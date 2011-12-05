@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -30,18 +30,23 @@ unit FramBrwz;
 interface
 
 uses
-  SysUtils, Windows, Classes, Messages, Controls, ExtCtrls,
-  HtmlGlobals, HtmlSubs, HtmlView, Htmlun2, ReadHTML, UrlSubs, FramView;
+{$ifdef LCL}
+  LclIntf, LclType, LMessages, HtmlMisc,
+{$else}
+  Windows,
+{$endif}
+  SysUtils, Classes, Messages, Controls, ExtCtrls,
+  HtmlGlobals, HtmlBuffer, HtmlSubs, HtmlView, Htmlun2, ReadHTML, UrlSubs, FramView;
 
 type
-  TGetPostRequestEvent = procedure(Sender: TObject; IsGet: boolean; const URL, Query: string;
-    Reload: boolean; var NewURL: string; var DocType: ThtmlFileType; var Stream: TMemoryStream) of object;
+  TGetPostRequestEvent = procedure(Sender: TObject; IsGet: boolean; const URL, Query: ThtString;
+    Reload: boolean; var NewURL: ThtString; var DocType: ThtmlFileType; var Stream: TMemoryStream) of object;
 
-  TGetPostRequestExEvent = procedure(Sender: TObject; IsGet: boolean; const URL, Query, EncType, Referer: string;
-    Reload: boolean; var NewURL: string; var DocType: ThtmlFileType; var Stream: TMemoryStream) of object;
+  TGetPostRequestExEvent = procedure(Sender: TObject; IsGet: boolean; const URL, Query, EncType, Referer: ThtString;
+    Reload: boolean; var NewURL: ThtString; var DocType: ThtmlFileType; var Stream: TMemoryStream) of object;
     
   TbrFormSubmitEvent = procedure(Sender: TObject; Viewer: ThtmlViewer;
-    const Action, Target, EncType, Method: string; Results: ThtStringList; var Handled: boolean) of object;
+    const Action, Target, EncType, Method: ThtString; Results: ThtStringList; var Handled: boolean) of object;
 
   TFrameBaseOpener = class(TFrameBase);
 
@@ -50,27 +55,27 @@ type
 
   TbrFrame = class(TViewerFrameBase) {TbrFrame holds a ThtmlViewer or TbrSubFrameSet}
   private
-    URLBase: string;
+    URLBase: ThtString;
     TheStream: TMemoryStream;
     TheStreamType: ThtmlFileType;
   protected
-    function ExpandSourceName(Base, Path: string; S: string): string; override;
-    function FrameSet: TbrSubFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
+    function ExpandSourceName(Base, Path: ThtString; S: ThtString): ThtString; override;
+    function FrameSet: TbrSubFrameSet; {$ifdef UseInline} inline; {$endif}
     function GetSubFrameSetClass: TSubFrameSetClass; override;
-    function MasterSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
+    function MasterSet: TbrFrameSet; {$ifdef UseInline} inline; {$endif}
     procedure CreateViewer; override;
-    procedure frLoadFromBrzFile(const URL, Dest, Query, EncType, Referer: string; Bump, IsGet, Reload: boolean);
-    procedure frLoadFromFile(const FName, Dest: string; Bump, Reload: Boolean); override;
+    procedure frLoadFromBrzFile(const URL, Dest, Query, EncType, Referer: ThtString; Bump, IsGet, Reload: boolean);
+    procedure frLoadFromFile(const FName, Dest: ThtString; Bump, Reload: Boolean); override;
     procedure LoadFiles; override;
-    procedure RefreshEvent(Sender: TObject; Delay: integer; const URL: string); override;
+    procedure RefreshEvent(Sender: TObject; Delay: integer; const URL: ThtString); override;
     procedure RefreshTimerTimer(Sender: TObject); override;
     procedure ReLoadFiles(APosition: LongInt); override;
-    procedure URLExpandName(Sender: TObject; const SRC: string; var Rslt: string);
+    procedure URLExpandName(Sender: TObject; const SRC: ThtString; var Rslt: ThtString);
   end;
 
   TbrSubFrameSet = class(TSubFrameSetBase) {can contain one or more TbrFrames and/or TSubFrameSets}
   private
-    URLBase: string;
+    URLBase: ThtString;
   protected
     function GetFrameClass: TViewerFrameClass; override;
     procedure RefreshTimerTimer(Sender: Tobject); override;
@@ -82,14 +87,14 @@ type
 
   TbrFrameSet = class(TFrameSetBase) {only one of these showing, others may be held as History}
   private
-    URLBase: string;
+    URLBase: ThtString;
   protected
-    function FrameViewer: TFrameBrowser; {$ifdef Compiler17_Plus} inline; {$endif}
+    function FrameViewer: TFrameBrowser; {$ifdef UseInline} inline; {$endif}
     function GetFrameClass: TViewerFrameClass; override;
-    function MasterSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif}
+    function MasterSet: TbrFrameSet; {$ifdef UseInline} inline; {$endif}
     function RequestEvent: Boolean; override;
     procedure RefreshTimerTimer(Sender: TObject); override;
-    procedure LoadFromBrzFile(Stream: TMemoryStream; StreamType: ThtmlFileType; const URL, Dest: string);
+    procedure LoadFromBrzFile(Stream: TMemoryStream; StreamType: ThtmlFileType; const URL, Dest: ThtString);
   end;
 
   TFrameBrowser = class(TFVBase)
@@ -99,30 +104,30 @@ type
     FOnGetPostRequestEx: TGetPostRequestExEvent;
     FEncodePostArgs: boolean;
     InFormSubmit: boolean;
-    function CurbrFrameSet: TbrFrameSet; {$ifdef Compiler17_Plus} inline; {$endif} {the TbrFrameSet being displayed}
-    procedure LoadURLInternal(const URL, Dest, Query, EncType, Referer: string; IsGet, Reload: boolean);
+    function CurbrFrameSet: TbrFrameSet; {$ifdef UseInline} inline; {$endif} {the TbrFrameSet being displayed}
+    procedure LoadURLInternal(const URL, Dest, Query, EncType, Referer: ThtString; IsGet, Reload: boolean);
     procedure PostRequest(
       Sender: TObject;
       IsGet: boolean;
-      const Source, Query, EncType, Referer: string;
+      const Source, Query, EncType, Referer: ThtString;
       Reload: boolean;
-      out NewURL: string;
+      out NewURL: ThtString;
       out DocType: ThtmlFileType;
       out Stream: TMemoryStream);
   protected
     function GetFrameSetClass: TFrameSetClass; override;
     function GetSubFrameSetClass: TSubFrameSetClass; override;
-    procedure HotSpotCovered(Sender: TObject; const SRC: string); override;
+    procedure HotSpotCovered(Sender: TObject; const SRC: ThtString); override;
     procedure CheckVisitedLinks; override;
-    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: string; Results: ThtStringList); override;
-    procedure DoURLRequest(Sender: TObject; const SRC: string; var Stream: TMemoryStream); override;
+    procedure DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType, Method: ThtString; Results: ThtStringList); override;
+    procedure DoURLRequest(Sender: TObject; const SRC: ThtString; var Stream: TMemoryStream); override;
   public
     constructor Create(AOwner: TComponent); override;
-    function GetViewerUrlBase(Viewer: ThtmlViewer): string;
-    procedure GetPostQuery(const URL, Query, EncType: string; IsGet: boolean);
-    procedure HotSpotClick(Sender: TObject; const AnURL: string; var Handled: boolean); override;
-    procedure LoadFromFile(const Name: string); override;
-    procedure LoadURL(const URL: string);
+    function GetViewerUrlBase(Viewer: ThtmlViewer): ThtString;
+    procedure GetPostQuery(const URL, Query, EncType: ThtString; IsGet: boolean);
+    procedure HotSpotClick(Sender: TObject; const AnURL: ThtString; var Handled: boolean); override;
+    procedure LoadFromFile(const Name: ThtString); override;
+    procedure LoadURL(const URL: ThtString);
     property EncodePostArgs: boolean read FEncodePostArgs write FEncodePostArgs;
   published
     property OnGetPostRequest: TGetPostRequestEvent read FOnGetPostRequest write FOnGetPostRequest;
@@ -132,28 +137,16 @@ type
 
 implementation
 
-const
-  Sequence: integer = 10;
-
-function StreamToString(Stream: TStream): string;
-begin
-  try
-    Result := LoadStringFromStream(Stream);
-  except
-    Result := '';
-  end;
-end;
-
-function ConvDosToHTML(const Name: string): string; forward;
+function ConvDosToHTML(const Name: ThtString): ThtString; forward;
 
 {----------------TbrFrame.CreateIt}
 
 //-- BG ---------------------------------------------------------- 03.01.2010 --
-function TbrFrame.ExpandSourceName(Base, Path: string; S: string): string;
+function TbrFrame.ExpandSourceName(Base, Path: ThtString; S: ThtString): ThtString;
 begin
   S := ConvDosToHTML(S);
   if Pos(':/', S) <> 0 then
-    URLBase := UrlSubs.GetURLBase(S) {get new base}
+    URLBase := URLSubs.GetURLBase(S) {get new base}
   else if Base <> '' then
   begin
     S := CombineURL(Base, S);
@@ -188,9 +181,9 @@ begin
   Result := TbrFrameSet(inherited MasterSet);
 end;
 
-procedure TbrFrame.RefreshEvent(Sender: TObject; Delay: integer; const URL: string);
+procedure TbrFrame.RefreshEvent(Sender: TObject; Delay: integer; const URL: ThtString);
 var
-  Ext: string;
+  Ext: ThtString;
 begin
   if not (fvMetaRefresh in MasterSet.FrameViewer.fvOptions) then
     Exit;
@@ -212,7 +205,7 @@ end;
 
 procedure TbrFrame.RefreshTimerTimer(Sender: TObject);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   RefreshTimer.Enabled := False;
   if Unloaded then
@@ -240,9 +233,9 @@ var
   Item: TFrameBaseOpener;
   I: integer;
   Upper, Lower: boolean;
-  Msg: string;
-  NewURL: string;
-  TheString: string;
+  Msg: ThtString;
+  NewURL: ThtString;
+  Doc: TBuffer;
 begin
   if (Source <> '') and (MasterSet.NestLevel < 4) then
   begin
@@ -253,55 +246,71 @@ begin
       if NewURL <> '' then
         Source := NewURL;
     end;
-    URLBase := UrlSubs.GetURLBase(Source);
+    URLBase := URLSubs.GetURLBase(Source);
     Inc(MasterSet.NestLevel);
     try
-      TheString := StreamToString(TheStream);
-      if (TheStreamType = HTMLType) and IsFrameString(LsString, '', TheString, MasterSet.FrameViewer) then
-      begin
-        FFrameSet := TbrSubFrameSet.CreateIt(Self, MasterSet);
-        FrameSet.Align := alClient;
-        FrameSet.Visible := False;
-        InsertControl(FrameSet);
-        FrameSet.SendToBack;
-        FrameSet.Visible := True;
-        FrameParseString(MasterSet.FrameViewer, FrameSet, lsString, '', TheString, FrameSet.HandleMeta);
-        Self.BevelOuter := bvNone;
-        frBumpHistory1(Source, 0);
-        with FrameSet do
+      try
+        if TheStream <> nil then
         begin
-          for I := 0 to List.Count - 1 do
+          TheStream.Position := 0;
+          Doc := TBuffer.Create(TheStream);
+        end
+        else
+          Doc := nil;
+        try
+          if (TheStreamType = HTMLType) and IsFrame(MasterSet.FrameViewer, Doc, Source) then
           begin
-            Item := TFrameBaseOpener(List.Items[I]);
-            Item.LoadFiles;
+            FFrameSet := TbrSubFrameSet.CreateIt(Self, MasterSet);
+            FrameSet.Align := alClient;
+            FrameSet.Visible := False;
+            InsertControl(FrameSet);
+            FrameSet.SendToBack;
+            FrameSet.Visible := True;
+            ParseFrame(MasterSet.FrameViewer, FrameSet, Doc, Source, FrameSet.HandleMeta);
+            Self.BevelOuter := bvNone;
+            frBumpHistory1(Source, 0);
+            with FrameSet do
+            begin
+              for I := 0 to List.Count - 1 do
+              begin
+                Item := TFrameBaseOpener(List.Items[I]);
+                Item.LoadFiles;
+              end;
+              CheckNoresize(Lower, Upper);
+              if FRefreshDelay > 0 then
+                SetRefreshTimer;
+            end;
+          end
+          else
+          begin
+            CreateViewer;
+            Viewer.Base := MasterSet.FBase;
+            Viewer.LoadStream(Source, TheStream, TheStreamType);
+            Viewer.PositionTo(Destination);
+            frBumpHistory1(Source, Viewer.Position);
           end;
-          CheckNoresize(Lower, Upper);
-          if FRefreshDelay > 0 then
-            SetRefreshTimer;
+        finally
+          Doc.Free;
         end;
-      end
-      else
-      begin
-        CreateViewer;
-        Viewer.Base := MasterSet.FBase;
-        Viewer.LoadStream(Source, TheStream, TheStreamType);
-        Viewer.PositionTo(Destination);
-        frBumpHistory1(Source, Viewer.Position);
+      except
+        if not Assigned(Viewer) then
+          CreateViewer;
+        FreeAndNil(FFrameSet);
+        Msg := '<p><img src="qw%&.bmp" alt="Error"> Can''t load ' + Source;
+        Viewer.LoadFromBuffer(@Msg[1], Length(Msg), ''); {load an error message}
       end;
-    except
-      if not Assigned(Viewer) then
-        CreateViewer;
-      FreeAndNil(FFrameSet);
-      Msg := '<p><img src="qw%&.bmp" alt="Error"> Can''t load ' + Source;
-      Viewer.LoadFromBuffer(@Msg[1], Length(Msg), ''); {load an error message}
+    finally
+      Dec(MasterSet.NestLevel);
     end;
-    Dec(MasterSet.NestLevel);
   end
   else
   begin {so blank area will perform like the TFrameBrowser}
     OnMouseDown := MasterSet.FrameViewer.OnMouseDown;
     OnMouseMove := MasterSet.FrameViewer.OnMouseMove;
     OnMouseUp := MasterSet.FrameViewer.OnMouseUp;
+    OnMouseWheel := MasterSet.FrameViewer.OnMouseWheel;
+    OnMouseWheelUp := MasterSet.FrameViewer.OnMouseWheelUp;
+    OnMouseWheelDown := MasterSet.FrameViewer.OnMouseWheelDown;
   end;
 end;
 
@@ -312,11 +321,11 @@ var
   Item: TFrameBaseOpener;
   I: integer;
   Upper, Lower: boolean;
-  Dummy: string;
+  Dummy: ThtString;
 
   procedure DoError;
   var
-    Msg: string;
+    Msg: ThtString;
   begin
     Msg := '<p><img src="qw%&.bmp" alt="Error"> Can''t load ' + Source;
     Viewer.LoadFromBuffer(@Msg[1], Length(Msg), ''); {load an error message}
@@ -358,20 +367,19 @@ end;
 
 {----------------TbrFrame.frLoadFromBrzFile}
 
-procedure TbrFrame.frLoadFromBrzFile(const URL, Dest, Query, EncType, Referer: string; Bump, IsGet, Reload: boolean);
+procedure TbrFrame.frLoadFromBrzFile(const URL, Dest, Query, EncType, Referer: ThtString; Bump, IsGet, Reload: boolean);
 {URL is full URL here, has been seperated from Destination}
 var
   OldPos: LongInt;
-  HS, S, S1, OldTitle, OldName, OldBase: string;
+  HS, S, S1, OldTitle, OldName, OldBase: ThtString;
   OldFormData: TFreeList;
   SameName: boolean;
   OldViewer: ThtmlViewer;
   OldFrameSet: TbrSubFrameSet;
-  TheString: string;
   Upper, Lower, FrameFile: boolean;
   Item: TFrameBase;
   I: integer;
-
+  Doc: TBuffer;
 begin
   if Assigned(RefreshTimer) then
     RefreshTimer.Enabled := False;
@@ -381,7 +389,7 @@ begin
   if S = '' then
     S := OldName
   else
-    URLBase := UrlSubs.GetURLBase(S); {get new base}
+    URLBase := URLSubs.GetURLBase(S); {get new base}
   HS := S;
   SameName := CompareText(S, OldName) = 0;
 {if SameName, will not have to reload anything unless Reload set}
@@ -394,20 +402,22 @@ begin
     if S1 <> '' then
     begin
       S := S1;
-      URLBase := UrlSubs.GetURLBase(S);
+      URLBase := URLSubs.GetURLBase(S);
     end;
     Source := S;
   end;
 
   try
-    TheString := StreamToString(TheStream);
-    if not SameName then
-    try
-      FrameFile := (TheStreamType = HTMLType) and
-        IsFrameString(lsString, '', TheString, MasterSet.FrameViewer);
-    except
-      raise(EfvLoadError.Create('Can''t load: ' + URL));
+    //TheString := StreamToString(TheStream);
+    if TheStream <> nil then
+    begin
+      TheStream.Position := 0;
+      Doc := TBuffer.Create(TheStream)
     end
+    else
+      Doc := nil;
+    if not SameName then
+      FrameFile := (TheStreamType = HTMLType) and IsFrame(MasterSet.FrameViewer, Doc, Source)
     else
       FrameFile := not Assigned(Viewer);
     if SameName and not Reload then
@@ -489,7 +499,7 @@ begin
         InsertControl(FrameSet);
         FrameSet.SendToBack; {to prevent blink}
         FrameSet.Visible := True;
-        FrameParseString(MasterSet.FrameViewer, FrameSet, lsString, '', TheString, FrameSet.HandleMeta);
+        ParseFrame(MasterSet.FrameViewer, FrameSet, Doc, Source, FrameSet.HandleMeta);
         MasterSet.FrameViewer.AddVisitedLink(URL);
         Self.BevelOuter := bvNone;
         with FrameSet do
@@ -555,12 +565,12 @@ begin
   end;
 end;
 
-procedure TbrFrame.frLoadFromFile(const FName, Dest: string; Bump, Reload: Boolean);
+procedure TbrFrame.frLoadFromFile(const FName, Dest: ThtString; Bump, Reload: Boolean);
 begin
   frLoadFromBrzFile(FName, Dest, '', '', Viewer.CurrentFile, Bump, True, Reload);
 end;
 
-function ConvDosToHTML(const Name: string): string;
+function ConvDosToHTML(const Name: ThtString): ThtString;
 {if Name is a Dos filename, convert it to HTML.  Add the file:// if it is
  a full pathe filename}
 begin
@@ -575,9 +585,9 @@ end;
 
 {----------------TbrFrame.URLExpandName}
 
-procedure TbrFrame.URLExpandName(Sender: TObject; const SRC: string; var Rslt: string);
+procedure TbrFrame.URLExpandName(Sender: TObject; const SRC: ThtString; var Rslt: ThtString);
 var
-  S: string;
+  S: ThtString;
   Viewer: ThtmlViewer;
 begin
   S := ConvDosToHTML(SRC);
@@ -616,7 +626,7 @@ end;
 
 procedure TbrSubFrameSet.RefreshTimerTimer(Sender: Tobject);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   RefreshTimer.Enabled := False;
   if Unloaded then
@@ -648,7 +658,7 @@ end;
 
 procedure TbrFrameSet.RefreshTimerTimer(Sender: Tobject);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   RefreshTimer.Enabled := False;
   if Self = MasterSet.FrameViewer.CurFrameSet then
@@ -667,41 +677,45 @@ end;
 {----------------TbrFrameSet.LoadFromBrzFile}
 
 procedure TbrFrameSet.LoadFromBrzFile(Stream: TMemoryStream; StreamType: ThtmlFileType;
-  const URL, Dest: string);
+  const URL, Dest: ThtString);
 var
   I: integer;
   Frame: TbrFrame;
   Lower, Upper: boolean;
-  TheString: string;
+  Doc: TBuffer;
 begin
   Clear;
   NestLevel := 0;
   FCurrentFile := URL;
-  TheString := StreamToString(Stream);
-  if (StreamType = HTMLType) and
-    IsFrameString(lsString, '', TheString, MasterSet.FrameViewer) then
-  begin {it's a Frameset html file}
-    FrameParseString(FrameViewer, Self, lsString, '', TheString, HandleMeta);
-    for I := 0 to List.Count - 1 do
-      TFrameBaseOpener(List.Items[I]).LoadFiles;
-    CalcSizes(Self);
-    CheckNoresize(Lower, Upper);
-    if FRefreshDelay > 0 then
-      SetRefreshTimer;
-  end
-  else
-  begin {it's a non frame file}
-    Frame := TbrFrame(AddFrame(nil, ''));
-    Frame.Source := URL;
-    Frame.TheStream := Stream;
-    Frame.TheStreamType := StreamType;
-    Frame.Destination := Dest;
-    EndFrameSet;
-    CalcSizes(Self);
-    Frame.LoadFiles;
-    FTitle := HtmlSubs.Title;
-    FBase := HtmlSubs.Base;
-    FBaseTarget := HtmlSubs.BaseTarget;
+  Stream.Position := 0;
+  Doc := TBuffer.Create(Stream, Url);
+  try
+    if (StreamType = HTMLType) and IsFrame(MasterSet.FrameViewer, Doc, Url) then
+    begin {it's a Frameset html file}
+      ParseFrame(FrameViewer, Self, Doc, Url, HandleMeta);
+      for I := 0 to List.Count - 1 do
+        TFrameBaseOpener(List.Items[I]).LoadFiles;
+      CalcSizes(Self);
+      CheckNoresize(Lower, Upper);
+      if FRefreshDelay > 0 then
+        SetRefreshTimer;
+    end
+    else
+    begin {it's a non frame file}
+      Frame := TbrFrame(AddFrame(nil, ''));
+      Frame.Source := URL;
+      Frame.TheStream := Stream;
+      Frame.TheStreamType := StreamType;
+      Frame.Destination := Dest;
+      Parsed('', '', '');
+      CalcSizes(Self);
+      Frame.LoadFiles;
+      FTitle := Frame.Viewer.DocumentTitle;
+      FBase := Frame.Viewer.Base;
+      FBaseTarget := Frame.Viewer.BaseTarget;
+    end;
+  finally
+    Doc.Free;
   end;
 end;
 
@@ -714,16 +728,16 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 24.09.2010 --
-procedure TFrameBrowser.LoadFromFile(const Name: string);
+procedure TFrameBrowser.LoadFromFile(const Name: ThtString);
 begin
   LoadUrl('file://' + DosToHTML(Name));
 end;
 
 {----------------TFrameBrowser.LoadURL}
 
-procedure TFrameBrowser.LoadURL(const URL: string);
+procedure TFrameBrowser.LoadURL(const URL: ThtString);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   if not Processing then
   begin
@@ -734,9 +748,9 @@ end;
 
 {----------------TFrameBrowser.GetPostQuery}
 
-procedure TFrameBrowser.GetPostQuery(const URL, Query, EncType: string; IsGet: boolean);
+procedure TFrameBrowser.GetPostQuery(const URL, Query, EncType: ThtString; IsGet: boolean);
 var
-  S, D: string;
+  S, D: ThtString;
 begin
   if not Processing then
   begin
@@ -759,17 +773,14 @@ end;
 
 {----------------TFrameBrowser.LoadURLInternal}
 
-procedure TFrameBrowser.LoadURLInternal(const URL, Dest, Query, EncType, Referer: string;
+procedure TFrameBrowser.LoadURLInternal(const URL, Dest, Query, EncType, Referer: ThtString;
   IsGet, Reload: boolean);
 var
   OldFrameSet: TbrFrameSet;
-  OldFile, S, S1: string;
+  OldFile, S, S1: ThtString;
   OldPos: LongInt;
   Tmp: TObject;
   SameName: boolean;
-{$IFDEF Windows}
-  Dummy: integer;
-{$ENDIF}
   Stream: TMemoryStream;
   StreamType: ThtmlFileType;
   I: integer;
@@ -778,9 +789,6 @@ begin
     if not Assigned(FOnGetPostRequest) and not Assigned(FOnGetPostRequestEx) then
       raise(Exception.Create('No OnGetPostRequest or OnGetPostRequestEx event defined'));
   BeginProcessing;
-{$IFDEF windows}
-  Dummy :=
-{$ENDIF}
   IOResult; {remove any pending file errors}
   S := URL;
   try
@@ -811,7 +819,7 @@ begin
           S := S1;
 
         if Pos(':', S) <> 0 then
-          CurbrFrameSet.URLBase := UrlSubs.GetURLBase(S)
+          CurbrFrameSet.URLBase := URLSubs.GetURLBase(S)
         else
         begin
           CurbrFrameSet.URLBase := OldFrameSet.URLBase;
@@ -866,7 +874,7 @@ begin
       begin
         S := S1;
         if Pos(':', S) <> 0 then
-          CurbrFrameSet.URLBase := UrlSubs.GetURLBase(S);
+          CurbrFrameSet.URLBase := URLSubs.GetURLBase(S);
       end;
 
       (CurbrFrameSet as TbrFrameSet).LoadFromBrzFile(Stream, StreamType, S, Dest);
@@ -881,7 +889,7 @@ end;
 //-- BG ---------------------------------------------------------- 23.09.2010 --
 // concentrate all FOnGetPostRequet* calls here:
 procedure TFrameBrowser.PostRequest(Sender: TObject; IsGet: boolean; const Source, Query, EncType,
-  Referer: string; Reload: boolean; out NewURL: string; out DocType: ThtmlFileType;
+  Referer: ThtString; Reload: boolean; out NewURL: ThtString; out DocType: ThtmlFileType;
   out Stream: TMemoryStream);
 begin
   NewURL := '';
@@ -904,12 +912,12 @@ end;
 
 {----------------TFrameBrowser.HotSpotClick}
 
-procedure TFrameBrowser.HotSpotClick(Sender: TObject; const AnURL: string; var Handled: boolean);
+procedure TFrameBrowser.HotSpotClick(Sender: TObject; const AnURL: ThtString; var Handled: boolean);
 var
   I: integer;
   Viewer: ThtmlViewer;
   FrameTarget: TFrameBase;
-  S, Dest, FullUrl: string;
+  S, Dest, FullUrl: ThtString;
 begin
   Handled := True;
   if Processing then
@@ -984,9 +992,9 @@ end;
 
 {----------------TFrameBrowser.HotSpotCovered}
 
-procedure TFrameBrowser.HotSpotCovered(Sender: TObject; const SRC: string);
+procedure TFrameBrowser.HotSpotCovered(Sender: TObject; const SRC: ThtString);
 var
-  S, Dest, FullUrl: string;
+  S, Dest, FullUrl: ThtString;
   Viewer: ThtmlViewer;
 begin
   if Assigned(OnHotSpotTargetCovered) then
@@ -1018,22 +1026,22 @@ end;
 {----------------TFrameBrowser.DoFormSubmitEvent}
 
 procedure TFrameBrowser.DoFormSubmitEvent(Sender: TObject; const Action, Target, EncType,
-  Method: string; Results: ThtStringList);
+  Method: ThtString; Results: ThtStringList);
 var
-  S, Dest, Query: string;
+  S, Dest, Query: ThtString;
   FrameTarget: TFrameBase;
   I: integer;
   Viewer: ThtmlViewer;
   UserHandled, IsGet: boolean;
 
-  function AssembleQuery: string;
+  function AssembleQuery: ThtString;
   var
-    S1: string;
+    S1: ThtString;
     I, J: integer;
 
-    function Encode(const S: string): string;
+    function Encode(const S: ThtString): ThtString;
     var
-      Ch: char;
+      Ch: ThtChar;
       I: integer;
     begin {convert odd chars into %xx -- does not handle the '=' sign yet}
       Result := '';
@@ -1042,7 +1050,14 @@ var
         Ch := S[I];
         if Ch = ' ' then
           Result := Result + '+'
-        else if not (Ch in ['a'..'z', 'A'..'Z', '0'..'9', '=', '_', '-', '.', '*', '@']) then
+        else if not (Ch in [
+          ThtChar('a')..ThtChar('z'),
+          ThtChar('A')..ThtChar('Z'),
+          ThtChar('0')..ThtChar('9'),
+          ThtChar('='), ThtChar('_'),
+          ThtChar('-'), ThtChar('.'),
+          ThtChar('*'), ThtChar('@')])
+        then
           Result := Result + '%' + IntToHex(ord(Ch), 2)
         else
           Result := Result + Ch;
@@ -1054,7 +1069,7 @@ var
     for I := 0 to Results.Count - 1 do
     begin
       if FEncodePostArgs then
-      begin {form a string from the TStringList using '+' for spaces and '&' for separaters}
+      begin {form a ThtString from the TStringList using '+' for spaces and '&' for separaters}
         S1 := Encode(Results[I]);
         J := Pos(' ', S1);
         while J > 0 do
@@ -1139,9 +1154,9 @@ begin
   end;
 end;
 
-procedure TFrameBrowser.DoURLRequest(Sender: TObject; const SRC: string; var Stream: TMemoryStream);
+procedure TFrameBrowser.DoURLRequest(Sender: TObject; const SRC: ThtString; var Stream: TMemoryStream);
 var
-  NewURL: string;
+  NewURL: ThtString;
   DocType: ThtmlFileType;
 begin
   PostRequest(Sender, True, SRC, '', '', '', False, NewURL, DocType, Stream);
@@ -1149,7 +1164,7 @@ end;
 
 {----------------TFrameBrowser.GetViewerUrlBase}
 
-function TFrameBrowser.GetViewerUrlBase(Viewer: ThtmlViewer): string;
+function TFrameBrowser.GetViewerUrlBase(Viewer: ThtmlViewer): ThtString;
 var
   Frame: TbrFrame;
 begin
@@ -1166,7 +1181,7 @@ end;
 procedure TFrameBrowser.CheckVisitedLinks;
 var
   I, J, K: integer;
-  S, S1: string;
+  S, S1: ThtString;
   Viewer: ThtmlViewer;
 begin
   if VisitedMaxCount = 0 then

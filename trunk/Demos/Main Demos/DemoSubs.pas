@@ -25,12 +25,17 @@ are covered by separate copyright notices located in those modules.
 
 unit DemoSubs;
 
-{$include htmlcons.inc}
+{$include ..\..\source\htmlcons.inc}
 
 interface
 
 uses
-  Windows, SysUtils;
+{$ifdef LCL}
+  LclIntf, LclType,
+{$else}
+  Windows,
+{$endif}
+  SysUtils;
 
 procedure StartProcess(CommandLine: string; ShowWindow: Word);
 
@@ -56,7 +61,11 @@ begin
   CloseHandle(pi.hProcess);
   CloseHandle(pi.hThread);
 {$else}
+{$ifdef LCL}
+  OpenDocument(PC);
+{$else}
   WinExec(PC, ShowWindow);
+{$endif}
 {$endif}
 end;
 

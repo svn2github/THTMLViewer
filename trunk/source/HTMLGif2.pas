@@ -1,5 +1,5 @@
 {
-Version   10.2
+Version   11
 Copyright (c) 1995-2008 by L. David Baldwin, 2008-2010 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -30,7 +30,12 @@ unit HTMLGif2;
 interface
 
 uses
-  Windows, SysUtils, Classes, Graphics, Controls, ExtCtrls, mmSystem, Math,
+{$ifdef LCL}
+  LclIntf, IntfGraphics, FpImage, LclType, HtmlMisc,
+{$else}
+  Windows, mmSystem,
+{$endif}
+  SysUtils, Classes, Graphics, Controls, ExtCtrls, Math,
   HtmlGlobals, htmlgif1;
 
 type
@@ -257,7 +262,7 @@ end;
 constructor TgfFrame.CreateCopy(Item: TgfFrame);
 begin
   inherited Create;
-  System.Move(Item.frLeft, frLeft, DWord(@TheEnd) - DWord(@frLeft));
+  System.Move(Item.frLeft, frLeft, PtrSub(@TheEnd, @frLeft));
   IsCopy := True;
 end;
 
@@ -286,7 +291,7 @@ begin
   inherited Create;
   FImageWidth := Item.Width;
   FimageHeight := Item.Height;
-  System.Move(Item.FAnimated, FAnimated, DWord(@TheEnd) - DWord(@FAnimated));
+  System.Move(Item.FAnimated, FAnimated, PtrSub(@TheEnd, @FAnimated));
   IsCopy := True;
 
   Frames := TgfFrameList.Create;
@@ -322,11 +327,9 @@ var
   SRect: TRect;
   ALeft: integer;
 begin
-  FStretchedRect := Rect(X, Y, X + Wid, Y + Ht);
-
-  SetStretchBltMode(Canvas.Handle, ColorOnColor);
   if (FVisible) and (FNumFrames > 0) then
   begin
+    FStretchedRect := Rect(X, Y, X + Wid, Y + Ht);
     with Frames[FCurrentFrame] do
     begin
       ALeft := (FCurrentFrame - 1) * Width;
@@ -335,6 +338,7 @@ begin
 
     Canvas.CopyMode := cmSrcCopy;
   {draw the correct portion of the strip}
+    SetStretchBltMode(Canvas.Handle, ColorOnColor);
     Strip.StretchDraw(Canvas, FStretchedRect, SRect);
   end;
 end;
@@ -465,8 +469,8 @@ begin
 end;
 
 { ThtBitmap }
-var
-  AHandle: THandle;
+//var
+//  AHandle: THandle;
 
 destructor ThtBitmap.Destroy;
 begin
@@ -488,7 +492,7 @@ var
 begin
   with Rect do
   begin
-    AHandle := ACanvas.Handle; {LDB}
+    //AHandle := ACanvas.Handle; {LDB}
     PaletteNeeded;
     OldPalette := 0;
     RestorePalette := False;
@@ -511,7 +515,7 @@ begin
     else if not Monochrome then
       SetStretchBltMode(ACanvas.Handle, STRETCH_DELETESCANS);
     try
-      AHandle := Canvas.Handle; {LDB}
+      //AHandle := Canvas.Handle; {LDB}
       if htTransparent then
       begin
         Save := 0;
@@ -551,7 +555,7 @@ var
 begin
   with DestRect do
   begin
-    AHandle := ACanvas.Handle; {LDB}
+    //AHandle := ACanvas.Handle; {LDB}
     PaletteNeeded;
     OldPalette := 0;
     RestorePalette := False;
@@ -574,7 +578,7 @@ begin
     else if not Monochrome then
       SetStretchBltMode(ACanvas.Handle, STRETCH_DELETESCANS);
     try
-      AHandle := Canvas.Handle; {LDB}
+      //AHandle := Canvas.Handle; {LDB}
       if htTransparent then
         TransparentStretchBlt(ACanvas.Handle, Left, Top, Right - Left,
           Bottom - Top, Canvas.Handle,

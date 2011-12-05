@@ -1,8 +1,8 @@
 object AboutBox: TAboutBox
-  Left = 286
-  Top = 214
+  Left = 740
+  Top = 213
   Width = 375
-  Height = 265
+  Height = 291
   BorderIcons = [biSystemMenu]
   Caption = 'About'
   Color = clBtnFace
@@ -17,39 +17,39 @@ object AboutBox: TAboutBox
   Position = poScreenCenter
   DesignSize = (
     367
-    231)
+    257)
   PixelsPerInch = 96
   TextHeight = 16
   object BitBtn1: TBitBtn
     Left = 284
-    Top = 198
+    Top = 224
     Width = 75
     Height = 25
     Anchors = [akRight, akBottom]
     TabOrder = 0
     Kind = bkOK
   end
-  object Viewer: THTMLViewer
+  object Viewer: THtmlViewer
     Left = 8
     Top = 8
     Width = 352
-    Height = 180
-    ViewImages = False
+    Height = 206
     Enabled = False
     TabOrder = 1
     Anchors = [akLeft, akTop, akRight, akBottom]
     BorderStyle = htNone
-    HistoryMaxCount = 0
+    CharSet = DEFAULT_CHARSET
     DefFontName = 'Times New Roman'
     DefPreFontName = 'Courier New'
+    HistoryMaxCount = 0
+    HtOptions = []
     NoSelect = True
-    ScrollBars = ssNone
-    CharSet = DEFAULT_CHARSET
+    PrintMarginBottom = 2
     PrintMarginLeft = 2
     PrintMarginRight = 2
     PrintMarginTop = 2
-    PrintMarginBottom = 2
     PrintScale = 1
-    htOptions = []
+    ScrollBars = ssNone
+    ViewImages = False
   end
 end
