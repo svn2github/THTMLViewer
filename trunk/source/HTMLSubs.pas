@@ -984,7 +984,7 @@ type
     procedure Draw(Canvas: TCanvas; const ARect: TRect; X, Y, CellSpacing: Integer; Border: Boolean; Light, Dark: TColor);
     procedure DrawLogic2(Canvas: TCanvas; Y, CellSpacing: Integer; var Curs: Integer);
 
-    // BG, 08.01.2012: issue 109: BCB cannot handle properties that refer to record members.
+    // BG, 08.01.2012: Issue 109: C++Builder cannot handle properties that reference record members.
     // - added for legacy support only, will be removed in a near future release.
     //   Please use properties Border and Padding instead.
     function getBorderBottom: Integer;
