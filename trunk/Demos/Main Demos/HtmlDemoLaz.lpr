@@ -4,13 +4,6 @@ Copyright (c) 1995-2008 by L. David Baldwin
 Copyright (c) 2008-2010 by HtmlViewer Team
 Copyright (c) 2011-2012 by Bernd Gabriel
 
-*********************************************************
-*                                                       *
-*           Thanks to Mike Lischke for his              *
-*        assistance with the Unicode conversion         *
-*                                                       *
-*********************************************************
-
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
 the Software without restriction, including without limitation the rights to
@@ -32,21 +25,25 @@ Note that the source modules HTMLGIF1.PAS and DITHERUNIT.PAS
 are covered by separate copyright notices located in those modules.
 }
 
-program HtmlDemoW;
+program HtmlDemoLaz;
 
-{A program to demonstrate the THtmlViewer component}
+{A program to demonstrate the TFrameViewer component}
+
+{$mode objfpc}{$H+}
 
 uses
+  Interfaces,
   Forms,
+  printer4lazarus,
   DemoSubs in 'DemoSubs.pas',
-  FontDlg in 'FontDlg.pas' {FontForm},
-  GoPage in 'GoPage.pas' {GoPageForm},
-  HtmlAbt in 'HtmlAbt.pas' {AboutBox},
+  Fontdlg in 'Fontdlg.pas' {FontForm},
+  Gopage in 'Gopage.pas' {GoPageForm},
+  Htmlabt in 'Htmlabt.pas' {AboutBox},
   ImgForm in 'ImgForm.pas' {ImageForm},
   PreviewForm in 'PreviewForm.pas' {PreviewForm},
   PrintStatusForm in 'PrintStatusForm.pas' {PrnStatusForm},
   Submit in 'Submit.pas' {SubmitForm},
-  DemoUnit in 'DemoUnit.pas' {Form1};
+  DemoUnit in 'DemoUnit.PAS' {Form1};
 
 {$R *.res}
 
@@ -55,3 +52,4 @@ begin
   Application.CreateForm(TForm1, Form1);
   Application.Run;
 end.
+
