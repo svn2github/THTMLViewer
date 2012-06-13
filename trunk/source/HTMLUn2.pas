@@ -45,7 +45,7 @@ uses
   StyleUn, HtmlGlobals, HtmlBuffer, HtmlGif2;
 
 const
-  VersionNo = '11.2';
+  VersionNo = '11.3';
   MaxHScroll = 6000; {max horizontal display in pixels}
   HandCursor = crHandPoint; //10101;
   OldThickIBeamCursor = 2;
