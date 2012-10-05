@@ -446,7 +446,7 @@ type
     destructor Destroy; override;
   end;
 
-  XArray = array[0..300] of Integer;
+  XArray = array[0..10000000] of Integer;
   PXArray = ^XArray;
 
   IndexObj = class
@@ -2926,7 +2926,7 @@ begin
   if BorderSize > 0 then
     with Canvas do
     begin
-      SaveColor := Pen.Color;
+     SaveColor := Pen.Color;
       SaveWidth := Pen.Width;
       SaveStyle := Pen.Style;
       Pen.Color := ThemedColor(FO.TheFont.Color);
