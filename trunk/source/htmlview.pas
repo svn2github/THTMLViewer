@@ -69,6 +69,7 @@ type
 
   THTMLBorderStyle = (htFocused, htNone, htSingle);
   TRightClickParameters = class(TObject)
+  public
     URL, Target: ThtString;
     Image: TImageObj;
     ImageX, ImageY: Integer;
@@ -219,7 +220,7 @@ type
     FPrintScale: Double;
     FRefreshDelay: Integer;
     FRefreshURL: ThtString;
-    FScrollBars: TScrollStyle;
+    FScrollBars: ThtScrollStyle;
     FSectionList: ThtDocument;
     FServerRoot: ThtString;
     FTarget: ThtString;
@@ -335,7 +336,7 @@ type
     procedure SetPreFontName(Value: TFontName);
     procedure SetPrintScale(Value: Double);
     procedure SetProcessing(Value: Boolean);
-    procedure SetScrollBars(Value: TScrollStyle);
+    procedure SetScrollBars(Value: ThtScrollStyle);
     procedure SetScrollPos(Value: Integer);
     procedure SetSelLength(Value: Integer);
     procedure SetSelStart(Value: Integer);
@@ -354,7 +355,9 @@ type
     function GetScrollInfo(DocWidth, DocHeight: Integer): ThtScrollInfo;
   protected
     ScrollWidth: Integer;
-
+    {$ifdef has_StyleElements}
+    procedure UpdateStyleElements; override;
+    {$endif}
     function GetPalette: HPALETTE; override;
     function HotSpotClickHandled: Boolean; dynamic;
     function IsProcessing: Boolean;
@@ -529,7 +532,7 @@ type
     property PrintMaxHPages: Integer read FPrintMaxHPages write FPrintMaxHPages default 2;
     property PrintScale: Double read FPrintScale write SetPrintScale;
     property QuirksMode;
-    property ScrollBars: TScrollStyle read FScrollBars write SetScrollBars default ssBoth;
+    property ScrollBars: ThtScrollStyle read FScrollBars write SetScrollBars default ssBoth;
     property ServerRoot: ThtString read FServerRoot write SetServerRoot;
     property ViewImages: Boolean read GetViewImages write SetViewImages default True;
     property VisitedMaxCount: Integer read FVisitedMaxCount write SetVisitedMaxCount default 50;
@@ -598,6 +601,11 @@ function GetFileType(const S: ThtString): THtmlFileType;
 implementation
 
 uses
+{$ifdef Compiler24_Plus}
+  System.Types,
+  System.UITypes,
+  Vcl.Themes,
+{$endif}
   Math, Clipbrd, Forms, Printers, {$IFDEF UNICODE}AnsiStrings, {$ENDIF}
   HTMLGif2 {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
 
@@ -606,6 +614,7 @@ const
 
 type
   PositionObj = class(TObject)
+  public
     Pos: Integer;
     FileType: ThtmlFileType;
     FormData: TFreeList;
@@ -685,6 +694,9 @@ begin
 {$ifndef LCL}
   PaintPanel.Ctl3D := False;
 {$endif}
+{$ifdef has_StyleElements}
+  PaintPanel.StyleElements := StyleElements;
+{$endif}
   //PaintPanel.OnPaint := HTMLPaint;
   PaintPanel.OnMouseDown := HTMLMouseDown;
   PaintPanel.OnMouseMove := HTMLMouseMove;
@@ -746,6 +758,21 @@ begin
 {$endif}
   Exclude(FViewerState, vsCreating);
 end;
+
+{$ifdef has_StyleElements}
+procedure THtmlViewer.UpdateStyleElements;
+begin
+
+  HScrollBar.StyleElements := StyleElements;
+  VScrollBar.StyleElements := StyleElements;
+  BorderPanel.StyleElements := StyleElements;
+  PaintPanel.StyleElements := StyleElements;
+  if Assigned(FSectionList) then begin
+    FSectionList.StyleElements := StyleElements;
+  end;
+  inherited UpdateStyleElements;
+end;
+{$endif}
 
 destructor THtmlViewer.Destroy;
 begin
@@ -979,6 +1006,9 @@ begin
           FUseQuirksMode := False;
         end;
         Self.FSectionList.UseQuirksMode := FUseQuirksMode;
+             {$ifdef has_StyleElements}
+        Self.FSectionList.StyleElements := Self.StyleElements;
+             {$endif}
         // terminate old document
         InitLoad;
         CaretPos := 0;
@@ -2672,7 +2702,8 @@ end;
 {----------------DrawBackground}
 
 procedure DrawBackground(ACanvas: TCanvas; ARect: TRect; XStart, YStart, XLast, YLast: Integer;
-  Image: TGpObject; Mask: TBitmap; AniGif: TGifImage; BW, BH: Integer; BGColor: TColor);
+  Image: TGpObject; Mask: TBitmap; AniGif: TGifImage; BW, BH: Integer; BGColor: TColor
+  {$ifdef has_StyleElements};const AStyleElements : TStyleElements{$endif});
 {draw the background color and any tiled images on it}
 {ARect, the cliprect, drawing outside this will not show but images may overhang
  XStart, YStart are first image position already calculated for the cliprect and parameters.
@@ -2695,7 +2726,7 @@ begin
   begin
     OldPal := SelectPalette(DC, ThePalette, False);
     RealizePalette(DC);
-    ACanvas.Brush.Color := ThemedColor(BGColor) or PalRelative;
+    ACanvas.Brush.Color := ThemedColor(BGColor {$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
     OldBrush := SelectObject(DC, ACanvas.Brush.Handle);
     OldBack := SetBkColor(DC, clWhite);
     OldFore := SetTextColor(DC, clBlack);
@@ -2812,7 +2843,7 @@ begin
   begin
     OldPal := SelectPalette(DC, ThePalette, False);
     RealizePalette(DC);
-    ACanvas.Brush.Color := ThemedColor(BGColor) or PalRelative;
+    ACanvas.Brush.Color := ThemedColor(BGColor{$ifdef has_StyleElements},seClient in StyleElements {$endif}) or PalRelative;
     OldBrush := SelectObject(DC, ACanvas.Brush.Handle);
     OldBack := SetBkColor(DC, clWhite);
     OldFore := SetTextColor(DC, clBlack);
@@ -2924,11 +2955,11 @@ begin
   {Calculate where the tiled background images go}
     CalcBackgroundLocationAndTiling(PRec, ARect, XOff, YOff, IW, IH, BW, BH, X, Y, X2, Y2);
 
-    DrawBackground(ACanvas, ARect, X, Y, X2, Y2, Image, Mask, nil, BW, BH, PaintPanel.Color);
+    DrawBackground(ACanvas, ARect, X, Y, X2, Y2, Image, Mask, nil, BW, BH, PaintPanel.Color{$ifdef has_StyleElements},StyleElements{$endif});
   end
   else
   begin {no background image, show color only}
-    DrawBackground(ACanvas, ARect, 0, 0, 0, 0, nil, nil, nil, 0, 0, PaintPanel.Color);
+    DrawBackground(ACanvas, ARect, 0, 0, 0, 0, nil, nil, nil, 0, 0, PaintPanel.Color{$ifdef has_StyleElements},StyleElements{$endif});
   end;
 end;
 
@@ -3055,7 +3086,7 @@ begin
         else
           NewMask := nil;
         try
-          DrawBackground(ACanvas, ARect, X, Y, X2, Y2, NewBitmap, NewMask, nil, NewBitmap.Width, NewBitmap.Height, ACanvas.Brush.Color);
+          DrawBackground(ACanvas, ARect, X, Y, X2, Y2, NewBitmap, NewMask, nil, NewBitmap.Width, NewBitmap.Height, ACanvas.Brush.Color{$ifdef has_StyleElements},StyleElements{$endif});
         finally
           NewMask.Free;
         end;
@@ -3066,13 +3097,13 @@ begin
     else {normal situation}
     begin
       AniGif := FSectionList.BackgroundAniGif;
-      DrawBackground(ACanvas, ARect, X, Y, X2, Y2, Image, Mask, AniGif, BW, BH, ACanvas.Brush.Color);
+      DrawBackground(ACanvas, ARect, X, Y, X2, Y2, Image, Mask, AniGif, BW, BH, ACanvas.Brush.Color{$ifdef has_StyleElements},StyleElements{$endif});
     end;
   end
   else
   begin {no background image, show color only}
     Exclude(FViewerState, vsBGFixed);
-    DrawBackground(ACanvas, ARect, 0, 0, 0, 0, nil, nil, nil, 0, 0, ACanvas.Brush.Color);
+    DrawBackground(ACanvas, ARect, 0, 0, 0, 0, nil, nil, nil, 0, 0, ACanvas.Brush.Color{$ifdef has_StyleElements},StyleElements{$endif});
   end;
 
   FSectionList.Draw(ACanvas, ARect, MaxHScroll, -HScrollBar.Position, 0, 0, 0);
@@ -3142,7 +3173,7 @@ var
 
   procedure PaintBackground(Canvas: TCanvas; Top, Bot: Integer);
   begin
-    Canvas.Brush.Color := ThemedColor(CopyList.Background);
+    Canvas.Brush.Color := ThemedColor(CopyList.Background{$ifdef has_StyleElements},seClient in StyleElements {$endif});
     Canvas.Brush.Style := bsSolid;
     Canvas.FillRect(Rect(0, Top, Width + 1, Bot));
   end;
@@ -3288,6 +3319,9 @@ begin
     PrintBackground := True;
     PrintTableBackground := True;
   end;
+  {$ifdef has_StyleElements}
+  Result.StyleElements := StyleElements;
+  {$endif}
 end;
 
 {$ifndef NoMetafile}
@@ -3449,7 +3483,7 @@ var
     Canvas.Rectangle(MLeft, Y, W + MLeft + 1, TopPixels + H + 1);
     if (htPrintBackground in FOptions) and (Y - TopPixels < H) then
     begin {need to reprint background in whited out area}
-      hrgnClip1 := CreateRectRgn(MLeftPrn, Trunc(Y * (YDpi / WDpi)) + 2, MLeftPrn + WPrn, TopPixelsPrn + HPrn);
+      hrgnClip1 := CreateRectRgn(MLeftPrn, Trunc(Y * YDpi / WDpi) + 2, MLeftPrn + WPrn, TopPixelsPrn + HPrn);
       SelectClipRgn(Canvas.Handle, hrgnClip1);
       DeleteObject(hrgnClip1);
       DoBackground2(Canvas, MLeft + XOrigin, TopPixels, W, H, PaintPanel.Color);
@@ -4153,6 +4187,9 @@ begin
   end;
   FSectionList.Clear;
   FSectionList.UseQuirksMode := FUseQuirksMode;
+     {$ifdef has_StyleElements}
+  FSectionList.StyleElements := Self.StyleElements;
+     {$endif}
   UpdateImageCache;
   FSectionList.SetFonts(FFontName, FPreFontName, FFontSize, FFontColor,
     FHotSpotColor, FVisitedColor, FOverColor, FBackground,
@@ -4169,6 +4206,9 @@ begin
     Exit;
   HTMLTimer.Enabled := False;
   FSectionList.UseQuirksMode := FUseQuirksMode;
+     {$ifdef has_StyleElements}
+  FSectionList.StyleElements := Self.StyleElements;
+     {$endif}
   FSectionList.Clear;
   if vsLocalBitmapList in FViewerState then
     FSectionList.BitmapList.Clear;
@@ -4576,7 +4616,7 @@ begin
   DrawBorder;
 end;
 
-procedure THtmlViewer.SetScrollBars(Value: TScrollStyle);
+procedure THtmlViewer.SetScrollBars(Value: ThtScrollStyle);
 begin
   if (Value <> FScrollBars) then
   begin
@@ -4915,6 +4955,9 @@ begin
 {$else}
   DoubleBuffered := True;
 {$endif}
+{$ifdef has_StyleElements}
+  StyleElements := Viewer.StyleElements;
+{$endif}
 end;
 
 
@@ -4953,8 +4996,9 @@ begin
       SelectObject(MemDC, Bm);
       SetWindowOrgEx(MemDC, X, Y, nil);
       Canvas2.Font := Font;
+      Canvas2.Font.Color := ThemedColor(Font.Color{$ifdef has_StyleElements},seFont in StyleElements {$endif});
       Canvas2.Handle := MemDC;
-      Canvas2.Brush.Color := ThemedColor(Color);
+      Canvas2.Brush.Color := ThemedColor(Color{$ifdef has_StyleElements},seClient in StyleElements {$endif});
       Canvas2.Brush.Style := bsSolid;
       FViewer.DrawBorder;
       FViewer.HTMLPaint(Canvas2, Rect);
@@ -4977,7 +5021,7 @@ begin
 //  of frameviewer, if some images have to be shown
 //  (Happened in FrameDemo on page 'samples' with images pengbrew and pyramids).
   Canvas.Font := Font;
-  Canvas.Brush.Color := ThemedColor(Color);
+  Canvas.Brush.Color := ThemedColor(Color{$ifdef has_StyleElements},seClient in StyleElements {$endif});
   Canvas.Brush.Style := bsSolid;
   FViewer.DrawBorder;
   FViewer.HTMLPaint(Canvas, Canvas.ClipRect);

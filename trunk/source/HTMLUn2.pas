@@ -339,6 +339,7 @@ type
 //------------------------------------------------------------------------------
 
   IndentRec = class(TObject)
+  public
     X: Integer;   // left or right indentation relative to LfEdge.
     YT: Integer;  // top Y inclusive coordinate for this record relative to document top.
     YB: Integer;  // bottom Y exclusive coordinate for this record relative to document top.
@@ -517,6 +518,9 @@ type
     //This must be protected because it's set directly in a descendant
     FUseQuirksMode : Boolean;
     FQuirksMode : THtQuirksMode;
+    {$ifdef has_StyleElements}
+    procedure UpdateStyleElements; override;
+    {$endif}
     procedure SetOnInclude(Handler: TIncludeType); virtual;
     procedure SetOnLink(Handler: TLinkType); virtual;
     procedure SetOnScript(Handler: TScriptEvent); virtual;
@@ -531,10 +535,15 @@ type
     property OnScript: TScriptEvent read FOnScript write SetOnScript;
     property OnSoundRequest: TSoundType read FOnSoundRequest write SetOnSoundRequest;
     property UseQuirksMode : Boolean read FUseQuirksMode;
+  published
+    {$ifdef has_StyleElements}
+    property StyleElements;
+    {$endif}
   end;
 
   TablePartType = (Normal, DoHead, DoBody1, DoBody2, DoBody3, DoFoot);
   TTablePartRec = class
+  public
     TablePart: TablePartType;
     PartStart: Integer;
     PartHeight: Integer;
@@ -634,16 +643,20 @@ function ToSpecWidth(AsInteger: Integer; AsString: string): TSpecWidth;
 function CalcClipRect(Canvas: TCanvas; const Rect: TRect; Printing: boolean): TRect;
 procedure GetClippingRgn(Canvas: TCanvas; const ARect: TRect; Printing: boolean; var Rgn, SaveRgn: HRgn);
 
-procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Color: TColor);
-procedure DrawFormControlRect(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
-
+procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Color: TColor {$ifdef has_StyleElements};const AStyleElements : TStyleElements{$endif});
+procedure DrawFormControlRect(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor
+  {$ifdef has_StyleElements};const AStyleElements : TStyleElements{$endif});
 procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
-  const S: htBorderStyleArray; BGround: TColor; Print: boolean);
+  const S: htBorderStyleArray; BGround: TColor; Print: boolean
+  {$ifdef has_StyleElements};const AStyleElements : TStyleElements{$endif});
 
 implementation
 
 uses
   Forms, Math,
+  {$ifdef Compiler24_Plus}
+  System.UITypes,
+  {$endif}
   {$ifndef FPC_TODO}jpeg, {$endif}
   {$IFDEF UNICODE} PngImage, {$ENDIF}
   DitherUnit, StylePars;
@@ -1066,7 +1079,8 @@ begin
   Result := ExtS.cx;
 end;
 
-procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Color: TColor);
+procedure FillRectWhite(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Color: TColor
+ {$ifdef has_StyleElements};const AStyleElements : TStyleElements{$endif});
 var
   OldBrushStyle: TBrushStyle;
   OldBrushColor: TColor;
@@ -1075,7 +1089,8 @@ begin
   begin
     OldBrushStyle := Brush.Style; {save style first}
     OldBrushColor := Brush.Color;
-    Brush.Color := Color;
+    Brush.Color := ThemedColor(Color
+      {$ifdef has_StyleElements},seClient in AStyleElements{$endif});
     Brush.Style := bsSolid;
     FillRect(Rect(X1, Y1, X2, Y2));
     Brush.Color := OldBrushColor;
@@ -1083,7 +1098,12 @@ begin
   end;
 end;
 
+{$ifdef has_StyleElements}
+procedure DrawFormControlRect(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor;
+  const AStyleElements : TStyleElements);
+{$else}
 procedure DrawFormControlRect(Canvas: TCanvas; X1, Y1, X2, Y2: Integer; Raised, PrintMonoBlack, Disabled: boolean; Color: TColor);
+{$endif}
 {Draws lowered rectangles for form control printing}
 var
   OldStyle: TPenStyle;
@@ -1101,10 +1121,19 @@ begin
     OldStyle := Pen.Style;
     OldBrushStyle := Brush.Style; {save style first}
     OldBrushColor := Brush.Color;
-    if not MonoBlack and Disabled then
-      Brush.Color := ThemedColor(clBtnFace)
-    else
-      Brush.Color := ThemedColor(color);
+    if not MonoBlack then begin
+      if Disabled then begin
+        Brush.Color := ThemedColor(clBtnFace{$ifdef has_StyleElements},seClient in AStyleElements{$endif});
+      end else begin
+        Brush.Color := ThemedColor(color{$ifdef has_StyleElements},seClient in AStyleElements{$endif});
+      end;
+    end else begin
+      Brush.Color := clBlack;//color;
+    end;
+//    if not MonoBlack and Disabled then
+//      Brush.Color := ThemedColor(clBtnFace)
+//    else
+//      Brush.Color := ThemedColor(color);
     Brush.Style := bsSolid;
     FillRect(Rect(X1, Y1, X2, Y2));
     Brush.Color := OldBrushColor;
@@ -1120,18 +1149,21 @@ begin
     begin
       Pen.Width := 2;
       if Raised then
-        Pen.Color := clSilver
+        Pen.Color := ThemedColor(clBtnHighlight{$ifdef has_StyleElements},seClient in AStyleElements{$endif})//clSilver
       else
-        Pen.Color := ThemedColor(clBtnShadow);
+        Pen.Color := ThemedColor(clBtnShadow{$ifdef has_StyleElements},seClient in AStyleElements{$endif});
     end;
     MoveTo(X1, Y2);
     LineTo(X1, Y1);
     LineTo(X2, Y1);
-    if not MonoBlack then
+    if not MonoBlack then begin
       if Raised then
-        Pen.Color := ThemedColor(clBtnShadow)
+        Pen.Color := ThemedColor(clBtnShadow{$ifdef has_StyleElements},seClient in AStyleElements{$endif})
       else
-        Pen.Color := clSilver;
+        Pen.Color := ThemedColor(clBtnHighlight{$ifdef has_StyleElements},seClient in AStyleElements{$endif});//clSilver;
+    end else begin
+      Pen.Color := clSilver;
+    end;
     LineTo(X2, Y2);
     LineTo(X1, Y2);
     Pen.Style := OldStyle;
@@ -3515,6 +3547,7 @@ end;
 {$else}
 type
   AllocRec = class(TObject)
+  public
     Ptr: Pointer;
     ASize: Integer;
     AHandle: THandle;
@@ -3799,7 +3832,7 @@ end;
 //end;
 
 procedure DrawOnePolygon(Canvas: TCanvas; P: BorderPointArray; Color: TColor;
-  Side: byte; Printing: boolean);
+  Side: byte; Printing: boolean {$ifdef has_StyleElements};const AStyleElements : TStyleElements {$endif});
 {Here we draw a 4 sided polygon (by filling a region).  This represents one
  side (or part of a side) of a border.
  For single pixel thickness, drawing is done by lines for better printing}
@@ -3858,7 +3891,7 @@ begin
       with Canvas do
       begin
         Brush.Style := bsSolid;
-        Brush.Color := ThemedColor(Color);
+        Brush.Color := ThemedColor(Color{$ifdef has_StyleElements},seClient in AStyleElements{$endif});
         FillRgn(Handle, R, Brush.Handle);
       end;
     finally
@@ -3868,9 +3901,16 @@ begin
 end;
 
 {----------------DrawBorder}
+ {$ifdef has_StyleElements}
 
 procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
+  const S: htBorderStyleArray; BGround: TColor; Print: boolean;
+  const AStyleElements : TStyleElements);
+
+ {$else}
+procedure DrawBorder(Canvas: TCanvas; ORect, IRect: TRect; const C: htColorArray;
   const S: htBorderStyleArray; BGround: TColor; Print: boolean);
+  {$endif}
 {Draw the 4 sides of a border.  The sides may be of different styles or colors.
  The side indices, 0,1,2,3, represent left, top, right, bottom.
  ORect is the outside rectangle of the border, IRect the inside Rectangle.
@@ -3985,7 +4025,7 @@ begin
     CombineRgn(OuterRegion, OuterRegion, InnerRegion, RGN_DIFF);
     Brush := TBrush.Create;
     try
-      Brush.Color := ThemedColor(BGround) or PalRelative;
+      Brush.Color := ThemedColor(BGround{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
       Brush.Style := bsSolid;
       FillRgn(Canvas.Handle, OuterRegion, Brush.Handle);
     finally
@@ -4011,22 +4051,22 @@ begin
         Color := C[I] or PalRelative;
         case S[I] of
           bssSolid:
-            DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+            DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
           bssInset:
             begin
               if I in [0, 1] then
-                Color := Darker(C[I]) or PalRelative
+                Color := Darker(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative
               else
-                Color := Lighter(C[I]) or PalRelative;
-              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+                Color := Lighter(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
             end;
           bssOutset:
             begin
               if (I in [2, 3]) then
-                Color := Darker(C[I]) or PalRelative
+                Color := Darker(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative
               else
-                Color := Lighter(C[I]) or PalRelative;
-              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+                Color := Lighter(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
             end;
         end;
       end
@@ -4040,18 +4080,18 @@ begin
           bssGroove:
             begin
               if I in [0, 1] then
-                Color := Darker(C[I]) or PalRelative
+                Color := Darker(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative
               else
-                Color := Lighter(C[I]) or PalRelative;
-              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+                Color := Lighter(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
             end;
           bssRidge:
             begin
               if (I in [2, 3]) then
-                Color := Darker(C[I]) or PalRelative
+                Color := Darker(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative
               else
-                Color := Lighter(C[I]) or PalRelative;
-              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+                Color := Lighter(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
             end;
         end;
         Bnd[0] := PM[I];
@@ -4062,41 +4102,41 @@ begin
           bssRidge:
             begin
               if I in [0, 1] then
-                Color := Darker(C[I]) or PalRelative
+                Color := Darker(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative
               else
-                Color := Lighter(C[I]) or PalRelative;
-              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+                Color := Lighter(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
             end;
           bssGroove:
             begin
               if (I in [2, 3]) then
-                Color := Darker(C[I]) or PalRelative
+                Color := Darker(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative
               else
-                Color := Lighter(C[I]) or PalRelative;
-              DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+                Color := Lighter(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
+              DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
             end;
         end;
       end
       else if S[I] = bssDouble then
       begin
-        Color := C[I] or PalRelative;
+        Color := ThemedColor(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
         Bnd[0] := PO[I];
         Bnd[1] := PO[(I + 1) mod 4];
         Bnd[2] := P1[(I + 1) mod 4];
         Bnd[3] := P1[I];
-        DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+        DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
         Bnd[0] := P2[I];
         Bnd[1] := P2[(I + 1) mod 4];
         Bnd[2] := PI[(I + 1) mod 4];
         Bnd[3] := PI[I];
-        DrawOnePolygon(Canvas, Bnd, Color, I, Print);
+        DrawOnePolygon(Canvas, Bnd, Color, I, Print{$ifdef has_StyleElements},AStyleElements{$endif});
       end
       else if S[I] in [bssDashed, bssDotted] then
       begin
         if not InPath then
         begin
           lb.lbStyle := BS_SOLID;
-          lb.lbColor := ThemedColor(C[I]) or PalRelative;
+          lb.lbColor := ThemedColor(C[I]{$ifdef has_StyleElements},seClient in AStyleElements{$endif}) or PalRelative;
           lb.lbHatch := 0;
           if S[I] = bssDotted then
             PenType := PS_Dot or ps_EndCap_Round
@@ -4205,6 +4245,13 @@ procedure TViewerBase.SetQuirksMode(const AValue: THtQuirksMode);
 begin
   FQuirksMode := AValue;
 end;
+
+{$ifdef has_StyleElements}
+procedure TViewerBase.UpdateStyleElements;
+begin
+  inherited UpdateStyleElements;
+end;
+{$endif
 
 { THtmlViewerBase }
 

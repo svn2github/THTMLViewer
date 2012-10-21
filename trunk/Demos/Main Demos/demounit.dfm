@@ -115,6 +115,7 @@ object Form1: TForm1
       TabOrder = 0
       Align = alClient
       BorderStyle = htFocused
+      CharSet = DEFAULT_CHARSET
       DefBackground = clWindow
       DefFontColor = clWindowText
       DefFontName = 'Times New Roman'
@@ -128,7 +129,6 @@ object Form1: TForm1
       PrintMarginRight = 2
       PrintMarginTop = 2
       PrintScale = 1
-      QuirksMode = qmDetect
       OnMouseMove = ViewerMouseMove
       OnFormSubmit = SubmitEvent
       OnHistoryChange = HistoryChange
