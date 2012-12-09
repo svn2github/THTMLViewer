@@ -1269,7 +1269,7 @@ begin
   begin
     Bytes := Bytes div 2;
     SetLength(Result, Bytes);
-    System.Move(Result[1], FPos.BytePtr^, Bytes);
+    System.Move(FPos.BytePtr^, Result[1], Bytes);
   end
   else
   begin
