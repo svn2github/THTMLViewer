@@ -473,6 +473,7 @@ var
     Include: TBuffer;
     Params: ThtStringList;
     SaveLCToken: TokenObj;
+    L: Integer;
   begin
     S := '';
     SaveLCToken := LCToken;
@@ -480,6 +481,16 @@ var
     try
       GetChBasic;
       GetIdentifier(S);
+      if LCh = '>' then
+      begin
+        L := Length(S);
+        if (L > 2) and (S[L-1] = '-') and (S[L] = '-') then
+        begin
+          Doc.Position := Doc.Position - 3;
+          GetChBasic;
+          SetLength(S, L - 2);
+        end;
+      end;
       // BG, 15.12.2011: Issue 88: DoInclude and FreeAndNil of SL
       // Now freeing SL (renamed to Params) here and not
       // relying on cooperative event doing it for us.
