@@ -1795,8 +1795,8 @@ var
   Shape: (shRect, shCircle, shPoly, shDefault);
   Area: TMapArea;
 begin
-  if FAreas.Count >= 1000 then
-    Exit;
+//  if FAreas.Count >= 1000 then
+//    Exit;
   Area := TMapArea.Create;
   try
     Shape := shRect;
