@@ -30,6 +30,9 @@ unit HtmlSymb;
 interface
 
 uses
+{$ifdef MSWINDOWS}
+  Windows,
+{$endif}
   HtmlGlobals;
 
 type
