@@ -117,7 +117,7 @@ object HTTPForm: THTTPForm
         ImageIndex = -1
         MinHeight = 37
         MinWidth = 140
-        Width = 216
+        Width = 156
       end
       item
         Break = False
@@ -126,7 +126,7 @@ object HTTPForm: THTTPForm
         MinHeight = 21
         MinWidth = 170
         Text = 'URL:'
-        Width = 268
+        Width = 270
       end
       item
         Break = False
@@ -134,12 +134,12 @@ object HTTPForm: THTTPForm
         ImageIndex = -1
         MinHeight = 37
         MinWidth = 155
-        Width = 231
+        Width = 289
       end>
     object ToolBar2: TToolBar
       Left = 9
       Top = 0
-      Width = 141
+      Width = 143
       Height = 37
       AutoSize = True
       ButtonHeight = 37
@@ -183,11 +183,11 @@ object HTTPForm: THTTPForm
       end
     end
     object UrlComboBox: TComboBox
-      Left = 194
+      Left = 196
       Top = 8
-      Width = 227
+      Width = 228
       Height = 21
-      ItemHeight = 0
+      ItemHeight = 13
       TabOrder = 1
       OnClick = URLComboBoxClick
       OnKeyPress = URLComboBoxKeyPress
@@ -195,9 +195,9 @@ object HTTPForm: THTTPForm
         'http://pc19-web/local/localindex.html')
     end
     object Panel10: TPanel
-      Left = 443
+      Left = 439
       Top = 0
-      Width = 282
+      Width = 286
       Height = 37
       Align = alTop
       BevelOuter = bvNone
@@ -233,14 +233,14 @@ object HTTPForm: THTTPForm
         end
       end
       object Panel3: TPanel
-        Left = 254
+        Left = 258
         Top = 0
         Width = 28
         Height = 37
         Align = alRight
         BevelOuter = bvNone
         TabOrder = 1
-        ExplicitLeft = 255
+        ExplicitLeft = 254
         object Animate1: TAnimate
           Left = 3
           Top = 8
