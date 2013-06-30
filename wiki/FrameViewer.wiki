@@ -1,4 +1,4 @@
-#summary FrameViewer an alias of HtmlViewer
+#summary FrameViewer - an alias for HtmlViewer
 
 *FrameViewer* is an alternative name used for *HtmlViewer*.
 
