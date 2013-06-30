@@ -1,0 +1,5 @@
+#summary FrameDem.exe - The HtmlViewer demo application
+
+"FrameDem.exe" is a small application that demonstrates a lot of HtmlViewer features. 
+
+It is located in the repository in subfolder [http://code.google.com/p/thtmlviewer/source/browse/#svn%2Ftrunk%2FDemos%2FCompiled%20Framedemo Compiled FrameDemo]
