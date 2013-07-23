@@ -425,6 +425,7 @@ function ColorAndOpacityFromString(S: ThtString; NeedPound: Boolean; out Color: 
 
 function ReadURL(Item: Variant): ThtString;
 
+function LowerCaseUnquotedStr(const S : THtString) : THtString;
 function RemoveQuotes(const S: ThtString): ThtString;
 function ReadFontName(S: ThtString): ThtString;
 
@@ -2828,6 +2829,84 @@ begin {call only if all things valid}
   end;
   Result := TMyFont.Create;
   Result.Assign(TheFont);
+end;
+
+{----------------LowerCaseUnquotedStr}
+{Imporant:  In many CSS values, a quoted string or anything
+in parathesis should be left in it's original case.
+Such a substring may be case-sensitive.
+
+Examples include URI filenames and Base64-encoded data.
+}
+function LowerCaseUnquotedStr(const S : THtString) : THtString;
+var
+  Top: ThtChar;
+  MoreStack: ThtString;
+  LCh : ThtChar;
+  idx, len : Integer;
+
+  procedure Push(Ch: ThtChar);
+  var
+    I: Integer;
+  begin
+    if Top <> EofChar then
+    begin
+      I := Length(MoreStack) + 1;
+      SetLength(MoreStack, I);
+      MoreStack[I] := Top;
+    end;
+    Top := Ch;
+  end;
+
+  procedure Pop;
+  var
+    I: Integer;
+  begin
+    I := Length(MoreStack);
+    if I > 0 then
+    begin
+      Top := MoreStack[I];
+      SetLength(MoreStack, I - 1);
+    end
+    else
+      Top := EofChar;
+  end;
+
+begin
+  if (Pos('''',S) = 0) and (Pos('(',S)=0) and (Pos('"',S) = 0) then
+  begin
+    Result := LowerCase(S);
+    exit;
+  end;
+  len := Length(S);
+  SetLength(Result,len);
+  for idx := 1 to Len do begin
+    LCh := S[idx];
+    case LCh of
+      '(' :
+        begin
+          if LCh = Top then
+            Pop
+        else
+            Push(LCh);
+        end;
+      '''','"' :
+        begin
+          Push(LCh);
+        end;
+       ')' :
+        begin
+          if LCh = Top then
+             Pop;
+        end;
+        'A'..'Z' :
+        begin
+          if Top = EofChar then
+            LCh := ThtChar(Word(LCh) or $0020);
+        end;
+    end;
+    Result[idx] := LCh;
+  end;
 end;
 
 {----------------RemoveQuotes}

@@ -342,13 +342,13 @@ var
   Value1: String;
   Index: TShortHand;
 begin
-  Value1 := LowerCase(Trim(Value)); // leave quotes on for font
+  Value1 := LowerCaseUnquotedStr(Trim(Value)); // leave quotes on for font
   Value := RemoveQuotes(Value1);
   Prop := LowerCase(Prop);
   if FindShortHand(Prop, Index) then
     ProcessShortHand(Index, Prop, Value, Value1)
   else if Prop = 'font-family' then
-    ProcessProperty(Prop, Value1)
+    ProcessProperty(Prop, LowerCase(Value1))
   else
   begin
     if (LinkPath <> '') and (Pos('url(', Value) > 0) then
@@ -358,6 +358,83 @@ begin
 end;
 
 procedure SplitString(Src: ThtString; out Dest: array of ThtString; out Count: integer);
+{Split a Src ThtString into pieces returned in the Dest ThtString array.  Splitting
+ is on spaces with spaces within quotes being ignored.  Do NOT split the string
+ for the  "size/line-height" Font construct because "/" also is base-64 encoded-data
+ and something like "image/gif" mime type specifier. }
+var
+  I, Q, Q1, N: integer;
+  Z: ThtString;
+  Done: boolean;
+  Match: ThtChar;
+begin
+  Src := Trim(Src);
+  I := Pos('  ', Src);
+  while I > 0 do {simplify operation by removing extra white space}
+  begin
+    Delete(Src, I + 1, 1);
+    I := Pos('  ', Src);
+  end;
+  I := Pos(', ', Src);
+  while I > 0 do {simplify operation by removing spaces after commas}
+  begin
+    Delete(Src, I + 1, 1);
+    I := Pos(', ', Src);
+  end;
+
+  N := 0;
+  while (N <= High(Dest)) and (Src <> '') do
+  begin
+    Z := '';
+    repeat
+      Done := True;
+      I := Pos(' ', Src);
+      Q := Pos('"', Src);
+      Q1 := Pos('''', Src);
+      if (Q1 > 0) and ((Q > 0) and (Q1 < Q) or (Q = 0)) then
+      begin
+        Q := Q1;
+        Match := ''''; {the matching quote ThtChar}
+      end
+      else
+        Match := '"';
+      if I = 0 then
+      begin
+        Z := Z + Src;
+        Src := '';
+      end
+      else if (Q = 0) or (I < Q) then
+      begin
+        Z := Z + Copy(Src, 1, I - 1);
+        Delete(Src, 1, I);
+      end
+      else {Q<I} {quoted ThtString found}
+      begin
+        Z := Z + Copy(Src, 1, Q); {copy to quote}
+        Delete(Src, 1, Q);
+        Q := Pos(Match, Src); {find next quote}
+        if Q > 0 then
+        begin
+          Z := Z + Copy(Src, 1, Q); {copy to second quote}
+          Delete(Src, 1, Q);
+          Done := False; {go back and find the space}
+        end
+        else {oops, missing second quote, copy remaining}
+        begin
+          Z := Z + Src;
+          Src := '';
+        end;
+      end;
+    until Done;
+    if N <= High(Dest) then
+      Dest[N] := Z;
+    Inc(N);
+  end;
+  Count := N;
+end;
+
+
+procedure SplitStringSizeLineHeight(Src: ThtString; out Dest: array of ThtString; out Count: integer);
 {Split a Src ThtString into pieces returned in the Dest ThtString array.  Splitting
  is on spaces with spaces within quotes being ignored.  ThtString containing a '/'
  are also split to allow for the "size/line-height" Font construct. }
@@ -686,7 +763,7 @@ procedure THtmlStyleParser.ProcessShortHand(Index: TShortHand; const Prop, OrigV
     Values[shFamily] := '';
 
     // specified values
-    SplitString(Value, S, Count);
+    SplitStringSizeLineHeight(Value, S, Count);
     for I := 0 to Count - 1 do
     begin
       case S[I, 1] of
@@ -1249,8 +1326,26 @@ begin
           SkipWhiteSpace;
 
           SetLength(Value, 0);
-          while not ((LCh = ';') or IsTermChar(LCh)) do
+          { The ';' inside a quotation should not end a CSS value.  }
+          while not (((LCh = ';') and (Top = EofChar)) or IsTermChar(LCh)) do
           begin
+            case LCh of
+            '"', '''':
+              if LCh = Top then
+                Pop
+              else
+                Push(LCh);
+            '(' :
+              Push(')');
+            ')' :
+            begin
+              if LCh = Top then
+                Pop;
+              if Top = EofChar then
+                break;
+              end;
+            end;
+
             SetLength(Value, Length(Value) + 1);
             Value[Length(Value)] := LCh;
             GetCh;
