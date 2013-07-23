@@ -68,7 +68,7 @@ object HTTPForm: THTTPForm
         ImageIndex = -1
         MinHeight = 37
         MinWidth = 140
-        Width = 161
+        Width = 162
       end
       item
         Break = False
@@ -85,12 +85,12 @@ object HTTPForm: THTTPForm
         ImageIndex = -1
         MinHeight = 37
         MinWidth = 155
-        Width = 175
+        Width = 174
       end>
     object ToolBar2: TToolBar
       Left = 11
       Top = 0
-      Width = 148
+      Width = 149
       Height = 37
       AutoSize = True
       ButtonHeight = 37
@@ -134,7 +134,7 @@ object HTTPForm: THTTPForm
       end
     end
     object UrlComboBox: TComboBox
-      Left = 204
+      Left = 205
       Top = 8
       Width = 179
       Height = 21
@@ -201,7 +201,6 @@ object HTTPForm: THTTPForm
         Align = alRight
         BevelOuter = bvNone
         TabOrder = 1
-        ExplicitLeft = 138
         object Animate1: TAnimate
           Left = 3
           Top = 8
@@ -407,7 +406,7 @@ object HTTPForm: THTTPForm
     Left = 40
     Top = 120
     Bitmap = {
-      494C01010D001100040011001100FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010D0011000C0011001100FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000440000004400000001002000000000004048
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
