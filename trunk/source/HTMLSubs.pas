@@ -800,6 +800,7 @@ type
     FControl: ThtEdit;
     EnterContents: ThtString;
     tmAveCharWidth: Integer;
+    FPlaceholder : ThtString;
     function getText: ThtString;
     procedure setText(const Value: ThtString);
   protected
@@ -3949,6 +3950,11 @@ begin
     {$ifdef has_StyleElements}
     StyleElements := AMasterList.StyleElements;
     {$endif}
+    if L.Find(PlaceholderSy, T) then
+    begin
+      FPlaceholder := T.Name;
+      TextHint := FPlaceholder;
+    end;
   end;
 end;
 

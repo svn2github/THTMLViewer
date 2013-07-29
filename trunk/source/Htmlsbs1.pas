@@ -117,6 +117,7 @@ type
   private
     FControl: ThtCombobox;
     EnterIndex: integer;
+    FPlaceholder : ThtString;
 {$IFDEF OpOnChange}
     procedure OptionalOnChange(Sender: TObject);
 {$ENDIF}
@@ -141,6 +142,8 @@ type
   private
     FControl: ThtMemo;
     EnterContents: ThtString;
+    FPlaceholder : THtString;
+    FMaxLength : Integer;
     function GetLine(Index: Integer): ThtString;
     function GetText: ThtString;
     procedure SetText(const AValue: ThtString);
@@ -454,6 +457,7 @@ constructor TComboFormControlObj.Create(AMasterList: ThtDocument;
 var
   PntPanel: TWinControl; //TPaintPanel;
   Tmp: TMyFont;
+  T : TAttribute;
 begin
   inherited Create(AMasterList, Position, L);
   CodePage := Prop.CodePage;
@@ -484,6 +488,11 @@ begin
 {$endif}
   end;
   FControl.Parent := PntPanel;
+  if L.Find(PlaceholderSy, T) then
+  begin
+    FPlaceholder := T.Name;
+    FControl.TextHint := FPlaceholder;
+  end;
 end;
 
 procedure TComboFormControlObj.ResetToValue;
@@ -616,6 +625,7 @@ var
   I: integer;
   SB: ThtScrollStyle;
   Tmp: TMyFont;
+  T : TAttribute;
 begin
   inherited Create(AMasterList, Position, L);
   CodePage := Prop.CodePage;
@@ -665,6 +675,17 @@ begin
      {$endif}
   end;
   FControl.Parent := PntPanel;
+  FControl.TextHint.Clear;
+  if L.Find(PlaceholderSy, T) then
+  begin
+    FPlaceholder := T.Name;
+    FControl.TextHint.Add( FPlaceholder);
+  end;
+  if L.Find(MaxLengthSy, T) then
+  begin
+      FMaxLength := T.Value;
+      FControl.MaxLength := T.Value;
+  end;
 end;
 
 destructor TTextAreaFormControlObj.Destroy;
