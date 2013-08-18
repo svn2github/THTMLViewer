@@ -131,6 +131,10 @@
     {$define TComboBoxHasTextHint}
   {$endif}
 
+  {$ifdef Compiler21_Plus}
+    {$define HasGDIPlus}
+  {$endif}
+
   {$ifdef Compiler23_Plus}
   {$else}
     {$define UseASMx86}

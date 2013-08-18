@@ -614,8 +614,14 @@ uses
   System.UITypes,
   Vcl.Themes,
 {$endif}
-  Math, Clipbrd, Forms, Printers, {$IFDEF UNICODE}AnsiStrings, {$ENDIF}
-  HTMLGif2 {$IFNDEF NoGDIPlus}, GDIPL2A{$ENDIF};
+  Math, Clipbrd, Forms, Printers,
+{$ifdef UNICODE}
+  AnsiStrings,
+{$endif}
+{$ifndef NoGDIPlus}
+  GDIPL2A,
+{$endif}
+  HTMLGif2;
 
 const
   ScrollGap = 20;
@@ -2812,7 +2818,7 @@ var
   OldBack, OldFore: TColor;
   Bitmap: TBitmap;
   {$IFNDEF NoGDIPlus}
-  Graphics: TGpGraphics;
+  Graphics: THtGpGraphics;
   {$ENDIF NoGDIPlus}
 begin
   DC := ACanvas.handle;
@@ -2886,14 +2892,14 @@ begin
         else
         begin
           Y := YStart;
-          graphics := TGPGraphics.Create(DC);
+          graphics := THtGPGraphics.Create(DC);
           try
             while Y < YLast do
             begin
               X := XStart;
               while X < XLast do
               begin
-                graphics.DrawImage(TGpImage(Image), X, Y, BW, BH);
+                graphics.DrawImage(THtGpImage(Image), X, Y, BW, BH);
                 Inc(X, BW);
               end;
               Inc(Y, BH);
@@ -2993,7 +2999,7 @@ begin
               X := XStart;
               while X < XLast do
               begin
-                StretchPrintGpImageOnColor(ACanvas, TGPImage(Image), X, Y, BW, BH, BGColor);
+                StretchPrintGpImageOnColor(ACanvas, THtGPImage(Image), X, Y, BW, BH, BGColor);
                 Inc(X, BW);
               end;
               Inc(Y, BH);

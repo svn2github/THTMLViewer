@@ -201,6 +201,7 @@ object HTTPForm: THTTPForm
         Align = alRight
         BevelOuter = bvNone
         TabOrder = 1
+        ExplicitLeft = 138
         object Animate1: TAnimate
           Left = 3
           Top = 8
