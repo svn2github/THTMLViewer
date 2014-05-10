@@ -3234,12 +3234,14 @@ end;
 function TIDObjectList.AddObject(const S: ThtString; AObject: TIDObject): Integer;
 var
   I: Integer;
+  O: TIdObject;
 begin
   if Find(S, I) then
   begin
     try
-      if Objects[I].FreeMe then
-        Objects[I].Free;
+      O := Objects[I];
+      if O.FreeMe then
+        O.Free;
     except
     end;
     Delete(I);
@@ -3250,11 +3252,13 @@ end;
 procedure TIDObjectList.Clear;
 var
   I: Integer;
+  O: TIdObject;
 begin
   for I := 0 to Count - 1 do
   try
-    if Objects[I].FreeMe then
-      Objects[I].Free;
+    O := Objects[I];
+    if O.FreeMe then
+      O.Free;
   except
   end;
   inherited Clear;
