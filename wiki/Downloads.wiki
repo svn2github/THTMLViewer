@@ -1,0 +1,8 @@
+#summary Where can I downloads a zip file with the sources?
+
+=Where can I downloads a zip file with the sources?=
+
+As Google Code no longer supports new downloads you can now get the new release HtmlViewer 11.5 from 
+ * [https://sourceforge.net/projects/htmlviewer/files/?source=navbar SourceForge]
+or
+ * [https://github.com/BerndGabriel/HtmlViewer/releases GitHub]
