@@ -1,7 +1,7 @@
 {
-Version   11.4
+Version   11.5
 Copyright (c) 1995-2008 by L. David Baldwin
-Copyright (c) 2008-2013 by HtmlViewer Team
+Copyright (c) 2008-2014 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -57,160 +57,47 @@ unit HTMLSubs;
 {$ifdef DO_BLOCK_INLINE}
 {$endif}
 
+//TODO -oBG, 15.03.2014: support display:inline
+{-$define DO_PD_INLINE}
+//TODO -oBG, 15.03.2014: support display:inline
+{$ifdef DO_PD_INLINE}
+{$endif}
+
 interface
 
 uses
+ {$ifdef UseInline}
+ HtmlCaches,
+ {$endif}
 {$ifdef VCL}
   Windows,
   EncdDecd,
 {$endif}
-  Messages, Graphics, Controls, ExtCtrls, Classes, SysUtils, Variants, Forms, Math, Contnrs,
+  Messages, Graphics, Controls, ExtCtrls, Classes, SysUtils, Variants, Forms, Math, Contnrs, ComCtrls,
 {$ifdef LCL}
   LclIntf, LclType, HtmlMisc, types,
 {$endif}
   HtmlGlobals,
+  HtmlFonts,
+  StyleTypes,
+  HtmlImages, // use before HTMLUn2, as both define a TGetImageEvent, but we need the one of HTMLUn2 here.
+  HTMLUn2,
   HtmlBuffer,
   HtmlSymb,
   StyleUn,
-  HTMLUn2,
   HTMLGif2;
 
 type
-
-//------------------------------------------------------------------------------
-// TSectionBase, the abstract base class for all document sections
-//------------------------------------------------------------------------------
-// Each block is a section (see TBlock and its derivates) and a series of text
-// and non block building "inline" tags is held in a section (see TSection)
-//
-// Base class for TSection, TBlock, THtmlTable, TPage and THorzLine
-//------------------------------------------------------------------------------
-
-  ThtDocument = class;
   TBlock = class;
-  THtmlPropStack = class;
-
-  TSectionBase = class(TIDObject)
-  private
-    FDocument: ThtDocument; // the document it belongs to
-    FOwner: TBlock;         // the parental block it is placed in
-    FDisplay: TPropDisplay; // how it is displayed
-  protected
-    function GetYPosition: Integer; override;
-    procedure SetDocument(List: ThtDocument);
-  public
-    // source buffer reference
-    StartCurs: Integer;     // where the section starts in the source buffer.
-    Len: Integer;           // number of bytes in source buffer the section represents.
-    // Z coordinates are calculated in Create()
-    ZIndex: Integer;
-    // Y coordinates calculated in DrawLogic() are still valid in Draw1()
-    YDraw: Integer;         // where the section starts.
-    DrawTop: Integer;       // where the border starts.  In case of a block this is YDraw + MarginTop
-    ContentTop: Integer;    // where the content starts. In case of a block this is YDraw + MarginTop + PaddingTop + BorderTopWidth
-    ContentBot: Integer;    // where the section ends.   In case of a block this is Block.ClientContentBot + PaddingBottom + BorderBottomWidth + MarginBottom
-    DrawBot: Integer;       // where the border ends.    In case of a block this is Max(Block.ClientContentBot, MyCell.tcDrawBot) + PaddingBottom + BorderBottomWidth
-    SectionHeight: Integer; // pixel height of section. = ContentBot - YDraw
-    DrawHeight: Integer;    // floating image may overhang. = Max(ContentBot, DrawBot) - YDraw
-    // X coordinates calculated in DrawLogic() may be shifted in Draw1(), if section is centered or right aligned
-    TagClass: ThtString; {debugging aid} //BG, 10.03.2011: see also TCellBasic.OwnersTag
-
-    constructor Create(AMasterList: ThtDocument; ADisplay: TPropDisplay); overload;
-    constructor Create(AMasterList: ThtDocument; AProp: TProperties); overload;
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); virtual;
-    function CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean; virtual;
-    function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; virtual;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; virtual;
-    function FindCursor(Canvas: TCanvas; X, Y: Integer; out XR, YR, CaretHt: Integer; out Intext: boolean): Integer; virtual;
-    function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; virtual;
-    function FindSourcePos(DocPos: Integer): Integer; virtual;
-    function FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; virtual;
-    function FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; virtual;
-    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean; virtual;
-    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject{TImageFormControlObj}; out ATitle: ThtString): guResultType; virtual;
-    function PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean; virtual;
-    procedure AddSectionsToList; virtual;
-    procedure CopyToClipboard; virtual;
-    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); virtual;
-    property Display: TPropDisplay read FDisplay write FDisplay;
-    property Owner: TBlock read FOwner; //BG, 07.02.2011: public for reading document structure (see issue 24). Renamed from MyBlock to Owner to clarify the relation.
-    property Document: ThtDocument read FDocument;
-  end;
-
-  TSectionBaseList = class(TFreeList)
-  private
-    function getItem(Index: Integer): TSectionBase;
-  public
-    function CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean; virtual;
-    function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; virtual;
-    property Items[Index: Integer]: TSectionBase read getItem; default;
-  end;
-
-//------------------------------------------------------------------------------
-// TCellBasic, the base class for content
-//------------------------------------------------------------------------------
-// Base class for table cells, block content and the entire document
-//------------------------------------------------------------------------------
-
-  TCellBasic = class(TSectionBaseList) {a list of sections and blocks}
-  private
-    FDocument: ThtDocument; // the document it belongs to
-    FOwner: TBlock;         // the parental block it is placed in
-  public
-    // source buffer reference
-    StartCurs: Integer;     // where the section starts in the source buffer.
-    Len: Integer;           // number of bytes in source buffer the section represents.
-    //
-    IMgr: TIndentManager;   // Each tag displayed as a block needs an indent manager.
-    BkGnd: boolean;
-    BkColor: TColor;
-    OwnersTag: ThtString;   // TODO -oBG, 10.03.2011: move to Owner
-    // Y coordinates calculated in DrawLogic() are still valid in Draw1()
-    YValue: Integer;        // vertical position at top of cell. As this is a simple container, YValue is same as Self[0].YDraw.
-    tcDrawTop: Integer;
-    tcContentBot: Integer;
-    tcDrawBot: Integer;
-
-    constructor Create(Master: ThtDocument);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TCellBasic);
-    function CheckLastBottomMargin: boolean;
-    function DoLogic(Canvas: TCanvas; Y, Width, AHeight, BlHt: Integer; var ScrollWidth, Curs: Integer): Integer; virtual;
-    function Draw(Canvas: TCanvas; ARect: TRect; ClipWidth, X, Y, XRef, YRef: Integer): Integer; virtual;
-    function FindCursor(Canvas: TCanvas; X: Integer; Y: Integer; out XR, YR, Ht: Integer; out Intext: boolean): Integer;
-    function FindSourcePos(DocPos: Integer): Integer;
-    function FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
-    function FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
-    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean;
-    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): guResultType; virtual;
-    function PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean;
-    procedure Add(Item: TSectionBase; TagIndex: Integer);
-    procedure AddSectionsToList;
-    procedure CopyToClipboard;
-    procedure FormTree(const Indent: ThtString; var Tree: ThtString);
-    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); virtual;
-    property MasterList: ThtDocument read FDocument; {the ThtDocument that holds the whole document}
-    property Owner: TBlock read FOwner;
-  end;
-
-  TCell = class(TCellBasic)
-  private
-    DrawYY: Integer;
-  public
-    constructor Create(Master: ThtDocument);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TCellBasic);
-    destructor Destroy; override;
-    function DoLogic(Canvas: TCanvas; Y, Width, AHeight, BlHt: Integer; var ScrollWidth, Curs: Integer): Integer; override;
-    function Draw(Canvas: TCanvas; ARect: TRect; ClipWidth, X, Y, XRef, YRef: Integer): Integer; override;
-  end;
+  TSection = class;
+  TCellBasic = class;
+  ThtDocument = class;
 
 //------------------------------------------------------------------------------
 // TFontObj, contains an atomic font info for a part of a section.
 // TFontList, contains and owns all font infos of a section
 // TLinkList, references but does not own all link infos of a document. The objects are still owned by their sections.
 //------------------------------------------------------------------------------
-
-  TSection = class;
 
   ThtTabControl = class(TWinControl)
   private
@@ -220,13 +107,21 @@ type
     property OnExit;
     property TabStop;
     property OnKeyUp;
+  public
+    destructor Destroy; override;
   end;
 
   TFontList = class;
 
   TFontObj = class(TFontObjBase) {font information}
+  // BG, 10.08.2013: deprecated
+  // Is used to handle the link states, but the full range of CSS
+  // properties can be applied to :link, :hover, :visited, etc.
+  //
   private
+{$IFNDEF NoTabLink}
     FSection: TSection; // only used if NoTabLink is not defined.
+{$ENDIF}
     FVisited, FHover: boolean;
     Title: ThtString;
     FYValue: Integer;
@@ -247,20 +142,20 @@ type
     property FontInfoIndex: FIIndex read GetFontInfoIndex;
   public
     Pos: Integer; {0..Len  Index where font takes effect}
-    TheFont: TMyFont;
+    TheFont: ThtFont;
     FIArray: TFontInfoArray;
     FontHeight, {tmHeight+tmExternalLeading}
       tmHeight,
       tmMaxCharWidth,
       Overhang,
       Descent: Integer;
-    SScript: AlignmentType;
+    SScript: ThtAlignmentStyle;
     TabControl: ThtTabControl;
-    constructor Create(ASection: TSection; F: TMyFont; Position: Integer);
+    constructor Create(ASection: TSection; F: ThtFont; Position: Integer);
     constructor CreateCopy(ASection: TSection; T: TFontObj);
     destructor Destroy; override;
-    procedure ReplaceFont(F: TMyFont);
-    procedure ConvertFont(FI: ThtFontInfo);
+    procedure ReplaceFont(F: ThtFont);
+    procedure ConvertFont(const FI: ThtFontInfo);
     procedure FontChanged;
     function GetOverhang: Integer;
     function GetHeight(var Desc: Integer): Integer;
@@ -268,18 +163,19 @@ type
     property URL: ThtString read GetURL;
     property Visited: boolean read FVisited write SetVisited;
     property Hover: boolean read FHover write SetHover;
-    property YValue: Integer read FYValue;
+    property DrawYY: Integer read FYValue;
   end;
 
   // BG, 10.02.2013: owns its objects.
   TFontList = class(TFreeList) {a list of TFontObj's}
   private
-    function GetFont(Index: Integer): TFontObj; 
+    function GetFont(Index: Integer): TFontObj;
   public
     constructor CreateCopy(ASection: TSection; T: TFontList);
-    function GetFontAt(Posn: Integer; out OHang: Integer): TMyFont;
-    function GetFontCountAt(Posn, Leng: Integer): Integer;
-    function GetFontObjAt(Posn: Integer; out Index: Integer): TFontObj;
+    function GetFontAt(Posn: Integer; out OHang: Integer): ThtFont;
+//    function GetFontCountAt(Posn, Leng: Integer): Integer;
+    function GetFontObjAt(Posn: Integer): TFontObj; overload;
+    function GetFontObjAt(Posn, Leng: Integer; out Obj: TFontObj): Integer; overload;
     procedure Decrement(N: Integer; Document: ThtDocument);
     property Items[Index: Integer]: TFontObj read GetFont; default;
   end;
@@ -291,146 +187,410 @@ type
   end;
 
 //------------------------------------------------------------------------------
-// TFloatingObj, an inline block for floating images and panels resp. iframes.
+// THtmlNode is base class for all objects in the HTML document tree.
 //------------------------------------------------------------------------------
-// TFloatingObj is base class for floating objects like TImageObj and TPanelObj.
+
+  THtmlNode = class(TIDObject)
+  private
+    FDocument: ThtDocument; // the document it belongs to
+    FOwnerBlock: TBlock;    // the parental block it is placed in
+    FOwnerCell: TCellBasic; // the parent's child list it is placed in
+    //FIds: ThtStringArray;
+    //FClasses: ThtStringArray;
+    FAttributes: TAttributeList;
+    FProperties: TProperties;
+    function GetSymbol(): TElemSymb;
+  protected
+    function FindAttribute(NameSy: TAttrSymb; out Attribute: TAttribute): Boolean; overload; virtual;
+    function GetChild(Index: Integer): THtmlNode; virtual;
+//    function GetParent: TBlock; virtual;
+//    function GetPseudos: TPseudos; virtual;
+    function IsCopy: Boolean; virtual;
+  public
+    constructor Create(Parent: TCellBasic; Attributes: TAttributeList; Properties: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); virtual;
+    //constructor Create(Parent: THtmlNode; Tag: TElemSymb; Attributes: TAttributeList; const Properties: TResultingProperties);
+    function IndexOf(Child: THtmlNode): Integer; virtual;
+    procedure AfterConstruction; override;
+    //function IsMatching(Selector: TSelector): Boolean;
+    property Symbol: TElemSymb read GetSymbol;
+//    property Parent: TBlock read GetParent;
+    property Children[Index: Integer]: THtmlNode read GetChild; default;
+    property OwnerBlock: TBlock read FOwnerBlock; //BG, 07.02.2011: public for reading document structure (see issue 24). Renamed from MyBlock to Owner to clarify the relation.
+    property OwnerCell: TCellBasic read FOwnerCell write FOwnerCell;
+    property Document: ThtDocument read FDocument;
+  end;
+
+//------------------------------------------------------------------------------
+// TSectionBase, the abstract base class for all document sections
+//------------------------------------------------------------------------------
+// Each block is a section (see TBlock and its derivates) and a series of text
+// and non block building "inline" tags is held in a section (see TSection)
+//
+// Base class for TSection, TBlock, THtmlTable, TPage and THorzLine
+//------------------------------------------------------------------------------
+
+  TSectionBase = class(THtmlNode)
+  private
+    FDisplay: ThtDisplayStyle; // how it is displayed
+  protected
+    function GetYPosition: Integer; override;
+    procedure SetDocument(List: ThtDocument);
+    function CalcDisplayExtern: ThtDisplayStyle; virtual;
+    function CalcDisplayIntern: ThtDisplayStyle; virtual;
+  public
+    // source buffer reference
+    StartCurs: Integer;     // where the section starts in the source buffer.
+    Len: Integer;           // number of bytes in source buffer the section represents.
+    // Z coordinates are calculated in Create()
+    ZIndex: Integer;
+    // Y coordinates calculated in DrawLogic1() are still valid in Draw1()
+    YDraw: Integer;         // where the section starts.
+    DrawTop: Integer;       // where the border starts.  In case of a block this is YDraw + MarginTop
+    ContentTop: Integer;    // where the content starts. In case of a block this is YDraw + MarginTop + BorderTopWidth + PaddingTop
+    ContentBot: Integer;    // where the section ends.   In case of a block this is Block.ClientContentBot + PaddingBottom + BorderBottomWidth + MarginBottom
+    DrawBot: Integer;       // where the border ends.    In case of a block this is Max(Block.ClientContentBot, MyCell.tcDrawBot) + PaddingBottom + BorderBottomWidth
+    SectionHeight: Integer; // pixel height of section. = ContentBot - YDraw
+    DrawHeight: Integer;    // floating image may overhang. = Max(ContentBot, DrawBot) - YDraw
+    // X coordinates calculated in DrawLogic1() may be shifted in Draw1(), if section is centered or right aligned
+    DrawRect: TRect;    //>-- DZ where the section starts (calculated in DrawLogic1 or Draw1)
+    TagClass: ThtString; {debugging aid}
+
+    constructor Create(Parent: TCellBasic; Attributes: TAttributeList; AProp: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    function CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean; virtual;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; virtual; abstract;
+    function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; virtual;
+    function FindCursor(Canvas: TCanvas; X, Y: Integer; out XR, YR, CaretHt: Integer; out Intext: boolean): Integer; virtual;
+    function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; virtual;
+    function FindSourcePos(DocPos: Integer): Integer; virtual;
+    function FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer; virtual;
+    function FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer; virtual;
+    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean; virtual;
+    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject{TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; virtual;
+    function PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): Boolean; virtual;
+    function PtInDrawRect(X, Y: Integer; var IX, IY: Integer): Boolean; virtual;
+    procedure AddSectionsToList; virtual;
+    procedure CopyToClipboard; virtual;
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); virtual;
+    property Display: ThtDisplayStyle read FDisplay write FDisplay;
+  end;
+
+  TSectionBaseList = class(TFreeList)
+  private
+    function GetItem(Index: Integer): TSectionBase;
+  public
+    function PtInObject(X, Y: Integer; var Obj: TObject; var IX, IY: Integer): Boolean;
+    function CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean; virtual;
+    function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; virtual;
+    property Items[Index: Integer]: TSectionBase read GetItem; default;
+  end;
+
+//------------------------------------------------------------------------------
+// TFloatingObj, an inline block for floating blocks.
+//------------------------------------------------------------------------------
+
+  TBlockBase = class(TSectionBase)
+  public
+    Positioning: ThtBoxPositionStyle;
+    Floating: ThtAlignmentStyle;
+    Indent: Integer;           {Indentation of floated object}
+
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+  end;
+
+  TFloatingObj = class(TBlockBase)
+  protected
+    // begin copy by move()
+    // source buffer reference
+    VertAlign: ThtAlignmentStyle;
+    HSpaceL, HSpaceR: Integer; {horizontal extra space}
+    VSpaceT, VSpaceB: Integer; {vertical extra space}
+    PercentWidth: Boolean; {if width is percent}
+    PercentHeight: Boolean; {if height is percent}
+    // end copy by move()
+
+    function Clone(Parent: TCellBasic): TFloatingObj;
+    function GetClientHeight: Integer; virtual; abstract;
+    function GetClientWidth: Integer; virtual; abstract;
+    procedure SetClientHeight(Value: Integer); virtual; abstract;
+    procedure SetClientWidth(Value: Integer); virtual; abstract;
+  public
+    DrawYY: Integer; // where the object starts.
+    DrawXX: Integer; // where the object starts.
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
+    function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
+    procedure DrawLogicInline(Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer); virtual; abstract;
+    procedure DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj); virtual; abstract;
+    property ClientHeight: Integer read GetClientHeight write SetClientHeight;
+    property ClientWidth: Integer read GetClientWidth write SetClientWidth;
+    function TotalHeight: Integer; {$ifdef UseInline} inline; {$endif}
+    function TotalWidth: Integer; {$ifdef UseInline} inline; {$endif}
+  end;
+  TFloatingObjClass = class of TFloatingObj;
+
+  TImageObj = class;
+
+  TFloatingObjList = class(TFreeList)   {a list of TFloatingObj's}
+  private
+    function GetItem(Index: Integer): TFloatingObj;
+    procedure SetItem(Index: Integer; const Item: TFloatingObj);
+  public
+    constructor CreateCopy(Parent: TCellBasic; T: TFloatingObjList);
+    procedure Decrement(N: Integer); {$ifdef UseInline} inline; {$endif}
+    function FindObject(Posn: Integer): TFloatingObj; {$ifdef UseInline} inline; {$endif}
+    // GetObjectAt() returns number of positions from Posn to next object. If it returns 0, Obj is at Posn.
+    function GetObjectAt(Posn: Integer; out Obj): Integer;
+    function PtInImage(X, Y: Integer; out IX, IY, Posn: Integer; out AMap, UMap: Boolean; out MapItem: TMapItem; out ImageObj: TImageObj): Boolean;
+    function PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): Boolean;
+    property Items[Index: Integer]: TFloatingObj read GetItem write SetItem; default;
+  end;
+
+//------------------------------------------------------------------------------
+// TCellBasic, the base class for content
+//------------------------------------------------------------------------------
+// Base class for table cells, block content and the entire document
+//------------------------------------------------------------------------------
+
+//BG, 02.12.2013: handling display:inline is too complex in this class structure, where TSection is both home of a couple
+// of HTML elements, the renderer and the rendering results (in the ThtLineRecs).
+//
+// A straight forward rendering would require overall Lines collecting the text of all consecutive inline level elements
+// no matter where it is defined in the document tree.
+//
+//  //BG, 01.12.2013: handle display:inline
+//  //This list mixes up block elements and autogenerated anonymous blocks for consecutive inline level elements based on
+//  // TInlineSection. All objects based on TInlineSection are owned (and therefore freed) by this list all other kind of
+//  // objects are assumed to be referenced and thus are not freed.
+//  TRenderSectionBaseList = class(TSectionBaseList)
+//  protected
+//    procedure Notify(Ptr: Pointer; Action: TListNotification); override;
+//  end;
+
+  TCellBasic = class(TSectionBaseList) {a list of sections and blocks}
+  private
+    FDocument: ThtDocument; // the document it belongs to
+    FOwnerBlock: TBlock;    // the parental block it is placed in
+//    FRenderList: TRenderSectionBaseList; //BG, 01.12.2013: The list of block level elements to render. Filled in DoLogic()
+  protected
+    function CalcDisplayExtern: ThtDisplayStyle; // returns either pdInline or pdBlock
+  public
+    // source buffer reference
+    StartCurs: Integer;     // where the section starts in the source buffer.
+    Len: Integer;           // number of bytes in source buffer the section represents.
+    //
+    IMgr: TIndentManager;   // Each element displayed as a block needs an indent manager.
+    BkGnd: boolean;
+    BkColor: TColor;
+    // Y coordinates calculated in DrawLogic() are still valid in Draw1()
+    //YValue: Integer;        // vertical position at top of cell. As this is a simple container, YValue is same as Self[0].YDraw.
+    tcDrawTop: Integer;
+    tcContentBot: Integer;
+    tcDrawBot: Integer;
+
+    constructor Create(Parent: TBlock);
+    constructor CreateCopy(Parent: TBlock; T: TCellBasic);
+    destructor Destroy; override;
+
+    function CheckLastBottomMargin: boolean;
+    function DoLogic(Canvas: TCanvas; Y, Width, AHeight, BlHt: Integer; var ScrollWidth, Curs: Integer): Integer; virtual;
+    function Draw(Canvas: TCanvas; ARect: TRect; ClipWidth, X, Y, XRef, YRef: Integer): Integer; virtual;
+    function FindCursor(Canvas: TCanvas; X: Integer; Y: Integer; out XR, YR, Ht: Integer; out Intext: boolean): Integer;
+    function FindSourcePos(DocPos: Integer): Integer;
+    function FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
+    function FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
+    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean;
+    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; virtual;
+    function IsCopy: Boolean;
+    procedure Add(Item: TSectionBase; TagIndex: Integer);
+    procedure AddSectionsToList;
+    procedure CopyToClipboard;
+{$ifdef UseFormTree}
+    procedure FormTree(const Indent: ThtString; var Tree: ThtString);
+{$endif UseFormTree}
+    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); virtual;
+    property Document: ThtDocument read FDocument; {the ThtDocument that holds the whole document}
+    property OwnerBlock: TBlock read FOwnerBlock;
+  end;
+
+  TCell = class(TCellBasic)
+  private
+    DrawYY: Integer;
+  public
+    constructor Create(Parent: TBlock);
+    constructor CreateCopy(Parent: TBlock; T: TCellBasic);
+    destructor Destroy; override;
+    function DoLogic(Canvas: TCanvas; Y, Width, AHeight, BlHt: Integer; var ScrollWidth, Curs: Integer): Integer; override;
+    function Draw(Canvas: TCanvas; ARect: TRect; ClipWidth, X, Y, XRef, YRef: Integer): Integer; override;
+  end;
+
+//------------------------------------------------------------------------------
+// TSizeableObj is base class for floating objects TImageObj, TFrameOBj and TPanelObj.
 //
 // These objects may appear in text flow or attribute ALIGN or style FLOAT may
 // push them out of the flow floating to the left or right side in the
 // containing block.
-//
-// BG, 06.03.2011: PANEL is not HTML standard, but its implementation could be
-//     the base for HTML tag IFRAME, which is not yet supported by THtmlViewer.
-//
-// Base class for TImageObj and TPanelObj
 //------------------------------------------------------------------------------
-  TFloatingObjBase = class(TIDObject)
-  end;
 
-  TFloatingObj = class(TFloatingObjBase)
-  public
-    Pos: Integer; {0..Len  index of image position}
-    ImageHeight, {does not include VSpace}
-    ImageWidth: Integer;
-    Floating: AlignmentType;
-    VertAlign: AlignmentType;
-    Indent: Integer;
-    HSpaceL, HSpaceR, VSpaceT, VSpaceB: Integer; {horizontal, vertical extra space}
-    SpecWidth: Integer; {as specified by <img or panel> tag}
-    SpecHeight: Integer; {as specified by <img or panel> tag}
-    PercentWidth: boolean; {if width is percent}
-    PercentHeight: boolean; {if height is percent}
-    ImageTitle: ThtString;
+  TSizeableObj = class(TFloatingObj)
+  private
     FAlt: ThtString; {the alt= attribute}
-
-    function GetYPosition: Integer; override;
+    FClientHeight: Integer; {does not include VSpace}
+    FClientWidth: Integer; {does not include HSpace}
   public
-    ImageKnown: boolean; {know size of image}
-    DrawYY: Integer;
-    DrawXX: Integer;
+    ClientSizeKnown: boolean; {know size of image}
+    SpecWidth: Integer; {as specified by <img, applet, panel, object, or iframe> tag}
+    SpecHeight: Integer; {as specified by <img, applet, panel, object, or iframe> tag}
+    Title: ThtString;
+  protected
+    FDisplay: ThtDisplayStyle; // how it is displayed
+    function GetYPosition: Integer; override;
+    procedure CalcSize(AvailableWidth, AvailableHeight, SetWidth, SetHeight: Integer; IsClientSizeSpecified: Boolean);
+    function GetClientHeight: Integer; override;
+    function GetClientWidth: Integer; override;
+    procedure SetClientHeight(Value: Integer); override;
+    procedure SetClientWidth(Value: Integer); override;
+  public
     NoBorder: boolean; {set if don't want blue border}
     BorderSize: Integer;
-    constructor CreateCopy(T: TFloatingObj);
-    function TotalHeight: Integer; {$ifdef UseInline} inline; {$endif}
-    function TotalWidth: Integer; {$ifdef UseInline} inline; {$endif}
-    procedure SetAlt(CodePage: Integer; const Value: ThtString);
-    procedure DrawLogic(SectionList: ThtDocument; Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer); virtual; abstract;
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    constructor SimpleCreate(Parent: TCellBasic);
+    function PtInDrawRect(X, Y: Integer; var IX, IY: Integer): Boolean; override;
+    procedure DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj); override;
     procedure ProcessProperties(Prop: TProperties);
+    procedure SetAlt(CodePage: Integer; const Value: ThtString);
     property Alt: ThtString read FAlt;
   end;
 
-
-  ThvPanel = class(TPanel)
-  public
-    FVisible: boolean;
-    procedure SetVisible(Value: boolean); {$ifdef LCL} override; {$endif}
-    property Visible: boolean read FVisible write SetVisible default True;
+  TSizeableObjList = class(TFloatingObjList) {a list of TImageObj's, TPanelObj's , and TFrameObj's}
   end;
 
-  TPanelCreateEvent = procedure(Sender: TObject; const AName, AType, SRC: ThtString; Panel: ThvPanel) of object;
-  TPanelDestroyEvent = procedure(Sender: TObject; Panel: ThvPanel) of object;
-  TPanelPrintEvent = procedure(Sender: TObject; Panel: ThvPanel; const Bitmap: TBitmap) of object;
 
-  TPanelObj = class(TFloatingObj)
-  private
-    FMasterList: ThtDocument;
+  // base class for inline panel, frame and progress node
+  TControlObj = class(TSizeableObj)
+  protected
     SetWidth, SetHeight: Integer;
-    IsCopy: boolean;
+    function GetBackgroundColor: TColor; virtual;
+    function GetControl: TWinControl; virtual; abstract;
+    property ClientControl: TWinControl read GetControl;
+    property BackgroundColor: TColor read GetBackgroundColor;
   public
-    ShowIt: boolean;
+    ShowIt: Boolean;
+    procedure DrawLogicInline(Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer); override;
+    procedure DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj); override;
+  end;
+
+
+  // inline panel (object) node
+  TPanelObj = class(TControlObj)
+  protected
+    function GetBackgroundColor: TColor; override;
+    function GetControl: TWinControl; override;
+  public
     Panel, OPanel: ThvPanel;
     OSender: TObject;
     PanelPrintEvent: TPanelPrintEvent;
     FUserData: TObject;
     FMyPanelObj: TPanelObj;
-    constructor Create(AMasterList: ThtDocument; Position: Integer; L: TAttributeList; ACell: TCellBasic; ObjectTag: boolean);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TPanelObj);
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties; ObjectTag: boolean);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
-    procedure DrawLogic(SectionList: ThtDocument; Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer); override;
-    procedure Draw(ACanvas: TCanvas; X1, Y1: Integer);
+    procedure DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj); override;
   end;
 
 
-  HoverType = (hvOff, hvOverUp, hvOverDown);
+  // inline frame node
+  TFrameObj = class(TControlObj)
+  private
+    FViewer: TViewerBase;
+    FSource, FUrl: ThtString;
+    frMarginWidth: Integer;
+    frMarginHeight: Integer;
+    NoScroll: Boolean;
+    procedure CreateFrame;
+    procedure UpdateFrame;
+  protected
+    function GetBackgroundColor: TColor; override;
+    function GetControl: TWinControl; override;
+  public
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    destructor Destroy; override;
+    procedure DrawInline(Canvas: TCanvas; X, Y: Integer; YBaseline: Integer; FO: TFontObj); override;
+  end;
+
+  // inline progress (object) node
+  TProgressObj = class(TControlObj)
+  protected
+    function GetControl: TWinControl; override;
+  public
+    Progress: ThvProgressBar;
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties; ObjectTag: boolean);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    destructor Destroy; override;
+    procedure DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj); override;
+  end;
+
+  // inline meter (object) node
+  TMeterObj = class(TControlObj)
+  protected
+    function GetControl: TWinControl; override;
+  public
+    Meter: ThvMeter;
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties; ObjectTag: boolean);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    destructor Destroy; override;
+    procedure DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj); override;
+  end;
+
+
+  ThtHover = (hvOff, hvOverUp, hvOverDown);
 
   TImageFormControlObj = class;
 
-  TImageObj = class(TFloatingObj) {inline image info}
+  // inline image node
+  TImageObj = class(TSizeableObj)
   private
-    FImage: TgpObject; {bitmap possibly converted from GIF, Jpeg, etc or animated GIF}
-    FBitmap: TBitmap;
-    FHover: HoverType;
+    FSource: ThtString;
+    FImage: ThtImage;
+    OrigImage: ThtImage; {same as above unless swapped}
+    Transparent: TTransparency; {None, Lower Left Corner, or Transp GIF}
+    FHover: ThtHover;
     FHoverImage: boolean;
     AltHeight, AltWidth: Integer;
-    Positioning: PositionType;
     function GetBitmap: TBitmap;
-    procedure SetHover(Value: HoverType);
-    procedure setImage(const AValue: TgpObject);
+    procedure SetHover(Value: ThtHover);
   public
     ObjHeight, ObjWidth: Integer; {width as drawn}
-    Source: ThtString; {the src= attribute}
-    OrigImage: TgpObject; {same as above unless swapped}
-    Mask: TBitmap; {Image's mask if needed for transparency}
-    Document: ThtDocument;
-    Transparent: Transparency; {None, Lower Left Corner, or Transp GIF}
     IsMap, UseMap: boolean;
     MapName: ThtString;
     MyFormControl: TImageFormControlObj; {if an <INPUT type=image}
-    MyCell: TCellBasic;
     Swapped: boolean; {image has been replaced}
     Missing: boolean; {waiting for image to be downloaded}
 
-    constructor Create(MasterList: ThtDocument; Position: Integer; L: TAttributeList);
-    constructor SimpleCreate(MasterList: ThtDocument; const AnURL: ThtString);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TImageObj);
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+    constructor SimpleCreate(Parent: TCellBasic; const AnURL: ThtString);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
-    procedure DrawLogic(SectionList: ThtDocument; Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer); override;
-    procedure DoDraw(Canvas: TCanvas; XX, Y: Integer; ddImage: TgpObject; ddMask: TBitmap);
-    procedure Draw(Canvas: TCanvas; X: Integer; TopY, YBaseline: Integer; FO: TFontObj);
+    procedure DrawLogicInline(Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer); override;
+    procedure DoDraw(Canvas: TCanvas; XX, Y: Integer; ddImage: ThtImage);
+    procedure DrawInline(Canvas: TCanvas; X: Integer; Y, YBaseline: Integer; FO: TFontObj); override;
     function InsertImage(const UName: ThtString; Error: boolean; out Reformat: boolean): boolean;
 
     property Bitmap: TBitmap read GetBitmap;
-    property Hover: HoverType read FHover write SetHover;
-    property Image: TgpObject read FImage write setImage;
+    property Hover: ThtHover read FHover write SetHover;
+    property Image: ThtImage read FImage ; //write SetImage;
+    property Source: ThtString read FSource; {the src= attribute}
     procedure ReplaceImage(NewImage: TStream);
   end;
 
   TDrawList = class(TFreeList)
-    procedure AddImage(Obj: TImageObj; Canvas: TCanvas; X, TopY, YBaseline: Integer; FO: TFontObj);
+    procedure AddImage(Obj: TImageObj; Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
     procedure DrawImages;
-  end;
-
-
-  TFloatingObjList = class(TFreeList) {a list of TImageObj's and TPanelObj's}
-  public
-    constructor CreateCopy(AMasterList: ThtDocument; T: TFloatingObjList);
-    function FindImage(Posn: Integer): TFloatingObj;
-    function GetHeightAt(Posn: Integer; out AAlign: AlignmentType; out FlObj: TFloatingObj): Integer;
-    function GetImageCountAt(Posn: Integer): Integer;
-    function GetWidthAt(Posn: Integer; out AAlign: AlignmentType; out HSpcL, HSpcR: Integer; out FlObj: TFloatingObj): Integer;
-    function PtInImage(X, Y: Integer; out IX, IY, Posn: Integer; out AMap, UMap: boolean; out MapItem: TMapItem; out ImageObj: TImageObj): boolean;
-    function PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean;
-    procedure Decrement(N: Integer);
   end;
 
 //------------------------------------------------------------------------------
@@ -439,10 +599,10 @@ type
 // Holds tags like A, B, I, FONT, SPAN, IMG, ...
 //------------------------------------------------------------------------------
 
-  TFormControlObj = class;
+  TFormControlObj =  class;
   TFormControlObjList = class;
 
-  LineRec = class(TObject) {holds info on a line of text}
+  ThtLineRec = class(TObject) {holds info on a line of text}
   private
     Start: PWideChar;
     SpaceBefore, SpaceAfter,
@@ -454,7 +614,7 @@ type
     DrawXX, DrawWidth: Integer;
     DrawY: Integer;
     Spaces, Extra: Integer;
-    BorderList: TFreeList; {List of inline borders (BorderRec's) in this Line}
+    BorderList: TFreeList; {List of inline borders (ThtBorderRec's) in this Line}
     FirstDraw: boolean; {set if border processing needs to be done when first drawn}
     FirstX: Integer; {x value at FirstDraw}
     Shy: boolean;
@@ -464,71 +624,93 @@ type
     destructor Destroy; override;
   end;
 
-  XArray = array[0..10000000] of Integer;
-  PXArray = ^XArray;
+  PXArray = array of Integer;
 
-  IndexObj = class
+  ThtIndexObj = class
   public
     Pos: Integer;
     Index: Integer;
   end;
 
+  ThtTextWrap = (
+    twNo,      // 'n'
+    twYes,     // 'y'
+    twSoft,    // 's'
+    twOptional // 'a'
+    );
+
+  ThtTextWrapArray = array of ThtTextWrap;
+
+  // TODO: stop creating TSections, which mix up several inline elements into one instance.
+  // Therefore we cannot control individual properties/attributes of single elements in it.
+  // TSection has to be reduced to a simple inline block for text of a single inline element
+  // resp. to an anonymous block for text of a block element.
+  // Also remove rendering code as soon as rendering is done by TInlineSection.
+  // As a document is a TSectionList, TInlineSection will do it.
   TSection = class(TSectionBase)
-  {TSection holds <p>, <li>, many other things, and the base for lists}
+  {TSection holds and renders inline content. Mainly text and floating images, panel, frames, and form controls.}
   private
-    SectionNumber: Integer;
-    ThisCycle: Integer;
-    function GetIndexObj(I: Integer): IndexObj;
-    property PosIndex[I: Integer]: IndexObj read GetIndexObj;
-    procedure CheckForInlines(LR: Linerec);
-  public
-    BuffS: WideString;  {holds the text or one of #2 (Form), #4 (Image/Panel), #8 (break char) for the section}
-    Buff: PWideChar;    {same as above}
-    Brk: AnsiString;    // Brk[n]: Can I wrap to new line after BuffS[n]? One of 'a' (optional), 'n' (no), 's' (soft), 'y' (yes) per character in BuffS
-    XP: PXArray;
-    BuffSize: Integer; {buffer may be larger}
-    Fonts: TFontList; {List of FontObj's in this section}
-    Images: TFloatingObjList; {list of TImageObj's, the images in section}
-    FormControls: TFormControlObjList; {list of TFormControls in section}
-    SIndexList: TFreeList; {list of Source index changes}
-    Lines: TFreeList; {List of LineRecs,  info on all the lines in section}
-    Justify: JustifyType; {Left, Centered, Right}
-    ClearAttr: ClearAttrType;
-    LineHeight: Integer;
+    BreakWord: Boolean;
     DrawWidth: Integer;
-    AnchorName: boolean;
-    StoredMin, StoredMax: Integer;
     FirstLineIndent: Integer;
     FLPercent: Integer;
-    BreakWord: boolean;
-    TextWidth: Integer;
+    LineHeight: Integer;
+    StoredMin, StoredMax: TSize;
 
-    constructor Create(AMasterList: ThtDocument; L: TAttributeList; Prop: TProperties; AnURL: TUrlTarget; OwnerCell: TCellBasic; FirstItem: boolean);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
+    SectionNumber: Integer;
+    ThisCycle: Integer;
+
+    BuffS: ThtString;  {holds the text or one of #2 (Form), #4 (Image/Panel), #8 (break char) for the section} //TODO -oBG, 30.11.2013: #1 (Table for display:inline-table)
+    Buff: PWideChar;    {same as above}
+    Brk: ThtTextWrapArray; //string;        // Brk[n]: Can I wrap to new line after BuffS[n]? One entry per character in BuffS
+    SIndexList: TFreeList; {list of Source index changes}
+    Lines: TFreeList; {List of ThtLineRecs,  info on all the lines in section}
+
+    function GetIndexObj(I: Integer): ThtIndexObj;
+    property PosIndex[I: Integer]: ThtIndexObj read GetIndexObj;
+    procedure CheckForInlines(LR: ThtLineRec);
+  public
+    Images: TSizeableObjList; {list of TSizeableObj's, the images, panels and iframes in section}
+    FormControls: TFormControlObjList; {list of TFormControls in section}
+    XP: PXArray;
+    AnchorName: boolean;
+
+    Fonts: TFontList; {List of FontObj's in this section}
+    Justify: ThtJustify; {Left, Centered, Right}
+    ClearAttr: ThtClearStyle;
+    TextWidth: Integer;
+    WhiteSpaceStyle: ThtWhiteSpaceStyle;
+  protected
+    constructor Create(Parent: TCellBasic); overload;
+  public
+    constructor Create(Parent: TCellBasic; Attr: TAttributeList; Prop: TProperties; AnURL: TUrlTarget; FirstItem: Boolean); overload;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
     function AddFormControl(Which: TElemSymb; AMasterList: ThtDocument; L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TFormControlObj;
-    function AddImage(L: TAttributeList; ACell: TCellBasic; Index: Integer): TImageObj;
-    function AddPanel(L: TAttributeList; ACell: TCellBasic; Index: Integer): TPanelObj;
-    function CreatePanel(L: TAttributeList; ACell: TCellBasic): TPanelObj;
-    function CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean; override;
+    function AddFrame(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TFrameObj;
+    function AddImage(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TImageObj;
+    function AddPanel(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TPanelObj;
+    function AddProgress(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TProgressObj;
+    function AddMeter(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TMeterObj;
+    function CreatePanel(L: TAttributeList; ACell: TCellBasic; Prop: TProperties): TPanelObj;
+    function CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function FindCountThatFits(Canvas: TCanvas; Width: Integer; Start: PWideChar; Max: Integer): Integer;
     function FindCursor(Canvas: TCanvas; X, Y: Integer; out XR, YR, CaretHt: Integer; out Intext: boolean): Integer; override;
     function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; override;
     function FindSourcePos(DocPos: Integer): Integer; override;
-    function FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; override;
-    function FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; override;
-    function FindTextWidth(Canvas: TCanvas; Start: PWideChar; N: Integer; RemoveSpaces: boolean): Integer;
+    function FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer; override;
+    function FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer; override;
+    function FindTextSize(Canvas: TCanvas; Start: PWideChar; N: Integer; RemoveSpaces: boolean): TSize;
     function FindTextWidthA(Canvas: TCanvas; Start: PWideChar; N: Integer): Integer;
-    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean; override;
-    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject{TImageFormControlObj}; out ATitle: ThtString): guResultType; override;
+    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean; override;
+    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject{TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; override;
     function PtInObject(X: Integer; Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean; override;
     procedure AddChar(C: WideChar; Index: Integer); virtual;
     procedure AddOpBrk;
     procedure AddPanel1(PO: TPanelObj; Index: Integer);
-    procedure AddTokenObj(T: TokenObj); virtual;
+    procedure AddTokenObj(T: TTokenObj); virtual;
     procedure Allocate(N: Integer);
     procedure ChangeFont(Prop: TProperties);
     procedure CheckFree;
@@ -538,6 +720,14 @@ type
     procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
     procedure ProcessText(TagIndex: Integer); virtual;
   end;
+
+//  //BG, 01.12.2013: handle display:inline
+//  // anonymous block for consecutive inline level elements.
+//  TInlineSection = class(TSection)
+//  public
+//    constructor Create(Parent: TCellBasic);
+//    procedure AddElement(Section: TSection);
+//  end;
 
 //------------------------------------------------------------------------------
 // TBlock represents block tags.
@@ -558,78 +748,77 @@ type
       out ScrollWidth: Integer; var Curs: Integer): Integer;
   end;
 
-  TBlock = class(TSectionBase)
+  TBlock = class(TBlockBase)
   protected
     function GetBorderWidth: Integer; virtual;
+    function CalcDisplayExtern: ThtDisplayStyle; override;
+    function CalcDisplayIntern: ThtDisplayStyle; override;
     procedure ContentMinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); virtual;
     procedure ConvMargArray(BaseWidth, BaseHeight: Integer; out AutoCount: Integer); virtual;
     procedure DrawBlockBorder(Canvas: TCanvas; const ORect, IRect: TRect); virtual;
     property BorderWidth: Integer read GetBorderWidth;
   public
     MyCell: TBlockCell; // the block content
-    MargArrayO: TVMarginArray;
-    OwnerCell: TCellBasic; //BG, 10.03.2011: should be in TSectionBase instead of FDocument and FOwner
-    BGImage: TImageObj;    //BG, 10.03.2011: see also bkGnd and bkColor in TCellBasic one background should be enough.
+    MargArrayO: ThtVMarginArray;
+    BGImage: TImageObj;    //TODO -oBG, 10.03.2011: see also bkGnd and bkColor in TCellBasic one background should be enough.
     BlockTitle: ThtString;
 
-    // Notice: styling tag attributes are deprecated by W3C an must be translated
+    // Notice: styling tag attributes are deprecated by W3C and must be translated
     //         to the corresponding style properties with a very low priority.
 
     // BEGIN: this area is copied by move() in CreateCopy() - NO string types allowed!
-    MargArray: TMarginArray;
+    MargArray: ThtMarginArray;
     EmSize, ExSize, FGColor: Integer;
     HasBorderStyle: Boolean;
-    FloatLR: AlignmentType; {ALeft or ARight if floating}
-    ClearAttr: ClearAttrType;
-// BG, 25.03.2012: unused:    IsListBlock: boolean;
-    PRec: PtPositionRec;
-    Positioning: PositionType;
-    Visibility: VisibilityType;
+
+    ClearAttr: ThtClearStyle;
+    PRec: PtPositionRec; // background image position
+    Visibility: ThtVisibilityStyle;
     BottomAuto: boolean;
     BreakBefore, BreakAfter, KeepIntact: boolean;
     HideOverflow: boolean;
-    Justify: JustifyType;
+    Justify: ThtJustify;
     Converted: boolean;
     // END: this area is copied by move() in CreateCopy()
 
-    NewWidth: Integer;
+    ContentWidth: Integer;
     ClearAddon: Integer;
-    Indent: Integer;
     NeedDoImageStuff: boolean;
     TiledImage: TgpObject;
     TiledMask, FullBG: TBitmap;
     TopP, LeftP: Integer;
-    DrawList: TList;
+    DrawList: TSectionBaseList;
     NoMask: boolean;
     ClientContentBot: Integer;
     MyRect: TRect;
     MyIMgr: TIndentManager;
     RefIMgr: TIndentManager;
 
-    constructor Create(Master: ThtDocument; Prop: TProperties; AnOwnerCell: TCellBasic; Attributes: TAttributeList);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
+    constructor Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
-    function CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean; override;
+    function CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function FindCursor(Canvas: TCanvas; X, Y: Integer; out XR, YR, CaretHt: Integer; out Intext: boolean): Integer; override;
     function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; override;
     function FindSourcePos(DocPos: Integer): Integer; override;
-    function FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; override;
-    function FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; override;
+    function FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer; override;
+    function FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer; override;
     function FindWidth(Canvas: TCanvas; AWidth, AHeight, AutoCount: Integer): Integer; virtual;
-    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean; override;
-    function GetURL(Canvas: TCanvas; X, Y: Integer;
-      out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): guResultType; override;
+    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean; override;
+    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; override;
     function PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean; override;
     procedure AddSectionsToList; override;
     procedure CollapseMargins;
+    procedure CollapseBottomMargins;
     procedure CopyToClipboard; override;
     procedure DrawBlock(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, Y, XRef, YRef: Integer);
     procedure DrawSort;
     procedure DrawTheList(Canvas: TCanvas; const ARect: TRect; ClipWidth, X, XRef, YRef: Integer);
+{$ifdef UseFormTree}
     procedure FormTree(const Indent: ThtString; var Tree: ThtString);
+{$endif UseFormTree}
     procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
   end;
 
@@ -640,10 +829,10 @@ type
   TRadioButtonFormControlObj = class;
 
   ThtmlForm = class(TObject)
-  private
+  protected
     procedure AKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
   public
-    MasterList: ThtDocument;
+    Document: ThtDocument;
     Method: ThtString;
     Action, Target, EncType: ThtString;
     ControlList: TFormControlObjList;
@@ -660,61 +849,59 @@ type
     procedure ControlKeyPress(Sender: TObject; var Key: Char);
   end;
 
-  TFormControlObj = class(TIDObject)
+  TFormControlObj = class(TFloatingObj)
   private
-    FYValue: Integer;
-    Active: boolean;
-    PaintBitmap: TBitmap;
-    AttributeList: ThtStringList;
+    //FYValue: Integer;
+    //FAttributeList: ThtStringList;
     FName: ThtString;
     FID: ThtString;
     FTitle: ThtString;
     FValue: ThtString;
-    function GetAttribute(const AttrName: ThtString): ThtString;
+    //function GetAttribute(const AttrName: ThtString): ThtString;
     procedure SetValue(const Value: ThtString);
   protected
+    Active: Boolean;
     CodePage: Integer;
+    PaintBitmap: TBitmap;
+    function GetClientHeight: Integer; override;
+    function GetClientLeft: Integer; virtual;
+    function GetClientTop: Integer; virtual;
+    function GetClientWidth: Integer; override;
     function GetControl: TWinControl; virtual; abstract;
-    function GetHeight: Integer; virtual;
-    function GetLeft: Integer; virtual;
     function GetTabOrder: Integer; virtual;
     function GetTabStop: Boolean; virtual;
-    function GetTop: Integer; virtual;
-    function GetWidth: Integer; virtual;
     function GetYPosition: Integer; override;
     function IsHidden: Boolean; virtual;
     procedure DoOnChange; virtual;
     procedure SaveContents; virtual;
-    procedure SetHeight(Value: Integer); virtual;
-    procedure SetLeft(Value: Integer); virtual;
+    procedure SetClientHeight(Value: Integer); override;
+    procedure SetClientLeft(Value: Integer); virtual;
+    procedure SetClientTop(Value: Integer); virtual;
+    procedure SetClientWidth(Value: Integer); override;
     procedure SetTabOrder(Value: Integer); virtual;
     procedure SetTabStop(Value: Boolean); virtual;
-    procedure SetTop(Value: Integer); virtual;
-    procedure SetWidth(Value: Integer); virtual;
   public
-    Pos: Integer; {0..Len  index of control position}
-    MasterList: ThtDocument;
+    // begin copy by move()
     MyForm: ThtmlForm;
-    FormAlign: AlignmentType;
-    HSpaceL, HSpaceR, VSpaceT, VSpaceB, BordT, BordB: Integer;
+    BordT, BordB: Integer;
     FHeight, FWidth: Integer;
-    PercentWidth: boolean;
     Disabled: boolean;
     Readonly: boolean;
     BkColor: TColor;
+    // end copy by move()
     ShowIt: boolean;
     OnBlurMessage: ThtString;
     OnChangeMessage: ThtString;
     OnClickMessage: ThtString;
     OnFocusMessage: ThtString;
 
-    constructor Create(AMasterList: ThtDocument; Position: Integer; L: TAttributeList);
-    constructor CreateCopy(T: TFormControlObj);
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); virtual;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
     function GetSubmission(Index: Integer; out S: ThtString): boolean; virtual;
-    function TotalHeight: Integer; {$ifdef UseInline} inline; {$endif}
-    function TotalWidth: Integer; {$ifdef UseInline} inline; {$endif}
-    procedure Draw(Canvas: TCanvas; X1, Y1: Integer); virtual;
+    procedure DrawLogicInline(Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer); override;
+    procedure DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj); override;
+    procedure DrawInline1(Canvas: TCanvas; X1, Y1: Integer); virtual;
     procedure EnterEvent(Sender: TObject); {these two would be better private}
     procedure ExitEvent(Sender: TObject);
     procedure FormControlClick(Sender: TObject);
@@ -727,59 +914,30 @@ type
     procedure SetHeightWidth(Canvas: TCanvas); virtual;
     procedure Show; virtual;
 
-    property AttributeValue[const AttrName: ThtString]: ThtString read GetAttribute;
-    property Height: Integer read GetHeight write SetHeight;
+    //property AttributeValue[const AttrName: ThtString]: ThtString read GetAttribute;
+//    property Height: Integer read GetClientHeight write SetClientHeight;
     property Hidden: Boolean read IsHidden;
-    property ID: ThtString read FID; {ID attribute of control}
-    property Left: Integer read GetLeft write SetLeft;
-    property Name: ThtString read FName; {Name given to control}
+    property ID: ThtString read FID write FID; {ID attribute of control}
+    property Left: Integer read GetClientLeft write SetClientLeft;
+    property Name: ThtString read FName write FName; {Name given to control}
     property TabOrder: Integer read GetTabOrder write SetTabOrder;
     property TabStop: Boolean read GetTabStop write SetTabStop;
     property TheControl: TWinControl read GetControl; {the Delphi control, TButton, TMemo, etc}
     property Title: ThtString read FTitle write FTitle;
-    property Top: Integer read GetTop write SetTop;
+    property Top: Integer read GetClientTop write SetClientTop;
     property Value: ThtString read FValue write SetValue;
-    property Width: Integer read GetWidth write SetWidth;
-    property YValue: Integer read FYValue;
+//    property Width: Integer read GetClientWidth write SetClientWidth;
+//    property YValue: Integer read FYValue;
   end;
 
   //BG, 15.01.2011:
-  TFormControlObjList = class(TObjectList)
+  TFormControlObjList = class(TFloatingObjList)
   private
     function GetItem(Index: Integer): TFormControlObj;
   public
-    function FindControl(Posn: Integer): TFormControlObj;
-    function GetHeightAt(Posn: Integer; out FormAlign: AlignmentType): Integer;
-    function GetWidthAt(Posn: Integer; out HSpcL, HSpcR: Integer): Integer;
-    function GetControlCountAt(Posn: Integer): Integer;
-    procedure Decrement(N: Integer);
-
     procedure ActivateTabbing;
     procedure DeactivateTabbing;
     property Items[Index: Integer]: TFormControlObj read GetItem; default;
-  end;
-
-  THiddenFormControlObj = class(TFormControlObj)
-  protected
-    function GetControl: TWinControl; override;
-    function GetHeight: Integer; override;
-    function GetLeft: Integer; override;
-    function GetTabOrder: Integer; override;
-    function GetTabStop: Boolean; override;
-    function GetTop: Integer; override;
-    function GetWidth: Integer; override;
-    function IsHidden: Boolean; override;
-    procedure SetHeight(Value: Integer); override;
-    procedure SetLeft(Value: Integer); override;
-    procedure SetTabOrder(Value: Integer); override;
-    procedure SetTabStop(Value: Boolean); override;
-    procedure SetTop(Value: Integer); override;
-    procedure SetWidth(Value: Integer); override;
-  public
-    function GetSubmission(Index: Integer; out S: ThtString): boolean; override;
-    procedure Hide; override;
-    procedure SetData(Index: Integer; const V: ThtString); override;
-    procedure Show; override;
   end;
 
   TImageFormControlObj = class(TFormControlObj)
@@ -790,53 +948,12 @@ type
     function GetControl: TWinControl; override;
   public
     XPos, YPos, XTmp, YTmp: Integer; {click position}
-    constructor Create(AMasterList: ThtDocument; Position: Integer; L: TAttributeList);
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
     function GetSubmission(Index: Integer; out S: ThtString): boolean; override;
     procedure ImageClick(Sender: TObject);
     procedure ProcessProperties(Prop: TProperties); override;
-  end;
-
-  TEditFormControlObj = class(TFormControlObj)
-  private
-    FControl: ThtEdit;
-    EnterContents: ThtString;
-    tmAveCharWidth: Integer;
-    FPlaceholder : ThtString;
-    function getText: ThtString;
-    procedure setText(const Value: ThtString);
-  protected
-    function GetControl: TWinControl; override;
-    procedure DoOnChange; override;
-    procedure SaveContents; override;
-  public
-    EditSize: Integer;
-    constructor Create(AMasterList: ThtDocument; Position: Integer; L: TAttributeList; const Typ: ThtString; Prop: TProperties);
-    destructor Destroy; override;
-    function GetSubmission(Index: Integer; out S: ThtString): boolean; override;
-    procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
-    procedure ProcessProperties(Prop: TProperties); override;
-    procedure ResetToValue; override;
-    procedure SetData(Index: Integer; const V: ThtString); override;
-    procedure SetHeightWidth(Canvas: TCanvas); override;
-    property Text: ThtString read getText write setText;
-  end;
-
-  WhichType = (Submit, ResetB, Button, Browse);
-
-  TButtonFormControlObj = class(TFormControlObj)
-  private
-    FControl: ThtButton;
-  protected
-    function GetControl: TWinControl; override;
-  public
-    Which: WhichType;
-    MyEdit: TEditFormControlObj;
-    constructor Create(AMasterList: ThtDocument; Position: Integer; L: TAttributeList; const Typ: ThtString; Prop: TProperties);
-    destructor Destroy; override;
-    procedure ButtonClick(Sender: TObject);
-    procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
-    procedure SetHeightWidth(Canvas: TCanvas); override;
   end;
 
   TFormRadioButton = class(ThtRadioButton)
@@ -866,11 +983,12 @@ type
     procedure SetColor(const Value: TColor); //override;
   public
     IsChecked: boolean;
-    MyCell: TCellBasic;
-    constructor Create(AMasterList: ThtDocument; Position: Integer; L: TAttributeList; ACell: TCellBasic);
+    //xMyCell: TCellBasic;
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
     function GetSubmission(Index: Integer; out S: ThtString): boolean; override;
-    procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
+    procedure DrawInline1(Canvas: TCanvas; X1, Y1: Integer); override;
     procedure RadioClick(Sender: TObject);
     procedure ResetToValue; override;
     procedure SetData(Index: Integer; const V: ThtString); override;
@@ -878,34 +996,7 @@ type
     property Color: TColor read GetColor write SetColor;
   end;
 
-  TFormCheckBox = class(ThtCheckBox)
-  private
-    procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
-  end;
-
-  TCheckBoxFormControlObj = class(TFormControlObj)
-  private
-    FControl: TFormCheckBox;
-    WasChecked: boolean;
-    function GetChecked: Boolean;
-    procedure SetChecked(Value: Boolean);
-  protected
-    function GetControl: TWinControl; override;
-    procedure DoOnChange; override;
-    procedure SaveContents; override;
-  public
-    IsChecked: boolean;
-    constructor Create(AMasterList: ThtDocument; Position: Integer; L: TAttributeList; Prop: TProperties);
-    destructor Destroy; override;
-    function GetSubmission(Index: Integer; out S: ThtString): boolean; override;
-    procedure Draw(Canvas: TCanvas; X1, Y1: Integer); override;
-    procedure ResetToValue; override;
-    procedure SetData(Index: Integer; const V: ThtString); override;
-    procedure SetDataInit; override;
-    property Checked: Boolean read GetChecked write SetChecked;
-  end;
-
-  ListTypeType = (None, Ordered, Unordered, Definition, liAlone);
+  ThtListType = (None, Ordered, Unordered, Definition, liAlone);
 
 //------------------------------------------------------------------------------
 // some blocks
@@ -913,33 +1004,35 @@ type
 
   THRBlock = class(TBlock)
   public
-    Align: JustifyType;
+    Align: ThtJustify;
     MyHRule: TSectionBase;
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
+    constructor CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode); override;
     function FindWidth(Canvas: TCanvas; AWidth, AHeight, AutoCount: Integer): Integer; override;
+  end;
+
+  TListBlock = class(TBlock)
   end;
 
   TBlockLI = class(TBlock)
   private
-    FListType: ListTypeType;
+    FListType: ThtListType;
     FListNumb: Integer;
-    FListStyleType: ListBulletType;
+    FListStyleType: ThtBulletStyle;
     FListFont: TFont;
     Image: TImageObj;
     FirstLineHt: Integer;
     procedure SetListFont(const Value: TFont);
   public
-    constructor Create(Master: ThtDocument; Prop: TProperties; AnOwnerCell: TCellBasic;
+    constructor Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties;
       Sy: TElemSymb; APlain: boolean; AIndexType: ThtChar;
-      AListNumb, ListLevel: Integer; Attributes: TAttributeList);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
+      AListNumb, ListLevel: Integer);
+    constructor CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
     property ListNumb: Integer read FListNumb write FListNumb;
-    property ListStyleType: ListBulletType read FListStyleType write FListStyleType;
-    property ListType: ListTypeType read FListType write FListType;
+    property ListStyleType: ThtBulletStyle read FListStyleType write FListStyleType;
+    property ListType: ThtListType read FListType write FListType;
     property ListFont: TFont read FListFont write SetListFont;
   end;
 
@@ -950,22 +1043,19 @@ type
     procedure ConvMargArray(BaseWidth, BaseHeight: Integer; out AutoCount: Integer); override;
     procedure ContentMinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
   public
-    constructor Create(Master: ThtDocument; Prop: TProperties; AnOwnerCell: TCellBasic; Attributes: TAttributeList);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
+    constructor Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
     property Legend: TBlockCell read FLegend;
   end;
 
   TBodyBlock = class(TBlock)
   public
-    constructor Create(Master: ThtDocument; Prop: TProperties; AnOwnerCell: TCellBasic; Attributes: TAttributeList);
-    function GetURL(Canvas: TCanvas; X, Y: Integer;
-      out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): guResultType; override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
+    constructor Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties);
+    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
   end;
 
@@ -975,9 +1065,11 @@ type
 
   TTableFrame = (tfVoid, tfAbove, tfBelow, tfHSides, tfLhs, tfRhs, tfVSides, tfBox, tfBorder);
   TTableRules = (trNone, trGroups, trRows, trCols, trAll);
-  IntArray = array of Integer;
+  TIntArray = array of Integer;
   TWidthTypeArray = array of TWidthType;
   TIntegerPerWidthType = array [TWidthType] of Integer;
+
+  TTableBlock = class;
 
   TCellObjCell = class(TCell)
   private
@@ -985,9 +1077,8 @@ type
     Title: ThtString;
     Url, Target: ThtString;
   public
-    constructor CreateCopy(AMasterList: ThtDocument; T: TCellObjCell);
-    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget;
-      out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): guResultType; override;
+    constructor CreateCopy(Parent: TBlock; T: TCellObjCell);
+    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; override;
   end;
 
   TCellObjBase = class(TObject)
@@ -1004,7 +1095,7 @@ type
     procedure Draw(Canvas: TCanvas; const ARect: TRect; X, Y, CellSpacing: Integer; Border: Boolean; Light, Dark: TColor); virtual; abstract;
     procedure DrawLogic2(Canvas: TCanvas; Y, CellSpacing: Integer; var Curs: Integer); virtual; abstract;
   public
-    function Clone(Master: ThtDocument): TCellObjBase; virtual; abstract;
+    function Clone(Parent: TBlock): TCellObjBase; virtual; abstract;
     procedure AssignTo(Destin: TCellObjBase); virtual;
     property Cell: TCellObjCell read GetCell;
     property ColSpan: Integer read FColSpan write FColSpan; {column and row spans for this cell}
@@ -1028,8 +1119,8 @@ type
     procedure Draw(Canvas: TCanvas; const ARect: TRect; X, Y, CellSpacing: Integer; Border: Boolean; Light, Dark: TColor); override;
     procedure DrawLogic2(Canvas: TCanvas; Y, CellSpacing: Integer; var Curs: Integer); override;
   public
-    constructor Create(Master: ThtDocument; RSpan: Integer);
-    function Clone(Master: ThtDocument): TCellObjBase; override;
+    constructor Create(RSpan: Integer);
+    function Clone(Parent: TBlock): TCellObjBase; override;
   end;
 
   TCellObj = class(TCellObjBase)
@@ -1040,7 +1131,7 @@ type
     FHt: Integer; {total height (may cover more than one row)}
     FVSize: Integer; {Actual vertical size of contents}
     FYIndent: Integer; {Vertical indent}
-    FVAlign: AlignmentType; {Top, Middle, or Bottom}
+    FVAlign: ThtAlignmentStyle; {Top, Middle, or Bottom}
     FEmSize, FExSize: Integer;
     FPRec: PtPositionRec; // background image position info
     FPad: TRect;
@@ -1081,15 +1172,15 @@ type
     BGImage: TImageObj;
     TiledImage: TGpObject;
     TiledMask, FullBG: TBitmap;
-    MargArray: TMarginArray;
-    MargArrayO: TVMarginArray;
+    MargArray: ThtMarginArray;
+    MargArrayO: ThtVMarginArray;
     NoMask: boolean;
     BreakBefore, BreakAfter, KeepIntact: boolean;
 
-    constructor Create(Master: ThtDocument; AVAlign: AlignmentType; Attr: TAttributeList; Prop: TProperties);
-    constructor CreateCopy(Master: ThtDocument; T: TCellObj);
+    constructor Create(Parent: TTableBlock; AVAlign: ThtAlignmentStyle; Attr: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(Parent: TBlock; T: TCellObj);
     destructor Destroy; override;
-    function Clone(AMasterList: ThtDocument): TCellObjBase; override;
+    function Clone(Parent: TBlock): TCellObjBase; override;
     procedure AssignTo(Destin: TCellObjBase); override;
 
     property Border: TRect read FBrd write FBrd; //was: BrdTop, BrdRight, BrdBottom, BrdLeft: Integer;
@@ -1109,7 +1200,7 @@ type
     property PadTop: Integer read getPaddingTop write setPaddingTop;
     property PRec: PtPositionRec read FPRec write FPRec;
     property ShowEmptyCells: Boolean read FShowEmptyCells write FShowEmptyCells;
-    property VAlign: AlignmentType read FVAlign write FVAlign; {Top, Middle, or Bottom}
+    property VAlign: ThtAlignmentStyle read FVAlign write FVAlign; {Top, Middle, or Bottom}
     property VSize: Integer read FVSize write FVSize; {Actual vertical size of contents}
     property Wd: Integer read FWd write FWd; {total width (may cover more than one column)}
     property YIndent: Integer read FYIndent write FYIndent; {Vertical indent}
@@ -1131,13 +1222,12 @@ type
     RowType: TRowType;
 
     constructor Create(Attr: TAttributeList; Prop: TProperties);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TCellList);
-//    constructor CreateCopy(AMasterList: ThtDocument; Parent: TBlock; T: TCellList);
+    constructor CreateCopy(Parent: TBlock; T: TCellList);
     procedure Initialize;
-    function DrawLogic1(Canvas: TCanvas; const Widths: IntArray; Span, CellSpacing, AHeight, Rows: Integer;
+    function DrawLogicA(Canvas: TCanvas; const Widths: TIntArray; Span, CellSpacing, AHeight, Rows: Integer;
       out Desired: Integer; out Spec, More: boolean): Integer;
-    procedure DrawLogic2(Canvas: TCanvas; Y, CellSpacing: Integer; var Curs: Integer);
-    function Draw(Canvas: TCanvas; MasterList: ThtDocument; const ARect: TRect; const Widths: IntArray;
+    procedure DrawLogicB(Canvas: TCanvas; Y, CellSpacing: Integer; var Curs: Integer);
+    function Draw(Canvas: TCanvas; Document: ThtDocument; const ARect: TRect; const Widths: TIntArray;
       X, Y, YOffset, CellSpacing: Integer; Border: boolean; Light, Dark: TColor; MyRow: Integer): Integer;
     procedure Add(CellObjBase: TCellObjBase);
     property Items[Index: Integer]: TCellObjBase read GetCellObj; default;
@@ -1155,13 +1245,13 @@ type
   private
     FWidth: TSpecWidth;
     FAlign: ThtString;
-    FVAlign: AlignmentType;
+    FVAlign: ThtAlignmentStyle;
   public
-    constructor Create(const Width: TSpecWidth; Align: ThtString; VAlign: AlignmentType);
+    constructor Create(const Width: TSpecWidth; Align: ThtString; VAlign: ThtAlignmentStyle);
     constructor CreateCopy(const ColSpec: TColSpec);
     property ColWidth: TSpecWidth read FWidth;
     property ColAlign: ThtString read FAlign;
-    property ColVAlign: AlignmentType read FVAlign;
+    property ColVAlign: ThtAlignmentStyle read FVAlign;
   end;
 
   // BG, 26.12.2011:
@@ -1187,14 +1277,12 @@ type
     HSpace, VSpace: Integer;
     HasCaption: boolean;
     TableBorder: boolean;
-    Justify: JustifyType;
+    Justify: ThtJustify;
     TableIndent: Integer;
 
-    constructor Create(Master: ThtDocument; Prop: TProperties; AnOwnerCell: TCellBasic;
-      ATable: THtmlTable; TableAttr: TAttributeList; TableLevel: Integer);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
+    constructor Create(Parent: TCellBasic; Attr: TAttributeList; Prop: TProperties; ATable: THtmlTable; TableLevel: Integer);
+    constructor CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode); override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
     procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
     function FindWidth(Canvas: TCanvas; AWidth, AHeight, AutoCount: Integer): Integer; override;
@@ -1209,11 +1297,10 @@ type
     TopCaption: boolean;
     TableBlock: TTableBlock;
     FCaptionBlock: TBlock;
-    Justify: JustifyType;
+    Justify: ThtJustify;
     TableID: ThtString;
-    constructor Create(Master: ThtDocument; Prop: TProperties; AnOwnerCell: TCellBasic;
-      Attributes: TAttributeList; ATableBlock: TTableBlock);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
+    constructor Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties; ATableBlock: TTableBlock);
+    constructor CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode); override;
     procedure CancelUsage;
     function FindWidth(Canvas: TCanvas; AWidth, AHeight, AutoCount: Integer): Integer; override;
     procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
@@ -1229,18 +1316,18 @@ type
     HeadOrFoot: Boolean;
     FColSpecs: TColSpecList; // Column width specifications
     // calculated in GetMinMaxWidths
-    Percents: IntArray;     {percent widths of columns}
-    Multis: IntArray;       {multi widths of columns}
-    MaxWidths: IntArray;
-    MinWidths: IntArray;
+    Percents: TIntArray;     {percent widths of columns}
+    Multis: TIntArray;       {multi widths of columns}
+    MaxWidths: TIntArray;
+    MinWidths: TIntArray;
     ColumnCounts: TIntegerPerWidthType;
     ColumnSpecs: TWidthTypeArray;
     //
-    procedure IncreaseWidthsByWidth(WidthType: TWidthType; var Widths: IntArray; StartIndex, EndIndex, Required, Spanned, Count: Integer);
-    procedure IncreaseWidthsByPercentage(var Widths: IntArray; StartIndex, EndIndex, Required, Spanned, Percent, Count: Integer);
-    procedure IncreaseWidthsByMinMaxDelta(WidthType: TWidthType; var Widths: IntArray; StartIndex, EndIndex, Excess, DeltaWidth, Count: Integer; const Deltas: IntArray);
-    procedure IncreaseWidthsRelatively(var Widths: IntArray; StartIndex, EndIndex, Required, SpannedMultis: Integer; ExactRelation: Boolean);
-    procedure IncreaseWidthsEvenly(WidthType: TWidthType; var Widths: IntArray; StartIndex, EndIndex, Required, Spanned, Count: Integer);
+    procedure IncreaseWidthsByWidth(WidthType: TWidthType; var Widths: TIntArray; StartIndex, EndIndex, Required, Spanned, Count: Integer);
+    procedure IncreaseWidthsByPercentage(var Widths: TIntArray; StartIndex, EndIndex, Required, Spanned, Percent, Count: Integer);
+    procedure IncreaseWidthsByMinMaxDelta(WidthType: TWidthType; var Widths: TIntArray; StartIndex, EndIndex, Excess, DeltaWidth, Count: Integer; const Deltas: TIntArray);
+    procedure IncreaseWidthsRelatively(var Widths: TIntArray; StartIndex, EndIndex, Required, SpannedMultis: Integer; ExactRelation: Boolean);
+    procedure IncreaseWidthsEvenly(WidthType: TWidthType; var Widths: TIntArray; StartIndex, EndIndex, Required, Spanned, Count: Integer);
     procedure Initialize; // add dummy cells, initialize cells, prepare arrays
     procedure GetMinMaxWidths(Canvas: TCanvas; TheWidth: Integer);
   public
@@ -1269,26 +1356,23 @@ type
     //DrawY: Integer;
     BkGnd: Boolean;
     BkColor: TColor;
-    Widths: IntArray;       {holds calculated column widths}
-    Heights: IntArray;      {holds calculated row heights}
+    Widths: TIntArray;       {holds calculated column widths}
+    Heights: TIntArray;      {holds calculated row heights}
 
-    constructor Create(Master: ThtDocument; Attr: TAttributeList; Prop: TProperties);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
+    constructor Create(Parent: TCellBasic; Attr: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
-    procedure DoColumns(Count: Integer; const SpecWidth: TSpecWidth; VAlign: AlignmentType; const Align: ThtString);
+    procedure DoColumns(Count: Integer; const SpecWidth: TSpecWidth; VAlign: ThtAlignmentStyle; const Align: ThtString);
     procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
-    function GetURL(Canvas: TCanvas; X, Y: Integer;
-      out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj};
-      out ATitle: ThtString): guResultType; override;
+    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; override;
     function PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean; override;
     function FindCursor(Canvas: TCanvas; X, Y: Integer; out XR, YR, CaretHt: Integer; out Intext: boolean): Integer; override;
-    function CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean; override;
-    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean; override;
-    function FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; override;
-    function FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer; override;
+    function CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean; override;
+    function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean; override;
+    function FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer; override;
+    function FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer; override;
     function FindSourcePos(DocPos: Integer): Integer; override;
     function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; override;
     procedure CopyToClipboard; override;
@@ -1313,33 +1397,33 @@ type
     function GetYPosition: Integer; override;
     function FreeMe: Boolean; override;
   public
-    constructor Create(MasterList: ThtDocument; Pos: Integer);
+    constructor Create(Document: ThtDocument; Pos: Integer);
     property ChPos: Integer read FChPos write FChPos;
-    property MasterList: ThtDocument read FDocument;
+    property Document: ThtDocument read FDocument;
   end;
 
 //------------------------------------------------------------------------------
 // ThtDocument, a complete html document, that can draw itself on a canvas.
 //------------------------------------------------------------------------------
 
-  TLinkDrawnEvent = procedure(Sender: TObject; Page: Integer; const Url, Target: ThtString; ARect: TRect) of object;
-  TFileBrowseEvent = procedure(Sender, Obj: TObject; var S: ThtString) of object;
-  TGetBitmapEvent = procedure(Sender: TObject; const SRC: ThtString; var Bitmap: TBitmap; var Color: TColor) of object;
-  TGetImageEvent = procedure(Sender: TObject; const SRC: ThtString; var Stream: TStream) of object;
-  TGottenImageEvent = TGetImageEvent;
-  TFormSubmitEvent = procedure(Sender: TObject; const Action, Target, EncType, Method: ThtString; Results: ThtStringList) of object;
-  TObjectTagEvent = procedure(Sender: TObject; Panel: ThvPanel; const Attributes, Params: ThtStringList; var WantPanel: boolean) of object;
-  TObjectClickEvent = procedure(Sender, Obj: TObject; const OnClick: ThtString) of object;
-  ThtObjectEvent = procedure(Sender, Obj: TObject; const Attribute: ThtString) of object;
   TExpandNameEvent = procedure(Sender: TObject; const SRC: ThtString; var Result: ThtString) of object;
 
   THtmlStyleList = class(TStyleList) {a list of all the styles -- the stylesheet}
   private
-    MasterList: ThtDocument;
+    Document: ThtDocument;
   protected
     procedure SetLinksActive(Value: Boolean); override;
   public
     constructor Create(AMasterList: ThtDocument);
+  end;
+
+  THtmlPropStack = class(TPropStack)
+  public
+    Document: ThtDocument;
+    SIndex: Integer; //BG, 26.12.2010: seems, this is the current position in the original html-file.
+    procedure PopAProp(Sym: TElemSymb);
+    procedure PopProp;
+    procedure PushNewProp(Sym: TElemSymb; const AClass, AnID, APseudo, ATitle: ThtString; AProps: TProperties);
   end;
 
   ThtDocument = class(TCell) {a list of all the sections -- the html document}
@@ -1348,12 +1432,12 @@ type
     FPropStack: THtmlPropStack;
     procedure AdjustFormControls;
     procedure AddSectionsToPositionList(Sections: TSectionBase);
-    function CopyToBuffer(Buffer: SelTextCount): Integer;
+    function CopyToBuffer(Buffer: TSelTextCount): Integer;
     {$ifdef has_StyleElements}
     procedure SetStyleElements(const AValue : TStyleElements);
     {$endif}
   protected
-    CB: SelTextCount;
+    CB: TSelTextCount;
     {$ifdef has_StyleElements}
     FStyleElements : TStyleElements;
     procedure UpdateStyleElements; virtual;
@@ -1386,12 +1470,10 @@ type
     BackGround: TColor;
     // end of copied by move() in CreateCopy()
     // don't copy strings via move()
-    PreFontName: ThtString; {<pre>, <code> font for document}
+    PreFontName: TFontName; {<pre>, <code> font for document}
 
     OnBackgroundChange: TNotifyEvent;
-    BackgroundBitmap: TGpObject; //TBitmap;
-    BackgroundMask: TBitmap;
-    BackgroundAniGif: TGifImage;
+    BackgroundImage: ThtImage;
     BackgroundPRec: PtPositionRec;
     BitmapName: ThtString; {name of background bitmap}
     BitmapLoaded: boolean; {if background bitmap is loaded}
@@ -1420,7 +1502,7 @@ type
     FirstLineHtPtr: PInteger;
     IDNameList: TIDObjectList;
     PositionList: TList;
-    BitmapList: TStringBitmapList;
+    ImageCache: ThtImageCache;
     SectionCount: Integer;
     CycleNumber: Integer;
     ProgressStart: Integer;
@@ -1429,7 +1511,7 @@ type
     TabOrderList: ThtStringList;
     FirstPageItem: boolean;
     StopTab: boolean;
-    InlineList: TFreeList; {actually TInlineList, a list of InlineRec's}
+    InlineList: TFreeList; {actually TInlineList, a list of ThtInThtLineRec's}
     TableNestLevel: Integer;
     InLogic2: boolean;
     LinkDrawnEvent: TLinkDrawnEvent;
@@ -1438,11 +1520,13 @@ type
     ScaleX, ScaleY: single;
     SkipDraw: boolean;
     FNoBreak : Boolean;
+    FCurrentStyle: TFontStyles;
+    FCurrentForm : ThtmlForm;
     constructor Create(Owner: THtmlViewerBase; APaintPanel: TWinControl);
     constructor CreateCopy(T: ThtDocument);
     destructor Destroy; override;
     function AddChPosObjectToIDNameList(const S: ThtString; Pos: Integer): Integer; {$ifdef UseInline} inline; {$endif}
-    function CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean; override;
+    function CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean; override;
     function DoLogic(Canvas: TCanvas; Y: Integer; Width, AHeight, BlHt: Integer; var ScrollWidth, Curs: Integer): Integer; override;
     function Draw(Canvas: TCanvas; ARect: TRect; ClipWidth, X: Integer; Y, XRef, YRef: Integer): Integer; override;
     function FindDocPos(SourcePos: Integer; Prev: boolean): Integer; override;
@@ -1450,10 +1534,8 @@ type
     function GetFormcontrolData: TFreeList;
     function GetSelLength: Integer;
     function GetSelTextBuf(Buffer: PWideChar; BufSize: Integer): Integer;
-    function GetTheImage(const BMName: ThtString;
-      var Transparent: Transparency; out AMask: TBitmap; out FromCache, Delay: boolean): TgpObject;
-    function GetURL(Canvas: TCanvas; X, Y: Integer;
-      out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): guResultType; override;
+    function GetTheImage(const BMName: ThtString; var Transparent: TTransparency; out FromCache, Delay: boolean): ThtImage;
+    function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; override;
     procedure CancelActives;
     procedure CheckGIFList(Sender: TObject);
     procedure Clear; override;
@@ -1476,10 +1558,11 @@ type
 
     property NoBreak : Boolean read FNoBreak write FNoBreak;  {set when in <NoBr>}
 
-    property ImageCache: TStringBitmapList read BitmapList;
     {$ifdef has_StyleElements}
     property StyleElements : TStyleElements read FStyleElements write SetStyleElements;
     {$endif}
+    property CurrentStyle: TFontStyles read FCurrentStyle write FCurrentStyle;  {as set by <b>, <i>, etc.}
+    property CurrentForm : ThtmlForm read FCurrentForm write FCurrentForm;
   end;
 
 //------------------------------------------------------------------------------
@@ -1488,56 +1571,45 @@ type
 
   TPage = class(TSectionBase)
   public
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
+    constructor Create(Parent: TCellBasic; Attributes: TAttributeList; AProp: TProperties);
   end;
 
   THorzLine = class(TSectionBase) {a horizontal line, <hr>}
   public
     VSize: Integer;
     Color: TColor;
-    Align: JustifyType;
-    NoShade: boolean;
-    BkGnd: boolean;
+    Align: ThtJustify;
+    UseDefBorder: Boolean;
+    NoShade: Boolean;
+    BkGnd: Boolean;
     Width, Indent: Integer;
-    UseDefBorder : Boolean;
-    constructor Create(AMasterList: ThtDocument; L: TAttributeList; Prop: TProperties);
-    constructor CreateCopy(AMasterList: ThtDocument; T: TSectionBase); override;
+
+    constructor Create(Parent: TCellBasic; L: TAttributeList; Prop: TProperties);
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     procedure CopyToClipboard; override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
+    function DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer; override;
     function Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer; override;
   end;
 
   TPreFormated = class(TSection)
-  {section for preformated, <pre>}
-  public
-    procedure ProcessText(TagIndex: Integer); override;
-    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-      var MaxWidth, Curs: Integer): Integer; override;
-    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
-  end;
-
-//------------------------------------------------------------------------------
-//
-//------------------------------------------------------------------------------
-
-  THtmlPropStack = class(TPropStack)
-  public
-    MasterList: ThtDocument;
-    SIndex: Integer; //BG, 26.12.2010: seems, this is the current position in the original html-file.
-    procedure PopAProp(Sym: TElemSymb);
-    procedure PopProp;
-    procedure PushNewProp(Sym: TElemSymb; const AClass, AnID, APseudo, ATitle: ThtString; AProps: TProperties);
+//  {section for preformated, <pre>}
+//  public
+//    procedure ProcessText(TagIndex: Integer); override;
+//    function DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+//      var MaxWidth, Curs: Integer): Integer; override;
+//    procedure MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer); override;
   end;
 
 function htCompareText(const T1, T2: ThtString): Integer; {$ifdef UseInline} inline; {$endif}
 
 var
-  CurrentStyle: TFontStyles; {as set by <b>, <i>, etc.}
-  CurrentForm: ThtmlForm;
+  WaitStream: TMemoryStream;
+  ErrorStream: TMemoryStream;
 {$ifdef UNICODE}
 {$else}
-  UnicodeControls: boolean;
+  UnicodeControls: Boolean;
 {$endif}
 
 implementation
@@ -1561,7 +1633,8 @@ uses
 
 
 //-- BG ---------------------------------------------------------- 14.01.2012 --
-function Sum(const Arr: IntArray; StartIndex, EndIndex: Integer): Integer; overload;
+function Sum(const Arr: TIntArray; StartIndex, EndIndex: Integer): Integer; overload;
+ {$ifdef UseInline} inline; {$endif}
 // Return sum of array elements from StartIndex to EndIndex.
 var
   I: Integer;
@@ -1572,7 +1645,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 14.01.2012 --
-function Sum(const Arr: IntArray): Integer; overload;
+function Sum(const Arr: TIntArray): Integer; overload;
  {$ifdef UseInline} inline; {$endif}
 // Return sum of all array elements.
 begin
@@ -1600,7 +1673,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 17.01.2012 --
-function SubArray(const Arr, Minus: IntArray): IntArray; overload;
+function SubArray(const Arr, Minus: TIntArray): TIntArray; overload;
  {$ifdef UseInline} inline; {$endif}
 // Return array with differences per index.
 var
@@ -1612,7 +1685,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2012 --
-procedure SetArray(var Arr: IntArray; Value, StartIndex, EndIndex: Integer); overload;
+procedure SetArray(var Arr: TIntArray; Value, StartIndex, EndIndex: Integer); overload;
  {$ifdef UseInline} inline; {$endif}
 var
   I: Integer;
@@ -1622,7 +1695,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2012 --
-procedure SetArray(var Arr: IntArray; Value: Integer); overload;
+procedure SetArray(var Arr: TIntArray; Value: Integer); overload;
  {$ifdef UseInline} inline; {$endif}
 begin
   SetArray(Arr, Value, Low(Arr), High(Arr));
@@ -1656,7 +1729,7 @@ end;
 function SumOfType(
   WidthType: TWidthType;
   const ColumnSpecs: TWidthTypeArray;
-  const Widths: IntArray;
+  const Widths: TIntArray;
   StartIndex, EndIndex: Integer): Integer;
   {$ifdef UseInline} inline; {$endif}
 var
@@ -1672,7 +1745,7 @@ end;
 function SumOfNotType(
   WidthType: TWidthType;
   const ColumnSpecs: TWidthTypeArray;
-  const Widths: IntArray;
+  const Widths: TIntArray;
   StartIndex, EndIndex: Integer): Integer;
   {$ifdef UseInline} inline; {$endif}
 var
@@ -1703,28 +1776,246 @@ begin
   end;
 end;
 
+{ THtmlNode }
+
+//-- BG ---------------------------------------------------------- 24.03.2011 --
+procedure THtmlNode.AfterConstruction;
+begin
+  inherited AfterConstruction;
+  if (Length(ID) > 0) and (Document <> nil) and (Document.IDNameList <> nil) then
+    Document.IDNameList.AddObject(ID, Self);
+end;
+
+constructor THtmlNode.Create(Parent: TCellBasic; Attributes: TAttributeList; Properties: TProperties);
+var
+  id: ThtString; //>-- DZ
+begin
+  //>-- DZ
+  {if Properties <> nil then
+    id := Properties.PropID
+  else} if Attributes <> nil then
+    id := Attributes.TheId
+  else
+    id := '';
+
+  inherited Create(id);
+  FOwnerCell := Parent;
+  if FOwnerCell <> nil then
+  begin
+    FOwnerBlock := FOwnerCell.OwnerBlock;
+    FDocument := FOwnerCell.Document;
+  end;
+  FAttributes := Attributes;
+  FProperties := Properties;
+end;
+
+//-- BG ---------------------------------------------------------- 24.03.2011 --
+constructor THtmlNode.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+begin
+  inherited Create( Source.HtmlId );
+  FOwnerCell := Parent;
+  begin
+    FOwnerBlock := FOwnerCell.OwnerBlock;
+    FDocument := FOwnerCell.Document;
+  end;
+  FAttributes := Source.FAttributes;
+  FProperties := Source.FProperties;
+end;
+
+//-- BG ---------------------------------------------------------- 23.03.2011 --
+function THtmlNode.FindAttribute(NameSy: TAttrSymb; out Attribute: TAttribute): Boolean;
+begin
+  Attribute := nil;
+  Result := (FAttributes <> nil) and FAttributes.Find(NameSy, Attribute);
+end;
+
+////-- BG ---------------------------------------------------------- 24.03.2011 --
+//function THtmlNode.FindAttribute(Name: ThtString; out Attribute: TAttribute): Boolean;
+//begin
+//  Attribute := nil;
+//  Result := (FAttributes <> nil) and FAttributes.Find(Name, Attribute);
+//end;
+
+//-- BG ---------------------------------------------------------- 24.03.2011 --
+function THtmlNode.GetChild(Index: Integer): THtmlNode;
+begin
+  Result := nil; //TODO -oBG, 24.03.2011
+end;
+
+////-- BG ---------------------------------------------------------- 23.03.2011 --
+//function THtmlNode.GetParent: TBlock;
+//begin
+//  Result := FOwnerBlock;
+//end;
+
+//-- BG ---------------------------------------------------------- 04.08.2013 --
+function THtmlNode.GetSymbol: TElemSymb;
+begin
+  Result := FProperties.PropSym;
+end;
+
+//function THtmlNode.GetPseudos: TPseudos;
+//begin
+//  Result := []; //TODO -oBG, 24.03.2011
+//end;
+
+//-- BG ---------------------------------------------------------- 24.03.2011 --
+function THtmlNode.IndexOf(Child: THtmlNode): Integer;
+begin
+  Result := -1; //TODO -oBG, 24.03.2011
+end;
+
+//-- BG ---------------------------------------------------------- 04.08.2013 --
+function THtmlNode.IsCopy: Boolean;
+begin
+  Result := Document.IsCopy;
+end;
+
+////-- BG ---------------------------------------------------------- 23.03.2011 --
+//function THtmlNode.IsMatching(Selector: TSelector): Boolean;
+//
+//  function IsMatchingSimple: Boolean;
+//
+//    function IncludesStringArray(S, F: ThtStringArray): Boolean;
+//    var
+//      I: Integer;
+//    begin
+//      Result := Length(S) <= Length(F);
+//      if not Result then
+//        exit;
+//      for I := Low(S) to High(S) do
+//        if IndexOfString(F, S[I]) < 0 then
+//          exit;
+//      Result := True;
+//    end;
+//
+//  var
+//    Index: Integer;
+//    Attribute: TAttribute;
+//    Match: TAttributeMatch;
+//    S: TSymbol;
+//  begin
+//    Result := False;
+//
+//    // http://www.w3.org/TR/2010/WD-CSS2-20101207/selector.html
+//    // If all conditions in the selector are true for a certain element, the selector matches the element.
+//
+//    if Selector.Pseudos <> [] then
+//      if not (Selector.Pseudos >= GetPseudos) then
+//        exit;
+//
+//    // a loop about tags? there is one or none tag in the selector.
+//    for Index := Low(Selector.Tags) to High(Selector.Tags) do
+//      if TryStrToReservedWord(Selector.Tags[Index], S) then
+//        if S <> FTag then
+//          exit;
+//
+//    // a loop about ids? CSS 2.1 allows more than 1 ID, but most browsers do not support them.
+//    if not IncludesStringArray(Selector.Ids, FIds) then
+//      exit;
+//
+//    if not IncludesStringArray(Selector.Classes, FClasses) then
+//      exit;
+//
+//    for Index := 0 to Selector.AttributeMatchesCount - 1 do
+//    begin
+//      Match := Selector.AttributeMatches[Index];
+//      if not FindAttribute(Match.Name, Attribute) then
+//        exit;
+//      case Match.Oper of
+//        //no more checks here. Attribute it set! amoSet: ;       // [name] : matches, if attr is set and has any value.
+//
+//        amoEquals:     // [name=value] : matches, if attr equals value.
+//          if htCompareString(Match.Value, Attribute.AsString) <> 0 then
+//            break;
+//
+//        amoContains:   // [name~=value] : matches, if attr is a white space separated list of values and value is one of these values.
+//          if PosX(Match.Value + ' ', Attribute.AsString + ' ', 1) = 0 then
+//            break;
+//
+//        amoStartsWith: // [name|=value] : matches, if attr equals value or starts with value immediately followed by a hyphen.
+//          if PosX(Match.Value + '-', Attribute.AsString + '-', 1) <> 1 then
+//            break;
+//        end;
+//      end;
+//
+//    Result := True;
+//  end;
+//
+//  function IsChild(Selector: TSelector): Boolean;
+//  var
+//    P: THtmlNode;
+//  begin
+//    P := Parent;
+//    Result := (P <> nil) and P.IsMatching(Selector);
+//  end;
+//
+//  function IsDescendant(Selector: TSelector): Boolean;
+//  var
+//    Node: THtmlNode;
+//  begin
+//    Result := False;
+//    Node := Parent;
+//    while Node <> nil do
+//    begin
+//      Result := Node.IsMatching(Selector);
+//      if Result then
+//        break;
+//      Node := Node.Parent;
+//    end;
+//  end;
+//
+//  function IsFollower(Selector: TSelector): Boolean;
+//  var
+//    P: THtmlNode;
+//    I: Integer;
+//  begin
+//    P := Parent;
+//    Result := P <> nil;
+//    if Result then
+//    begin
+//      I := P.IndexOf(Self);
+//      if I > 0 then
+//        Result := P[I - 1].IsMatching(Selector);
+//    end;
+//  end;
+//
+//begin
+//  Result := IsMatchingSimple;
+//  if Result then
+//    if Selector is TCombinedSelector then
+//      case TCombinedSelector(Selector).Combinator of
+//        scChild:      Result := IsChild(TCombinedSelector(Selector).LeftHand);
+//        scDescendant: Result := IsDescendant(TCombinedSelector(Selector).LeftHand);
+//        scFollower:   Result := IsFollower(TCombinedSelector(Selector).LeftHand);
+//      end;
+//end;
+
+
+{ TFontObj }
+
 type
   TSectionClass = class of TSectionBase;
   EProcessError = class(Exception);
 
 type
-  BorderRec = class {record for inline borders}
+  ThtBorderRec = class {record for inline borders}
   private
     BStart, BEnd: Integer;
     OpenStart, OpenEnd: boolean;
     BRect: TRect;
-    MargArray: TMarginArray;
+    MargArray: ThtMarginArray;
     procedure DrawTheBorder(Canvas: TCanvas; XOffset, YOffSet: Integer; Printing: boolean
       {$ifdef has_StyleElements}; const AStyleElements : TStyleElements{$endif}); //overload;
   end;
 
-  InlineRec = class
+  ThtInThtLineRec = class
   private
     StartB, EndB, IDB, StartBDoc, EndBDoc: Integer;
-    MargArray: TMarginArray;
+    MargArray: ThtMarginArray;
   end;
 
-  TInlineList = class(TFreeList) {a list of InlineRec's}
+  TInlineList = class(TFreeList) {a list of ThtInThtLineRec's}
   private
     NeedsConverting: boolean;
     Owner: ThtDocument;
@@ -1738,7 +2029,7 @@ type
     property EndB[I: Integer]: Integer read GetEndB;
   end;
 
-constructor TFontObj.Create(ASection: TSection; F: TMyFont; Position: Integer);
+constructor TFontObj.Create(ASection: TSection; F: ThtFont; Position: Integer);
 begin
   inherited Create;
 {$ifndef NoTabLink}
@@ -1875,34 +2166,28 @@ begin
     FIArray := TFontInfoArray.Create;
 end;
 
-procedure TFontObj.ReplaceFont(F: TMyFont);
+procedure TFontObj.ReplaceFont(F: ThtFont);
 begin
   TheFont.Free;
   TheFont := F;
   FontChanged;
 end;
 
-procedure TFontObj.ConvertFont(FI: ThtFontInfo);
+procedure TFontObj.ConvertFont(const FI: ThtFontInfo);
 begin
-  with TheFont, FI do
-  begin
-    Name := iName;
-    Height := -Round(iSize * Screen.PixelsPerInch / 72);
-    Style := iStyle;
-    bgColor := ibgColor;
-    Color := iColor;
-    CharSet := ICharSet;
-    FontChanged;
-  end;
+  TheFont.Assign(FI);
+  FontChanged;
 end;
 
 constructor TFontObj.CreateCopy(ASection: TSection; T: TFontObj);
 begin
   inherited Create;
+{$ifndef NoTabLink}
   FSection := ASection;
+{$endif}
   Pos := T.Pos;
   SScript := T.SScript;
-  TheFont := TMyFont.Create;
+  TheFont := ThtFont.Create;
   TheFont.Assign(T.TheFont);
   if Assigned(T.FIArray) then
     ConvertFont(T.FIArray.Ar[LFont]);
@@ -2030,7 +2315,7 @@ begin
   Result := Get(Index);
 end;
 
-function TFontList.GetFontAt(Posn: Integer; out OHang: Integer): TMyFont;
+function TFontList.GetFontAt(Posn: Integer; out OHang: Integer): ThtFont;
 {given a character index, find the font that's effective there}
 var
   I, PosX: Integer;
@@ -2053,49 +2338,66 @@ begin
   Result := F.TheFont;
 end;
 
-function TFontList.GetFontCountAt(Posn, Leng: Integer): Integer;
-{Given a position, return the number of chars before the font changes}
+//function TFontList.GetFontCountAt(Posn, Leng: Integer): Integer;
+//{Given a position, return the number of chars before the font changes}
+//var
+//  I, PosX: Integer;
+//begin
+//  I := 0;
+//  PosX := 0;
+//  while I < Count do
+//  begin
+//    PosX := Items[I].Pos;
+//    if PosX >= Posn then
+//      Break;
+//    Inc(I);
+//  end;
+//  if PosX = Posn then
+//    Inc(I);
+//  if I = Count then
+//    Result := Leng - Posn
+//  else
+//    Result := Items[I].Pos - Posn;
+//end;
+
+//-- BG ---------------------------------------------------------- 25.08.2013 --
+function TFontList.GetFontObjAt(Posn, Leng: Integer; out Obj: TFontObj): Integer;
+{Given a position, returns the FontObj which applies there and the number of chars before the font changes}
 var
-  I, PosX: Integer;
+  I: Integer;
 begin
-  I := 0;
-  PosX := 0;
-  while I < Count do
+  I := Count;
+  while I > 0 do
   begin
-    PosX := Items[I].Pos;
-    if PosX >= Posn then
-      Break;
-    Inc(I);
+    Dec(I);
+    Obj := Items[I];
+    if Obj.Pos <= Posn then
+    begin
+      Result := Leng - Posn;
+      Exit;
+    end;
+    Leng := Obj.Pos;
   end;
-  if PosX = Posn then
-    Inc(I);
-  if I = Count then
-    Result := Leng - Posn
-  else
-    Result := Items[I].Pos - Posn;
+  Obj := nil;
+  Result := Leng - Posn;
 end;
 
 {----------------TFontList.GetFontObjAt}
 
-function TFontList.GetFontObjAt(Posn: Integer; out Index: Integer): TFontObj;
-{Given a position, returns the FontObj which applies there and the index of
- the FontObj in the list}
+function TFontList.GetFontObjAt(Posn: Integer): TFontObj;
+{Given a position, returns the FontObj which applies there}
 var
-  PosX: Integer;
+  I: Integer;
 begin
-  Index := 0;
-  PosX := 0;
-  while (Index < Count) do
+  I := Count;
+  while I > 0 do
   begin
-    PosX := Items[Index].Pos;
-    Inc(Index);
-    if PosX >= Posn then
-      Break;
+    Dec(I);
+    Result := Items[I];
+    if Result.Pos <= Posn then
+      Exit;
   end;
-  Dec(Index);
-  if PosX > Posn then
-    Dec(Index);
-  Result := Items[Index];
+  Result := nil;
 end;
 
 {----------------TFontList.Decrement}
@@ -2149,64 +2451,25 @@ begin
   inherited Create(False);
 end;
 
-{----------------TImageObj.Create}
+{ TImageObj.Create }
 
-constructor TImageObj.Create(MasterList: ThtDocument; Position: Integer; L: TAttributeList);
+constructor TImageObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
   I: Integer;
   S: ThtString;
-  NewSpace: Integer;
   T: TAttribute;
 begin
-  inherited Create;
-  Document := MasterList;
-  Pos := Position;
-  VertAlign := ABottom; {default}
-  Floating := ANone; {default}
-  NewSpace := -1;
-  SpecHeight := -1;
-  SpecWidth := -1;
+  inherited Create(Parent,Position,L,Prop);
   for I := 0 to L.Count - 1 do
-    with TAttribute(L[I]) do
+    with L[I] do
       case Which of
         SrcSy:
-          Source := Trim(Name);
+          FSource := htTrim(Name);
 
         AltSy:
           begin
             SetAlt(CodePage, Name);
-            ImageTitle := Alt;
-          end;
-
-        IsMapSy:
-          IsMap := True;
-
-        UseMapSy:
-          begin
-            UseMap := True;
-            S := Trim(Uppercase(Name));
-            if (Length(S) > 1) and (S[1] = '#') then
-              System.Delete(S, 1, 1);
-            MapName := S;
-          end;
-
-        AlignSy:
-          begin
-            S := UpperCase(Name);
-            if S = 'TOP' then
-              VertAlign := ATop
-            else if (S = 'MIDDLE') or (S = 'ABSMIDDLE') then
-              VertAlign := AMiddle
-            else if S = 'LEFT' then
-            begin
-              VertAlign := ANone;
-              Floating := ALeft;
-            end
-            else if S = 'RIGHT' then
-            begin
-              VertAlign := ANone;
-              Floating := ARight;
-            end;
+            Title := Alt;
           end;
 
         BorderSy:
@@ -2215,37 +2478,20 @@ begin
             BorderSize := Min(Max(0, Value), 10);
           end;
 
+        IsMapSy:
+          IsMap := True;
+
+        UseMapSy:
+          begin
+            UseMap := True;
+            S := htUpperCase(htTrim(Name));
+            if (Length(S) > 1) and (S[1] = '#') then
+              System.Delete(S, 1, 1);
+            MapName := S;
+          end;
+
         TranspSy:
           Transparent := LLCorner;
-
-        HeightSy: if System.Pos('%', Name) > 0 then
-          begin
-            if (Value >= 0) and (Value <= 100) then
-            begin
-              SpecHeight := Value;
-              PercentHeight := True;
-            end;
-          end
-          else
-            SpecHeight := Value;
-
-        WidthSy:
-          if System.Pos('%', Name) > 0 then
-          begin
-            if (Value >= 0) and (Value <= 100) then
-            begin
-              SpecWidth := Value;
-              PercentWidth := True;
-            end;
-          end
-          else
-            SpecWidth := Value;
-
-        HSpaceSy:
-          NewSpace := Min(40, Abs(Value));
-
-        VSpaceSy:
-          VSpaceT := Min(40, Abs(Value));
 
         ActiveSy:
           FHoverImage := True;
@@ -2253,120 +2499,76 @@ begin
         NameSy:
           Document.IDNameList.AddObject(Name, Self);
       end;
+
   if L.Find(TitleSy, T) then
-    ImageTitle := T.Name; {has higher priority than Alt loaded above}
-  if L.TheID <> '' then
-    Document.IDNameList.AddObject(L.TheID, Self);
-
-  if NewSpace >= 0 then
-    HSpaceL := NewSpace
-  else
-    if Self.Document.UseQuirksMode then begin
-      case Floating of
-       ARight :
-          begin
-            HSpaceR := 0;
-            HSpaceL := ImageSpace;
-          end;
-       ALeft :
-          begin
-            HSpaceR := ImageSpace;
-            HSpaceL := 0;
-          end
-        else
-          HSpaceR := 0;
-          HSpaceL := 0;
-        end;
-    end else begin
-      HSpaceR := 0;
-      VSpaceB := 0;
-    end;
+    Title := T.Name; {has higher priority than Alt loaded above}
 end;
 
-constructor TImageObj.SimpleCreate(MasterList: ThtDocument; const AnURL: ThtString);
+constructor TImageObj.SimpleCreate(Parent: TCellBasic; const AnURL: ThtString);
 begin
-  inherited Create;
-  Document := MasterList;
-  VertAlign := ABottom; {default}
-  Floating := ANone; {default}
-  Source := AnURL;
-  NoBorder := True;
-  BorderSize := 0;
-  SpecHeight := -1;
-  SpecWidth := -1;
+  inherited SimpleCreate(Parent);
+  FSource := AnURL;
 end;
 
-constructor TImageObj.CreateCopy(AMasterList: ThtDocument; T: TImageObj);
+constructor TImageObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TImageObj absolute Source;
 begin
-  inherited CreateCopy(T);
-  Document := AMasterList;
-  ImageKnown := T.ImageKnown;
+  inherited CreateCopy(Parent,Source);
+  AltHeight := T.AltHeight;
+  AltWidth := T.AltWidth;
+  FHover := T.FHover;
+  FHoverImage := T.FHoverImage;
+  FImage := T.Image;
+  FSource := T.FSource;
+  IsMap := T.IsMap;
+  MapName := T.MapName;
+  Missing := T.Missing;
   ObjHeight := T.ObjHeight;
   ObjWidth := T.ObjWidth;
-  SpecHeight := T.SpecHeight;
-  SpecWidth := T.SpecWidth;
-  PercentWidth := T.PercentWidth;
-  PercentHeight := T.PercentHeight;
-  Image := T.Image;
-  Mask := T.Mask;
-  IsMap := T.IsMap;
+  OrigImage := T.OrigImage;
+  Swapped := T.Swapped;
   Transparent := T.Transparent;
+  UseMap := T.UseMap;
 end;
 
 destructor TImageObj.Destroy;
 begin
-  if not Document.IsCopy then
+  if not IsCopy then
   begin
     if (Source <> '') and Assigned(OrigImage) then
-      Document.BitmapList.DecUsage(Source);
+      Document.ImageCache.DecUsage(htUpperCase(htTrim(Source)));
     if Swapped and (Image <> OrigImage) then
     begin {not in cache}
       Image.Free;
-      Mask.Free;
     end;
-    if (OrigImage is TGifImage) and TGifImage(OrigImage).IsCopy then
+    if (OrigImage is ThtGifImage) and ThtGifImage(OrigImage).Gif.IsCopy then
       OrigImage.Free;
   end;
-  FBitmap.Free;
   inherited Destroy;
 end;
 
 function TImageObj.GetBitmap: TBitmap;
 begin
-  Result := nil;
-  if Image = ErrorBitmap then
-    Exit;
-  if Image is TGifImage then
-    Result := TGifImage(Image).Bitmap
-  else if (Image is TBitmap) {$IFNDEF NoGDIPlus}or (Image is THtGpBitmap){$ENDIF} then
+  if Image is ThtBitmapImage then
   begin
-    if FBitmap = nil then
+    if Image.Bitmap = ErrorBitmap then
+      Result := nil
+    else
     begin
-      if Image is TBitmap then
-      begin
-        FBitmap := TBitmap.Create;
-        FBitmap.Assign(TBitmap(Image));
-        if ColorBits = 8 then
-          FBitmap.Palette := CopyPalette(ThePalette);
-      end
-{$IFNDEF NoGDIPlus}
-      else {it's a TGpBitmap}
-        FBitmap := THtGpBitmap(Image).GetBitmap
-{$ENDIF NoGDIPlus}
-        ;
-    end;
-    Result := FBitmap;
+      Result := Image.Bitmap;
+    end
   end
-{$IFNDEF NoMetafile}
-  else if (Image is ThtMetaFile) then
-    Result := ThtMetaFile(Image).WhiteBGBitmap;
-{$ENDIF}
+  else if Image <> nil  then
+    Result := Image.Bitmap
+  else
+    Result := nil;
 end;
 
-procedure TImageObj.SetHover(Value: HoverType);
+procedure TImageObj.SetHover(Value: ThtHover);
 begin
-  if (Value <> FHover) and FHoverImage and (Image is TGifImage) then
-    with TGifImage(Image) do
+  if (Value <> FHover) and FHoverImage and (Image is ThtGifImage) then
+    with ThtGifImage(Image).Gif do
     begin
       if Value <> hvOff then
         case NumFrames of
@@ -2393,84 +2595,62 @@ begin
     end;
 end;
 
-procedure TImageObj.setImage(const AValue: TgpObject);
-begin
-  if FImage = AValue then exit;
-  FImage := AValue;
-end;
-
 {----------------TImageObj.ReplaceImage}
 
 procedure TImageObj.ReplaceImage(NewImage: TStream);
 var
-  TmpImage: TGpObject;
-  AMask: TBitmap;
-  Stream: TMemoryStream;
+  TmpImage: ThtImage;
   I: Integer;
 begin
   try
     Transparent := NotTransp;
-    AMask := nil;
-    if NewImage is TMemoryStream then
-      TmpImage := LoadImageFromStream(NewImage, Transparent, AMask)
-    else
+    TmpImage := LoadImageFromStream(NewImage, Transparent);
+    if Assigned(TmpImage) then
     begin
-      // TODO BG, 30.11.2010: do we need this intermediate stream?
-      Stream := TMemoryStream.Create;
-      try
-        Stream.LoadFromStream(NewImage);
-        TmpImage := LoadImageFromStream(Stream, Transparent, AMask);
-      finally
-        Stream.Free;
-      end;
-    end;
-
-    // terminated old image
-    if not Swapped then
-    begin
-    {OrigImage is left in cache and kept}
-      if Image is TGifImage then
-        Document.AGifList.Remove(Image);
-      Swapped := True;
-    end
-    else {swapped already}
-    begin
-      if Image is TGifImage then
-        Document.AGifList.Remove(Image);
-      Image.Free;
-      FreeAndNil(Mask);
-    end;
-    FreeAndNil(FBitmap);
-
-    // initialize new image
-    Image := TmpImage;
-    if Image is TGifImage then
-      if not FHoverImage then
+      // remove current image
+      if not Swapped then
       begin
-        TGifImage(Image).Animate := True;
-        Document.AGifList.Add(Image);
+      {OrigImage is left in cache and kept}
+        if Image is ThtGifImage then
+          Document.AGifList.Remove(ThtGifImage(Image).Gif);
+        Swapped := True;
       end
-      else
+      else {swapped already}
       begin
-        TGifImage(Image).Animate := False;
-        SetHover(hvOff);
+        if Image is ThtGifImage then
+          Document.AGifList.Remove(ThtGifImage(Image).Gif);
+        FImage.Free;
       end;
-    Mask := AMask;
 
-    if Missing then
-    begin
-      // image is not missing any more
-      with Document.MissingImages do
-        for I := 0 to count - 1 do
-          if Objects[I] = Self then
-          begin
-            Delete(I);
-            break;
-          end;
-      Missing := False;
+      // set new image
+      FImage := TmpImage;
+      if Image is ThtGifImage then
+      begin
+        if not FHoverImage then
+        begin
+          ThtGifImage(Image).Gif.Animate := True;
+          Document.AGifList.Add(ThtGifImage(Image).Gif);
+        end
+        else
+        begin
+          ThtGifImage(Image).Gif.Animate := False;
+          SetHover(hvOff);
+        end;
+      end;
+      if Missing then
+      begin {if waiting for image, no longer want it}
+        with Document.MissingImages do
+          for I := 0 to count - 1 do
+            if Objects[I] = Self then
+            begin
+              Delete(I);
+              break;
+            end;
+        Missing := False;
+      end;
+
+      Document.PPanel.Invalidate;
     end;
-
-    Document.PPanel.Invalidate;
   except
     // replacing image failed
   end;
@@ -2480,322 +2660,213 @@ end;
 
 function TImageObj.InsertImage(const UName: ThtString; Error: boolean; out Reformat: boolean): boolean;
 var
-  TmpImage: TgpObject;
-  FromCache, DelayDummy: Boolean;
+  TmpImage: ThtImage;
+  FromCache, DelayDummy: boolean;
 begin
   Result := False;
   Reformat := False;
-  if Image = DefBitmap then
+  if FImage = DefImage then
   begin
     Result := True;
     if Error then
-    begin
-      Image := ErrorBitmap;
-      Mask := ErrorBitmapMask;
-      Transparent := LLCorner;
-    end
+      FImage := ErrorImage
     else
     begin
-      TmpImage := Document.GetTheImage(UName, Transparent, Mask, FromCache, DelayDummy);
+      TmpImage := Document.GetTheImage(UName, Transparent, FromCache, DelayDummy);
       if not Assigned(TmpImage) then
         Exit;
 
-      if TmpImage is TGIFImage then
+      if TmpImage is ThtGifImage then
       begin
         if FromCache then {it would be}
-          Image := TGifImage.CreateCopy(TGifImage(TmpImage)) {it's in Cache already, make copy}
+          FImage := ThtGifImage(TmpImage).Clone {it's in Cache already, make copy}
         else
-          Image := TmpImage;
+          FImage := TmpImage;
         if not FHoverImage then
         begin
-          Document.AGifList.Add(Image);
-          TGifImage(Image).Animate := True;
+          ThtGifImage(Image).Gif.Animate := True;
+          Document.AGifList.Add(ThtGifImage(Image).Gif);
           if Assigned(Document.Timer) then
             Document.Timer.Enabled := True;
         end
         else
-          TGifImage(Image).Animate := False;
+          ThtGifImage(Image).Gif.Animate := False;
       end
       else
-        Image := TmpImage;
+        FImage := TmpImage;
       OrigImage := Image;
     end;
     Missing := False;
 
-    if not ImageKnown then
+    if not ClientSizeKnown then
       Reformat := True; {need to get the dimensions}
   end;
 end;
 
 {----------------TImageObj.DrawLogic}
 
-procedure TImageObj.DrawLogic(SectionList: ThtDocument; Canvas: TCanvas;
-  FO: TFontObj; AvailableWidth, AvailableHeight: Integer);
+procedure TImageObj.DrawLogicInline(Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer);
 {calculate the height and width}
 var
-  TmpImage: TgpObject;
-  ImHeight, ImWidth: Integer;
+  TempImage: ThtImage;
   ViewImages, FromCache: boolean;
   Rslt: ThtString;
   ARect: TRect;
   SubstImage: Boolean;
   HasBlueBox: Boolean;
-
+  UName: ThtString;
 begin
   ViewImages := Document.ShowImages;
+  case FDisplay of
 
-  TmpImage := Image;
-  if ViewImages and not Assigned(TmpImage) then
+    pdNone:
+    begin
+      ObjHeight := 0;
+      ObjWidth := 0;
+
+      ClientHeight := ObjHeight;
+      ClientWidth := ObjWidth;
+      Exit;
+    end;
+  end;
+  if ViewImages then
   begin
-    if Source <> '' then
-      with SectionList do
+    if FImage = nil then
+    begin
+      TempImage := nil;
+      UName := htUpperCase(htTrim(Source));
+      if UName <> '' then
       begin
-        if not Assigned(GetBitmap) and not Assigned(GetImage) then
-          Source := TheOwner.HtmlExpandFilename(Source)
-        else if Assigned(ExpandName) then
+        if not Assigned(Document.GetBitmap) and not Assigned(Document.GetImage) then
+          FSource := Document.TheOwner.HtmlExpandFilename(Source)
+        else if Assigned(Document.ExpandName) then
         begin
-          Rslt := '';
-          ExpandName(TheOwner, Source, Rslt);
-          Source := Rslt;
+          Document.ExpandName(Document.TheOwner, Source, Rslt);
+          FSource := Rslt;
         end;
-        if MissingImages.IndexOf(Uppercase(Source)) = -1 then
-          TmpImage := Document.GetTheImage(Source, Transparent, Mask, FromCache, Missing)
+        UName := htUpperCase(htTrim(Source));
+        if Document.MissingImages.IndexOf(UName) = -1 then
+          TempImage := Document.GetTheImage(Source, Transparent, FromCache, Missing)
         else
           Missing := True; {already in list, don't request it again}
       end;
-    if not Assigned(TmpImage) then
-    begin
-      if Missing then
+
+      if TempImage = nil then
       begin
-        Image := DefBitmap;
-        TmpImage := DefBitmap;
-        Document.MissingImages.AddObject(Source, Self); {add it even if it's there already}
-      end
-      else
-      begin
-        Image := ErrorBitmap;
-        TmpImage := ErrorBitmap;
-        Mask := ErrorBitmapMask;
-        Transparent := LLCorner;
-      end;
-    end
-    else if TmpImage is TGifImage then
-    begin
-      if FromCache then
-      begin {it's in Cache already, make copy}
-        Image := TGifImage.CreateCopy(TGifImage(TmpImage));
-        TmpImage := Image;
-      end
-      else
-        Image := TmpImage;
-      OrigImage := Image;
-      if not FHoverImage then
-        Document.AGifList.Add(Image)
-      else
-        TGifImage(Image).Animate := False;
-    end
-    else
-    begin
-      Image := TmpImage; //TBitmap(TmpImage);
-      OrigImage := Image;
-    end;
-  end;
-  if not ViewImages then
-    TmpImage := DefBitMap;
-
-  ImHeight := GetImageHeight(TmpImage);
-  ImWidth := GetImageWidth(TmpImage);
-
-  SubstImage := (Image = ErrorBitmap) or (TmpImage = DefBitmap);
-
-  if not ImageKnown or PercentWidth or PercentHeight then
-  begin
-    if PercentWidth then
-    begin
-      ObjWidth := MulDiv(AvailableWidth - 2 * BorderSize, SpecWidth, 100);
-      if SpecHeight >= 0 then
-        if PercentHeight then
-          ObjHeight := MulDiv(AvailableHeight - 2 * BorderSize, SpecHeight, 100)
+        if Missing then
+        begin
+          FImage := DefImage;
+          Document.MissingImages.AddObject(UName, Self); {add it even if it's there already}
+        end
         else
-          ObjHeight := SpecHeight
+        begin
+          FImage := ErrorImage;
+        end;
+      end
+      else if TempImage is ThtGifImage then
+      begin
+        if FromCache then
+          FImage := ThtGifImage(TempImage).Clone {it's in Cache already, make copy}
+        else
+          FImage := TempImage;
+        OrigImage := FImage;
+        if not FHoverImage then
+        begin
+          ThtGifImage(Image).Gif.Animate := True;
+          Document.AGifList.Add(ThtGifImage(Image).Gif);
+          if Assigned(Document.Timer) then
+            Document.Timer.Enabled := True;
+        end
+        else
+          ThtGifImage(Image).Gif.Animate := False;
+      end
       else
-        ObjHeight := MulDiv(ObjWidth, ImHeight, ImWidth);
-    end
-    else if PercentHeight then
-    begin
-      ObjHeight := MulDiv(AvailableHeight - 2 * BorderSize, SpecHeight, 100);
-      if SpecWidth >= 0 then
-        ObjWidth := SpecWidth
-      else
-        ObjWidth := MulDiv(ObjHeight, ImWidth, ImHeight);
-    end
-    else if (SpecWidth >= 0) and (SpecHeight >= 0) then
-    begin {Both width and height specified}
-      ObjHeight := SpecHeight;
-      ObjWidth := SpecWidth;
-      ImageKnown := True;
-    end
-    else if SpecHeight >= 0 then
-    begin
-      ObjHeight := SpecHeight;
-      ObjWidth := MulDiv(SpecHeight, ImWidth, ImHeight);
-      ImageKnown := not SubstImage;
-    end
-    else if SpecWidth >= 0 then
-    begin
-      ObjWidth := SpecWidth;
-      ObjHeight := MulDiv(SpecWidth, ImHeight, ImWidth);
-      ImageKnown := not SubstImage;
-    end
-    else
-    begin {neither height and width specified}
-      ObjHeight := ImHeight;
-      ObjWidth := ImWidth;
-      ImageKnown := not SubstImage;
+      begin
+        FImage := TempImage; //TBitmap(TmpImage);
+        OrigImage := FImage;
+      end;
     end;
+  end
+  else
+    FImage := DefImage;
+
+  SubstImage := (Image = ErrorImage) or (Image = DefImage);
+
+  HasBlueBox := not NoBorder and Assigned(FO) and (FO.URLTarget.Url <> '');
+  if HasBlueBox then
+    BorderSize := Max(1, BorderSize);
+
+  if not ClientSizeKnown or PercentWidth or PercentHeight then
+  begin
+    CalcSize(AvailableWidth, AvailableHeight, Image.Width, Image.Height, not SubstImage);
+    ObjWidth := ClientWidth - 2 * BorderSize;
+    ObjHeight := ClientHeight - 2 * BorderSize;
   end;
 
-  if (not ViewImages or SubstImage) then
+  if not ViewImages or SubstImage then
   begin
     if (SpecWidth >= 0) or (SpecHeight >= 0) then
     begin {size to whatever is specified}
       AltWidth := ObjWidth;
       AltHeight := ObjHeight;
     end
-    else if FAlt <> '' then {Alt text and no size specified, take as much space as necessary}
-    begin
-      Canvas.Font.Name := 'Arial'; {use same font as in Draw}
-      Canvas.Font.Size := 8;
-      ARect := Rect(0, 0, 0, 0);
-      DrawTextW(Canvas.Handle, PWideChar(FAlt + CRLF), -1, ARect, DT_CALCRECT);
-      with ARect do
-      begin
-        AltWidth := Right + 16 + 8 + 2;
-        AltHeight := Max(16 + 8, Bottom);
-      end;
-    end
     else
-    begin {no Alt text and no size specified}
-      AltWidth := Max(ObjWidth, 16 + 8);
-      AltHeight := Max(ObjHeight, 16 + 8);
+    begin
+      if FAlt <> '' then {Alt text and no size specified, take as much space as necessary}
+      begin
+        Canvas.Font.Name := 'Arial'; {use same font as in Draw}
+        Canvas.Font.Size := 8;
+        ARect := Rect(0, 0, 0, 0);
+        DrawTextW(Canvas.Handle, PWideChar(FAlt + CRLF), -1, ARect, DT_CALCRECT);
+        with ARect do
+        begin
+          AltWidth := Right + 16 + 8 + 2;
+          AltHeight := Max(16 + 8, Bottom);
+        end;
+      end
+      else
+      begin {no Alt text and no size specified}
+        AltWidth := Max(ObjWidth, 16 + 8);
+        AltHeight := Max(ObjHeight, 16 + 8);
+      end;
+      ClientHeight := AltHeight + 2 * Bordersize;
+      ClientWidth := AltWidth + 2 * Bordersize;
     end;
-    ImageHeight := AltHeight;
-    ImageWidth := AltWidth;
-  end
-  else
-  begin
-    ImageHeight := ObjHeight;
-    ImageWidth := ObjWidth;
-  end;
-
-  HasBlueBox := not NoBorder and Assigned(FO) and (FO.URLTarget.Url <> '');
-  if HasBlueBox then
-    BorderSize := Max(1, BorderSize);
-
-  if (BorderSize > 0) then
-  begin
-    Inc(ImageHeight, 2 * BorderSize); {extra pixels top and bottom for border}
-    Inc(ImageWidth, 2 * BorderSize);
   end;
 end;
 
 {----------------TImageObj.DoDraw}
-
-procedure TImageObj.DoDraw(Canvas: TCanvas; XX, Y: Integer; ddImage: TgpObject; ddMask: TBitmap);
+var
+  LastExceptionMessage: String;
+  LastDdImage: ThtImage;
+procedure TImageObj.DoDraw(Canvas: TCanvas; XX, Y: Integer; ddImage: ThtImage);
 {Y relative to top of display here}
 var
-  DC: HDC;
-  Img: TBitmap absolute ddImage;
-  Gif: TGifImage absolute ddImage;
   W, H: Integer;
-  PrintTransparent: boolean;
 begin
-  DC := Canvas.Handle;
-
-  {$IFNDEF NoGDIPlus}
-  if TObject(ddImage) is THtGPImage then
+  if (ddImage = ErrorImage) or (ddImage = DefImage) then
   begin
-    if not Document.Printing then
-      StretchDrawGpImage(DC, THtGPImage(ddImage), XX, Y, ObjWidth, ObjHeight)
-    else if not Document.PrintBackground and (Positioning = posStatic) then {Printing}
-      StretchPrintGpImageOnColor(Canvas, THtGpImage(ddImage), XX, Y, ObjWidth, ObjHeight)
-    else
-      StretchPrintGpImageDirect(DC, THtGPImage(ddImage), XX, Y, ObjWidth, ObjHeight,
-        Document.ScaleX, Document.ScaleY);
-    Exit;
+    W := ddImage.Width;
+    H := ddImage.Height;
+  end
+  else if ddImage = nil then
+    exit
+  else
+  begin
+    W := ObjWidth;
+    H := ObjHeight;
   end;
-  {$ENDIF !NoGDIPlus}
-
   try
-    if not Document.IsCopy then
-    begin
-      if ddImage is TGifImage then
-      begin
-        Gif.ShowIt := True;
-        Gif.Visible := True;
-        Gif.Draw(Canvas, XX, Y, ObjWidth, ObjHeight);
-      end
-      else if ((Transparent <> NotTransp) or (ddImage = ErrorBitmap)) and Assigned(ddMask) then
-        if ddImage = ErrorBitmap then
-          FinishTransparentBitmap(DC, Img, Mask, XX, Y, Img.Width, Img.Height)
-        else
-          FinishTransparentBitmap(DC, Img, Mask, XX, Y, ObjWidth, ObjHeight)
-      else
-      begin
-        if (ddImage = DefBitMap) or (ddImage = ErrorBitmap) then
-          BitBlt(DC, XX, Y, Img.Width, Img.Height, Img.Canvas.Handle, 0, 0, SRCCOPY)
-        else if ddImage is TBitmap then
-        begin
-{$IFDEF HalfToneStretching}
-          SetStretchBltMode(DC, HALFTONE);
-{$ELSE}
-          SetStretchBltMode(DC, COLORONCOLOR);
-{$ENDIF}
-          SetBrushOrgEx(DC, 0, 0, nil);
-          StretchBlt(DC, XX, Y, ObjWidth, ObjHeight, Img.Canvas.Handle, 0, 0, Img.Width, Img.Height, SRCCOPY);
-        end
-{$IFNDEF NoMetafile}
-        else if ddImage is ThtMetaFile then
-          Canvas.StretchDraw(Rect(XX, Y, XX + ObjWidth, Y + ObjHeight), ThtMetaFile(ddImage));
-{$ENDIF}
-      end;
-    end
+    if IsCopy then
+      ddImage.Print(Canvas, XX, Y, W, H, clWhite)
     else
-    begin {printing}
-      if ddImage is TGifImage then
-      begin
-        ddMask := Gif.Mask;
-        if Assigned(ddMask) then
-          Transparent := TrGif;
-        Img := Gif.MaskedBitmap;
-        Img.Palette := CopyPalette(ThePalette);
-        Img.HandleType := bmDIB;
-      end;
-      if (ddImage = DefBitMap) or (ddImage = ErrorBitmap) then
-      begin
-        W := TBitmap(ddImage).Width;
-        H := TBitmap(ddImage).Height;
-      end
-      else
-      begin
-        W := ObjWidth;
-        H := ObjHeight;
-      end;
-
-      PrintTransparent := ((Transparent <> NotTransp) or (ddImage = ErrorBitmap))
-        and Assigned(ddMask);
-      if PrintTransparent then
-        PrintTransparentBitmap3(Canvas, XX, Y, W, H, TBitmap(ddImage), ddMask, 0, TBitmap(ddImage).Height)
-      else if ddImage is TBitmap then
-      begin {printing, not transparent}
-        PrintBitmap(Canvas, XX, Y, W, H, TBitmap(ddImage));
-      end
-{$IFNDEF NoMetafile}
-      else if ddImage is ThtMetaFile then
-        Canvas.StretchDraw(Rect(XX, Y, XX + ObjWidth, Y + ObjHeight), ThtMetaFile(ddImage));
-{$ENDIF}
-    end;
+      ddImage.Draw(Canvas, XX, Y, W, H);
   except
+    on E: Exception do
+    begin
+      LastExceptionMessage := E.Message;
+      LastDdImage := ddImage;
+    end;
   end;
 end;
 
@@ -2803,14 +2874,12 @@ end;
 
 //-- BG ---------------------------------------------------------- 12.06.2010 --
 procedure GetRaisedColors(SectionList: ThtDocument; Canvas: TCanvas; out Light, Dark: TColor);  {$ifdef UseInline} inline; {$endif}
+ {$ifdef UseInline} inline; {$endif}
 var
   White, BlackBorder: boolean;
 begin
-  with SectionList, Canvas do
-  begin
-    White := Printing or (ThemedColor(Background{$ifdef has_StyleElements},seFont in SectionList.StyleElements{$endif}) = clWhite);
-    BlackBorder := Printing and PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and (GetDeviceCaps(Handle, PLANES) = 1);
-  end;
+  BlackBorder := SectionList.Printing and SectionList.PrintMonoBlack and
+    (GetDeviceCaps(Canvas.Handle, BITSPIXEL) = 1) and (GetDeviceCaps(Canvas.Handle, PLANES) = 1);
   if BlackBorder then
   begin
     Light := clBlack;
@@ -2818,6 +2887,7 @@ begin
   end
   else
   begin
+    White := SectionList.Printing or (ThemedColor(SectionList.Background{$ifdef has_StyleElements},seFont in SectionList.StyleElements{$endif}) = clWhite);
     Dark := ThemedColor(clBtnShadow{$ifdef has_StyleElements},seFont in SectionList.StyleElements{$endif} );
     if White then
       Light := clSilver
@@ -2829,7 +2899,7 @@ end;
 //BG, 15.10.2010: issue 28: Borland C++ Builder does not accept an array as a result of a function.
 // Thus move htStyles and htColors from HtmlUn2.pas to HtmlSubs.pas the only unit where they are used
 
-function htStyles(P0, P1, P2, P3: BorderStyleType): htBorderStyleArray;
+function htStyles(P0, P1, P2, P3: ThtBorderStyle): ThtBorderStyleArray;
  {$ifdef UseInline} inline; {$endif}
 begin
   Result[0] := P0;
@@ -2838,7 +2908,7 @@ begin
   Result[3] := P3;
 end;
 
-function htColors(C0, C1, C2, C3: TColor): htColorArray;
+function htColors(C0, C1, C2, C3: TColor): ThtColorArray;
  {$ifdef UseInline} inline; {$endif}
 begin
   Result[0] := C0;
@@ -2848,7 +2918,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 12.06.2010 --
-function htRaisedColors(Light, Dark: TColor; Raised: Boolean): htColorArray; overload;
+function htRaisedColors(Light, Dark: TColor; Raised: Boolean): ThtColorArray; overload;
   {$ifdef UseInline} inline; {$endif}
 begin
   if Raised then
@@ -2858,7 +2928,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 12.06.2010 --
-function htRaisedColors(SectionList: ThtDocument; Canvas: TCanvas; Raised: Boolean): htColorArray; overload;
+function htRaisedColors(SectionList: ThtDocument; Canvas: TCanvas; Raised: Boolean): ThtColorArray; overload;
   {$ifdef UseInline} inline; {$endif}
 var
   Light, Dark: TColor;
@@ -2870,8 +2940,8 @@ end;
 //-- BG ---------------------------------------------------------- 12.06.2010 --
 procedure RaisedRectColor(Canvas: TCanvas;
   const ORect, IRect: TRect;
-  const Colors: htColorArray;
-  Styles: htBorderStyleArray); overload;
+  const Colors: ThtColorArray;
+  Styles: ThtBorderStyleArray); overload;
   {$ifdef UseInline} inline; {$endif}
 {Draws colored raised or lowered rectangles for table borders}
 begin
@@ -2892,10 +2962,9 @@ begin
     htStyles(bssSolid, bssSolid, bssSolid, bssSolid));
 end;
 
-procedure TImageObj.Draw(Canvas: TCanvas; X: Integer; TopY, YBaseline: Integer; FO: TFontObj);
+procedure TImageObj.DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
 var
-  TmpImage: TgpObject;
-  TmpMask: TBitmap;
+  TmpImage: ThtImage;
   MiddleAlignTop: Integer;
   ViewImages: boolean;
   SubstImage: boolean;
@@ -2909,29 +2978,18 @@ var
   LStyle : TStyleElements;
 {$endif}
 begin
-  with Document do
-  begin
-    ViewImages := ShowImages;
-    Dec(TopY, YOff);
-    Dec(YBaseLine, YOff);
+  ViewImages := Document.ShowImages;
+  Dec(Y, Document.YOff);
+  Dec(YBaseLine, Document.YOff);
 {$ifdef has_StyleElements}
-    LStyle := StyleElements;
+  LStyle := Document.StyleElements;
 {$endif}
-  end;
+
   if ViewImages then
-  begin
-    TmpImage := Image;
-    if Image is TBitmap then
-      TmpMask := Mask
-    else
-      TmpMask := nil;
-  end
+    TmpImage := Image
   else
-  begin
-    TmpImage := DefBitMap;
-    TmpMask := nil;
-  end;
-  SubstImage := not ViewImages or (TmpImage = ErrorBitmap) or (TmpImage = DefBitmap); {substitute image}
+    TmpImage := DefImage;
+  SubstImage := not ViewImages or (TmpImage = ErrorImage) or (TmpImage = DefImage); {substitute image}
 
   with Canvas do
   begin
@@ -2945,8 +3003,9 @@ begin
     Ofst := 4
   else
     Ofst := 0;
+
   if VertAlign = AMiddle then
-    MiddleAlignTop := YBaseLine + FO.Descent - (FO.tmHeight div 2) - ((ImageHeight - VSpaceT + VSpaceB) div 2)
+    MiddleAlignTop := YBaseLine + FO.Descent - (FO.tmHeight div 2) - ((ClientHeight - VSpaceT + VSpaceB) div 2)
   else
     MiddleAlignTop := 0; {not used}
 
@@ -2955,11 +3014,11 @@ begin
     DrawXX := X;
     case VertAlign of
       ATop, ANone:
-        DrawYY := TopY + VSpaceT;
+        DrawYY := Y + VSpaceT;
       AMiddle:
         DrawYY := MiddleAlignTop;
       ABottom, ABaseline:
-        DrawYY := YBaseLine - ImageHeight - VSpaceB;
+        DrawYY := YBaseLine - ClientHeight - VSpaceB;
     end;
     if (BorderSize > 0) then
     begin
@@ -2970,23 +3029,23 @@ begin
   else
   begin
     DrawXX := X;
-    DrawYY := TopY;
+    DrawYY := Y;
   end;
 
   if not SubstImage or (AltHeight >= 16 + 8) and (AltWidth >= 16 + 8) then
-    Self.DoDraw(Canvas, DrawXX + Ofst, DrawYY + Ofst, TmpImage, TmpMask);
+    Self.DoDraw(Canvas, DrawXX + Ofst, DrawYY + Ofst, TmpImage);
   Inc(DrawYY, Document.YOff);
   SetTextAlign(Canvas.Handle, TA_Top);
   if SubstImage and (BorderSize = 0) then
   begin
-    Canvas.Font.Color := ThemedColor(FO.TheFont.Color{$ifdef has_StyleElements},seFont in LStyle{$endif});
+    Canvas.Font.Color := ThemedColor(FO.TheFont.Color{$ifdef has_StyleElements},seFont in LStyle  {$endif});
   {calc the offset from the image's base to the alt= text baseline}
     case VertAlign of
       ATop, ANone:
         begin
           if FAlt <> '' then
-            WrapTextW(Canvas, X + 24, TopY + Ofst, X + AltWidth - 2, TopY + AltHeight - 1, FAlt);
-          RaisedRect(Document, Canvas, X, TopY, X + AltWidth, TopY + AltHeight, False, 1);
+            WrapTextW(Canvas, X + 24, Y + Ofst, X + AltWidth - 2, Y + AltHeight - 1, FAlt);
+          RaisedRect(Document, Canvas, X, Y, X + AltWidth, Y + AltHeight, False, 1);
         end;
       AMiddle:
         begin {MiddleAlignTop is always initialized}
@@ -3006,7 +3065,7 @@ begin
   if BorderSize > 0 then
     with Canvas do
     begin
-     SaveColor := Pen.Color;
+      SaveColor := Pen.Color;
       SaveWidth := Pen.Width;
       SaveStyle := Pen.Style;
       Pen.Color := ThemedColor(FO.TheFont.Color{$ifdef has_StyleElements},seFont in Document.StyleElements {$endif});
@@ -3032,11 +3091,11 @@ begin
         case VertAlign of
 
           {ALeft, ARight,} ATop, ANone:
-            Rectangle(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
+            Rectangle(X, Y + VSpaceT, X + ClientWidth, Y + VSpaceT + ClientHeight);
           AMiddle:
-            Rectangle(X, MiddleAlignTop, X + ImageWidth, MiddleAlignTop + ImageHeight);
+            Rectangle(X, MiddleAlignTop, X + ClientWidth, MiddleAlignTop + ClientHeight);
           ABottom, ABaseline:
-            Rectangle(X, YBaseLine - ImageHeight - VSpaceB, X + ImageWidth, YBaseLine - VSpaceB);
+            Rectangle(X, YBaseLine - ClientHeight - VSpaceB, X + ClientWidth, YBaseLine - VSpaceB);
         end;
       finally
         Pen.Color := SaveColor;
@@ -3046,8 +3105,7 @@ begin
     end;
 
   if (Assigned(MyFormControl) and MyFormControl.Active or FO.Active) or
-    Document.IsCopy and Assigned(Document.LinkDrawnEvent)
-    and (FO.UrlTarget.Url <> '')
+    IsCopy and Assigned(Document.LinkDrawnEvent) and (FO.UrlTarget.Url <> '')
   then
     with Canvas do
     begin
@@ -3055,13 +3113,13 @@ begin
       Brush.Color := clWhite;
       case VertAlign of
         ATop, ANone:
-          ARect := Rect(X, TopY + VSpaceT, X + ImageWidth, TopY + VSpaceT + ImageHeight);
+          ARect := Rect(X, Y + VSpaceT, X + ClientWidth, Y + VSpaceT + ClientHeight);
         AMiddle:
-          ARect := Rect(X, MiddleAlignTop, X + ImageWidth, MiddleAlignTop + ImageHeight);
+          ARect := Rect(X, MiddleAlignTop, X + ClientWidth, MiddleAlignTop + ClientHeight);
         ABottom, ABaseline:
-          ARect := Rect(X, YBaseLine - ImageHeight - VSpaceB, X + ImageWidth, YBaseLine - VSpaceB);
+          ARect := Rect(X, YBaseLine - ClientHeight - VSpaceB, X + ClientWidth, YBaseLine - VSpaceB);
       end;
-      if not Document.IsCopy then
+      if not IsCopy then
       begin
         if Document.TheOwner.ShowFocusRect then //MK20091107
           Canvas.DrawFocusRect(ARect);  {draw focus box}
@@ -3073,177 +3131,6 @@ begin
     end;
 end;
 
-{----------------TFloatingObjList.CreateCopy}
-
-constructor TFloatingObjList.CreateCopy(AMasterList: ThtDocument; T: TFloatingObjList);
-var
-  I: Integer;
-  Item: TObject;
-begin
-  inherited create;
-  for I := 0 to T.Count - 1 do
-  begin
-    Item := T.Items[I];
-    if Item is TImageObj then
-      Add(TImageObj.CreateCopy(AMasterList, TImageObj(Item)))
-    else
-      Add(TPanelObj.CreateCopy(AMasterList, TPanelObj(Item)));
-  end;
-end;
-
-function TFloatingObjList.FindImage(Posn: Integer): TFloatingObj;
-{find the image at a given character position}
-var
-  I: Integer;
-begin
-  for I := 0 to Count - 1 do
-    if TFloatingObj(Items[I]).Pos = Posn then
-    begin
-      Result := Items[I];
-      Exit;
-    end;
-  Result := nil;
-end;
-
-function TFloatingObjList.GetHeightAt(Posn: Integer; out AAlign: AlignmentType;
-  out FlObj: TFloatingObj): Integer;
-begin
-  FLObj := FindImage(Posn);
-  if Assigned(FLObj) then
-  begin
-    Result := FLObj.ImageHeight + FLObj.VSpaceT + FLObj.VSpaceB;
-    AAlign := FLObj.VertAlign
-  end
-  else
-    Result := -1;
-end;
-
-function TFloatingObjList.GetWidthAt(Posn: Integer; out AAlign: AlignmentType;
-  out HSpcL, HSpcR: Integer; out FlObj: TFloatingObj): Integer;
-begin
-  FLObj := FindImage(Posn);
-  if Assigned(FLObj) then
-  begin
-    Result := FLObj.ImageWidth;
-    AAlign := FLObj.Floating;
-    HSpcL := FLObj.HSpaceL;
-    HSpcR := FLObj.HSpaceR;
-  end
-  else
-    Result := -1;
-end;
-
-function TFloatingObjList.GetImageCountAt(Posn: Integer): Integer;
-{Return count of chars before the next image.  0 if at the image, 99999999 if no
- images after Posn}
-var
-  I, Pos: Integer;
-begin
-  if Count = 0 then
-  begin
-    Result := 99999999;
-    Exit;
-  end;
-  I := 0;
-  while I < count do
-  begin
-    Pos := TFloatingObj(Items[I]).Pos;
-    if Pos >= Posn then
-      break;
-    Inc(I);
-  end;
-  if I = Count then
-    Result := 99999999
-  else
-    Result := TFloatingObj(Items[I]).Pos - Posn;
-end;
-
-{----------------TFloatingObjList.Decrement}
-
-procedure TFloatingObjList.Decrement(N: Integer);
-{called when a character is removed to change the Position figure}
-var
-  I: Integer;
-begin
-  for I := 0 to Count - 1 do
-    with TImageObj(Items[I]) do
-      if Pos > N then
-        Dec(Pos);
-end;
-
-{----------------TFloatingObjList.PtInImage}
-
-function TFloatingObjList.PtInImage(X, Y: Integer; out IX, IY, Posn: Integer;
-  out AMap, UMap: boolean; out MapItem: TMapItem; out ImageObj: TImageObj): boolean;
-var
-  I, J, LimX, LimY: Integer;
-  LIY: Integer;
-  Obj: TObject;
-begin
-  Result := False;
-  for I := 0 to Count - 1 do
-  begin
-    Obj := Items[I];
-    if Obj is TImageObj then
-      with TImageObj(Obj) do
-      begin
-        IX := X - DrawXX; {these are actual image, box if any is outside}
-        LIY := Y - DrawYY;
-        LimX := ImageWidth - 2 * BorderSize;
-        LimY := ImageHeight - 2 * BorderSize;
-        if (IX >= 0) and (IX < LimX) and (LIY >= 0) and (LIY < LimY) then
-        begin
-          IY := LIY;
-          Result := True;
-          AMap := IsMap;
-          Posn := Pos;
-          UMap := False;
-          ImageObj := TImageObj(Obj);
-          if UseMap then
-            with Document.MapList do
-              for J := 0 to Count - 1 do
-              begin
-                MapItem := Items[J];
-                if MapItem.MapName = MapName then
-                begin
-                  UMap := True;
-                  Exit;
-                end;
-              end;
-          Exit;
-        end;
-      end;
-  end;
-end;
-
-function TFloatingObjList.PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean;
-var
-  I, LimX, LimY: Integer;
-  LIY: Integer;
-  Item: TObject;
-begin
-  Result := False;
-  for I := 0 to Count - 1 do
-  begin
-    Item := Items[I];
-    if Item is TImageObj then
-      with TImageObj(Item) do
-      begin
-        IX := X - DrawXX; {these are actual image, box if any is outside}
-        LIY := Y - DrawYY;
-        LimX := ImageWidth - 2 * BorderSize;
-        LimY := ImageHeight - 2 * BorderSize;
-        if (IX >= 0) and (IX < LimX) and (LIY >= 0) and (LIY < LimY) then
-        begin
-          IY := LIY;
-          Result := True;
-          Obj := Item;
-          Exit;
-        end;
-      end;
-  end;
-end;
-
 {----------------ThtmlForm.Create}
 
 constructor ThtmlForm.Create(AMasterList: ThtDocument; L: TAttributeList);
@@ -3251,12 +3138,12 @@ var
   I: Integer;
 begin
   inherited Create;
-  MasterList := AMasterList;
+  Document := AMasterList;
   AMasterList.htmlFormList.Add(Self);
   Method := 'Get';
   if Assigned(L) then
     for I := 0 to L.Count - 1 do
-      with TAttribute(L[I]) do
+      with L[I] do
         case Which of
           MethodSy: Method := Name;
           ActionSy: Action := Name;
@@ -3346,7 +3233,7 @@ begin
       end;
   end
   else {send other keys to THtmlViewer}
-    MasterList.TheOwner.KeyDown(Key, Shift);
+    Document.TheOwner.KeyDown(Key, Shift);
 end;
 
 procedure ThtmlForm.ResetControls;
@@ -3392,7 +3279,7 @@ var
   SL: ThtStringList;
   S: ThtString;
 begin
-  if Assigned(MasterList.SubmitForm) then
+  if Assigned(Document.SubmitForm) then
   begin
     SL := ThtStringList.Create;
     for I := 0 to ControlList.Count - 1 do
@@ -3409,7 +3296,7 @@ begin
       end;
     if ButtonSubmission <> '' then
       SL.Add(ButtonSubmission);
-    MasterList.SubmitForm(MasterList.TheOwner, Action, Target, EncType, Method, SL);
+    Document.SubmitForm(Document.TheOwner, Action, Target, EncType, Method, SL);
   end;
 end;
 
@@ -3448,65 +3335,64 @@ end;
 
 {----------------TFormControlObj.Create}
 
-constructor TFormControlObj.Create(AMasterList: ThtDocument;
-  Position: Integer; L: TAttributeList);
+constructor TFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
   I: Integer;
 begin
-  inherited Create;
-  Pos := Position;
-  MasterList := AMasterList;
-  if not Assigned(CurrentForm) then {maybe someone forgot the <form> tag}
-    CurrentForm := ThtmlForm.Create(AMasterList, nil);
-  AMasterList.FormControlList.Add(Self);
-  MyForm := CurrentForm;
+  inherited Create(Parent,Position,L,Prop);
+  StartCurs := Position;
+  if not Assigned(Document.CurrentForm) then {maybe someone forgot the <form> tag}
+    Document.CurrentForm := ThtmlForm.Create(Document, nil);
+  Document.FormControlList.Add(Self);
+  MyForm := Document.CurrentForm;
   for I := 0 to L.Count - 1 do
     with L[I] do
       case Which of
-        ValueSy: Self.Value := Name;
-        NameSy: Self.FName := Name;
-        IDSy: FID := Name;
-        OnClickSy: OnClickMessage := Name;
-        OnFocusSy: OnFocusMessage := Name;
-        OnBlurSy: OnBlurMessage := Name;
+        ValueSy:    Self.Value := Name;
+        NameSy:     Self.FName := Name;
+        IDSy:       FID := Name;
+        OnClickSy:  OnClickMessage := Name;
+        OnFocusSy:  OnFocusMessage := Name;
+        OnBlurSy:   OnBlurMessage := Name;
         OnChangeSy: OnChangeMessage := Name;
+        TitleSy:    FTitle := Name;
+        DisabledSy: Disabled := (Lowercase(Name) <> 'no') and (Name <> '0');
+        ReadonlySy: ReadOnly := True;
+
         TabIndexSy:
           if Value > 0 then
             {Adding leading 0's to the number ThtString allows it to be sorted numerically,
              and the Count takes care of duplicates}
-            with AMasterList.TabOrderList do
+            with Document.TabOrderList do
               AddObject(Format('%.5d%.3d', [Value, Count]), Self);
-        TitleSy: FTitle := Name;
-        DisabledSy: Disabled := (Lowercase(Name) <> 'no') and (Name <> '0');
-        ReadonlySy: ReadOnly := True;
+
       end;
 
-  if L.TheID <> '' then
-    MasterList.IDNameList.AddObject(L.TheID, Self);
-  AttributeList := L.CreateStringList;
-  FormAlign := ABottom; {ABaseline set individually}
+  //FAttributeList := L.CreateStringList;
+  VertAlign := ABottom; {ABaseline set individually}
   MyForm.InsertControl(Self);
 end;
 
-constructor TFormControlObj.CreateCopy(T: TFormControlObj);
+constructor TFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TFormControlObj absolute Source;
 begin
-  inherited Create;
-  System.Move(T.Pos, Pos, PtrSub(@ShowIt, @Pos));
+  inherited CreateCopy(Parent,Source);
+  System.Move(T.MyForm, MyForm, PtrSub(@ShowIt, @MyForm));
   FId := T.FID;
   FName := T.FName;
 end;
 
 destructor TFormControlObj.Destroy;
 begin
-  AttributeList.Free;
+  //FAttributeList.Free;
   PaintBitmap.Free;
   inherited Destroy;
 end;
 
-procedure TFormControlObj.HandleMouseMove(Sender: TObject; Shift: TShiftState; X,
-  Y: Integer);
+procedure TFormControlObj.HandleMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
 begin
-  MasterList.TheOwner.ControlMouseMove(Self, Shift, X, Y);
+  Document.TheOwner.ControlMouseMove(Self, Shift, X, Y);
 end;
 
 //-- BG ---------------------------------------------------------- 15.01.2011 --
@@ -3523,13 +3409,13 @@ end;
 
 function TFormControlObj.GetYPosition: Integer;
 begin
-  Result := YValue;
+  Result := DrawYY; //YValue;
 end;
 
 procedure TFormControlObj.ProcessProperties(Prop: TProperties);
 var
-  MargArrayO: TVMarginArray;
-  MargArray: TMarginArray;
+  MargArrayO: ThtVMarginArray;
+  MargArray: ThtMarginArray;
   EmSize, ExSize: Integer;
 begin
   Prop.GetVMarginArray(MargArrayO);
@@ -3571,23 +3457,25 @@ begin
       FWidth := MargArray[piWidth];
   if MargArray[piHeight] > 0 then
     FHeight := MargArray[piHeight] - BordT - BordB;
-  Prop.GetVertAlign(FormAlign);
+  Prop.GetVertAlign(VertAlign);
+  Prop.GetFloat(Floating);
+
   BkColor := Prop.GetBackgroundColor;
 end;
 
 procedure TFormControlObj.EnterEvent(Sender: TObject);
 {Once form control entered, insure all form controls are tab active}
 begin
-  if MasterList.IsCopy then
+  if IsCopy then
     Exit;
   Active := True;
-  MasterList.PPanel.Invalidate;
-  MasterList.ControlEnterEvent(Self);
+  Document.PPanel.Invalidate;
+  Document.ControlEnterEvent(Self);
 {$IFNDEF FastRadio}
-  MasterList.FormControlList.ActivateTabbing;
+  Document.FormControlList.ActivateTabbing;
 {$ENDIF}
-  if Assigned(MasterList.ObjectFocus) and (OnFocusMessage <> '') then
-    MasterList.ObjectFocus(MasterList.TheOwner, Self, OnFocusMessage);
+  if Assigned(Document.ObjectFocus) and (OnFocusMessage <> '') then
+    Document.ObjectFocus(Document.TheOwner, Self, OnFocusMessage);
   if OnChangeMessage <> '' then
     SaveContents;
 end;
@@ -3600,25 +3488,49 @@ end;
 procedure TFormControlObj.ExitEvent(Sender: TObject);
 begin
 {$IFNDEF FastRadio}
-  MasterList.AdjustFormControls;
+  Document.AdjustFormControls;
 {$ENDIF}
   Active := False;
   if OnChangeMessage <> '' then
     DoOnChange;
-  if Assigned(MasterList.ObjectBlur) and (OnBlurMessage <> '') then
-    MasterList.ObjectBlur(MasterList.TheOwner, Self, OnBlurMessage);
-  MasterList.PPanel.Invalidate;
+  if Assigned(Document.ObjectBlur) and (OnBlurMessage <> '') then
+    Document.ObjectBlur(Document.TheOwner, Self, OnBlurMessage);
+  Document.PPanel.Invalidate;
 end;
 
 procedure TFormControlObj.DoOnChange;
 begin
 end;
 
-procedure TFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
-begin end;
+procedure TFormControlObj.DrawInline1(Canvas: TCanvas; X1, Y1: Integer);
+begin
+  if not IsCopy then
+  begin
+    Show;
+    Left := X1;
+    Top := Y1;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 16.09.2013 --
+procedure TFormControlObj.DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
+begin
+  DrawInline1(Canvas, X, Y);
+end;
+
+//-- BG ---------------------------------------------------------- 28.08.2013 --
+procedure TFormControlObj.DrawLogicInline(Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer);
+begin
+//  inherited DrawLogicInline(Canvas,FO,AvailableWidth,AvailableHeight);
+  if PercentWidth then
+    ClientWidth := Max(10, Min(MulDiv(FWidth, AvailableWidth, 100), AvailableWidth - HSpaceL - HSpaceR));
+  if PercentHeight then
+    ClientHeight := Max(10, Min(MulDiv(FWidth, AvailableHeight, 100), AvailableHeight - VSpaceT - VSpaceB));
+end;
 
 procedure TFormControlObj.ResetToValue;
-begin end;
+begin
+end;
 
 function TFormControlObj.GetSubmission(Index: Integer; out S: ThtString): boolean;
 begin
@@ -3627,23 +3539,23 @@ end;
 
 procedure TFormControlObj.FormControlClick(Sender: TObject);
 begin
-  if Assigned(MasterList.ObjectClick) then
-    MasterList.ObjectClick(MasterList.TheOwner, Self, OnClickMessage);
+  if Assigned(Document.ObjectClick) then
+    Document.ObjectClick(Document.TheOwner, Self, OnClickMessage);
 end;
 
-function TFormControlObj.GetAttribute(const AttrName: ThtString): ThtString;
-begin
-  Result := AttributeList.Values[AttrName];
-end;
+//function TFormControlObj.GetAttribute(const AttrName: ThtString): ThtString;
+//begin
+//  Result := FAttributeList.Values[AttrName];
+//end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
-function TFormControlObj.GetHeight: Integer;
+function TFormControlObj.GetClientHeight: Integer;
 begin
   Result := TheControl.Height;
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
-function TFormControlObj.GetLeft: Integer;
+function TFormControlObj.GetClientLeft: Integer;
 begin
   Result := TheControl.Left;
 end;
@@ -3651,23 +3563,23 @@ end;
 //-- BG ---------------------------------------------------------- 15.01.2011 --
 function TFormControlObj.GetTabOrder: Integer;
 begin
-  Result := TheControl.TabOrder
+  Result := TheControl.TabOrder;
 end;
 
 //-- BG ---------------------------------------------------------- 15.01.2011 --
 function TFormControlObj.GetTabStop: Boolean;
 begin
-  Result := TheControl.TabStop
+  Result := TheControl.TabStop;
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
-function TFormControlObj.GetTop: Integer;
+function TFormControlObj.GetClientTop: Integer;
 begin
   Result := TheControl.Top;
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
-function TFormControlObj.GetWidth: Integer;
+function TFormControlObj.GetClientWidth: Integer;
 begin
   Result := TheControl.Width;
 end;
@@ -3681,7 +3593,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure TFormControlObj.SetHeight(Value: Integer);
+procedure TFormControlObj.SetClientHeight(Value: Integer);
 begin
   TheControl.Height := Value;
 end;
@@ -3691,7 +3603,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure TFormControlObj.SetLeft(Value: Integer);
+procedure TFormControlObj.SetClientLeft(Value: Integer);
 begin
   TheControl.Left := Value;
 end;
@@ -3709,22 +3621,21 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure TFormControlObj.SetTop(Value: Integer);
+procedure TFormControlObj.SetClientTop(Value: Integer);
 begin
   TheControl.Top := Value;
 end;
 
 {----------------TImageFormControlObj.Create}
 
-constructor TImageFormControlObj.Create(AMasterList: ThtDocument;
-  Position: Integer; L: TAttributeList);
+constructor TImageFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
   PntPanel: TWinControl; //TPaintPanel;
 begin
-  inherited Create(AMasterList, Position, L);
+  inherited Create(Parent,Position,L,Prop);
   XPos := -1; {so a button press won't submit image data}
 
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
+  PntPanel := Document.PPanel;
   FControl := ThtButton.Create(PntPanel);
   with FControl do
   begin
@@ -3736,7 +3647,7 @@ begin
     OnClick := ImageClick;
     Enabled := not Disabled;
     {$ifdef has_StyleElements}
-    StyleElements := AMasterList.StyleElements;
+    StyleElements := Document.StyleElements;
     {$endif}
   end;
   FControl.Parent := PntPanel;
@@ -3758,11 +3669,24 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 15.01.2011 --
+constructor TImageFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TImageFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FControl := T.FControl;
+  MyImage := T.MyImage;
+end;
+
 destructor TImageFormControlObj.Destroy;
 begin
-  FControl.Parent := nil;
-  FControl.Free;
-  inherited;
+  if not IsCopy then
+  begin
+    FControl.Parent := nil;
+    FControl.Free;
+    // TODO: BG, 29.08.2013: ... and MyImage??? Who owns it???
+  end;
+  inherited Destroy;
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
@@ -3789,557 +3713,9 @@ begin
   end;
 end;
 
-{----------------THiddenFormControlObj.GetSubmission}
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-function THiddenFormControlObj.GetControl: TWinControl;
-begin
-  Result := nil;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function THiddenFormControlObj.GetHeight: Integer;
-begin
-  Result := 0;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function THiddenFormControlObj.GetLeft: Integer;
-begin
-  Result := -4000;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function THiddenFormControlObj.GetSubmission(Index: Integer; out S: ThtString): boolean;
-begin
-  Result := Index = 0;
-  if Result then
-    S := FName + '=' + Value;
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-function THiddenFormControlObj.GetTabOrder: Integer;
-begin
-  Result := -1;
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-function THiddenFormControlObj.GetTabStop: Boolean;
-begin
-  Result := False;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function THiddenFormControlObj.GetTop: Integer;
-begin
-  Result := 0;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function THiddenFormControlObj.GetWidth: Integer;
-begin
-  Result := 0;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure THiddenFormControlObj.Hide;
-begin
-// do nothing
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function THiddenFormControlObj.IsHidden: Boolean;
-begin
-  Result := True;
-end;
-
-procedure THiddenFormControlObj.SetData(Index: Integer; const V: ThtString);
-begin
-  Value := V;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure THiddenFormControlObj.SetHeight(Value: Integer);
-begin
-// do nothing
-end;
-
-procedure THiddenFormControlObj.SetLeft(Value: Integer);
-begin
-// do nothing
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-procedure THiddenFormControlObj.SetTabOrder(Value: Integer);
-begin
-// do nothing
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-procedure THiddenFormControlObj.SetTabStop(Value: Boolean);
-begin
-// do nothing
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure THiddenFormControlObj.SetTop(Value: Integer);
-begin
-// do nothing
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure THiddenFormControlObj.SetWidth(Value: Integer);
-begin
-// do nothing
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure THiddenFormControlObj.Show;
-begin
-// do nothing
-end;
-
-{----------------TEditFormControlObj.Create}
-
-constructor TEditFormControlObj.Create(AMasterList: ThtDocument;
-  Position: Integer; L: TAttributeList; const Typ: ThtString; Prop: TProperties);
-var
-  T: TAttribute;
-  PntPanel: TWinControl; //TPaintPanel;
-  I: Integer;
-  Tmp: TMyFont;
-begin
-  inherited Create(AMasterList, Position, L);
-  CodePage := Prop.CodePage;
-  EditSize := 15;
-  if L.Find(SizeSy, T) then
-  begin
-    if T.Value > 0 then
-      EditSize := T.Value
-    else
-    begin {see if it's comma delimited list}
-      I := Min(System.Pos(',', T.Name), System.Pos(' ', T.Name));
-      if I > 1 then
-        EditSize := StrToIntDef(copy(T.Name, 1, I - 1), 20);
-    end;
-  end;
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
-  FControl := ThtEdit.Create(PntPanel);
-  with FControl do
-  begin
-    Left := -4000; {so will be invisible until placed}
-    Width := 120;
-    if Prop.HasBorderStyle then
-      BorderStyle := bsNone;
-    Parent := PntPanel;
-    Tmp := Prop.GetFont;
-    Font.Assign(Tmp);
-    FHeight := Height; {Height can change when font assigned}
-    tmAveCharWidth := Tmp.tmAveCharWidth;
-    Tmp.Free;
-    Text := Value;
-    if L.Find(MaxLengthSy, T) then
-      MaxLength := T.Value;
-    if Typ = 'password' then
-      PassWordChar := '*';
-    OnKeyPress := MyForm.ControlKeyPress;
-    OnEnter := EnterEvent;
-    OnExit := ExitEvent;
-    OnClick := FormControlClick;
-    OnMouseMove := HandleMouseMove;
-    Enabled := not Disabled;
-    ReadOnly := Self.Readonly;
-    {$ifdef has_StyleElements}
-    StyleElements := AMasterList.StyleElements;
-    {$endif}
-    if L.Find(PlaceholderSy, T) then
-    begin
-      FPlaceholder := T.Name;
-      TextHint := FPlaceholder;
-    end;
-  end;
-end;
-
-procedure TEditFormControlObj.ProcessProperties(Prop: TProperties);
-begin
-  inherited;
-  if BkColor <> clNone then
-    FControl.Color := BkColor;
-end;
-
-procedure TEditFormControlObj.ResetToValue;
-begin
-  Text := Value;
-end;
-
-procedure TEditFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
-var
-  H2, Addon: Integer;
-  ARect: TRect;
-begin
-  if FControl.BorderStyle <> bsNone then
-    Addon := 4 {normal 3D border}
-  else
-    Addon := 2; {inline border, 3D Border removed}
-  with FControl do
-  begin
-    Canvas.Font := Font;
-    H2 := Abs(Font.Height);
-    if BorderStyle <> bsNone then
-      DrawFormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, False, MasterList.PrintMonoBlack, False, Color{$ifdef has_StyleElements},MasterList.StyleElements{$endif})
-    else
-      FillRectWhite(Canvas, X1, Y1, X1 + Width, Y1 + Height, Color {$ifdef has_StyleElements}, MasterList.StyleElements{$endif});
-    SetTextAlign(Canvas.handle, TA_Left);
-    SetBkMode(Canvas.Handle, {$ifdef FPC}Lcltype.{$endif}Transparent);
-    Canvas.Brush.Style := bsClear;
-    ARect := Rect(X1 + Addon, Y1, X1 + Width - (Addon div 2), Y1 + Height);
-    ThtCanvas(Canvas).htTextRect(ARect, ARect.Left, Y1 + (Height - H2) div 2 - 1, Text);
-  end
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function TEditFormControlObj.GetControl: TWinControl;
-begin
-  Result := FControl;
-end;
-
-function TEditFormControlObj.GetSubmission(Index: Integer; out S: ThtString): boolean;
-begin
-  Result := Index = 0;
-  if Result then
-    S := FName + '=' + Text;
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-function TEditFormControlObj.getText: ThtString;
-begin
-  Result := {$ifdef LCL}UTF8Decode{$endif}(FControl.Text);
-end;
-
-procedure TEditFormControlObj.SetData(Index: Integer; const V: ThtString);
-begin
-  Text := V;
-end;
-
-procedure TEditFormControlObj.SetHeightWidth(Canvas: TCanvas);
-begin
-  with FControl do
-  begin
-    Canvas.Font := Font;
-    if not PercentWidth then
-      if (FWidth >= 10) then
-        Width := FWidth
-      else
-        Width := tmAveCharWidth * EditSize + 23
-    else
-    begin {percent width set later}
-      Left := -4000;
-      Width := 10;
-    end;
-    Height := Max(FHeight, Max(Canvas.TextHeight('A'), 10));
-  end;
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-procedure TEditFormControlObj.setText(const Value: ThtString);
-begin
-  FControl.Text := {$ifdef LCL}Utf8Encode{$endif}(Value);
-end;
-
-procedure TEditFormControlObj.SaveContents;
-{Save the current value to see if it has changed when focus is lost}
-begin
-  EnterContents := Text;
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-destructor TEditFormControlObj.Destroy;
-begin
-  FControl.Parent := nil;
-  FControl.Free;
-  inherited;
-end;
-
-procedure TEditFormControlObj.DoOnChange;
-begin
-  if Text <> EnterContents then
-    if Assigned(MasterList.ObjectChange) then
-      MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
-end;
-
-{----------------TButtonFormControlObj.Create}
-
-constructor TButtonFormControlObj.Create(AMasterList: ThtDocument;
-  Position: Integer; L: TAttributeList; const Typ: ThtString;
-  Prop: TProperties);
-var
-  PntPanel: TWinControl; //TPaintPanel;
-  Tmp: TMyFont;
-begin
-  inherited Create(AMasterList, Position, L);
-  if Typ = 'submit' then
-  begin
-    Which := Submit;
-    if Value = '' then
-      Value := 'Submit';
-  end
-  else if Typ = 'reset' then
-  begin
-    Which := ResetB;
-    if Value = '' then
-      Value := 'Reset';
-  end
-  else if Typ = 'file' then
-  begin
-    Which := Browse;
-    Value := '';
-    FName := '';
-    FId := '';
-  end
-  else
-  begin
-    Which := Button;
-    if Value = '' then
-      Value := 'Button';
-  end;
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
-  FControl := ThtButton.Create(PntPanel);
-  with FControl do
-  begin
-    Left := -4000; {so will be invisible until placed}
-    Tmp := Prop.GetFont;
-    Font.Assign(Tmp);
-    Tmp.Free;
-    OnClick := Self.ButtonClick;
-    if Which = Browse then
-      Caption := 'Browse...'
-    else
-      Caption := {$ifdef LCL}Utf8Encode{$endif}(Value);
-    OnEnter := EnterEvent;
-    OnExit := ExitEvent;
-    OnMouseMove := HandleMouseMove;
-    Enabled := not Disabled;
-     {$ifdef has_StyleElements}
-    StyleElements := AMasterList.StyleElements;
-     {$endif}
-  end;
-  FControl.Parent := PntPanel;
-{$IFDEF UseElPack}
-  FControl.Color := clBtnFace;
-{$ENDIF}
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-destructor TButtonFormControlObj.Destroy;
-begin
-  FControl.Parent := nil;
-  FControl.Free;
-  inherited;
-end;
-
-procedure TButtonFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
-var
-  H2: Integer;
-  MonoBlack: boolean;
-begin
-  with FControl do
-  begin
-    MonoBlack := MasterList.PrintMonoBlack and (GetDeviceCaps(Canvas.Handle, BITSPIXEL) = 1) and
-      (GetDeviceCaps(Canvas.Handle, PLANES) = 1);
-    if not MonoBlack then
-    begin
-      try
-        if not Assigned(PaintBitmap) then
-        begin
-          PaintBitmap := TBitmap.Create;
-          PaintBitmap.Width := Width;
-          PaintBitmap.Height := Height;
-          PaintBitmap.Canvas.Lock;
-          PaintTo(PaintBitmap.Canvas.Handle, 0, 0);
-          PaintBitmap.Canvas.UnLock;
-        end;
-        PrintBitmap(Canvas, X1, Y1, Width, Height, PaintBitmap);
-      except end;
-    end
-    else
-    begin
-      Canvas.Brush.Style := bsClear;
-      Canvas.Font := Font;
-      Canvas.Font.Color := ThemedColor(Font.Color{$ifdef has_StyleElements},seFont in MasterList.StyleElements{$endif});
-      DrawFormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, True, MasterList.PrintMonoBlack, False, clWhite{$ifdef has_StyleElements},MasterList.StyleElements{$endif});
-      H2 := Canvas.TextHeight('A');
-      SetTextAlign(Canvas.handle, TA_Center + TA_Top);
-      ThtCanvas(Canvas).htTextRect(Rect(X1, Y1, X1 + Width, Y1 + Height), X1 + (Width div 2), Y1 + (Height - H2) div 2, Value);
-    end;
-  end;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function TButtonFormControlObj.GetControl: TWinControl;
-begin
-  Result := FControl; 
-end;
-
-procedure TButtonFormControlObj.ButtonClick(Sender: TObject);
-var
-  S: ThtString;
-begin
-  FormControlClick(Self);
-  if Which = ResetB then
-    MyForm.ResetControls
-  else if Which = Submit then
-    if FName = '' then
-      MyForm.SubmitTheForm('')
-    else
-    begin
-      S := FName;
-      MyForm.SubmitTheForm(S + '=' + Value);
-    end
-  else if Which = Browse then
-    if Assigned(MasterList.FileBrowse) and (MyEdit is TEditFormControlObj) then
-    begin
-      S := MyEdit.Text;
-      MasterList.FileBrowse(MasterList.TheOwner, MyEdit, S);
-      MyEdit.Text := S;
-    end;
-end;
-
-procedure TButtonFormControlObj.SetHeightWidth(Canvas: TCanvas);
-begin
-  with FControl do
-  begin
-    Canvas.Font := Font;
-    if FHeight >= Canvas.TextHeight('A') then
-      Height := FHeight
-    else
-      Height := Canvas.TextHeight('A') + 8;
-    if (FWidth >= 10) and not PercentWidth then {percent width set later}
-      Width := FWidth
-    else
-      Width := Canvas.TextWidth(Caption) + 20;
-  end;
-end;
-
-{----------------TCheckBoxFormControlObj.Create}
-
-constructor TCheckBoxFormControlObj.Create(AMasterList: ThtDocument;
-  Position: Integer; L: TAttributeList; Prop: TProperties);
-var
-  T: TAttribute;
-  PntPanel: TWinControl; //TPaintPanel;
-begin
-  inherited Create(AMasterList, Position, L);
-  if Value = '' then
-    Value := 'on';
-  FormAlign := ABaseline;
-  if L.Find(CheckedSy, T) then
-    IsChecked := True;
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
-  FControl := TFormCheckBox.Create(PntPanel);
-  with FControl do
-  begin
-    Left := -4000; {so will be invisible until placed}
-    Width := 13;
-    Height := 13;
-    OnKeyDown := MyForm.AKeyDown;
-    OnEnter := EnterEvent;
-    OnExit := ExitEvent;
-    OnMouseMove := HandleMouseMove;
-    Enabled := not Disabled;
-    Parent := PntPanel;
-    Checked := IsChecked; {must precede setting OnClick}
-    OnClick := FormControlClick;
-    {$ifdef has_StyleElements}
-    StyleElements := AMasterList.StyleElements;
-    {$endif}
-  end;
-end;
-
-procedure TCheckBoxFormControlObj.ResetToValue;
-begin
-  FControl.Checked := IsChecked;
-end;
-
-procedure TCheckBoxFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
-var
-  x, y: Integer;
-begin
-  with FControl do
-  begin
-    DrawFormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, False, MasterList.PrintMonoBlack, Disabled, clWhite{$ifdef has_StyleElements},MasterList.StyleElements{$endif});
-    if Checked then
-      with Canvas do
-      begin
-        Pen.Color := clBlack;
-        x := X1 + 3; y := Y1 + Height div 2;
-        MoveTo(x, y);
-        LineTo(x + 2, y + 2);
-        LineTo(x + 6, y - 2);
-      end;
-  end;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function TCheckBoxFormControlObj.GetChecked: Boolean;
-begin
-  Result := FControl.Checked;
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-function TCheckBoxFormControlObj.GetControl: TWinControl;
-begin
-  Result := FControl;
-end;
-
-function TCheckBoxFormControlObj.GetSubmission(Index: Integer; out S: ThtString): boolean;
-begin
-  Result := (Index = 0) and FControl.Checked;
-  if Result then
-    S := FName + '=' + Value;
-end;
-
-procedure TCheckBoxFormControlObj.SetDataInit;
-begin
-  FControl.Checked := False; {not checked unless later data says so}
-end;
-
-//-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure TCheckBoxFormControlObj.SetChecked(Value: Boolean);
-begin
-  FControl.Checked := Value;
-end;
-
-procedure TCheckBoxFormControlObj.SetData(Index: Integer; const V: ThtString);
-begin
-  if htCompareText(V, Value) = 0 then
-    FControl.Checked := True;
-end;
-
-procedure TCheckBoxFormControlObj.SaveContents;
-{Save the current value to see if it has changed when focus is lost}
-begin
-  WasChecked := FControl.Checked;
-end;
-
-//-- BG ---------------------------------------------------------- 15.01.2011 --
-destructor TCheckBoxFormControlObj.Destroy;
-begin
-  FControl.Parent := nil;
-  FControl.Free;
-  inherited;
-end;
-
-procedure TCheckBoxFormControlObj.DoOnChange;
-begin
-  if FControl.Checked <> WasChecked then
-    if Assigned(MasterList.ObjectChange) then
-      MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
-end;
-
 {----------------TRadioButtonFormControlObj.Create}
 
-constructor TRadioButtonFormControlObj.Create(AMasterList: ThtDocument;
-  Position: Integer; L: TAttributeList; ACell: TCellBasic);
+constructor TRadioButtonFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
   T: TAttribute;
   PntPanel: TWinControl; //TPaintPanel;
@@ -4348,11 +3724,13 @@ var
   I: Integer;
   SetTabStop: boolean;
 begin
-  inherited Create(AMasterList, Position, L);
-  MyCell := ACell;
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
+  //TODO -oBG, 24.03.2011: what is ACell? Child or Parent?
+  // I think it is parent and is used to address the co-radiobuttons
+  inherited Create(Parent,Position,L,Prop);
+  //xMyCell := ACell;
+  PntPanel := Document.PPanel;
   FControl := TFormRadioButton.Create(PntPanel);
-  FormAlign := ABaseline;
+  VertAlign := ABaseline;
   if L.Find(CheckedSy, T) then
     IsChecked := True;
   with FControl do
@@ -4408,7 +3786,7 @@ begin
     Checked := IsChecked; {must precede setting OnClick}
     OnClick := RadioClick;
     {$ifdef has_StyleElements}
-    StyleElements := AMasterList.StyleElements;
+    StyleElements := Document.StyleElements;
     {$endif}
   end;
 end;
@@ -4436,7 +3814,7 @@ begin
   Checked := IsChecked;
 end;
 
-procedure TRadioButtonFormControlObj.Draw(Canvas: TCanvas; X1, Y1: Integer);
+procedure TRadioButtonFormControlObj.DrawInline1(Canvas: TCanvas; X1, Y1: Integer);
 var
   OldStyle: TPenStyle;
   OldWidth, XW, YH, XC, YC: Integer;
@@ -4444,53 +3822,70 @@ var
   OldBrushStyle: TBrushStyle;
   MonoBlack: boolean;
 begin
-  with Canvas do
-  begin
-    XW := X1 + 14;
-    YH := Y1 + 14;
-    OldStyle := Pen.Style;
-    OldWidth := Pen.Width;
-    OldBrushStyle := Brush.Style;
-    OldBrushColor := Brush.Color;
-    MonoBlack := MasterList.PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
-      (GetDeviceCaps(Handle, PLANES) = 1);
-    if Disabled and not MonoBlack then
-      Brush.Color := ThemedColor(clBtnFace {$ifdef has_StyleElements},seClient in MasterList.StyleElements{$endif})
-    else
-      Brush.Color := clWhite;
-    Pen.Color := clWhite;
-    Ellipse(X1, Y1, XW, YH);
+  inherited DrawInline1(Canvas,X1,Y1);
+  if IsCopy then
+    with Canvas do
+    begin
+      XW := X1 + 14;
+      YH := Y1 + 14;
+      OldStyle := Pen.Style;
+      OldWidth := Pen.Width;
+      OldBrushStyle := Brush.Style;
+      OldBrushColor := Brush.Color;
+      MonoBlack := Document.PrintMonoBlack and (GetDeviceCaps(Handle, BITSPIXEL) = 1) and
+        (GetDeviceCaps(Handle, PLANES) = 1);
+      if Disabled and not MonoBlack then
+        Brush.Color := ThemedColor(clBtnFace {$ifdef has_StyleElements},seClient in Document.StyleElements{$endif})
+      else
+        Brush.Color := clWhite;
+      Pen.Color := clWhite;
+      Ellipse(X1, Y1, XW, YH);
 
-    Pen.Style := psInsideFrame;
-    if MonoBlack then
-    begin
-      Pen.Width := 1;
-      Pen.Color := clBlack;
+      Pen.Style := psInsideFrame;
+      if MonoBlack then
+      begin
+        Pen.Width := 1;
+        Pen.Color := clBlack;
+      end
+      else
+      begin
+        Pen.Width := 2;
+        Pen.Color := ThemedColor(clBtnShadow {$ifdef has_StyleElements},seClient in Document.StyleElements{$endif});
+      end;
+      Arc(X1, Y1, XW, YH, XW, Y1, X1, YH);
+      if not MonoBlack then
+        Pen.Color := ThemedColor(clBtnHighlight{$ifdef has_StyleElements},seClient in Document.StyleElements{$endif});//clSilver;
+      Arc(X1, Y1, XW, YH, X1, YH, XW, Y1);
+      if Checked then
+      begin
+        Pen.Color := clBlack;
+        OldColor := Brush.Color;
+        Brush.Color := clBlack;
+        Brush.Style := bsSolid;
+        XC := X1 + 7;
+        YC := Y1 + 7;
+        Ellipse(XC - 2, YC - 2, XC + 2, YC + 2);
+        Brush.Color := OldColor;
+      end;
+      Pen.Width := OldWidth;
+      Pen.Style := OldStyle;
+      Brush.Color := OldBrushColor;
+      Brush.Style := OldBrushStyle;
     end
+  else
+  begin
+    if OwnerCell.BkGnd then
+      Color := OwnerCell.BkColor
     else
+      Color := Document.Background;
+    if Active and Document.TheOwner.ShowFocusRect then //MK20091107
     begin
-      Pen.Width := 2;
-      Pen.Color := ThemedColor(clBtnShadow {$ifdef has_StyleElements},seClient in MasterList.StyleElements{$endif});
+      Canvas.Brush.Color := clWhite;
+      if Screen.PixelsPerInch > 100 then
+        Canvas.DrawFocusRect(Rect(Left - 2, Top - 2, Left + 18, Top + 18))
+      else
+        Canvas.DrawFocusRect(Rect(Left - 3, Top - 2, Left + 16, Top + 16));
     end;
-    Arc(X1, Y1, XW, YH, XW, Y1, X1, YH);
-    if not MonoBlack then
-      Pen.Color := ThemedColor(clBtnHighlight{$ifdef has_StyleElements},seClient in MasterList.StyleElements{$endif});//clSilver;
-    Arc(X1, Y1, XW, YH, X1, YH, XW, Y1);
-    if Checked then
-    begin
-      Pen.Color := clBlack;
-      OldColor := Brush.Color;
-      Brush.Color := clBlack;
-      Brush.Style := bsSolid;
-      XC := X1 + 7;
-      YC := Y1 + 7;
-      Ellipse(XC - 2, YC - 2, XC + 2, YC + 2);
-      Brush.Color := OldColor;
-    end;
-    Pen.Width := OldWidth;
-    Pen.Style := OldStyle;
-    Brush.Color := OldBrushColor;
-    Brush.Style := OldBrushStyle;
   end;
 end;
 
@@ -4531,80 +3926,124 @@ begin
   FControl.Color := Value;
 end;
 
+//-- BG ---------------------------------------------------------- 30.08.2013 --
+constructor TRadioButtonFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TRadioButtonFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FControl := T.FControl;
+  WasChecked := T.WasChecked;
+  IsChecked := T.IsChecked;
+end;
+
 //-- BG ---------------------------------------------------------- 15.01.2011 --
 destructor TRadioButtonFormControlObj.Destroy;
 begin
-  FControl.Parent := nil;
-  FControl.Free;
-  inherited;
+  if not IsCopy then
+  begin
+    FControl.Parent := nil;
+    FControl.Free;
+  end;
+  inherited Destroy;
 end;
 
 procedure TRadioButtonFormControlObj.DoOnChange;
 begin
   if Checked <> WasChecked then
-    if Assigned(MasterList.ObjectChange) then
-      MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
+    if Assigned(Document.ObjectChange) then
+      Document.ObjectChange(Document.TheOwner, Self, OnChangeMessage);
 end;
 
 {----------------TCellBasic.Create}
 
-constructor TCellBasic.Create(Master: ThtDocument);
+constructor TCellBasic.Create(Parent: TBlock);
 begin
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TCellBasic.Create');
-   {$ENDIF}
+{$ENDIF}
   inherited Create;
-  FDocument := Master;
-   {$IFDEF JPM_DEBUGGING}
+  FOwnerBlock := Parent;
+  if FOwnerBlock <> nil then
+    FDocument := FOwnerBlock.Document;
+//  FRenderList := TRenderSectionBaseList.Create(false);
+{$IFDEF JPM_DEBUGGING}
   CodeSite.ExitMethod(Self,'TCellBasic.Create');
-   {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TCellBasic.CreateCopy}
 
-constructor TCellBasic.CreateCopy(AMasterList: ThtDocument; T: TCellBasic);
+constructor TCellBasic.CreateCopy(Parent: TBlock; T: TCellBasic);
 var
   I: Integer;
   Tmp, Tmp1: TSectionBase;
 begin
   inherited Create;
-  FDocument := AMasterList;
-  OwnersTag := T.OwnersTag;
+  FOwnerBlock := Parent;
+  if FOwnerBlock <> nil then
+    FDocument := FOwnerBlock.Document;
   for I := 0 to T.Count - 1 do
   begin
     Tmp := T.Items[I];
-    Tmp1 := TSectionClass(Tmp.ClassType).CreateCopy(AMasterList, Tmp);
+    Tmp1 := TSectionClass(Tmp.ClassType).CreateCopy(Self, Tmp);
     Add(Tmp1, 0);
   end;
+//  FRenderList := TRenderSectionBaseList.Create(false);
+end;
+
+//-- BG ---------------------------------------------------------- 01.12.2013 --
+destructor TCellBasic.Destroy;
+begin
+//  FRenderList.Free;
+  inherited;
 end;
 
 {----------------TCellBasic.Add}
 
 procedure TCellBasic.Add(Item: TSectionBase; TagIndex: Integer);
+var
+  Section: TSection absolute Item;
 begin
   if Assigned(Item) then
   begin
-    if (Item is TSection) and Assigned(TSection(Item).XP) then {XP not assigned if printing}
-    begin
-      TSection(Item).ProcessText(TagIndex);
-      if not (Item is TPreFormated) and (TSection(Item).Len = 0)
-        and not TSection(Item).AnchorName and (TSection(Item).ClearAttr = clrNone) then
+    if Item is TSection then
+      if Length(Section.XP) <> 0 then
       begin
-        TSection(Item).CheckFree;
-        Item.Free; {discard empty TSections that aren't anchors}
-        Exit;
+        Section.ProcessText(TagIndex);
+        if not (Section.WhiteSpaceStyle in [wsPre, wsPreWrap, wsPreLine]) and (Section.Len = 0)
+          and not Section.AnchorName and (Section.ClearAttr = clrNone) then
+        begin
+          Section.CheckFree;
+          Item.Free; {discard empty TSections that aren't anchors}
+          Exit;
+        end;
       end;
-    end;
     inherited Add(Item);
-    Item.SetDocument(MasterList);
+    Item.SetDocument(Document);
   end;
+end;
+
+//-- BG ---------------------------------------------------------- 07.09.2013 --
+function TCellBasic.CalcDisplayExtern: ThtDisplayStyle;
+var
+  I: Integer;
+begin
+  // a list of elements is displayed inline, if all elements' are displayed inline.
+  for I := Count - 1 downto 0 do
+    if Items[i].CalcDisplayExtern <> pdInline then
+    begin
+      Result := pdBlock;
+      Exit;
+    end;
+  Result := pdInline;
 end;
 
 function TCellBasic.CheckLastBottomMargin: boolean;
 {Look at the last item in this cell.  If its bottom margin was set to Auto,
  set it to 0}
 var
-  TB: TObject;
+  TB: TSectionBase;
   I: Integer;
   Done: boolean;
 begin
@@ -4622,15 +4061,17 @@ begin
   if I >= 0 then
   begin
     TB := Items[I];
-    if (TB is TBlock) then
+    if TB is TBlock then
+    begin
       with TBlock(TB) do
         if BottomAuto then
         begin
           MargArray[MarginBottom] := 0;
           Result := True;
         end;
-    if (TB is TBlockLI) then
-      Result := TBlockLI(TB).MyCell.CheckLastBottomMargin;
+      if TB is TBlockLI then
+        Result := TBlockLI(TB).MyCell.CheckLastBottomMargin;
+    end;
   end;
 end;
 
@@ -4638,7 +4079,7 @@ end;
 
 function TCellBasic.GetURL(Canvas: TCanvas; X, Y: Integer;
   out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj};
-  out ATitle: ThtString): guResultType;
+  out ATitle: ThtString): ThtguResultType;
 {Y is absolute}
 var
   I: Integer;
@@ -4662,27 +4103,10 @@ begin
   end;
 end;
 
-{----------------TCellBasic.PtInObject}
-
-function TCellBasic.PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean;
-{Y is absolute}
-var
-  I: Integer;
+//-- BG ---------------------------------------------------------- 04.08.2013 --
+function TCellBasic.IsCopy: Boolean;
 begin
-  Result := False;
-  Obj := nil;
-  for I := 0 to Count - 1 do
-    with Items[I] do
-    begin
-      // BG, 01.04.2013: cannot reduce workload via DrawTop/DrawBot as
-      // absolutely positioned children may reside beyond these margins.
-      //if (Y >= DrawTop) and (Y < DrawBot) then
-      //begin
-        Result := PtInObject(X, Y, Obj, IX, IY);
-        if Result then
-          Exit;
-      //end;
-    end;
+  Result := Document.IsCopy;
 end;
 
 {----------------TCellBasic.FindCursor}
@@ -4719,7 +4143,7 @@ end;
 
 {----------------TCellBasic.FindString}
 
-function TCellBasic.FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function TCellBasic.FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 var
   I: Integer;
 begin
@@ -4734,7 +4158,7 @@ end;
 
 {----------------TCellBasic.FindStringR}
 
-function TCellBasic.FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function TCellBasic.FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 var
   I: Integer;
 begin
@@ -4762,6 +4186,7 @@ begin
   end;
 end;
 
+{$ifdef UseFormTree}
 procedure TCellBasic.FormTree(const Indent: ThtString; var Tree: ThtString);
 var
   I: Integer;
@@ -4775,13 +4200,14 @@ begin
     else if Item is TSection then
       Tree := Tree + Indent + Copy(TSection(Item).BuffS, 1, 10) + CrChar + LfChar
     else
-      Tree := Tree + Indent + '----'^M + ^J;
+      Tree := Tree + Indent + '----'^M^J;
   end;
 end;
+{$endif UseFormTree}
 
 {----------------TCellBasic.GetChAtPos}
 
-function TCellBasic.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean;
+function TCellBasic.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean;
 var
   I: Integer;
 begin
@@ -4802,10 +4228,10 @@ var
   I: Integer;
   SLE, SLB: Integer;
 begin
-  if not Assigned(MasterList) then
+  if not Assigned(Document) then
     Exit; {dummy cell}
-  SLB := MasterList.SelB;
-  SLE := MasterList.SelE;
+  SLB := Document.SelB;
+  SLE := Document.SelE;
   if SLE <= SLB then
     Exit; {nothing to do}
 
@@ -4824,13 +4250,14 @@ end;
 
 function TCellBasic.DoLogic(Canvas: TCanvas; Y, Width, AHeight, BlHt: Integer;
   var ScrollWidth: Integer; var Curs: Integer): Integer;
-{Do the entire layout of the cell or document.  Return the total document
- pixel height}
+{Do the entire layout of the cell or document.  Return the total cell or document pixel height}
 var
   I, Sw, TheCount: Integer;
   H: Integer;
+//  InlineSection: TInlineSection;
+//  Item: TSectionBase;
 begin
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TCellBasic.DoLogic');
   CodeSite.SendFmtMsg('Y = [%d]',[Y]);
   CodeSite.SendFmtMsg('Width = [%d]',[Width]);
@@ -4839,8 +4266,44 @@ begin
   CodeSite.SendFmtMsg('ScrollWidth = [%d]',[ScrollWidth]);
   CodeSite.SendFmtMsg('Curs = [%d]',[Curs]);
   CodeSite.AddSeparator;
-   {$ENDIF}
-  YValue := Y;
+{$ENDIF}
+
+//TODO -oBG, 15.03.2014: support display:inline
+{$ifdef DO_PD_INLINE}
+//  //TODO -oBG, 24.06.2012: merge sections with display=inline etc.
+//  //TODO -oBG, 30.11.2013: To be more precise:
+//  // Reading the HTML file must produce the actual document tree rather than preprocessing inline elements to TSections.
+//  //
+//  // The Renderer (DoLogic()/DrawLogic()) must produce a processing list. In the list consecutive elements of all child
+//  // levels with display=inline are gathered in the (anonymous) TInlineSection element while block-level elements are
+//  // added to the processing list directly. This ends up in a list of block level elements, just like TCellBasic has
+//  // been before property Display was introduced.
+//  //
+//  // Actually TInlineSection is intended to collect content of TSections of consecutive inline elements and must draw
+//  // borders and background of the inlined elements.
+//  InlineSection := nil;
+//  FRenderList.Clear;
+//  for I := 0 to Count - 1 do
+//  begin
+//    Item := Items[I];
+//    if Item.CalcDisplayExtern = pdInline then
+//    begin
+//      if InlineSection = nil then
+//      begin
+//        InlineSection := TInlineSection.Create(Self);
+//        FRenderList.Add(InlineSection);
+//      end;
+//      if Item is TSection then
+//        InlineSection.AddElement(TSection(Item));
+//    end
+//    else
+//    begin
+//      InlineSection := nil;
+//      FRenderList.Add(Items[I]);
+//    end;
+//  end;
+{$endif}
+
   StartCurs := Curs;
   H := 0;
   ScrollWidth := 0;
@@ -4849,8 +4312,7 @@ begin
   while I < TheCount do
   begin
     try
-      //TODO -oBG, 24.06.2012: merge sections with display=inline etc.  
-      Inc(H, Items[I].DrawLogic(Canvas, 0, Y + H, 0, 0, Width, AHeight, BlHt, IMgr, Sw, Curs));
+      Inc(H, Items[I].DrawLogic1(Canvas, 0, Y + H, 0, 0, Width, AHeight, BlHt, IMgr, Sw, Curs));
       ScrollWidth := Max(ScrollWidth, Sw);
       Inc(I);
     except
@@ -4865,12 +4327,12 @@ begin
   end;
   Len := Curs - StartCurs;
   Result := H;
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.SendFmtMsg('ScrollWidth = [%d]',[ScrollWidth]);
   CodeSite.SendFmtMsg('Curs = [%d]',[Curs]);
-   CodeSite.SendFmtMsg('Result = [%d]',[Result]);
+  CodeSite.SendFmtMsg('Result = [%d]',[Result]);
   CodeSite.ExitMethod(Self,'TCellBasic.DoLogic');
-   {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TCellBasic.MinMaxWidth}
@@ -4900,8 +4362,7 @@ end;
 
 {----------------TCellBasic.Draw}
 
-function TCellBasic.Draw(Canvas: TCanvas; ARect: TRect; ClipWidth, X: Integer;
-  Y, XRef, YRef: Integer): Integer;
+function TCellBasic.Draw(Canvas: TCanvas; ARect: TRect; ClipWidth, X: Integer; Y, XRef, YRef: Integer): Integer;
 {draw the document or cell.  Note: individual sections not in ARect don't bother
  drawing}
 var
@@ -4916,10 +4377,9 @@ end;
 
 {----------------TBlock.Create}
 
-constructor TBlock.Create(Master: ThtDocument; Prop: TProperties;
-  AnOwnerCell: TCellBasic; Attributes: TAttributeList);
+constructor TBlock.Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties);
 var
-  Clr: ClearAttrType;
+  Clr: ThtClearStyle;
   S: ThtString;
 begin
   {$IFDEF JPM_DEBUGGING}
@@ -4927,22 +4387,16 @@ begin
   StyleUn.LogProperties(Prop,'Prop');
   CodeSite.AddSeparator;
   {$ENDIF}
-  inherited Create(Master, Prop);
-  OwnerCell := AnOwnerCell;
+  inherited Create(Parent, 0, Attributes, Prop);
+  MyCell := TBlockCell.Create(Self);
+  DrawList := TSectionBaseList.Create(False);
 
-  MyCell := TBlockCell.Create(Master);
-  MyCell.OwnersTag := Prop.PropTag;
-  MyCell.FOwner := Self;
-  DrawList := TList.Create;
-
-  if Master.UseQuirksMode and (Self is TTableBlock) then
-    Prop.GetVMarginArrayDefBorder(MargArrayO,clSilver)
+  if Document.UseQuirksMode and (Self is TTableBlock) then
+    Prop.GetVMarginArrayDefBorder(MargArrayO, clSilver)
   else
     Prop.GetVMarginArray(MargArrayO);
   if Prop.GetClear(Clr) then
     ClearAttr := Clr;
-  if not Prop.GetFloat(FloatLR) then
-    FloatLR := ANone;
   HasBorderStyle := Prop.HasBorderStyle;
   FGColor := Prop.Props[Color];
   EmSize := Prop.EmSize;
@@ -4952,13 +4406,10 @@ begin
   if not (Self is TBodyBlock) and not (Self is TTableAndCaptionBlock)
     and Prop.GetBackgroundImage(S) and (S <> '') then
   begin {body handles its own image}
-    BGImage := TImageObj.SimpleCreate(Master, S);
+    BGImage := TImageObj.SimpleCreate(MyCell, S);
     Prop.GetBackgroundPos(EmSize, ExSize, PRec);
   end;
 
-  Positioning := Prop.GetPosition;
-  if Positioning = posAbsolute then
-    FloatLR := ANone;
   Visibility := Prop.GetVisibility;
   Prop.GetPageBreaks(BreakBefore, BreakAfter, KeepIntact);
   if Positioning <> posStatic then
@@ -4967,17 +4418,15 @@ begin
     if (Positioning = posAbsolute) and (ZIndex = 0) then
       ZIndex := 1; {abs on top unless otherwise specified}
   end;
-  if (Positioning in [posAbsolute, posFixed]) or (FloatLR in [ALeft, ARight]) then
+  if (Positioning in [posAbsolute, posFixed]) or (Floating in [ALeft, ARight]) then
   begin
     MyIMgr := TIndentManager.Create;
     MyCell.IMgr := MyIMgr;
   end;
-  if (FloatLR in [ALeft, ARight]) and (ZIndex = 0) then
+  if (Floating in [ALeft, ARight]) and (ZIndex = 0) then
     ZIndex := 1;
   if not (Self is TTableBlock) and not (Self is TTableAndCaptionBlock) then
     CollapseMargins;
-  if Assigned(Attributes) and (Attributes.TheID <> '') then
-    Master.IDNameList.AddObject(Attributes.TheID, Self);
   HideOverflow := Prop.IsOverflowHidden;
   if Prop.Props[TextAlign] = 'right' then
     Justify := Right
@@ -4990,142 +4439,187 @@ begin
   {$ENDIF}
 end;
 
+//-- BG ---------------------------------------------------------- 17.05.2014 --
+function Collapse(A, B: Integer): Integer; {$ifdef UseInline} inline; {$endif}
+begin
+  if A >= 0 then
+    if B >= 0 then
+      Result := Max(A, B)
+    else
+      Result := A + B
+  else
+    if B >= 0 then
+      Result := B + A
+    else
+      Result := Min(A, B);
+end;
+
 procedure TBlock.CollapseMargins;
 {adjacent vertical margins need to be reduced}
 var
   TopAuto: boolean;
   TB: TSectionBase;
-  LastMargin, Negs, I: Integer;
-  Tag: ThtString;
+  LastMargin, I: Integer;
+  Tag: TElemSymb;
+  CD: ThtConvData;
 begin
-  ConvVertMargins(MargArrayO, 400, {height not known at this point}
-    EmSize, ExSize, MargArray, TopAuto, BottomAuto);
+  CD := ConvData(0, 400 {width and height not known at this point},  EmSize, ExSize, BorderWidth);
+  ConvVertMargins(MargArrayO, CD, MargArray);
+  TopAuto := MarginTop in CD.IsAutoParagraph;
+  BottomAuto := MarginBottom in CD.IsAutoParagraph;
   if Positioning = posAbsolute then
   begin
     if TopAuto then
       MargArray[MarginTop] := 0;
   end
-  else if FloatLR in [ALeft, ARight] then {do nothing}
+  else if Floating in [ALeft, ARight] then {do nothing}
   else if Display = pdNone then {do nothing}
   else
-    with OwnerCell do
+  begin
+    TB := nil;
+    I := OwnerCell.Count - 1; {find the preceding block that isn't absolute positioning}
+    while I >= 0 do
     begin
-      I := OwnerCell.Count - 1; {find the preceding block that isn't absolute positioning}
-      while I >= 0 do
-      begin
-        TB := OwnerCell[I];
-        if TB.Display <> pdNone then
-          if not (TB is TBlock) or (TBlock(TB).Positioning <> PosAbsolute) then
-            break;
-        Dec(I);
-      end;
-      Tag := OwnerCell.OwnersTag;
-      if I < 0 then
-      begin {no previous non absolute block, remove any Auto paragraph space}
-        if TopAuto then
-        begin
-          if (Tag = 'li') then
-          begin
-            MargArray[MarginTop] := 0;
-          end
-          else
-            MargArray[MarginTop] := 0;
-        end
-        else if (Tag = 'default') or (Tag = 'body') then
-          MargArray[MarginTop] := Max(0, MargArray[MarginTop] - OwnerCell.Owner.MargArray[MarginTop]);
-      end
-      else
-      begin
-        TB := OwnerCell[I];
-        if ((TB is TTableBlock) or (TB is TTableAndCaptionBlock)) and
-          (TBlock(TB).FloatLR in [ALeft, ARight])
-          and TopAuto then
-          MargArray[MarginTop] := 0
-        else if (TB is TBlock) then
-        begin
-          LastMargin := TBlock(TB).MargArray[MarginBottom];
-          TBlock(TB).MargArray[MarginBottom] := 0;
-          if LastMargin >= 0 then {figure out how many are negative}
-            if MargArray[MarginTop] >= 0 then
-              Negs := 0
-            else
-              Negs := 1
-          else if MargArray[MarginTop] >= 0 then
-            Negs := 1
-          else
-            Negs := 2;
-          case Negs of
-            0: MargArray[MarginTop] := Max(MargArray[MarginTop], LastMargin);
-            1: MargArray[MarginTop] := MargArray[MarginTop] + LastMargin;
-            2: MargArray[MarginTop] := Min(MargArray[MarginTop], LastMargin);
-          end;
-        end
-        else if (Tag = 'li') and TopAuto
-          and ((Pos('ul.', TagClass) = 1) or (Pos('ol.', TagClass) = 1)) then
-          MargArray[MarginTop] := 0; {removes space from nested lists}
-      end;
+      TB := OwnerCell[I];
+      if TB.Display <> pdNone then
+        if not (TB is TBlock) or (TBlock(TB).Positioning <> PosAbsolute) then
+          break;
+      Dec(I);
     end;
+
+    if OwnerCell.OwnerBlock <> nil then
+      Tag := OwnerCell.OwnerBlock.Symbol
+    else
+      Tag := OtherChar;
+    if I < 0 then
+    begin {no previous non absolute block, remove any Auto paragraph space}
+      case Tag of
+        BodySy:
+          MargArray[MarginTop] := Max(0, MargArray[MarginTop] - OwnerBlock.MargArray[MarginTop]);
+      else
+        if TopAuto then
+          MargArray[MarginTop] := 0;
+      end;
+    end
+    else
+    begin
+      if ((TB is TTableBlock) or (TB is TTableAndCaptionBlock)) and (TBlock(TB).Floating in [ALeft, ARight]) and TopAuto then
+        MargArray[MarginTop] := 0
+      else if (TB is TBlock) then
+      begin
+        LastMargin := TBlock(TB).MargArray[MarginBottom];
+        TBlock(TB).MargArray[MarginBottom] := 0;
+        MargArray[MarginTop] := Collapse(LastMargin, MargArray[MarginTop]);
+      end
+      else if (Tag = LISy) and TopAuto and (Symbol in [ULSy, OLSy]) then
+        MargArray[MarginTop] := 0; {removes space from nested lists}
+    end;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 16.05.2014 --
+procedure TBlock.CollapseBottomMargins;
+var
+  TB: TSectionBase;
+  Block: TBlock absolute TB;
+  I: Integer;
+  BottomMargin: Integer;
+  CD, BCD: ThtConvData;
+begin
+  if (OwnerCell <> Document) and (MargArrayO[piHeight] = IntNull) and (MargArray[piMinHeight] = 0) then
+  begin
+    // collapse with last sectionbase, if it is an in-flow block.
+
+    // find block to collapse
+    I := MyCell.Count - 1;
+    while I >= 0 do
+    begin
+      TB := MyCell[I];
+      if TB.Display <> pdNone then
+        if not (TB is TBlock) or ((TBlock(TB).Positioning <> PosAbsolute) and (TBlock(TB).Floating = aNone)) then
+          break;
+      Dec(I);
+    end;
+
+    if I >= 0 then
+      if (TB is TBlock) and (Block.Positioning = posStatic) then
+    begin
+      // collapse block, if it has no bottom padding and no bottom border
+      BCD := ConvData(100, 100, Block.EmSize, Block.ExSize, Block.BorderWidth);
+      ConvMargProp(PaddingBottom, Block.MargArrayO, CD, Block.MargArray);
+      ConvMargProp(BorderBottomStyle, Block.MargArrayO, CD, Block.MargArray);
+      ConvMargProp(BorderBottomWidth, Block.MargArrayO, CD, Block.MargArray);
+
+      if Block.MargArray[PaddingBottom] = 0 then
+        if Block.MargArray[BorderBottomWidth] = 0 then
+        begin
+          BottomMargin := Block.MargArray[MarginBottom];
+          Block.MargArray[MarginBottom] := 0;
+          MargArray[MarginBottom] := Collapse(MargArray[MarginBottom], BottomMargin);
+        end;
+    end;
+  end;
 end;
 
 //-- BG ---------------------------------------------------------- 09.10.2010 --
 procedure TBlock.ContentMinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 begin
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TBlock.ContentMinMaxWidth');
   CodeSite.SendFmtMsg('Self.TagClass = [%s]',[TagClass ]);
-
   CodeSite.AddSeparator;
-   {$ENDIF}
+{$ENDIF}
+
   MyCell.MinMaxWidth(Canvas, Min, Max);
-   {$IFDEF JPM_DEBUGGING}
-   CodeSite.SendFmtMsg('Min = [%d]',[Min]);
-   CodeSite.SendFmtMsg('Max = [%d]',[Max]);
+
+{$IFDEF JPM_DEBUGGING}
+  CodeSite.SendFmtMsg('Min = [%d]',[Min]);
+  CodeSite.SendFmtMsg('Max = [%d]',[Max]);
   CodeSite.ExitMethod(Self,'TBlock.ContentMinMaxWidth');
-   {$ENDIF}
+{$ENDIF}
 end;
 
 //-- BG ---------------------------------------------------------- 06.10.2010 --
 procedure TBlock.ConvMargArray(BaseWidth, BaseHeight: Integer; out AutoCount: Integer);
 begin
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TBlock.ConvMargArray');
-   CodeSite.SendFmtMsg('BaseWidth       = [%d]',[BaseWidth]);
-   CodeSite.SendFmtMsg('BaseHeight      = [%d]',[BaseHeight]);
+  CodeSite.SendFmtMsg('BaseWidth       = [%d]',[BaseWidth]);
+  CodeSite.SendFmtMsg('BaseHeight      = [%d]',[BaseHeight]);
   CodeSite.SendFmtMsg('Self.EmSize      = [%d]',[EmSize]);
   CodeSite.SendFmtMsg('Self.ExSize      = [%d]',[ExSize]);
   CodeSite.SendFmtMsg('Self.BorderWidth = [%d]',[BorderWidth]);
   CodeSite.SendFmtMsg('Self.TagClass = [%s]',[TagClass ]);
-   CodeSite.AddSeparator;
-   {$ENDIF}
+  CodeSite.AddSeparator;
+{$ENDIF}
+
   StyleUn.ConvMargArray(MargArrayO, BaseWidth, BaseHeight, EmSize, ExSize, BorderWidth, AutoCount, MargArray);
 
-  {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.SendFmtMsg('AutoCount = [%d]',[AutoCount]);
   CodeSite.ExitMethod(Self,'TBlock.ConvMargArray');
-  {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TBlock.CreateCopy}
 
-constructor TBlock.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor TBlock.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
 var
-  TT: TBlock;
+  T: TBlock absolute Source;
 begin
-  inherited CreateCopy(AMasterList, T);
-  TT := T as TBlock;
-  System.Move(TT.MargArray, MargArray, PtrSub(@Converted, @MargArray) + Sizeof(Converted));
-  MyCell := TBlockCell.CreateCopy(AMasterList, TT.MyCell);
-  MyCell.FOwner := Self;
-  DrawList := TList.Create;
-  if Assigned(TT.BGImage) and AMasterlist.PrintTableBackground then
-    BGImage := TImageObj.CreateCopy(AMasterList, TT.BGImage);
-  MargArrayO := TT.MargArrayO;
-  if (Positioning in [posAbsolute, posFixed]) or (FloatLR in [ALeft, ARight]) then
+  inherited CreateCopy(Parent,Source);
+  System.Move(T.MargArray, MargArray, PtrSub(@Converted, @MargArray) + Sizeof(Converted));
+  MyCell := TBlockCell.CreateCopy(Self, T.MyCell);
+  DrawList := TSectionBaseList.Create(False);
+  if Assigned(T.BGImage) and Document.PrintTableBackground then
+    BGImage := TImageObj.CreateCopy(MyCell, T.BGImage);
+  MargArrayO := T.MargArrayO;
+  if (Positioning in [posAbsolute, posFixed]) or (Floating in [ALeft, ARight]) then
   begin
     MyIMgr := TIndentManager.Create;
     MyCell.IMgr := MyIMgr;
   end;
-  BlockTitle := TT.BlockTitle; // Thanks to Nagy Ervin.
+  BlockTitle := T.BlockTitle; // Thanks to Nagy Ervin.
 end;
 
 destructor TBlock.Destroy;
@@ -5141,7 +4635,7 @@ begin
   end;
   FreeAndNil(MyCell);
   DrawList.Free;
-  inherited;
+  inherited Destroy;
 end;
 
 procedure TBlock.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
@@ -5149,35 +4643,25 @@ var
   MinCell, MaxCell: Integer;
   LeftSide, RightSide, AutoCount: Integer;
 begin
-  {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TBlock.MinMaxWidth');
   CodeSite.SendFmtMsg('Self.TagClass = [%s]',[TagClass ]);
 
   CodeSite.AddSeparator;
-  {$ENDIF}
+  try
+{$ENDIF}
+
   if (Display = pdNone) or (Positioning = PosAbsolute) then
   begin
     Min := 0;
     Max := 0;
-   {$IFDEF JPM_DEBUGGING}
-   CodeSite.SendFmtMsg('Min = [%d]',[Min]);
-   CodeSite.SendFmtMsg('Max = [%d]',[Max]);
-
-  CodeSite.ExitMethod(Self,'TBlock.MinMaxWidth');
-   {$ENDIF}
     Exit;
   end;
+
 {$ifdef DO_BLOCK_INLINE}
   if Display = pdInline then
   begin
-    inherited;
-   {$IFDEF JPM_DEBUGGING}
-   CodeSite.SendFmtMsg('Min = [%d]',[Min]);
-   CodeSite.SendFmtMsg('Max = [%d]',[Max]);
-
-  CodeSite.ExitMethod(Self,'TBlock.MinMaxWidth');
-   {$ENDIF}
-
+    inherited MinMaxWidth(Canvas,Min,Max);
     exit;
   end;
 {$endif}
@@ -5209,18 +4693,21 @@ begin
     Min := Math.Max(MinCell, MargArray[piWidth]) + LeftSide + RightSide;
     Max := Math.Max(MaxCell, MargArray[piWidth]) + LeftSide + RightSide;
   end;
-   {$IFDEF JPM_DEBUGGING}
-   CodeSite.SendFmtMsg('Min = [%d]',[Min]);
-   CodeSite.SendFmtMsg('Max = [%d]',[Max]);
 
-  CodeSite.ExitMethod(Self,'TBlock.MinMaxWidth');
-   {$ENDIF}
+{$IFDEF JPM_DEBUGGING}
+  finally
+    CodeSite.SendFmtMsg('Min = [%d]',[Min]);
+    CodeSite.SendFmtMsg('Max = [%d]',[Max]);
+
+    CodeSite.ExitMethod(Self,'TBlock.MinMaxWidth');
+  end;
+{$ENDIF}
 end;
 
 {----------------TBlock.GetURL}
 
 function TBlock.GetURL(Canvas: TCanvas; X, Y: Integer;
-  out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): guResultType;
+  out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): ThtguResultType;
 begin
   UrlTarg := nil;
   FormControl := nil;
@@ -5241,7 +4728,7 @@ end;
 
 {----------------TBlock.FindString}
 
-function TBlock.FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function TBlock.FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 begin
   case Display of
     pdNone: Result := -1;
@@ -5255,7 +4742,7 @@ end;
 
 {----------------TBlock.FindStringR}
 
-function TBlock.FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function TBlock.FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 begin
   case Display of
     pdNone: Result := -1;
@@ -5269,8 +4756,7 @@ end;
 
 {----------------TBlock.FindCursor}
 
-function TBlock.FindCursor(Canvas: TCanvas; X, Y: Integer;
-  out XR, YR, CaretHt: Integer; out Intext: boolean): Integer;
+function TBlock.FindCursor(Canvas: TCanvas; X, Y: Integer; out XR, YR, CaretHt: Integer; out Intext: boolean): Integer;
 var
   I: Integer;
 begin
@@ -5284,7 +4770,7 @@ begin
     Result := -1;
     with DrawList do
       for I := Count - 1 downto 0 do
-        with TSectionBase(Items[I]) do
+        with Items[I] do
         begin
           // BG, 01.04.2013: cannot reduce workload via DrawTop/DrawBot as
           // absolutely positioned children may reside beyond these margins.
@@ -5311,33 +4797,29 @@ var
   I: Integer;
 begin
   case Display of
-    pdNone: Result := False;
-{$ifdef DO_BLOCK_INLINE}
-    pdInline: Result := inherited PtInObject(X, Y, Obj, IX, IY);
-{$endif}
+    pdNone:
+    begin
+      Result := False;
+      Exit;
+    end;
+
   else
     {check this in z order}
-    Result := False;
-    Obj := nil;
-    with DrawList do
-      for I := Count - 1 downto 0 do
-        with TSectionBase(Items[I]) do
-        begin
-          // BG, 01.04.2013: cannot reduce workload via DrawTop/DrawBot as
-          // absolutely positioned children may reside beyond these margins.
-          //if (Y >= DrawTop) and (Y < DrawBot) then
-          //begin
-            Result := PtInObject(X, Y, Obj, IX, IY);
-            if Result then
-              Exit;
-          //end;
-        end;
+    for I := DrawList.Count - 1 downto 0 do
+      if DrawList.Items[I].PtInObject(X, Y, Obj, IX, IY) then
+      begin
+        Result := True;
+        Exit;
+      end;
+
   end;
+
+  Result := inherited PtInObject(X, Y, Obj, IX, IY);
 end;
 
 {----------------TBlock.GetChAtPos}
 
-function TBlock.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean;
+function TBlock.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean;
 begin
   Obj := nil;
   case Display of
@@ -5350,7 +4832,28 @@ begin
   end;
 end;
 
-function TBlock.CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean;
+//-- BG ---------------------------------------------------------- 30.11.2013 --
+function TBlock.CalcDisplayExtern: ThtDisplayStyle;
+begin
+  Result := inherited CalcDisplayExtern;
+  case Result of
+    pdInline:
+      Result := MyCell.CalcDisplayExtern;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 07.09.2013 --
+function TBlock.CalcDisplayIntern: ThtDisplayStyle;
+begin
+  Result := inherited CalcDisplayIntern;
+  case Result of
+    pdNone:;
+  else
+    Result := MyCell.CalcDisplayExtern;
+  end;
+end;
+
+function TBlock.CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean;
 begin
   case Display of
     pdNone:   Result := False;
@@ -5391,11 +4894,11 @@ begin
   case Display of
     pdNone:;
 {$ifdef DO_BLOCK_INLINE}
-    pdInline: inherited;
+    pdInline: inherited CopyToClipboard;
 {$endif}
   else
     MyCell.CopyToClipboard;
-    if (Pos('p.', TagClass) = 1) and (Document.SelE > MyCell.StartCurs + MyCell.Len) then
+    if (Symbol = PSy) and (Document.SelE > MyCell.StartCurs + MyCell.Len) then
       Document.CB.AddTextCR('', 0);
   end;
 end;
@@ -5424,11 +4927,10 @@ var
   begin
     if Positioning = posAbsolute then
       MargArray[piWidth] := Max(MinWidth, AWidth - BordWidth - LeftP)
-    else if (FloatLR in [ALeft, ARight]) then
+    else if (Floating in [ALeft, ARight]) then
       MargArray[piWidth] := Min(MaxWidth, AWidth - BordWidth)
-    else begin
+    else
       MargArray[piWidth] := Max(MinWidth, AWidth - BordWidth);
-    end;
   end;
 
   procedure CalcMargRt;
@@ -5442,22 +4944,22 @@ var
   end;
 
 begin
-  {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TBlock.FindWidth');
   CodeSite.SendFmtMsg('AWidth    = [%d]',[AWidth]);
   CodeSite.SendFmtMsg('AHeight   = [%d]',[AHeight]);
   CodeSite.SendFmtMsg('AutoCount = [%d]',[AutoCount]);
   CodeSite.SendFmtMsg('Self.TagClass = [%s]',[TagClass ]);
-
   CodeSite.AddSeparator;
-  {$ENDIF}
+{$ENDIF}
+
   ContentMinMaxWidth(Canvas, MinWidth, MaxWidth);
   HideOverflow := HideOverflow and (MargArray[piWidth] <> Auto) and (MargArray[piWidth] > 20);
   case AutoCount of
     0:
       begin
         if (Justify in [centered, Right]) and (Positioning = posStatic)
-          and not (FloatLR in [ALeft, ARight]) and
+          and not (Floating in [ALeft, ARight]) and
           (MargArray[MarginLeft] = 0) and (MargArray[MarginRight] = 0) then
         begin
           ApplyBoxWidthSettings(MargArray,MinWidth,MaxWidth,Document.UseQuirksMode);
@@ -5482,7 +4984,7 @@ begin
       else
       begin
         if MargArray[MarginRight] = Auto then
-          if (FloatLR in [ALeft, ARight]) then
+          if (Floating in [ALeft, ARight]) then
             MargArray[MarginRight] := 0
           else
             CalcMargRt
@@ -5516,190 +5018,17 @@ begin
       end;
   end;
   Result := MargArray[piWidth];
-  {$IFDEF JPM_DEBUGGING}
+
+{$IFDEF JPM_DEBUGGING}
   CodeSite.SendFmtMsg('Result = [%d]',[Result]);
   CodeSite.ExitMethod(Self,'TBlock.FindWidth');
-  {$ENDIF}
-end;
-
-procedure DoImageStuff(Canvas: TCanvas; IW, IH: Integer; BGImage: TImageObj; PRec: PtPositionRec;
-  var TiledImage: TgpObject; var TiledMask: TBitmap; var NoMask: boolean);
-{Set up for the background image. Allow for tiling, and transparency
-  BGImage is the image
-  PRec describes the location and tiling
-  IW, IH, the width and height of the background
-}
-var
-  OW, OH, X, XX, Y, X2, Y2: Integer;
-  TheMask, NewBitmap, NewMask: TBitmap;
-  TheGpObj: TGpObject;
-  {$IFNDEF NoGDIPlus}
-  g: THtGpGraphics;
-  {$ENDIF !NoGDIPlus}
-
-  procedure Tile(Bitmap, Mask: TBitmap; W, H: Integer);
-  begin
-    repeat {tile BGImage in the various dc's}
-      XX := X;
-      repeat
-        TBitmap(TiledImage).Canvas.Draw(XX, Y, Bitmap);
-        if Assigned(TheMask) then
-          TiledMask.Canvas.Draw(XX, Y, Mask)
-        else if not NoMask then
-          PatBlt(TiledMask.Canvas.Handle, XX, Y, Bitmap.Width, Bitmap.Height, Blackness);
-        Inc(XX, Bitmap.Width);
-      until XX >= X2;
-      Inc(Y, Bitmap.Height);
-    until Y >= Y2;
-  end;
-
-  {$IFNDEF NoGDIPlus}
-  procedure TileGpImage(Image: THtGpImage; W, H: Integer);
-  var
-    ImW, ImH: Integer;
-    graphics: THtGpGraphics;
-  begin
-    ImW := Image.Width;
-    ImH := Image.Height;
-    try
-      graphics := THtGPGraphics.Create(THtGpImage(TiledImage));
-      try
-        repeat {tile Image in the various dc's}
-          XX := X;
-          repeat
-            graphics.DrawImage(Image, XX, Y, Image.Width, Image.Height);
-            Inc(XX, ImW);
-          until XX >= X2;
-          Inc(Y, ImH);
-        until Y >= Y2;
-      except
-      end;
-      graphics.Free;
-    except
-    end;
-  end;
-  {$ENDIF !NoGDIPlus}
-
-var
-  IsTiledGpImage: Boolean;
-begin
-  if (IW = 0) or (IH = 0) then
-    exit;
-
-  if (BGImage.Image is TBitmap) then
-  begin
-    TheGpObj := TBitmap(BGImage.Image);
-    TheMask := BGImage.Mask;
-  end
-  else if BGImage.Image is TGifImage then
-  begin
-    TheGpObj := TGifImage(BGImage.Image).MaskedBitmap;
-    TheMask := TGifImage(BGImage.Image).Mask;
-  end
-{$IFNDEF NoMetafile}
-  else if BGImage.Image is ThtMetafile then
-  begin
-    TheGpObj := ThtMetafile(BGImage.Image).Bitmap;
-    TheMask := ThtMetafile(BGImage.Image).Mask;
-  end
 {$ENDIF}
-  else
-  begin
-    TheGpObj := BGImage.Image;
-    TheMask := nil;
-  end;
-
-  NoMask := not Assigned(TheMask) and PRec.X.RepeatD and PRec.Y.RepeatD;
-
-  OW := GetImageWidth(BGImage.Image);
-  OH := GetImageHeight(BGImage.Image);
-
-  {$IFNDEF NoGDIPlus}
-  if (BGImage.Image is THtGpImage) and not ((OW = 1) or (OH = 1)) then
-  begin {TiledImage will be a TGpBitmap unless Image needs to be enlarged}
-    with THtGpBitmap(TiledImage) do
-      if Assigned(TiledImage) and ((Cardinal(IW) <> Width) or (Cardinal(IH) <> Height)) then
-        FreeAndNil(TiledImage);
-    if not Assigned(TiledImage) then
-      TiledImage := THtGpBitmap.Create(IW, IH);
-    g := THtGpGraphics.Create(THtGpBitmap(TiledImage));
-    g.Clear(0); {clear to transparent black}
-    g.Free;
-    IsTiledGpImage := False;
-  end
-  else
-  {$ENDIF !NoGDIPlus}
-  begin {TiledImage will be a TBitmap}
-    if not Assigned(TiledImage) then
-      TiledImage := TBitmap.Create;
-    TBitmap(TiledImage).Palette := CopyPalette(ThePalette);
-    TBitmap(TiledImage).Height := IH;
-    TBitmap(TiledImage).Width := IW;
-    PatBlt(TBitmap(TiledImage).Canvas.Handle, 0, 0, IW, IH, Blackness);
-    IsTiledGpImage := True;
-  end;
-
-  if not NoMask and ((BGImage.Image is TBitmap)
-//BG, 25.08.2007:
-    or (BGImage.Image is TGifImage)
-//BG, 25.08.2007
-{$IFNDEF NoMetafile}
-    or (BGImage.Image is ThtMetafile)
-{$ENDIF}
-    or IsTiledGpImage
-    ) then
-  begin
-    if not Assigned(TiledMask) then
-      TiledMask := TBitmap.Create;
-    TiledMask.Monochrome := True;
-    TiledMask.Height := IH;
-    TiledMask.Width := IW;
-    if not Assigned(TheMask) then
-      PatBlt(TiledMask.Canvas.Handle, 0, 0, IW, IH, Whiteness);
-  end;
-
-  with PRec.X do
-  begin
-    X := GetPositionInRange(PosType, Value, IW - OW);
-    AdjustForTiling(RepeatD, 0, IW, OW, X, X2);
-  end;
-  with PRec.Y do
-  begin
-    Y := GetPositionInRange(PosType, Value, IH - OH);
-    AdjustForTiling(RepeatD, 0, IH, OH, Y, Y2);
-  end;
-
-  if ((OW = 1) or (OH = 1)) then
-  begin {in case a 1 pixel bitmap is being tiled.  EnlargeImage returns a
-     TBitmap regardless of TheGpObj type.}
-    NewBitmap := EnlargeImage(TheGpObj, X2 - X + 1, Y2 - Y + 1);
-    try
-      if Assigned(TheMask) then
-        NewMask := EnlargeImage(TheMask, X2 - X + 1, Y2 - Y + 1)
-      else
-        NewMask := nil;
-      try
-        Tile(NewBitmap, NewMask, X2 - X + 1, Y2 - Y + 1);
-      finally
-        NewMask.Free;
-      end;
-    finally
-      NewBitmap.Free;
-    end;
-  end
-  else if (TheGpObj is TBitmap) then
-    Tile(TBitmap(TheGpObj), TheMask, OW, OH)
-    {$IFNDEF NoGDIPlus}
-  else
-    TileGpImage(THtGpImage(TheGpObj), OW, OH)
-    {$ENDIF !NoGDIPlus}
-    ;
 end;
 
 {----------------TBlock.DrawLogic}
 
-function TBlock.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-  var MaxWidth: Integer; var Curs: Integer): Integer;
+function TBlock.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+  var MaxWidth, Curs: Integer): Integer;
 var
   ScrollWidth, YClear: Integer;
   LIndex, RIndex: Integer;
@@ -5709,7 +5038,7 @@ var
   BlockHeight: Integer;
   IB, Xin: Integer;
 
-  function GetClearSpace(ClearAttr: ClearAttrType): Integer;
+  function GetClearSpace(ClearAttr: ThtClearStyle): Integer;
   var
     CL, CR: Integer;
   begin
@@ -5733,10 +5062,210 @@ var
       Result := Max(Max(ContentTop, ClientContentBot), ContentTop + MargArray[piHeight]);
   end;
 
-var
-  LIndent, RIndent: Integer;
-begin
-  {$IFDEF JPM_DEBUGGING}
+  procedure DrawLogicAsBlock;
+  var
+    LIndent, RIndent: Integer;
+  begin
+    YDraw := Y;
+    Xin := X;
+    ClearAddOn := GetClearSpace(ClearAttr);
+    StartCurs := Curs;
+    MaxWidth := AWidth;
+
+    ConvMargArray(AWidth, AHeight, AutoCount);
+    HasBorderStyle :=
+      (ThtBorderStyle(MargArray[BorderTopStyle]) <> bssNone) or
+      (ThtBorderStyle(MargArray[BorderRightStyle]) <> bssNone) or
+      (ThtBorderStyle(MargArray[BorderBottomStyle]) <> bssNone) or
+      (ThtBorderStyle(MargArray[BorderLeftStyle]) <> bssNone);
+
+    ApplyBoxSettings(MargArray, Document.UseQuirksMode);
+    ContentWidth := FindWidth(Canvas, AWidth, AHeight, AutoCount);
+    LeftWidths   := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
+    RightWidths  := MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth];
+    MiscWidths   := LeftWidths + RightWidths;
+    TotalWidth   := MiscWidths + ContentWidth;
+
+    Indent := LeftWidths;
+    TopP := MargArray[piTop];
+    LeftP := MargArray[piLeft];
+    case Positioning of
+      posRelative:
+      begin
+        if TopP = Auto then
+          TopP := 0;
+        if LeftP = Auto then
+          LeftP := 0;
+      end;
+
+      posAbsolute:
+      begin
+        if TopP = Auto then
+          TopP := 0;
+        if (LeftP = Auto) then
+          if (MargArray[piRight] <> Auto) and (AutoCount = 0) then
+            LeftP := AWidth - MargArray[piRight] - MargArray[piWidth] - LeftWidths - RightWidths
+          else
+            LeftP := 0;
+        X := LeftP;
+        Y := TopP + YRef;
+      end;
+    end;
+
+    YClear := Y + ClearAddon;
+    if not (Positioning in [posAbsolute, PosFixed]) then
+      case Floating of
+        ALeft:
+        begin
+          YClear := Y;
+          LIndent := IMgr.AlignLeft(YClear, TotalWidth);
+          Indent := LIndent + LeftWidths - X;
+        end;
+
+        ARight:
+        begin
+          YClear := Y;
+          RIndent := IMgr.AlignRight(YClear, TotalWidth);
+          Indent := RIndent + LeftWidths - X;
+        end;
+      end;
+    Inc(X, Indent);
+
+    DrawTop := YClear + Max(0, MargArray[MarginTop]); {Border top}
+    ContentTop := DrawTop + MargArray[PaddingTop] + MargArray[BorderTopWidth];
+
+    if (Positioning in [posAbsolute, posFixed]) or (Floating in [ALeft, ARight]) then
+    begin
+      RefIMgr := IMgr;
+      if MyCell.IMgr = nil then
+      begin
+        MyIMgr := TIndentManager.Create;
+        MyCell.IMgr := MyIMgr;
+      end;
+      IMgr := MyCell.IMgr;
+      IMgr.Init(0, ContentWidth);
+    end
+    else
+    begin
+      MyCell.IMgr := IMgr;
+    end;
+
+    SaveID := IMgr.CurrentID;
+    IMgr.CurrentID := Self;
+
+    LIndex := IMgr.SetLeftIndent(X, YClear);
+    RIndex := IMgr.SetRightIndent(X + ContentWidth, YClear);
+
+    if MargArray[piHeight] > 0 then
+      BlockHeight := MargArray[piHeight]
+    else if AHeight > 0 then
+      BlockHeight := AHeight
+    else
+      BlockHeight := BlHt;
+
+    case Positioning of
+      posRelative:
+      begin
+        MyCell.DoLogicX(Canvas,
+          X,
+          ContentTop + TopP,
+          XRef,
+          ContentTop + TopP,
+          ContentWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
+        MaxWidth := ScrollWidth + MiscWidths - MargArray[MarginRight] + LeftP - Xin;
+        ClientContentBot := GetClientContentBot(MyCell.tcContentBot - TopP);
+      end;
+
+      posAbsolute:
+      begin
+        MyCell.DoLogicX(Canvas,
+          X,
+          ContentTop,
+          XRef + LeftP + MargArray[MarginLeft] + MargArray[BorderLeftWidth],
+          YRef + TopP + MargArray[MarginTop] + MargArray[BorderTopWidth],
+          ContentWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
+        MaxWidth := ScrollWidth + MiscWidths - MargArray[MarginRight] + LeftP - Xin;
+        ClientContentBot := GetClientContentBot(MyCell.tcContentBot);
+        IB := IMgr.ImageBottom; {check for image overhang}
+        if IB > ClientContentBot then
+          ClientContentBot := IB;
+      end;
+
+    else
+      MyCell.DoLogicX(Canvas,
+        X,
+        ContentTop,
+        XRef,
+        YRef,
+        ContentWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
+      MaxWidth := Indent + ScrollWidth + RightWidths;
+      ClientContentBot := GetClientContentBot(MyCell.tcContentBot);
+    end;
+    Len := Curs - StartCurs;
+    ContentBot :=  ClientContentBot + MargArray[PaddingBottom] + MargArray[BorderBottomWidth] + MargArray[MarginBottom];
+    DrawBot := Max(ClientContentBot, MyCell.tcDrawBot) + MargArray[PaddingBottom] + MargArray[BorderBottomWidth];
+
+    Result := ContentBot - Y;
+
+    if Assigned(BGImage) and Document.ShowImages then
+    begin
+      BGImage.DrawLogicInline(Canvas, nil, 100, 0);
+      if BGImage.Image = ErrorImage then
+      begin
+        FreeAndNil(BGImage);
+        NeedDoImageStuff := False;
+      end
+      else
+      begin
+        BGImage.ClientSizeKnown := True; {won't need reformat on InsertImage}
+        NeedDoImageStuff := True;
+      end;
+    end;
+    SectionHeight := Result;
+    IMgr.FreeLeftIndentRec(LIndex);
+    IMgr.FreeRightIndentRec(RIndex);
+    if (Positioning in [posAbsolute, posFixed]) or (Floating in [ALeft, ARight]) then
+    begin
+      case Positioning of
+        posAbsolute,
+        posFixed:
+          DrawHeight := 0
+      else
+        DrawHeight := 0; //SectionHeight;
+        case Floating of
+          ALeft:  RefIMgr.AddLeft(YClear, ContentBot, TotalWidth);
+          ARight: RefIMgr.AddRight(YClear, ContentBot, TotalWidth);
+        end;
+      end;
+      SectionHeight := 0;
+      Result := 0;
+    end
+    else
+    begin
+      DrawHeight := IMgr.ImageBottom - Y; {in case image overhangs}
+      if DrawHeight < SectionHeight then
+        DrawHeight := SectionHeight;
+    end;
+    IMgr.CurrentID := SaveID;
+    if DrawList.Count = 0 then
+      DrawSort;
+
+    //>-- DZ
+    DrawRect.Left   := X - LeftWidths + MargArray[MarginLeft];
+    DrawRect.Top    := DrawTop;
+    DrawRect.Right  := DrawRect.Left + ContentWidth;
+    DrawRect.Bottom := DrawRect.Top + SectionHeight;
+  end;
+
+  procedure DrawLogicInline;
+  begin
+    //TODO -oBG, 15.03.2014: draw logic inline
+    DrawLogicAsBlock;
+    //DrawRect.Right := DrawRect.Left + MyCell.TextWidth;
+  end;
+
+begin {TBlock.DrawLogic}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TBlock.DrawLogic');
   CodeSite.SendFmtMsg('Self.TagClass = [%s]', [Self.TagClass] );
   CodeSite.SendFmtMsg('X        = [%d]',[X]);
@@ -5756,229 +5285,33 @@ begin
   CodeSite.SendFmtMsg('MaxWidth = [%d]',[MaxWidth]);
   CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
   CodeSite.AddSeparator;
-  {$ENDIF}
-  case Display of
-    pdNone:
-    begin
-      SectionHeight := 0;
-      DrawHeight := 0;
-      ContentBot := 0;
-      DrawBot := 0;
-      MaxWidth := 0;
-      Result := 0;
-    end;
+{$ENDIF}
 
-{$ifdef DO_BLOCK_INLINE}
+  case CalcDisplayIntern of
+
     pdInline:
-      Result := inherited DrawLogic(Canvas, X, Y, XRef, YREf, AWidth, AHeight, BlHt, IMgr, MaxWidth, Curs);
-{$endif}
+      DrawLogicInline;
+
+    pdBlock:
+      DrawLogicAsBlock;
 
   else
-    YDraw := Y;
-    Xin := X;
-    ClearAddOn := GetClearSpace(ClearAttr);
-    StartCurs := Curs;
-    MaxWidth := AWidth;
+    //pdNone:
+    SectionHeight := 0;
+    DrawHeight := 0;
+    ContentBot := 0;
+    DrawBot := 0;
+    MaxWidth := 0;
+    Result := 0;
 
-    ConvMargArray(AWidth, AHeight, AutoCount);
-    HasBorderStyle := false;
-    if BorderStyleType(MargArray[BorderTopStyle]) <> bssNone then
-    begin
-      HasBorderStyle := True;
-      //FBrd.Top := MargArray[BorderTopWidth];
-    end;
-    if BorderStyleType(MargArray[BorderRightStyle]) <> bssNone then
-    begin
-      HasBorderStyle := True;
-      //FBrd.Right := MargArray[BorderRightWidth];
-    end;
-    if BorderStyleType(MargArray[BorderBottomStyle]) <> bssNone then
-    begin
-      HasBorderStyle := True;
-      //FBrd.Bottom := MargArray[BorderBottomWidth];
-    end;
-    if BorderStyleType(MargArray[BorderLeftStyle]) <> bssNone then
-    begin
-      HasBorderStyle := True;
-      //FBrd.Left := MargArray[BorderLeftWidth];
-    end;
-
-    ApplyBoxSettings(MargArray,Document.UseQuirksMode);
-    NewWidth := FindWidth(Canvas, AWidth, AHeight, AutoCount);
-    LeftWidths  := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
-    RightWidths := MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth];
-    MiscWidths  := LeftWidths + RightWidths;
-    TotalWidth  := MiscWidths + NewWidth;
-
-    Indent := LeftWidths;
-    TopP := MargArray[TopPos];
-    LeftP := MargArray[LeftPos];
-    case Positioning of
-      posRelative:
-      begin
-        if TopP = Auto then
-          TopP := 0;
-        if LeftP = Auto then
-          LeftP := 0;
-      end;
-
-      posAbsolute:
-      begin
-        if TopP = Auto then
-          TopP := 0;
-        if (LeftP = Auto) then
-          if (MargArray[RightPos] <> Auto) and (AutoCount = 0) then
-            LeftP := AWidth - MargArray[RightPos] - MargArray[piWidth] - LeftWidths - RightWidths
-          else
-            LeftP := 0;
-        X := LeftP;
-        Y := TopP + YRef;
-      end;
-    end;
-
-    YClear := Y + ClearAddon;
-    if not (Positioning in [posAbsolute, PosFixed]) then
-      case FloatLR of
-        ALeft:
-        begin
-          YClear := Y;
-          LIndent := IMgr.AlignLeft(YClear, TotalWidth);
-          Indent := LIndent + LeftWidths - X;
-        end;
-
-        ARight:
-        begin
-          YClear := Y;
-          RIndent := IMgr.AlignRight(YClear, TotalWidth);
-          Indent := RIndent + LeftWidths - X;
-        end;
-      end;
-    Inc(X, Indent);
-
-    if MargArray[MarginTop] <= 0 then
-      DrawTop := YClear
-    else
-      DrawTop := YClear + MargArray[MarginTop]; {Border top}
-
-    ContentTop := YClear + MargArray[MarginTop] + MargArray[PaddingTop] + MargArray[BorderTopWidth];
-
-    if (Positioning in [posAbsolute, posFixed]) or (FloatLR in [ALeft, ARight]) then
-    begin
-      RefIMgr := IMgr;
-      if MyCell.IMgr = nil then
-      begin
-        MyIMgr := TIndentManager.Create;
-        MyCell.IMgr := MyIMgr;
-      end;
-      IMgr := MyCell.IMgr;
-      IMgr.Init(0, NewWidth);
-    end
-    else
-    begin
-      MyCell.IMgr := IMgr;
-    end;
-
-    SaveID := IMgr.CurrentID;
-    IMgr.CurrentID := Self;
-
-    LIndex := IMgr.SetLeftIndent(X, YClear);
-    RIndex := IMgr.SetRightIndent(X + NewWidth, YClear);
-
-    if MargArray[piHeight] > 0 then begin
-      BlockHeight := MargArray[piHeight];
-    end else if AHeight > 0 then
-      BlockHeight := AHeight
-    else
-      BlockHeight := BlHt;
-
-    case Positioning of
-      posRelative:
-      begin
-        MyCell.DoLogicX(Canvas,
-          X,
-          ContentTop + TopP,
-          XRef,
-          ContentTop + TopP,
-          NewWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
-        MaxWidth := ScrollWidth + MiscWidths - MargArray[MarginRight] + LeftP - Xin;
-        ClientContentBot := GetClientContentBot(MyCell.tcContentBot - TopP);
-      end;
-
-      posAbsolute:
-      begin
-        MyCell.DoLogicX(Canvas,
-          X,
-          ContentTop,
-          XRef + LeftP + MargArray[MarginLeft] + MargArray[BorderLeftWidth],
-          YRef + TopP + MargArray[MarginTop] + MargArray[BorderTopWidth],
-          NewWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
-        MaxWidth := ScrollWidth + MiscWidths - MargArray[MarginRight] + LeftP - Xin;
-        ClientContentBot := GetClientContentBot(MyCell.tcContentBot);
-        IB := IMgr.ImageBottom; {check for image overhang}
-        if IB > ClientContentBot then
-          ClientContentBot := IB;
-      end;
-
-    else
-      MyCell.DoLogicX(Canvas,
-        X,
-        ContentTop,
-        XRef,
-        YRef,
-        NewWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
-      MaxWidth := Indent + ScrollWidth + RightWidths;
-      ClientContentBot := GetClientContentBot(MyCell.tcContentBot);
-    end;
-    Len := Curs - StartCurs;
-    ContentBot :=  ClientContentBot + MargArray[PaddingBottom] + MargArray[BorderBottomWidth] + MargArray[MarginBottom];
-    DrawBot := Max(ClientContentBot, MyCell.tcDrawBot) + MargArray[PaddingBottom] + MargArray[BorderBottomWidth];
-
-    Result := ContentBot - Y;
-
-    if Assigned(BGImage) and Document.ShowImages then
-    begin
-      BGImage.DrawLogic(Document, Canvas, nil, 100, 0);
-      if BGImage.Image = ErrorBitmap then
-      begin
-        FreeAndNil(BGImage);
-        NeedDoImageStuff := False;
-      end
-      else
-      begin
-        BGImage.ImageKnown := True; {won't need reformat on InsertImage}
-        NeedDoImageStuff := True;
-      end;
-    end;
-    SectionHeight := Result;
-    IMgr.FreeLeftIndentRec(LIndex);
-    IMgr.FreeRightIndentRec(RIndex);
-    if (Positioning in [posAbsolute, posFixed]) or (FloatLR in [ALeft, ARight]) then
-    begin
-      case Positioning of
-        posAbsolute,
-        posFixed:
-          DrawHeight := 0
-      else
-        DrawHeight := 0; //SectionHeight;
-        case FloatLR of
-          ALeft:  RefIMgr.AddLeft(YClear, ContentBot, TotalWidth);
-          ARight: RefIMgr.AddRight(YClear, ContentBot, TotalWidth);
-        end;
-      end;
-      SectionHeight := 0;
-      Result := 0;
-    end
-    else
-    begin
-      DrawHeight := IMgr.ImageBottom - Y; {in case image overhangs}
-      if DrawHeight < SectionHeight then
-        DrawHeight := SectionHeight;
-    end;
-    IMgr.CurrentID := SaveID;
-    if DrawList.Count = 0 then
-      DrawSort;
+    //>-- DZ
+    DrawRect.Left   := X;
+    DrawRect.Top    := DrawTop;
+    DrawRect.Right  := DrawRect.Left + ContentWidth;
+    DrawRect.Bottom := DrawRect.Top + SectionHeight;
   end;
-   {$IFDEF JPM_DEBUGGING}
+
+{$IFDEF JPM_DEBUGGING}
   if Assigned(IMgr) then begin
     CodeSite.SendFmtMsg('IMgr.LfEdge    = [%d]',[ IMgr.LfEdge ] );
     CodeSite.SendFmtMsg('IMgr.Width     = [%d]',[ IMgr.Width ] );
@@ -5990,7 +5323,7 @@ begin
   CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
   CodeSite.SendFmtMsg('Result   = [%d]',[Result]);
   CodeSite.ExitMethod(Self,'TBlock.DrawLogic');
-   {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TBlock.DrawSort}
@@ -6007,7 +5340,7 @@ var
   begin
     Inserted := False;
     for J := I1 to I2 - 1 do
-      if SBZIndex < TSectionBase(DrawList[J]).ZIndex then
+      if SBZIndex < DrawList[J].ZIndex then
       begin
         DrawList.Insert(J, SB);
         Inserted := True;
@@ -6023,7 +5356,7 @@ begin
   for I := 0 to MyCell.Count - 1 do
   begin
     SB := MyCell.Items[I];
-    SB.FOwner := Self;
+    SB.FOwnerBlock := Self;
     SBZIndex := SB.ZIndex;
     if SBZIndex < 0 then
     begin
@@ -6043,104 +5376,116 @@ end;
 
 {----------------TBlock.Draw1}
 
-function TBlock.Draw1(Canvas: TCanvas; const ARect: TRect;
-  IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
-var
-  Y, YO: Integer;
-  HeightNeeded, Spacing: Integer;
-begin
-  case Display of
-    pdNone:   Result := 0;
-{$ifdef DO_BLOCK_INLINE}
-    pdInline: Result := inherited Draw1(Canvas, ARect, IMgr, X, XRef, YRef);
-{$endif}
-  else
-    case Visibility of
-      viHidden:
-        Result := 0;
-    else
-      Y := YDraw;
-      YO := Y - Document.YOff;
-      Result := Y + SectionHeight;
+function TBlock.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
 
-      if Document.SkipDraw then
-      begin
-        Document.SkipDraw := False;
-        Exit;
-      end;
+  procedure DrawAsBlock;
+  var
+    Y, YO: Integer;
+    HeightNeeded, Spacing: Integer;
+  begin
+    Y := YDraw;
+    YO := Y - Document.YOff;
+    Result := Y + SectionHeight;
 
-      if Document.Printing and (Positioning <> posAbsolute) then
-        if BreakBefore and not Document.FirstPageItem then
-        begin
-          if ARect.Top + Document.YOff < YDraw + MargArray[MarginTop] then {page-break-before}
-          begin
-            if YDraw + MargArray[MarginTop] < Document.PageBottom then
-              Document.PageBottom := YDraw + MargArray[MarginTop];
-            Document.SkipDraw := True; {prevents next block from drawing a line}
-            Exit;
-          end;
-        end
-        else if KeepIntact then
-        begin
-        {if we're printing and block won't fit on this page and block will fit on
-         next page, then don't do block now}
-          if (YO > ARect.Top) and (Y + DrawHeight > Document.PageBottom) and
-            (DrawHeight - MargArray[MarginTop] < ARect.Bottom - ARect.Top) then
-          begin
-            if Y + MargArray[MarginTop] < Document.PageBottom then
-              Document.PageBottom := Y + MargArray[MarginTop];
-            Exit;
-          end;
-        end
-        else if BreakAfter then
-        begin
-          if ARect.Top + Document.YOff < Result then {page-break-after}
-            if Result < Document.PageBottom then
-              Document.PageBottom := Result;
-        end
-        else if Self is TTableBlock and not TTableBlock(Self).Table.HeadOrFoot then {ordinary tables}
-        {if we're printing and
-         we're 2/3 down page and table won't fit on this page and table will fit on
-         next page, then don't do table now}
-        begin
-          if (YO > ARect.Top + ((ARect.Bottom - ARect.Top) * 2) div 3) and
-            (Y + DrawHeight > Document.PageBottom) and
-            (DrawHeight < ARect.Bottom - ARect.Top) then
-          begin
-            if Y + MargArray[MarginTop] < Document.PageBottom then
-              Document.PageBottom := Y + MargArray[MarginTop];
-            Exit;
-          end;
-        end
-        else if Self is TTableBlock then {try to avoid just a header and footer at page break}
-          with TTableBlock(Self).Table do
-            if HeadOrFoot and (Document.TableNestLevel = 0)
-              and ((Document.PrintingTable = nil) or
-              (Document.PrintingTable = TTableBlock(Self).Table)) then
-            begin
-              Spacing := CellSpacing div 2;
-              HeightNeeded := HeaderHeight + FootHeight + Rows.Items[HeaderRowCount].RowHeight;
-              if (YO > ARect.Top) and (Y + HeightNeeded > Document.PageBottom) and
-                (HeightNeeded < ARect.Bottom - ARect.Top) then
-              begin {will go on next page}
-                if Y + Spacing < Document.PageBottom then
-                begin
-                  Document.PageShortened := True;
-                  Document.PageBottom := Y + Spacing;
-                end;
-                Exit;
-              end;
-            end;
+    if Visibility = viHidden then
+      Exit;
 
-        if Positioning = posRelative then {for debugging}
-          DrawBlock(Canvas, ARect, IMgr, X + LeftP, Y + TopP, XRef, YRef)
-        else if Positioning = posAbsolute then
-          DrawBlock(Canvas, ARect, IMgr, XRef + LeftP, YRef + TopP, XRef, YRef)
-        else if FloatLR in [ALeft, ARight] then
-          DrawBlock(Canvas, ARect, IMgr, X, Y, XRef, YRef)
-        else
-          DrawBlock(Canvas, ARect, IMgr, X, Y, XRef, YRef);
+    if Document.SkipDraw then
+    begin
+      Document.SkipDraw := False;
+      Exit;
     end;
+
+    if Document.Printing and (Positioning <> posAbsolute) then
+      if BreakBefore and not Document.FirstPageItem then
+      begin
+        if ARect.Top + Document.YOff < YDraw + MargArray[MarginTop] then {page-break-before}
+        begin
+          if YDraw + MargArray[MarginTop] < Document.PageBottom then
+            Document.PageBottom := YDraw + MargArray[MarginTop];
+          Document.SkipDraw := True; {prevents next block from drawing a line}
+          Exit;
+        end;
+      end
+      else if KeepIntact then
+      begin
+      {if we're printing and block won't fit on this page and block will fit on
+       next page, then don't do block now}
+        if (YO > ARect.Top) and (Y + DrawHeight > Document.PageBottom) and
+          (DrawHeight - MargArray[MarginTop] < ARect.Bottom - ARect.Top) then
+        begin
+          if Y + MargArray[MarginTop] < Document.PageBottom then
+            Document.PageBottom := Y + MargArray[MarginTop];
+          Exit;
+        end;
+      end
+      else if BreakAfter then
+      begin
+        if ARect.Top + Document.YOff < Result then {page-break-after}
+          if Result < Document.PageBottom then
+            Document.PageBottom := Result;
+      end
+      else if Self is TTableBlock and not TTableBlock(Self).Table.HeadOrFoot then {ordinary tables}
+      {if we're printing and
+       we're 2/3 down page and table won't fit on this page and table will fit on
+       next page, then don't do table now}
+      begin
+        if (YO > ARect.Top + ((ARect.Bottom - ARect.Top) * 2) div 3) and
+          (Y + DrawHeight > Document.PageBottom) and
+          (DrawHeight < ARect.Bottom - ARect.Top) then
+        begin
+          if Y + MargArray[MarginTop] < Document.PageBottom then
+            Document.PageBottom := Y + MargArray[MarginTop];
+          Exit;
+        end;
+      end
+      else if Self is TTableBlock then {try to avoid just a header and footer at page break}
+        with TTableBlock(Self).Table do
+          if HeadOrFoot and (Document.TableNestLevel = 0)
+            and ((Document.PrintingTable = nil) or
+            (Document.PrintingTable = TTableBlock(Self).Table)) then
+          begin
+            Spacing := CellSpacing div 2;
+            HeightNeeded := HeaderHeight + FootHeight + Rows.Items[HeaderRowCount].RowHeight;
+            if (YO > ARect.Top) and (Y + HeightNeeded > Document.PageBottom) and
+              (HeightNeeded < ARect.Bottom - ARect.Top) then
+            begin {will go on next page}
+              if Y + Spacing < Document.PageBottom then
+              begin
+                Document.PageShortened := True;
+                Document.PageBottom := Y + Spacing;
+              end;
+              Exit;
+            end;
+          end;
+
+      if Positioning = posRelative then {for debugging}
+        DrawBlock(Canvas, ARect, IMgr, X + LeftP, Y + TopP, XRef, YRef)
+      else if Positioning = posAbsolute then
+        DrawBlock(Canvas, ARect, IMgr, XRef + LeftP, YRef + TopP, XRef, YRef)
+      else if Floating in [ALeft, ARight] then
+        DrawBlock(Canvas, ARect, IMgr, X, Y, XRef, YRef)
+      else
+        DrawBlock(Canvas, ARect, IMgr, X, Y, XRef, YRef);
+    end;
+
+  procedure DrawInline;
+  begin
+    DrawAsBlock;
+  end;
+
+begin
+  case CalcDisplayIntern of
+
+    pdInline:
+      DrawInline;
+
+    pdBlock:
+      DrawAsBlock;
+
+  else
+    //pdNone:
+    Result := 0;
   end;
 end;
 
@@ -6157,27 +5502,31 @@ var
   IT, IH, FT, IW: Integer;
   Rgn, SaveRgn, SaveRgn1: HRgn;
   OpenRgn: Boolean;
-  PdRect: TRect;
+  PdRect, CnRect: TRect; // padding rect, content rect
   NegativeMargins: Boolean;
 begin
   if Document.Printing and not Document.PrintBackground then
     NeedDoImageStuff := False;
   YOffset := Document.YOff;
 
-  case FLoatLR of
+  case Floating of
     ALeft, ARight:
     begin
       //X := IMgr.LfEdge + Indent;
       X := X + Indent;
       RefX := X - MargArray[PaddingLeft] - MargArray[BorderLeftWidth];
-      XR := X + NewWidth + MargArray[PaddingRight] + MargArray[BorderRightWidth];
+      XR := X + ContentWidth + MargArray[PaddingRight] + MargArray[BorderRightWidth];
       RefY := DrawTop;
       YB := ContentBot - MargArray[MarginBottom];
     end;
   else
+// BG, 08.09.2013: inline vs block:
+//  X of centered blocks may differ from (DrawRect.Left - MargArray[MarginLeft]) calculated in DrawLogic1().
     RefX := X + MargArray[MarginLeft];
     X := X + Indent;
-    XR := X + NewWidth + MargArray[PaddingRight] + MargArray[BorderRightWidth]; {current right edge}
+//    RefX := DrawRect.Left;
+//    X := RefX - MargArray[MarginLeft] + Indent;
+    XR := X + ContentWidth + MargArray[PaddingRight] + MargArray[BorderRightWidth]; {current right edge}
     RefY := Y + ClearAddon + MargArray[MarginTop];
     YB := ContentBot - MargArray[MarginBottom];
     case Positioning of
@@ -6194,6 +5543,18 @@ begin
   PdRect.Top    := MyRect.Top    + MargArray[BorderTopWidth];
   PdRect.Right  := MyRect.Right  - MargArray[BorderRightWidth];
   PdRect.Bottom := MyRect.Bottom - MargArray[BorderBottomWidth];
+
+  // CnRect is the content rectangle of this block in screen coordinates
+  CnRect.Left   := PdRect.Left   + MargArray[PaddingLeft];
+  CnRect.Top    := PdRect.Top    + MargArray[PaddingTop];
+  CnRect.Right  := PdRect.Right  - MargArray[PaddingRight];
+  CnRect.Bottom := PdRect.Bottom - MargArray[PaddingBottom];
+
+  //>-- DZ
+  DrawRect.Top    := MyRect.Top;
+  DrawRect.Left   := MyRect.Left;
+  DrawRect.Bottom := MyRect.Bottom;
+  DrawRect.Right  := MyRect.Right;
 
   IT := Max(0, ARect.Top - 2 - PdRect.Top);
   FT := Max(PdRect.Top, ARect.Top - 2); {top of area drawn, screen coordinates}
@@ -6214,20 +5575,20 @@ begin
     begin
       HasBackgroundColor := MargArray[BackgroundColor] <> clNone;
       try
-        if NeedDoImageStuff and Assigned(BGImage) and (BGImage.Image <> DefBitmap) then
+        if NeedDoImageStuff and Assigned(BGImage) and (BGImage.Image <> DefImage) then
         begin
-          if BGImage.Image = ErrorBitmap then {Skip the background image}
+          if BGImage.Image = ErrorImage then {Skip the background image}
             FreeAndNil(BGImage)
           else
           try
-            if FloatLR in [ALeft, ARight] then
+            if Floating in [ALeft, ARight] then
               TmpHt := DrawBot - ContentTop + MargArray[PaddingTop] + MargArray[PaddingBottom]
             else
               TmpHt := ClientContentBot - ContentTop + MargArray[PaddingTop] + MargArray[PaddingBottom];
 
-            DoImageStuff(Canvas, MargArray[PaddingLeft] + NewWidth + MargArray[PaddingRight],
-              TmpHt, BGImage, PRec, TiledImage, TiledMask, NoMask);
-            if Document.IsCopy and (TiledImage is TBitmap) then
+            DoImageStuff(Canvas, MargArray[PaddingLeft] + ContentWidth + MargArray[PaddingRight],
+              TmpHt, BGImage.Image, PRec, TiledImage, TiledMask, NoMask);
+            if IsCopy and (TiledImage is TBitmap) then
               TBitmap(TiledImage).HandleType := bmDIB;
           except {bad image, get rid of it}
             FreeAndNil(BGImage);
@@ -6248,9 +5609,9 @@ begin
         begin {color the Padding Region}
           Canvas.Brush.Color := ThemedColor(MargArray[BackgroundColor]{$ifdef has_StyleElements},seClient in Document.StyleElements{$endif}) or PalRelative;
           Canvas.Brush.Style := bsSolid;
-          if Document.IsCopy and ImgOK then
+          if IsCopy and ImgOK then
           begin
-            InitFullBG(FullBG,IW, IH,Document.IsCopy);
+            InitFullBG(FullBG, IW, IH, IsCopy);
             FullBG.Canvas.Brush.Color := ThemedColor(MargArray[BackgroundColor]{$ifdef has_StyleElements},seClient in Document.StyleElements{$endif}) or PalRelative;
             FullBG.Canvas.Brush.Style := bsSolid;
             FullBG.Canvas.FillRect(Rect(0, 0, IW, IH));
@@ -6262,11 +5623,11 @@ begin
 
         if ImgOK and (TiledImage <> nil) then
         begin
-          if not Document.IsCopy then
+          if not IsCopy then
             {$IFNDEF NoGDIPlus}
-            if TiledImage is THtGpBitmap then
+            if TiledImage is ThtGpBitmap then
             //DrawGpImage(Canvas.Handle, TgpImage(TiledImage), PdRect.Left, PT)
-              DrawGpImage(Canvas.Handle, THtGpImage(TiledImage), PdRect.Left, FT, 0, IT, IW, IH)
+              DrawGpImage(Canvas.Handle, ThtGpImage(TiledImage), PdRect.Left, FT, 0, IT, IW, IH)
             //BitBlt(Canvas.Handle, PdRect.Left, FT, PdRect.Right-PdRect.Left, IH, TiledImage.Canvas.Handle, 0, IT, SrcCopy)
             else
             {$ENDIF !NoGDIPlus}
@@ -6274,7 +5635,7 @@ begin
               BitBlt(Canvas.Handle, PdRect.Left, FT, PdRect.Right - PdRect.Left, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcCopy)
             else
             begin
-              InitFullBG(FullBG,PdRect.Right - PdRect.Left, IH,Document.IsCopy);
+              InitFullBG(FullBG, PdRect.Right - PdRect.Left, IH, IsCopy);
               BitBlt(FullBG.Canvas.Handle, 0, 0, IW, IH, Canvas.Handle, PdRect.Left, FT, SrcCopy);
               BitBlt(FullBG.Canvas.Handle, 0, 0, IW, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcInvert);
               BitBlt(FullBG.Canvas.Handle, 0, 0, IW, IH, TiledMask.Canvas.Handle, 0, IT, SRCAND);
@@ -6283,15 +5644,15 @@ begin
             end
           else
           {$IFNDEF NoGDIPlus}
-          if TiledImage is THtGpBitmap then {printing}
+          if TiledImage is ThtGpBitmap then {printing}
           begin
             if HasBackgroundColor then
             begin
-              DrawGpImage(FullBg.Canvas.Handle, THtGpImage(TiledImage), 0, 0);
+              DrawGpImage(FullBg.Canvas.Handle, ThtGpImage(TiledImage), 0, 0);
               PrintBitmap(Canvas, PdRect.Left, FT, IW, IH, FullBG);
             end
             else
-              PrintGpImageDirect(Canvas.Handle, THtGpImage(TiledImage), PdRect.Left, PdRect.Top,
+              PrintGpImageDirect(Canvas.Handle, ThtGpImage(TiledImage), PdRect.Left, PdRect.Top,
                 Document.ScaleX, Document.ScaleY);
           end
           else
@@ -6316,37 +5677,35 @@ begin
     end;
 
     if HideOverflow then
-      if FloatLR = ANone then
-        GetClippingRgn(Canvas,
-          Rect(
-            PdRect.Left   + MargArray[PaddingLeft],
-            PdRect.Top    + MargArray[PaddingTop],
-            PdRect.Right  - MargArray[PaddingRight],
-            PdRect.Bottom - MargArray[PaddingBottom]),
-          Document.Printing, Rgn, SaveRgn)
-      else
-        GetClippingRgn(Canvas, Rect(PdRect.Left, PdRect.Top, PdRect.Right, PdRect.Bottom), Document.Printing, Rgn, SaveRgn);
-
-    SaveID := IMgr.CurrentID;
-    Imgr.CurrentID := Self;
-    if Positioning = posRelative then
-      DrawTheList(Canvas, ARect, NewWidth, X,
-        RefX + MargArray[BorderLeftWidth] + MargArray[PaddingLeft],
-        Y + MargArray[MarginTop] + MargArray[BorderTopWidth] + MargArray[PaddingTop])
-    else if Positioning = posAbsolute then
-      DrawTheList(Canvas, ARect, NewWidth, X,
-        RefX + MargArray[BorderLeftWidth],
-        Y + MargArray[MarginTop] + MargArray[BorderTopWidth])
-    else
-      DrawTheList(Canvas, ARect, NewWidth, X, XRef, YRef);
-    Imgr.CurrentID := SaveID;
-
-    if HideOverflow then {restore any previous clip region}
     begin
-      SelectClipRgn(Canvas.Handle, SaveRgn);
-      DeleteObject(Rgn);
-      if SaveRgn <> 0 then
-        DeleteObject(SaveRgn);
+      if Floating = ANone then
+        GetClippingRgn(Canvas, CnRect, Document.Printing, Rgn, SaveRgn)
+      else
+        GetClippingRgn(Canvas, PdRect, Document.Printing, Rgn, SaveRgn);
+      SelectClipRgn(Canvas.Handle, Rgn);
+    end;
+    try
+      SaveID := IMgr.CurrentID;
+      Imgr.CurrentID := Self;
+      if Positioning = posRelative then
+        DrawTheList(Canvas, ARect, ContentWidth, X,
+          RefX + MargArray[BorderLeftWidth] + MargArray[PaddingLeft],
+          Y + MargArray[MarginTop] + MargArray[BorderTopWidth] + MargArray[PaddingTop])
+      else if Positioning = posAbsolute then
+        DrawTheList(Canvas, ARect, ContentWidth, X,
+          RefX + MargArray[BorderLeftWidth],
+          Y + MargArray[MarginTop] + MargArray[BorderTopWidth])
+      else
+        DrawTheList(Canvas, ARect, ContentWidth, X, XRef, YRef);
+      Imgr.CurrentID := SaveID;
+    finally
+      if HideOverflow then {restore any previous clip region}
+      begin
+        SelectClipRgn(Canvas.Handle, SaveRgn);
+        DeleteObject(Rgn);
+        if SaveRgn <> 0 then
+          DeleteObject(SaveRgn);
+      end;
     end;
     DrawBlockBorder(Canvas, MyRect, PdRect);
   finally
@@ -6364,7 +5723,7 @@ begin
     if (ORect.Left <> IRect.Left) or (ORect.Top <> IRect.Top) or (ORect.Right <> IRect.Right) or (ORect.Bottom <> IRect.Bottom) then
       DrawBorder(Canvas, ORect, IRect,
         htColors(MargArray[BorderLeftColor], MargArray[BorderTopColor], MargArray[BorderRightColor], MargArray[BorderBottomColor]),
-        htStyles(BorderStyleType(MargArray[BorderLeftStyle]), BorderStyleType(MargArray[BorderTopStyle]), BorderStyleType(MargArray[BorderRightStyle]), BorderStyleType(MargArray[BorderBottomStyle])),
+        htStyles(ThtBorderStyle(MargArray[BorderLeftStyle]), ThtBorderStyle(MargArray[BorderTopStyle]), ThtBorderStyle(MargArray[BorderRightStyle]), ThtBorderStyle(MargArray[BorderBottomStyle])),
         MargArray[BackgroundColor], Document.Printing{$ifdef has_StyleElements}, Document.StyleElements {$endif})
 end;
 
@@ -6374,7 +5733,7 @@ var
   I: Integer;
   SaveID: TObject;
 begin
-  if (Positioning in [posAbsolute, posFixed]) or (FloatLR in [ALeft, ARight]) then
+  if (Positioning in [posAbsolute, posFixed]) or (Floating in [ALeft, ARight]) then
     with MyCell do
     begin
       SaveID := IMgr.CurrentID;
@@ -6385,9 +5744,10 @@ begin
   else
     MyCell.IMgr.ClipWidth := ClipWidth;
   for I := 0 to DrawList.Count - 1 do
-    TSectionBase(DrawList[I]).Draw1(Canvas, ARect, MyCell.IMgr, X, XRef, YRef);
+    DrawList[I].Draw1(Canvas, ARect, MyCell.IMgr, X, XRef, YRef);
 end;
 
+{$ifdef UseFormTree}
 procedure TBlock.FormTree(const Indent: ThtString; var Tree: ThtString);
 var
   MyIndent: ThtString;
@@ -6399,6 +5759,7 @@ begin
   Tree := Tree + Indent + TagClass + '  ' + TM + '  ' + BM + CrChar + LfChar;
   MyCell.FormTree(MyIndent, Tree);
 end;
+{$endif UseFormTree}
 
 //-- BG ---------------------------------------------------------- 24.08.2010 --
 function TBlock.GetBorderWidth: Integer;
@@ -6408,33 +5769,33 @@ end;
 
 {----------------TTableAndCaptionBlock.Create}
 
-constructor TTableAndCaptionBlock.Create(Master: ThtDocument; Prop: TProperties;
-  AnOwnerCell: TCellBasic; Attributes: TAttributeList; ATableBlock: TTableBlock);
+constructor TTableAndCaptionBlock.Create(
+  Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties; ATableBlock: TTableBlock);
 var
   I: Integer;
 begin
    {$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TTableAndCaptionBlock.Create');
    {$ENDIF}
-  inherited Create(Master, Prop, AnOwnerCell, Attributes);
+  inherited Create(Parent, Attributes, Prop);
   TableBlock := ATableBlock;
   Justify := TableBlock.Justify;
 
   for I := 0 to Attributes.Count - 1 do
-    with TAttribute(Attributes[I]) do
+    with Attributes[I] do
       case Which of
         AlignSy:
           if CompareText(Name, 'CENTER') = 0 then
             Justify := Centered
           else if CompareText(Name, 'LEFT') = 0 then
           begin
-            if FloatLR = ANone then
-              FloatLR := ALeft;
+            if Floating = ANone then
+              Floating := ALeft;
           end
           else if CompareText(Name, 'RIGHT') = 0 then
           begin
-            if FloatLR = ANone then
-              FloatLR := ARight;
+            if Floating = ANone then
+              Floating := ARight;
           end;
       end;
   TableID := Attributes.TheID;
@@ -6461,16 +5822,15 @@ end;
 
 {----------------TTableAndCaptionBlock.CreateCopy}
 
-constructor TTableAndCaptionBlock.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor TTableAndCaptionBlock.CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode);
 var
-  TT: TTableAndCaptionBlock;
+  T: TTableAndCaptionBlock absolute Source;
   Item: TObject;
   I1, I2: Integer;
 begin
-  inherited;
-  TT := T as TTableAndCaptionBlock;
-  TopCaption := TT.TopCaption;
-  Justify := TT.Justify;
+  inherited CreateCopy(OwnerCell,Source);
+  TopCaption := T.TopCaption;
+  Justify := T.Justify;
   TagClass := 'TableAndCaption.';
   I1 := Ord(TopCaption);
   I2 := Ord(not TopCaption);
@@ -6510,7 +5870,7 @@ begin
   MargArray[PaddingBottom] := 0;
   MargArray[BackgroundColor] := clNone;
 
-  TableBlock.FloatLR := ANone;
+  TableBlock.Floating := ANone;
   TableBlock.Table.Float := False;
 
   CaptionBlock.MinMaxWidth(Canvas, Mn, Mx);
@@ -6568,9 +5928,8 @@ end;
 
 {----------------TTableBlock.Create}
 
-constructor TTableBlock.Create(Master: ThtDocument; Prop: TProperties;
-  AnOwnerCell: TCellBasic; ATable: THtmlTable; TableAttr: TAttributeList;
-  TableLevel: Integer);
+constructor TTableBlock.Create(
+  Parent: TCellBasic; Attr: TAttributeList; Prop: TProperties; ATable: THtmlTable; TableLevel: Integer);
 var
   I, AutoCount: Integer;
   BorderWidth: Integer;
@@ -6645,7 +6004,7 @@ begin
           MyProps.SetPropertyDefaults([BorderBottomStyle, BorderRightStyle, BorderTopStyle, BorderLeftStyle], bssNone);
     end;
 
-    inherited Create(Master, TheProps, AnOwnerCell, TableAttr);
+    inherited Create(Parent, Attr, TheProps);
   finally
     MyProps.Free;
   end;
@@ -6653,8 +6012,8 @@ begin
   Table := ATable;
   Justify := NoJustify;
 
-  for I := 0 to TableAttr.Count - 1 do
-    with TableAttr[I] do
+  for I := 0 to Attr.Count - 1 do
+    with Attr[I] do
       case Which of
 
         AlignSy:
@@ -6662,24 +6021,26 @@ begin
             Justify := Centered
           else if CompareText(Name, 'LEFT') = 0 then
           begin
-            if FloatLR = ANone then
-              FloatLR := ALeft;
+//TODO: BG, 14.07.2013: The table block is not floating, but justified!
+            if Floating = ANone then
+              Floating := ALeft;
 //            Justify := Left;
           end
           else if CompareText(Name, 'RIGHT') = 0 then
           begin
-            if FloatLR = ANone then
-              FloatLR := ARight;
+//TODO: BG, 14.07.2013: The table block is not floating, but justified!
+            if Floating = ANone then
+              Floating := ARight;
 //            Justify := Right;
           end;
 
         BGColorSy:
-          BkGnd := ColorFromString(Name, False, BkColor);
+          BkGnd := TryStrToColor(Name, False, BkColor);
 
         BackgroundSy:
           if not Assigned(BGImage) then
           begin
-            BGImage := TImageObj.SimpleCreate(Master, Name);
+            BGImage := TImageObj.SimpleCreate(MyCell, Name);
             PRec.X.PosType := bpDim;
             PRec.X.Value := 0;
             PRec.X.RepeatD := True;
@@ -6689,7 +6050,7 @@ begin
         HSpaceSy: HSpace := Min(40, Abs(Value));
 
         VSpaceSy: VSpace := Min(200, Abs(Value));
-        
+
         WidthSy:
           if Pos('%', Name) > 0 then
           begin
@@ -6733,7 +6094,7 @@ begin
   end;
 
   CollapseMargins;
-  Table.Float := FloatLR in [ALeft, ARight];
+  Table.Float := Floating in [ALeft, ARight];
   if Table.Float and (ZIndex = 0) then
     ZIndex := 1;
    {$IFDEF JPM_DEBUGGING}
@@ -6743,14 +6104,13 @@ end;
 
 {----------------TTableBlock.CreateCopy}
 
-constructor TTableBlock.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor TTableBlock.CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode);
 var
-  TT: TTableBlock;
+  T: TTableBlock absolute Source;
   Item: TObject;
 begin
-  inherited;
-  TT := T as TTableBlock;
-  System.Move(TT.WidthAttr, WidthAttr, PtrSub(@Justify, @WidthAttr) + Sizeof(Justify));
+  inherited CreateCopy(OwnerCell,Source);
+  System.Move(T.WidthAttr, WidthAttr, PtrSub(@Justify, @WidthAttr) + Sizeof(Justify));
   Item := MyCell.Items[0];
   Table := Item as THtmlTable;
 end;
@@ -6766,15 +6126,12 @@ begin
     CodeSite.SendFmtMsg('Self.TagClass = [%s]',[TagClass ]);
   CodeSite.AddSeparator;
    {$ENDIF}
-  TmpWidth := 0;
   if AsPercent then
-    Table.tblWidthAttr := 0
+    TmpWidth := 0
   else
-  begin
     TmpWidth := Math.Max(0, WidthAttr - MargArray[BorderLeftWidth] - MargArray[BorderRightWidth]
       - MargArray[PaddingLeft] - MargArray[PaddingRight]);
-    Table.tblWidthAttr := TmpWidth;
-  end;
+  Table.tblWidthAttr := TmpWidth;
   inherited MinMaxWidth(Canvas, Min, Max);
   if TmpWidth > 0 then
   begin
@@ -6796,7 +6153,7 @@ function TTableBlock.FindWidth1(Canvas: TCanvas; AWidth, ExtMarg: Integer): Inte
  is a caption on the table.  AWidth is the full width available to the
  TTableAndCaptionBlock.}
 var
-  LeftSide, RightSide: Integer;
+  PaddingAndBorder: Integer;
   Min, Max, Allow: Integer;
 begin
   MargArray[MarginLeft] := 0;
@@ -6804,9 +6161,9 @@ begin
   MargArray[MarginTop] := 0;
   MargArray[MarginBottom] := 0;
 
-  LeftSide := MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
-  RightSide := MargArray[PaddingRight] + MargArray[BorderRightWidth];
-
+  PaddingAndBorder :=
+    MargArray[BorderLeftWidth] + MargArray[PaddingLeft] +
+    MargArray[BorderRightWidth] + MargArray[PaddingRight];
   Table.tblWidthAttr := 0;
   if WidthAttr > 0 then
   begin
@@ -6814,7 +6171,7 @@ begin
       Result := Math.Min(MulDiv(AWidth, WidthAttr, 1000), AWidth - ExtMarg)
     else
       Result := WidthAttr;
-    Result := Result - (LeftSide + RightSide);
+    Result := Result - PaddingAndBorder;
     Table.tblWidthAttr := Result;
     Table.MinMaxWidth(Canvas, Min, Max);
     Result := Math.Max(Min, Result);
@@ -6823,7 +6180,7 @@ begin
   else
   begin
     Table.MinMaxWidth(Canvas, Min, Max);
-    Allow := AWidth - LeftSide - RightSide;
+    Allow := AWidth - PaddingAndBorder;
     if Max <= Allow then
       Result := Max
     else if Min >= Allow then
@@ -6831,7 +6188,7 @@ begin
     else
       Result := Allow;
   end;
-  Result := Result + LeftSide + RightSide;
+  Result := Result + PaddingAndBorder;
 end;
 
 //-- BG ---------------------------------------------------------- 24.08.2010 --
@@ -6856,7 +6213,7 @@ begin
     if MargArray[MarginRight] = Auto then
       MargArray[MarginRight] := 0;
 
-    if FloatLR in [ALeft, ARight] then
+    if Floating in [ALeft, ARight] then
     begin
       if MargArray[MarginLeft] = 0 then
         MargArray[MarginLeft] := HSpace;
@@ -6917,20 +6274,27 @@ begin
   MargArray[piWidth] := Result;
 
   if (MargArray[MarginLeft] = 0) and (MargArray[MarginRight] = 0) and (Result + LeftSide + RightSide < AWidth) then
+  begin
+     M := AWidth - LeftSide - Result - RightSide;
     case Justify of
       Centered:
       begin
-        M := AWidth - LeftSide - Result - RightSide;
         MargArray[MarginLeft]  := M div 2;
         MargArray[MarginRight] := M - MargArray[MarginLeft];
       end;
+
       Right:
-        MargArray[MarginLeft] := AWidth - (Result + LeftSide + RightSide);
+        MargArray[MarginLeft] := M;
+
+      Left:
+        MargArray[MarginRight] := M;
+
     end;
+  end;
 end;
 
-function TTableBlock.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer;
-  IMgr: TIndentManager; var MaxWidth: Integer; var Curs: Integer): Integer;
+function TTableBlock.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+  var MaxWidth, Curs: Integer): Integer;
 var
   X1, Tmp: Integer;
 begin
@@ -6956,7 +6320,7 @@ begin
   CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
   CodeSite.AddSeparator;
   {$ENDIF}
-  if not (FloatLR in [ALeft, ARight]) then
+  if not (Floating in [ALeft, ARight]) then
   begin
     Tmp := X;
     X := Max(Tmp, IMgr.LeftIndent(Y));
@@ -6964,7 +6328,7 @@ begin
     X1 := Min(Tmp + AWidth, IMgr.RightSide(Y));
     AWidth := X1 - X;
   end;
-  Result := inherited DrawLogic(Canvas, X, Y, XRef, YRef, AWidth, AHeight, BlHt, IMgr, MaxWidth, Curs);
+  Result := inherited DrawLogic1(Canvas, X, Y, XRef, YRef, AWidth, AHeight, BlHt, IMgr, MaxWidth, Curs);
    {$IFDEF JPM_DEBUGGING}
   if Assigned(IMgr) then begin
     CodeSite.SendFmtMsg('IMgr.LfEdge    = [%d]',[ IMgr.LfEdge ] );
@@ -6980,8 +6344,7 @@ begin
    {$ENDIF}
 end;
 
-function TTableBlock.Draw1(Canvas: TCanvas; const ARect: TRect;
-  IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
+function TTableBlock.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
 begin
   X := X + TableIndent;
   Result := inherited Draw1(Canvas, ARect, IMgr, X, XRef, YRef);
@@ -6999,7 +6362,7 @@ begin
 //      MargArray[C] := Light
 //    else if MargArrayO[C] = clBtnShadow then
 //      MargArray[C] := Dark;
-  inherited;
+  inherited DrawBlockBorder(Canvas,ORect,IRect);
 end;
 
 procedure TTableBlock.AddSectionsToList;
@@ -7007,10 +6370,12 @@ begin {Sections in Table not added only table itself}
   Document.PositionList.Add(Table);
 end;
 
-constructor THRBlock.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor THRBlock.CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode);
+var
+  T: THRBlock absolute Source;
 begin
-  inherited;
-  Align := (T as THRBlock).Align;
+  inherited CreateCopy(OwnerCell,Source);
+  Align := T.Align;
 end;
 
 {----------------THRBlock.FindWidth}
@@ -7020,15 +6385,16 @@ var
   LeftSide, RightSide, SWidth: Integer;
   Diff: Integer;
 begin
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'THRBlock.FindWidth');
-    CodeSite.SendFmtMsg('Self.TagClass = [%s]',[TagClass ]);
+  CodeSite.SendFmtMsg('Self.TagClass = [%s]',[TagClass ]);
 
   CodeSite.SendFmtMsg('AWidth = [%d]',[AWidth]);
   CodeSite.SendFmtMsg('AHeight = [%d]',[AHeight]);
   CodeSite.SendFmtMsg('AutoCount = [%d]',[AutoCount]);
   CodeSite.AddSeparator;
-   {$ENDIF}
+{$ENDIF}
+
   if Positioning = posAbsolute then
     Align := Left;
   LeftSide := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
@@ -7052,25 +6418,25 @@ of TBlock}
         Right: Inc(MargArray[MarginLeft], Diff);
       end;
   end;
-  if not Document.IsCopy then
+  if not IsCopy then
     THorzline(MyHRule).VSize := MargArray[piHeight];
-   {$IFDEF JPM_DEBUGGING}
+
+{$IFDEF JPM_DEBUGGING}
   CodeSite.SendFmtMsg('Result = [%d]',[Result]);
   CodeSite.ExitMethod(Self,'THRBlock.FindWidth');
-   {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TBlockLI.Create}
 
-constructor TBlockLI.Create(Master: ThtDocument; Prop: TProperties; AnOwnerCell: TCellBasic;
-  Sy: TElemSymb; APlain: boolean; AIndexType: ThtChar; AListNumb,
-  ListLevel: Integer; Attributes: TAttributeList);
+constructor TBlockLI.Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties;
+  Sy: TElemSymb; APlain: boolean; AIndexType: ThtChar; AListNumb, ListLevel: Integer);
 var
-  Tmp: ListBulletType;
+  Tmp: ThtBulletStyle;
   S: ThtString;
-  TmpFont: TMyFont;
+  TmpFont: ThtFont;
 begin
-  inherited Create(Master, Prop, AnOwnerCell, Attributes);
+  inherited Create(Parent, Attributes, Prop);
 
   Tmp := Prop.GetListStyleType;
   if Tmp <> lbBlank then
@@ -7119,53 +6485,47 @@ begin
   if (VarType(MargArrayO[MarginLeft]) in varInt) and (MargArrayO[MarginLeft] = IntNull) then
     case Sy of
 
-      OLSy, ULSy, DirSy, MenuSy:
-//        if FListStyleType = lbNone then
-//          MargArrayO[MarginLeft] := 0
-//        else
-//          MargArrayO[MarginLeft] := ListIndent;
-        MargArrayO[MarginLeft] := 0; // indention is done by the Sy tag's padding-left (see TStyleList.Initialize)
-      DLSy:
+      OLSy, ULSy, DirSy, MenuSy, DLSy:
         MargArrayO[MarginLeft] := 0;
+        
     else
       MargArrayO[MarginLeft] := ListIndent;
     end;
 
   FListNumb := AListNumb;
-  FListFont := TMyFont.Create;
+  FListFont := ThtFont.Create;
   TmpFont := Prop.GetFont;
   FListFont.Assign(TmpFont);
   TmpFont.Free;
 
   S := Prop.GetListStyleImage;
   if S <> '' then
-    Image := TImageObj.SimpleCreate(Master, S);
+    Image := TImageObj.SimpleCreate(MyCell, S);
 end;
 
-constructor TBlockLI.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor TBlockLI.CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode);
 var
-  TT: TBlockLI;
+  T: TBlockLI absolute Source;
 begin
-  inherited CreateCopy(AMasterList, T);
-  TT := T as TBlockLI;
-  FListType := TT.FListType;
-  FListNumb := TT.FListNumb;
-  FListStyleType := TT.FListStyleType;
-  if Assigned(TT.Image) then
-    Image := TImageObj.CreateCopy(AMasterList, TT.Image);
-  FListFont := TMyFont.Create;
-  FListFont.Assign(TT.ListFont);
+  inherited CreateCopy(OwnerCell,Source);
+  FListType := T.FListType;
+  FListNumb := T.FListNumb;
+  FListStyleType := T.FListStyleType;
+  if Assigned(T.Image) then
+    Image := TImageObj.CreateCopy(MyCell, T.Image);
+  FListFont := ThtFont.Create;
+  FListFont.Assign(T.ListFont);
 end;
 
 destructor TBlockLI.Destroy;
 begin
   ListFont.Free;
   Image.Free;
-  inherited;
+  inherited Destroy;
 end;
 
-function TBlockLI.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-  var MaxWidth: Integer; var Curs: Integer): Integer;
+function TBlockLI.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+  var MaxWidth, Curs: Integer): Integer;
 begin
   {$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TBlockLI.DrawLogic');
@@ -7191,17 +6551,14 @@ begin
   {$ENDIF}
   if Assigned(Image) then
   begin
-    Image.DrawLogic(Document, Canvas, nil, 100, 0);
-    if (Image.Image = ErrorBitmap) then
-    begin
-      Image.Free;
-      Image := nil;
-    end;
+    Image.DrawLogicInline(Canvas, nil, 100, 0);
+    if Image.Image = ErrorImage then
+      FreeAndNil(Image);
   end;
   Document.FirstLineHtPtr := @FirstLineHt;
   FirstLineHt := 0;
   try
-    Result := inherited DrawLogic(Canvas, X, Y, XRef, YRef, AWidth, AHeight, BlHt, IMgr, MaxWidth, Curs);
+    Result := inherited DrawLogic1(Canvas, X, Y, XRef, YRef, AWidth, AHeight, BlHt, IMgr, MaxWidth, Curs);
   finally
     Document.FirstLineHtPtr := nil;
   end;
@@ -7228,8 +6585,7 @@ end;
 
 {----------------TBlockLI.Draw}
 
-function TBlockLI.Draw1(Canvas: TCanvas; const ARect: TRect;
-  IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
+function TBlockLI.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
 
 const
   MaxNumb = 26;
@@ -7259,16 +6615,14 @@ begin
     YB := FirstLineHt - Document.YOff;
     if (YB < ARect.Top - 50) or (YB > ARect.Bottom + 50) then
       Exit;
-    if Assigned(Image) and (Image.Image <> DefBitmap) and Document.ShowImages then
-    begin
-      Image.DoDraw(Canvas, X - 16, YB - Image.ObjHeight, Image.Image, Image.Mask);
-    end
+    if Assigned(Image) and (Image.Image <> DefImage) and Document.ShowImages then
+      Image.DoDraw(Canvas, X - 16, YB - Image.ObjHeight, Image.Image)
     else if not (ListType in [None, Definition]) then
     begin
       if ListStyleType in [lbDecimal, lbLowerAlpha, lbLowerRoman, lbUpperAlpha, lbUpperRoman] then
       begin
         AlphaNumb := Min(ListNumb, MaxNumb);
-        case FListStyleType of
+        case ListStyleType of
           lbLowerAlpha: NStr := LowerAlpha[AlphaNumb];
           lbUpperAlpha: NStr := HigherAlpha[AlphaNumb];
           lbLowerRoman: NStr := LowerRoman[AlphaNumb];
@@ -7317,8 +6671,7 @@ end;
 
 {----------------TBodyBlock.Create}
 
-constructor TBodyBlock.Create(Master: ThtDocument; Prop: TProperties;
-  AnOwnerCell: TCellBasic; Attributes: TAttributeList);
+constructor TBodyBlock.Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties);
 var
   PRec: PtPositionRec;
   Image: ThtString;
@@ -7329,14 +6682,14 @@ begin
   StyleUn.LogProperties(Prop,'Prop');
   CodeSite.AddSeparator;
   {$ENDIF}
-  inherited Create(Master,Prop,AnOwnerCell,Attributes);
-  positioning := PosStatic; {7.28}
+  inherited Create(Parent,Attributes,Prop);
+  Positioning := PosStatic; {7.28}
   Prop.GetBackgroundPos(0, 0, PRec);
   if Prop.GetBackgroundImage(Image) and (Image <> '') then
-    Master.SetBackgroundBitmap(Image, PRec);
+    Document.SetBackgroundBitmap(Image, PRec);
   Val := Prop.GetBackgroundColor;
   if Val <> clNone then
-    Master.SetBackGround(Val or PalRelative);
+    Document.SetBackGround(Val or PalRelative);
   {$IFDEF JPM_DEBUGGING}
   CodeSite.ExitMethod(Self,'TBodyBlock.Create');
   {$ENDIF}
@@ -7346,7 +6699,7 @@ end;
 
 function TBodyBlock.GetURL(Canvas: TCanvas; X, Y: Integer;
   out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj};
-  out ATitle: ThtString): guResultType;
+  out ATitle: ThtString): ThtguResultType;
 begin
   Result := MyCell.GetURL(Canvas, X, Y, UrlTarg, FormControl, ATitle);
   if (BlockTitle <> '') then
@@ -7358,8 +6711,8 @@ end;
 
 {----------------TBodyBlock.DrawLogic}
 
-function TBodyBlock.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-  var MaxWidth: Integer; var Curs: Integer): Integer;
+function TBodyBlock.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+  var MaxWidth, Curs: Integer): Integer;
 var
   ScrollWidth: Integer;
   Lindex, RIndex, AutoCount: Integer;
@@ -7395,7 +6748,7 @@ begin
   ApplyBoxSettings(MargArray,Document.UseQuirksMode);
 
   X := MargArray[MarginLeft] + MargArray[PaddingLeft] + MargArray[BorderLeftWidth];
-  NewWidth := IMgr.Width - (X + MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth]);
+  ContentWidth := IMgr.Width - (X + MargArray[MarginRight] + MargArray[PaddingRight] + MargArray[BorderRightWidth]);
 
   DrawTop := MargArray[MarginTop];
 
@@ -7404,10 +6757,10 @@ begin
   SaveID := IMgr.CurrentID;
   Imgr.CurrentID := Self;
   LIndex := IMgr.SetLeftIndent(X, Y);
-  RIndex := IMgr.SetRightIndent(X + NewWidth, Y);
+  RIndex := IMgr.SetRightIndent(X + ContentWidth, Y);
 
   ContentTop := Y + MargArray[MarginTop] + MargArray[PaddingTop] + MargArray[BorderTopWidth];
-  MyCell.DoLogicX(Canvas, X, ContentTop, 0, 0, NewWidth,
+  MyCell.DoLogicX(Canvas, X, ContentTop, 0, 0, ContentWidth,
     AHeight - MargArray[MarginTop] - MargArray[MarginBottom], BlHt, ScrollWidth, Curs);
 
   Len := Curs - StartCurs;
@@ -7427,7 +6780,7 @@ begin
   Imgr.CurrentID := SaveID;
   if DrawHeight < SectionHeight then
     DrawHeight := SectionHeight;
-  MaxWidth := Max(IMgr.Width, Max(ScrollWidth, NewWidth) + MargArray[MarginLeft] + MargArray[MarginRight]);
+  MaxWidth := Max(IMgr.Width, Max(ScrollWidth, ContentWidth) + MargArray[MarginLeft] + MargArray[MarginRight]);
   if DrawList.Count = 0 then
     DrawSort;
   {$IFDEF JPM_DEBUGGING}
@@ -7447,8 +6800,7 @@ end;
 
 {----------------TBodyBlock.Draw}
 
-function TBodyBlock.Draw1(Canvas: TCanvas; const ARect: TRect;
-  IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
+function TBodyBlock.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
 var
   SaveID: TObject;
   Y: Integer;
@@ -7459,8 +6811,14 @@ begin
   X := IMgr.LfEdge + MargArray[MarginLeft] + MargArray[BorderLeftWidth] + MargArray[PaddingLeft];
   SaveID := IMgr.CurrentID;
   Imgr.CurrentID := Self;
-  DrawTheList(Canvas, ARect, NewWidth, X, IMgr.LfEdge, 0);
+  DrawTheList(Canvas, ARect, ContentWidth, X, IMgr.LfEdge, 0);
   Imgr.CurrentID := SaveID;
+
+  //>-- DZ
+  DrawRect.Top    := Y;
+  DrawRect.Left   := X;
+  DrawRect.Right  := DrawRect.Left + ContentWidth;
+  DrawRect.Bottom := DrawRect.Top + DrawHeight;
 end;
 
 { ThtDocument }
@@ -7474,7 +6832,8 @@ end;
 
 constructor ThtDocument.Create(Owner: THtmlViewerBase; APaintPanel: TWinControl);
 begin
-  inherited Create(Self);
+  FDocument := Self;
+  inherited Create(nil);
   {$ifdef has_StyleElements}
   FStyleElements := Owner.StyleElements;
   {$Endif}
@@ -7507,10 +6866,9 @@ constructor ThtDocument.CreateCopy(T: ThtDocument);
 begin
   PrintTableBackground := T.PrintTableBackground;
   PrintBackground := T.PrintBackground;
-  BitmapList := T.BitmapList; {same list}
+  ImageCache := T.ImageCache; {same list}
   InlineList := T.InlineList; {same list}
   IsCopy := True;
-  inherited CreateCopy(Self, T);
   System.Move(T.ShowImages, ShowImages, PtrSub(@Background, @ShowImages) + Sizeof(Integer));
   PreFontName := T.PreFontName;
   htmlFormList := TFreeList.Create; {no copy of list made}
@@ -7519,8 +6877,11 @@ begin
   MissingImages := ThtStringList.Create;
   PanelList := TList.Create;
   DrawList := TDrawList.Create;
+  FDocument := Self;
+  inherited CreateCopy(nil, T);
   ScaleX := 1.0;
   ScaleY := 1.0;
+
   UseQuirksMode := T.UseQuirksMode;
   {$ifdef has_StyleElements}
   StyleElements := T.StyleElements;
@@ -7544,37 +6905,33 @@ begin
   PositionList.Free;
   TabOrderList.Free;
   if not IsCopy then
-    TInlineList(InlineList).Free;
+    InlineList.Free;
   FPropStack.Free;
 end;
 
 {$ifdef has_StyleElements}
 procedure ThtDocument.SetStyleElements(const AValue : TStyleElements);
 begin
-  if AValue <> FStyleElements then begin
+  if AValue <> FStyleElements then
+  begin
     FStyleElements := AValue;
     Self.UpdateStyleElements;
   end;
 end;
 
 procedure ThtDocument.UpdateStyleElements;
-var i : Integer;
-  LControl : TControl;
+var
+  i: Integer;
 begin
-  if Assigned(FormControlList) then begin
-    if (FormControlList.Count > 0) then begin
-      for i := 0 to FormControlList.Count -1 do begin
-        LControl := FormControlList[i].TheControl;
-        LControl.StyleElements := FStyleElements;
-      end;
-    end;
-  end;
+  if FormControlList <> nil then
+    for i := 0 to FormControlList.Count - 1 do
+      FormControlList[i].TheControl.StyleElements := FStyleElements;
 end;
 {$endif}
 
 function ThtDocument.GetURL(Canvas: TCanvas; X, Y: Integer;
   out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj};
-  out ATitle: ThtString): guResultType;
+  out ATitle: ThtString): ThtguResultType;
 var
   OldLink: TFontObj;
   OldImage: TImageObj;
@@ -7635,22 +6992,27 @@ end;
 
 procedure ThtDocument.CheckGIFList(Sender: TObject);
 var
+  IsAniGifBackground: Boolean;
   I: Integer;
   Frame: Integer;
 begin
   if IsCopy then
     Exit;
   Frame := 0;
-  if Assigned(BackgroundAniGif) then
-    Frame := BackgroundAniGif.CurrentFrame;
+  IsAniGifBackground := BackgroundImage is ThtGifImage;
+  if IsAniGifBackground then
+  begin
+    IsAniGifBackground := ThtGifImage(BackgroundImage).Gif.Animate;
+    if IsAniGifBackground then
+      Frame := ThtGifImage(BackgroundImage).Gif.CurrentFrame;
+  end;
   for I := 0 to AGifList.Count - 1 do
-    with TGifImage(AGifList.Items[I]) do
+    with TGifImage(AGifList[I]) do
       if ShowIt then
-      begin
         CheckTime(PPanel);
-      end;
-  if Assigned(BackgroundAniGif) and (Frame <> BackgroundAniGif.CurrentFrame) then
-    PPanel.Invalidate;
+  if IsAniGifBackground then
+    if Frame <> ThtGifImage(BackgroundImage).Gif.CurrentFrame then
+      PPanel.Invalidate;
   Timer.Interval := 40;
 end;
 
@@ -7660,10 +7022,9 @@ var
 begin
   {After next Draw, hide all formcontrols that aren't to be shown}
   for I := 0 to htmlFormList.Count - 1 do
-    with ThtmlForm(htmlFormList.Items[I]) do
+    with ThtmlForm(htmlFormList[I]) do
       for J := 0 to ControlList.Count - 1 do
-        with TFormControlObj(ControlList.Items[J]) do
-          ShowIt := False;
+        ControlList[J].ShowIt := False;
   for I := 0 to PanelList.Count - 1 do
     TPanelObj(PanelList[I]).ShowIt := False; {same for panels}
 end;
@@ -7683,11 +7044,9 @@ begin
     PositionList.Clear;
     TInlineList(InlineList).Clear;
   end;
-  BackgroundBitmap := nil;
-  BackgroundMask := nil;
-  BackgroundAniGif := nil;
+  BackgroundImage := nil;
   if BitmapLoaded and (BitmapName <> '') then
-    BitmapList.DecUsage(BitmapName);
+    ImageCache.DecUsage(BitmapName);
   BitmapName := '';
   BitmapLoaded := False;
   AGifList.Clear;
@@ -7723,7 +7082,7 @@ end;
 
 //-- BG ---------------------------------------------------------- 03.06.2012 --
 // extracted from CopyToClipboardA(), GetSelLength() and GetSelTextBuf().
-function ThtDocument.CopyToBuffer(Buffer: SelTextCount): Integer;
+function ThtDocument.CopyToBuffer(Buffer: TSelTextCount): Integer;
 var
   I: Integer;
 begin
@@ -7749,13 +7108,13 @@ end;
 procedure ThtDocument.CopyToClipboardA(Leng: Integer);
 begin
   if SelE > SelB then
-    CopyToBuffer(ClipBuffer.Create(Leng));
+    CopyToBuffer(TClipBuffer.Create(Leng));
 end;
 
 function ThtDocument.GetSelLength: Integer;
 begin
   if SelE > SelB then
-    Result := CopyToBuffer(SelTextCount.Create)
+    Result := CopyToBuffer(TSelTextCount.Create)
   else
     Result := 0; {nothing to do}
 end;
@@ -7764,7 +7123,7 @@ end;
 function ThtDocument.GetSelTextBuf(Buffer: PWideChar; BufSize: Integer): Integer;
 begin
   if SelE > SelB then
-    Result := CopyToBuffer(SelTextBuf.Create(Buffer, BufSize))
+    Result := CopyToBuffer(TSelTextBuf.Create(Buffer, BufSize))
   else
   begin
     if BufSize >= 1 then
@@ -7779,7 +7138,7 @@ end;
 
 //------------------------------------------------------------------------------
 function ThtDocument.DoLogic(Canvas: TCanvas; Y: Integer; Width, AHeight, BlHt: Integer;
-  var ScrollWidth: Integer; var Curs: Integer): Integer;
+  var ScrollWidth, Curs: Integer): Integer;
 var
   I, J: Integer;
 begin
@@ -7824,6 +7183,7 @@ begin
   for I := 0 to AGifList.Count - 1 do
     with TGifImage(AGifList.Items[I]) do
     begin
+      ShowIt := False; // when gif is drawn, it will set it to true again. Avoids animating invisible gifs.
       Animate := False; {starts iteration count from 1}
       if not Self.IsCopy then
         Animate := True;
@@ -7910,13 +7270,8 @@ begin
 
   if Assigned(Timer) then
     Timer.Enabled := False;
-  for I := 0 to AGifList.Count - 1 do
-    with TGifImage(AGifList.Items[I]) do
-    begin
-      ShowIt := False;
-    end;
-  if Assigned(BackgroundAniGif) and not IsCopy then
-    BackgroundAniGif.ShowIt := True;
+  if (BackgroundImage is ThtGifImage) and not IsCopy then
+    ThtGifImage(BackgroundImage).Gif.ShowIt := True;
   if (ColorBits <= 8) then
   begin
     OldPal := SelectPalette(Canvas.Handle, ThePalette, True);
@@ -7978,8 +7333,7 @@ end;
 
 procedure ThtDocument.SetBackgroundBitmap(const Name: ThtString; const APrec: PtPositionRec);
 begin
-  BackgroundBitmap := nil;
-  BackgroundAniGif := nil;
+  BackgroundImage := nil;
   BitmapName := Name;
   BitmapLoaded := False;
   BackgroundPRec := APrec;
@@ -7989,45 +7343,34 @@ end;
 procedure ThtDocument.InsertImage(const Src: ThtString; Stream: TStream; out Reformat: boolean);
 var
   UName: ThtString;
-  J: Integer;
-  Pair: TBitmapItem;
+  I, J: Integer;
+  Image: ThtImage;
   Rformat, Error: boolean;
-  Image: TgpObject;
-  AMask: TBitmap;
-  Tr, Transparent: Transparency;
+  Transparent: TTransparency;
   Obj: TObject;
 begin
+  Image := nil;
+  Error := False;
   Reformat := False;
-  UName := Trim(Uppercase(Src));
-  J := MissingImages.IndexOf(UName);
-  if J >= 0 then
+  UName := htUpperCase(htTrim(Src));
+  I := ImageCache.IndexOf(UName); {first see if the bitmap is already loaded}
+  J := MissingImages.IndexOf(UName); {see if it's in missing image list}
+  if (I = -1) and (J >= 0) then
   begin
-    Error := False;
-    if BitmapList.IndexOf(UName) = -1 then
-      // Bitmap not yet loaded: Add to BitmmapList.
-      try
-        AMask := nil;
-        Transparent := NotTransp;
-        Image := LoadImageFromStream(Stream, Transparent, AMask);
-        if AMask <> nil then
-          Tr := Transparent
-        else
-          Tr := NotTransp;
-        Pair := TBitmapItem.Create(Image, AMask, Tr);
-        try
-          BitmapList.AddObject(UName, Pair); {put new bitmap in list}
-          BitmapList.DecUsage(UName); {this does not count as being used yet}
-        except {accept inability to create}
-          Pair.Mask := nil;
-          Pair.MImage := nil;
-          Pair.Free;
-        end;
-      except
-        Error := True;
-      end;
-
-    // Insert image into all TImageObj that are missing it.
-    repeat
+    Transparent := NotTransp;
+    Image := LoadImageFromStream(Stream, Transparent);
+    if Image <> nil then {put in Cache}
+    begin
+      ImageCache.AddObject(UName, Image); {put new bitmap in list}
+      ImageCache.DecUsage(UName); {this does not count as being used yet}
+    end
+    else
+      Error := True; {bad stream or Nil}
+  end;
+  if (I >= 0) or Assigned(Image) or Error then {a valid image in the Cache or Bad stream}
+  begin
+    while J >= 0 do
+    begin
       Obj := MissingImages.Objects[J];
       if (Obj = Self) and not IsCopy and not Error then
         BitmapLoaded := False {the background image, set to load}
@@ -8038,32 +7381,32 @@ begin
       end;
       MissingImages.Delete(J);
       J := MissingImages.IndexOf(UName);
-    until J = -1;
+    end;
   end;
 end;
 
 //------------------------------------------------------------------------------
-function ThtDocument.GetTheImage(const BMName: ThtString; var Transparent: Transparency;
-  out AMask: TBitmap; out FromCache, Delay: boolean): TgpObject;
-{Note: Bitmaps and Mask returned by this routine are on "loan".  Do not destroy them}
-{Transparent may be set to NotTransp or LLCorner on entry but may discover it's TrGif or TrPng here}
+function ThtDocument.GetTheImage(const BMName: ThtString; var Transparent: TTransparency; out FromCache, Delay: boolean): ThtImage;
+{Note: bitmaps and Mask returned by this routine are on "loan".  Do not destroy them}
+{Transparent may be set to NotTransp or LLCorner on entry but may discover it's TGif here}
 
   procedure GetTheBitmap;
   var
     Color: TColor;
+    Bitmap: TBitmap;
   begin
     if Assigned(GetBitmap) then
     begin {the OnBitmapRequest event}
+      Bitmap := nil;
       Color := -1;
-      GetBitmap(TheOwner, BMName, TBitmap(Result), Color);
-      if Assigned(Result) then
+      GetBitmap(TheOwner, BMName, Bitmap, Color);
+      if Bitmap <> nil then
         if Color <> -1 then
-        begin
-          AMask := GetImageMask(TBitmap(Result), True, Color);
-          Transparent := TrGif;
-        end
-        else if (Transparent = LLCorner) then
-          AMask := GetImageMask(TBitmap(Result), False, 0);
+          Result := ThtBitmapImage.Create(Bitmap, GetImageMask(Bitmap, True, Color), TrGif)
+        else if Transparent = LLCorner then
+          Result := ThtBitmapImage.Create(Bitmap, GetImageMask(Bitmap, False, 0), LLCorner)
+        else
+          Result := ThtBitmapImage.Create(Bitmap, nil, NotTransp);
     end;
   end;
 
@@ -8082,7 +7425,7 @@ function ThtDocument.GetTheImage(const BMName: ThtString; var Transparent: Trans
       else if Stream <> nil then
       begin
         try
-          Result := LoadImageFromStream(Stream, Transparent, AMask);
+          Result := LoadImageFromStream(Stream, Transparent);
         finally
           if Assigned(GottenImage) then
             GottenImage(TheOwner, BMName, Stream);
@@ -8110,7 +7453,7 @@ function ThtDocument.GetTheImage(const BMName: ThtString; var Transparent: Trans
         Stream := TMemoryStream.Create;
         try
           DecodeStream(Source, Stream);
-          Result := LoadImageFromStream(Stream, Transparent, AMask);
+          Result := LoadImageFromStream(Stream, Transparent);
         finally
           Stream.Free;
         end;
@@ -8123,44 +7466,22 @@ function ThtDocument.GetTheImage(const BMName: ThtString; var Transparent: Trans
 var
   UName, Name: ThtString;
   I: Integer;
-  Pair: TBitmapItem;
-  Tr: Transparency;
 begin
   Result := nil;
-  AMask := nil;
   Delay := False;
   FromCache := False;
-
-  try
-    if BMName <> '' then
+  if BMName <> '' then
+  begin
+    Name := htTrim(BMName);
+    UName := htUpperCase(Name);
+    I := ImageCache.IndexOf(UName); {first see if the bitmap is already loaded}
+    if I >= 0 then
+    begin {yes, handle the case where the image is already loaded}
+      Result := ImageCache.GetImage(I);
+      FromCache := True;
+    end
+    else
     begin
-      Name := htTrim(BMName);
-      UName := htUpperCase(Name);
-      I := BitmapList.IndexOf(UName); {first see if image is already loaded}
-      if I >= 0 then
-      begin {yes, image is already loaded}
-        Result := BitmapList.GetImage(I);
-        FromCache := True;
-        if Result is TBitmap then
-        begin
-          Pair := BitmapList.Objects[I];
-          case Pair.Transp of
-            TrGif, TrPng:
-              Transparent := Pair.Transp;
-          else
-            if Transparent = LLCorner then
-            begin
-              if not Assigned(Pair.Mask) then {1st bitmap may not have been marked transp}
-                Pair.Mask := GetImageMask(TBitmap(Result), False, 0);
-              if Assigned(Pair.Mask) then
-                Pair.Transp := LLCorner;
-            end;
-          end;
-          AMask := Pair.Mask;
-        end;
-        Exit;
-      end;
-
     {The image is not loaded yet, need to get it}
       if Copy(Name, 1, 11) = 'data:image/' then
         GetTheBase64(Name)
@@ -8170,27 +7491,12 @@ begin
         if Result = nil then
           GetTheStream;
         if (Result = nil) and not Delay then
-          Result := LoadImageFromFile(TheOwner.HtmlExpandFilename(BMName), Transparent, AMask);
+          Result := LoadImageFromFile(TheOwner.HtmlExpandFilename(BMName), Transparent);
       end;
 
-      if Assigned(Result) then {put in Image List for use later also}
-      begin
-        if Assigned(AMask) then
-          Tr := Transparent
-        else
-          Tr := NotTransp;
-        Pair := TBitmapItem.Create(Result, AMask, Tr);
-        try
-          BitmapList.AddObject(UName, Pair); {put new bitmap in list}
-        except
-          Pair.Mask := nil;
-          Pair.MImage := nil;
-          Pair.Free;
-        end;
-      end;
+      if Result <> nil then {put in Image List for use later also}
+        ImageCache.AddObject(UName, Result); {put new image in list}
     end;
-  except
-    Result := nil;
   end;
 end;
 
@@ -8213,57 +7519,44 @@ end;
 
 procedure ThtDocument.GetBackgroundBitmap;
 var
-  Mask: TBitmap;
-  Dummy1: Transparency;
-  TmpResult: TgpObject;
+  Dummy1: TTransparency;
   FromCache, Delay: boolean;
   Rslt: ThtString;
+  I: Integer;
+  UName: ThtString;
 begin
-  if ShowImages and not BitmapLoaded and (BitmapName <> '') then
-  begin
-    if not Assigned(BackgroundBitmap) then
+  UName := htUpperCase(htTrim(BitmapName));
+  if ShowImages and (UName <> '') then
+    if BackgroundImage = nil then
     begin
-      Dummy1 := NotTransp;
-      if not Assigned(GetBitmap) and not Assigned(GetImage) then
-        BitmapName := TheOwner.HtmlExpandFilename(BitmapName)
-      else if Assigned(ExpandName) then
+      if BitmapLoaded then
       begin
-        Rslt := '';
-        ExpandName(TheOwner, BitmapName, Rslt);
-        BitmapName := Rslt;
-      end;
-      TmpResult := GetTheImage(BitmapName, Dummy1, Mask, FromCache, Delay); {might be Nil}
-      if (TmpResult is TBitmap) {$IFNDEF NoGDIPlus}or (TmpResult is THtGpImage){$ENDIF !NoGDIPlus} then
-      begin
-        BackgroundBitmap := TmpResult;
-        BackgroundMask := Mask;
+        I := ImageCache.IndexOf(UName); {first see if the bitmap is already loaded}
+        if I >= 0 then
+          BackgroundImage := ImageCache.GetImage(I);
       end
-      else if TmpResult is TGifImage then
-      begin
-        BackgroundBitmap := TGifImage(TmpResult).MaskedBitmap;
-        BackgroundMask := TGifImage(TmpResult).Mask;
-        if TGifImage(TmpResult).IsAnimated and not IsCopy then
-        begin
-          BackgroundAniGif := TGifImage(TmpResult);
-          AGifList.Add(BackgroundAniGif);
-          BackgroundAniGif.Animate := True;
-        end;
-      end
-{$IFNDEF NoMetafile}
-      else if TmpResult is ThtMetaFile then
-      begin
-        BackgroundBitmap := ThtMetaFile(TmpResult);
-      end
-{$ENDIF}
       else
       begin
-        BackgroundBitmap := nil;
+        Dummy1 := NotTransp;
+        if not Assigned(GetBitmap) and not Assigned(GetImage) then
+          BitmapName := TheOwner.HtmlExpandFilename(BitmapName)
+        else if Assigned(ExpandName) then
+        begin
+          ExpandName(TheOwner, BitmapName, Rslt);
+          BitmapName := Rslt;
+        end;
+        BackgroundImage := GetTheImage(BitmapName, Dummy1, FromCache, Delay); {might be Nil}
         if Delay then
-          MissingImages.AddObject(BitmapName, Self);
+          MissingImages.AddObject(htUpperCase(htTrim(BitmapName)), Self);
+        BitmapLoaded := True;
       end;
-      BitmapLoaded := True;
+      if BackgroundImage is ThtGifImage then
+        if ThtGifImage(BackgroundImage).Gif.IsAnimated and not IsCopy then
+        begin
+          AGifList.Add(ThtGifImage(BackgroundImage).Gif);
+          ThtGifImage(BackgroundImage).Gif.Animate := True;
+        end;
     end;
-  end;
 end;
 
 //------------------------------------------------------------------------------
@@ -8302,7 +7595,7 @@ begin
 end;
 
 //------------------------------------------------------------------------------
-function ThtDocument.CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean;
+function ThtDocument.CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean;
 var
   Beyond: boolean;
 begin
@@ -8318,8 +7611,8 @@ procedure ThtDocument.ProcessInlines(SIndex: Integer; Prop: TProperties; Start: 
 {called when an inline property is found to specify a border}
 var
   I, EmSize, ExSize: Integer;
-  Result: InlineRec;
-  MargArrayO: TVMarginArray;
+  Result: ThtInThtLineRec;
+  MargArrayO: ThtVMarginArray;
   Dummy1: Integer;
 begin
  {$ifdef JPM_DEBUGGING}
@@ -8329,7 +7622,7 @@ begin
   begin
     if Start then
     begin {this is for border start}
-      Result := InlineRec.Create;
+      Result := ThtInThtLineRec.Create;
       InlineList.Add(Result);
       with Result do
       begin
@@ -8345,7 +7638,7 @@ begin
     else {this call has end information}
       for I := Count - 1 downto 0 do {the record we want is probably the last one}
       begin
-        Result := InlineRec(Items[I]);
+        Result := ThtInThtLineRec(Items[I]);
         if Prop.ID = Result.IDB then {check the ID to make sure}
         begin
           Result.EndBDoc := SIndex; {the source position of the border end}
@@ -8379,7 +7672,7 @@ var
   I: Integer;
 begin
   for I := 0 to Count - 1 do
-    with InlineRec(Items[I]) do
+    with ThtInThtLineRec(Items[I]) do
     begin
       StartB := Owner.FindDocPos(StartBDoc, False);
       EndB := Owner.FindDocPos(EndBDoc, False);
@@ -8394,7 +7687,7 @@ begin
   if NeedsConverting then
     AdjustValues;
   if (I < Count) and (I >= 0) then
-    Result := InlineRec(Items[I]).StartB
+    Result := ThtInThtLineRec(Items[I]).StartB
   else
     Result := 99999999;
 end;
@@ -8404,7 +7697,7 @@ begin
   if NeedsConverting then
     AdjustValues;
   if (I < Count) and (I >= 0) then
-    Result := InlineRec(Items[I]).EndB
+    Result := ThtInThtLineRec(Items[I]).EndB
   else
     Result := 99999999;
 end;
@@ -8420,14 +7713,14 @@ end;
 { TDummyCellObj }
 
 //-- BG ---------------------------------------------------------- 19.02.2013 --
-function TDummyCellObj.Clone(Master: ThtDocument): TCellObjBase;
+function TDummyCellObj.Clone(Parent: TBlock): TCellObjBase;
 begin
-  Result := TDummyCellObj.Create(Master, RowSpan);
+  Result := TDummyCellObj.Create(RowSpan);
   AssignTo(Result);
 end;
 
 //-- BG ---------------------------------------------------------- 19.02.2013 --
-constructor TDummyCellObj.Create(Master: ThtDocument; RSpan: Integer);
+constructor TDummyCellObj.Create(RSpan: Integer);
 begin
   inherited Create;
   FColSpan := 0;
@@ -8438,13 +7731,13 @@ end;
 procedure TDummyCellObj.Draw(Canvas: TCanvas; const ARect: TRect; X, Y, CellSpacing: Integer; Border: Boolean; Light,
   Dark: TColor);
 begin
-  inherited;
+  //abstract: inherited Draw(Canvas,ARect,X,Y,CellSpacing,Border,Light,Dark);
 end;
 
 //-- BG ---------------------------------------------------------- 19.02.2013 --
 procedure TDummyCellObj.DrawLogic2(Canvas: TCanvas; Y, CellSpacing: Integer; var Curs: Integer);
 begin
-  inherited;
+  //abstract: inherited DrawLogic2(Canvas,Y,CellSpacing,Curs);
 end;
 
 //-- BG ---------------------------------------------------------- 19.02.2013 --
@@ -8460,17 +7753,19 @@ procedure TCellObj.AssignTo(Destin: TCellObjBase);
 var
   CellObj: TCellObj absolute Destin;
 begin
-  inherited;
+  inherited AssignTo(Destin);
   if Destin is TCellObj then
   begin
     Move(FWd, CellObj.FWd, PtrSub(@FCell, @FWd));
 
-    if CellObj.Cell.MasterList.PrintTableBackground then
+    if CellObj.Cell.Document.PrintTableBackground then
     begin
       CellObj.Cell.BkGnd := Cell.BkGnd;
       CellObj.Cell.BkColor := Cell.BkColor;
       if Assigned(BGImage) then
-        BGImage := TImageObj.CreateCopy(CellObj.Cell.MasterList, BGImage);
+        // TODO: BG, 26.08.2013: is this correct?
+        BGImage := TImageObj.CreateCopy(CellObj.Cell, BGImage);
+        //BGImage := TImageObj.CreateCopy(CellObj.Cell.Document, Cell, BGImage);
     end
     else
       CellObj.Cell.BkGnd := False;
@@ -8480,24 +7775,24 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 19.02.2013 --
-function TCellObj.Clone(AMasterList: ThtDocument): TCellObjBase;
+function TCellObj.Clone(Parent: TBlock): TCellObjBase;
 begin
-  Result := TCellObj.CreateCopy(AMasterList, Self);
+  Result := TCellObj.CreateCopy(Parent, Self);
 end;
 
-constructor TCellObj.Create(Master: ThtDocument; AVAlign: AlignmentType; Attr: TAttributeList; Prop: TProperties);
+constructor TCellObj.Create(Parent: TTableBlock; AVAlign: ThtAlignmentStyle; Attr: TAttributeList; Prop: TProperties);
 {Note: on entry Attr and Prop may be Nil when dummy cells are being created}
 var
   I, AutoCount: Integer;
   Color: TColor;
   BackgroundImage: ThtString;
-  Algn: AlignmentType;
+  Algn: ThtAlignmentStyle;
 begin
  {$ifdef JPM_DEBUGGING}
  CodeSite.EnterMethod(Self,'TCellObj.Create');
  {$endif}
   inherited Create;
-  FCell := TCellObjCell.Create(Master);
+  FCell := TCellObjCell.Create(Parent);
   if Assigned(Prop) then
     Cell.Title := Prop.PropTitle;
   ColSpan := 1;
@@ -8524,7 +7819,7 @@ begin
               FSpecHt := ToSpecWidth(Value, Name);
 
           BGColorSy:
-            Cell.BkGnd := ColorFromString(Name, False, Cell.BkColor);
+            Cell.BkGnd := TryStrToColor(Name, False, Cell.BkColor);
 
           BackgroundSy:
             BackgroundImage := Name;
@@ -8541,11 +7836,10 @@ begin
   begin {Caption does not have Prop}
     if Prop.GetVertAlign(Algn) and (Algn in [Atop, AMiddle, ABottom]) then
       Valign := Algn;
-    if Master.UseQuirksMode then begin
-      Prop.GetVMarginArrayDefBorder(MargArrayO,clSilver);
-    end else begin
+    if Parent.Document.UseQuirksMode then
+      Prop.GetVMarginArrayDefBorder(MargArrayO, clSilver)
+    else
       Prop.GetVMarginArray(MargArrayO);
-    end;
     EmSize := Prop.EmSize;
     ExSize := Prop.ExSize;
     ConvMargArray(MargArrayO, 100, 0, EmSize, ExSize, 0, AutoCount, MargArray);
@@ -8563,7 +7857,7 @@ begin
     Prop.GetBackgroundImage(BackgroundImage); {'none' will change ThtString to empty}
     if BackgroundImage <> '' then
     begin
-      BGImage := TImageObj.SimpleCreate(Master, BackgroundImage);
+      BGImage := TImageObj.SimpleCreate(Cell, BackgroundImage);
       Prop.GetBackgroundPos(EmSize, ExSize, FPRec);
     end;
 
@@ -8575,22 +7869,22 @@ begin
     FPad.Left := MargArray[PaddingLeft];
 
     HasBorderStyle := False;
-    if BorderStyleType(MargArray[BorderTopStyle]) <> bssNone then
+    if ThtBorderStyle(MargArray[BorderTopStyle]) <> bssNone then
     begin
       HasBorderStyle := True;
       FBrd.Top := MargArray[BorderTopWidth];
     end;
-    if BorderStyleType(MargArray[BorderRightStyle]) <> bssNone then
+    if ThtBorderStyle(MargArray[BorderRightStyle]) <> bssNone then
     begin
       HasBorderStyle := True;
       FBrd.Right := MargArray[BorderRightWidth];
     end;
-    if BorderStyleType(MargArray[BorderBottomStyle]) <> bssNone then
+    if ThtBorderStyle(MargArray[BorderBottomStyle]) <> bssNone then
     begin
       HasBorderStyle := True;
       FBrd.Bottom := MargArray[BorderBottomWidth];
     end;
-    if BorderStyleType(MargArray[BorderLeftStyle]) <> bssNone then
+    if ThtBorderStyle(MargArray[BorderLeftStyle]) <> bssNone then
     begin
       HasBorderStyle := True;
       FBrd.Left := MargArray[BorderLeftWidth];
@@ -8604,11 +7898,10 @@ begin
  {$endif}
 end;
 
-//-- BG ---------------------------------------------------------- 19.02.2013 --
-constructor TCellObj.CreateCopy(Master: ThtDocument; T: TCellObj);
+constructor TCellObj.CreateCopy(Parent: TBlock; T: TCellObj);
 begin
   inherited Create;
-  FCell := TCellObjCell.CreateCopy(Master, T.Cell);
+  FCell := TCellObjCell.CreateCopy(Parent, T.Cell);
   T.AssignTo(Self);
 end;
 
@@ -8623,25 +7916,25 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-function TCellObj.getBorderBottom: Integer;
+function TCellObj.GetBorderBottom: Integer;
 begin
   Result := FBrd.Bottom;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-function TCellObj.getBorderLeft: Integer;
+function TCellObj.GetBorderLeft: Integer;
 begin
   Result := FBrd.Left;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-function TCellObj.getBorderRight: Integer;
+function TCellObj.GetBorderRight: Integer;
 begin
   Result := FBrd.Right;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-function TCellObj.getBorderTop: Integer;
+function TCellObj.GetBorderTop: Integer;
 begin
   Result := FBrd.Top;
 end;
@@ -8653,25 +7946,25 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-function TCellObj.getPaddingBottom: Integer;
+function TCellObj.GetPaddingBottom: Integer;
 begin
   Result := FPad.Bottom;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-function TCellObj.getPaddingLeft: Integer;
+function TCellObj.GetPaddingLeft: Integer;
 begin
   Result := FPad.Left;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-function TCellObj.getPaddingRight: Integer;
+function TCellObj.GetPaddingRight: Integer;
 begin
   Result := FPad.Right;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-function TCellObj.getPaddingTop: Integer;
+function TCellObj.GetPaddingTop: Integer;
 begin
   Result := FPad.Top;
 end;
@@ -8701,7 +7994,7 @@ begin
 
   if (BkImageName <> '') and not Assigned(BGImage) then
   begin
-    BGImage := TImageObj.SimpleCreate(Cell.MasterList, BkImageName);
+    BGImage := TImageObj.SimpleCreate(Cell, BkImageName);
     PRec := APrec;
   end;
 end;
@@ -8732,17 +8025,14 @@ begin
     Cell.DoLogic(Canvas, Y + FPad.Top + FBrd.Top + CellSpacing + YIndent, Wd - (HzSpace + CellSpacing),
       Ht - VrSpace - CellSpacing, 0, Dummy, Curs);
   end;
-  if Assigned(BGImage) and Cell.MasterList.ShowImages then
+  if Assigned(BGImage) and Cell.Document.ShowImages then
   begin
-    BGImage.DrawLogic(Cell.MasterList, Canvas, nil, 100, 0);
-    if BGImage.Image = ErrorBitmap then
-    begin
-      BGImage.Free;
-      BGImage := nil;
-    end
+    BGImage.DrawLogicInline(Canvas, nil, 100, 0);
+    if BGImage.Image = ErrorImage then
+      FreeAndNil(BGImage)
     else
     begin
-      BGImage.ImageKnown := True; {won't need reformat on InsertImage}
+      BGImage.ClientSizeKnown := True; {won't need reformat on InsertImage}
       NeedDoImageStuff := True;
     end;
   end;
@@ -8768,7 +8058,7 @@ var
   IsVisible: Boolean;
 
 begin
-  YO := Y - Cell.MasterList.YOff;
+  YO := Y - Cell.Document.YOff;
 
   BL := X + CellSpacing; {Border left and right}
   BR := X + Wd;
@@ -8793,15 +8083,15 @@ begin
     begin
       if BGImage = nil then
         NeedDoImageStuff := False
-      else if BGImage.Image <> DefBitmap then
+      else if BGImage.Image <> DefImage then
       begin
-        if BGImage.Image = ErrorBitmap then {Skip the background image}
+        if BGImage.Image = ErrorImage then {Skip the background image}
           FreeAndNil(BGImage)
         else
         try
           DoImageStuff(Canvas, Wd - CellSpacing, Ht - CellSpacing,
-            BGImage, PRec, TiledImage, TiledMask, NoMask);
-          if Cell.MasterList.IsCopy and (TiledImage is TBitmap) then
+            BGImage.Image, PRec, TiledImage, TiledMask, NoMask);
+          if Cell.IsCopy and (TiledImage is TBitmap) then
             TBitmap(TiledImage).HandleType := bmDIB;
         except {bad image, get rid of it}
           FreeAndNil(BGImage);
@@ -8813,16 +8103,16 @@ begin
     end;
 
     ImgOK := not NeedDoImageStuff and Assigned(BGImage) and (BGImage.Bitmap <> DefBitmap)
-      and Cell.MasterList.ShowImages;
+      and Cell.Document.ShowImages;
 
     if Cell.BkGnd then
     begin
-      Canvas.Brush.Color := ThemedColor(Cell.BkColor {$ifdef has_StyleElements},seClient in Cell.MasterList.StyleElements{$endif}) or PalRelative;
+      Canvas.Brush.Color := ThemedColor(Cell.BkColor {$ifdef has_StyleElements},seClient in Cell.Document.StyleElements{$endif}) or PalRelative;
       Canvas.Brush.Style := bsSolid;
-      if Cell.MasterList.IsCopy and ImgOK then
+      if Cell.IsCopy and ImgOK then
       begin
-        InitFullBG(FullBG, PR - PL, IH,Cell.MasterList.IsCopy);
-        FullBG.Canvas.Brush.Color := ThemedColor(Cell.BkColor{$ifdef has_StyleElements},seClient in Cell.MasterList.StyleElements{$endif}) or PalRelative;
+        InitFullBG(FullBG, PR - PL, IH, Cell.IsCopy);
+        FullBG.Canvas.Brush.Color := ThemedColor(Cell.BkColor{$ifdef has_StyleElements},seClient in Cell.Document.StyleElements{$endif}) or PalRelative;
         FullBG.Canvas.Brush.Style := bsSolid;
         FullBG.Canvas.FillRect(Rect(0, 0, PR - PL, IH));
       end
@@ -8849,17 +8139,17 @@ begin
     end;
     if ImgOK and (TiledImage <> nil) then
     begin
-      if not Cell.MasterList.IsCopy then
+      if not Cell.IsCopy then
         {$IFNDEF NoGDIPlus}
-        if TiledImage is THtGpBitmap then
-          DrawGpImage(Canvas.Handle, THtGpImage(TiledImage), PL, FT, 0, IT, PR - PL, IH)
+        if TiledImage is ThtGpBitmap then
+          DrawGpImage(Canvas.Handle, ThtGpImage(TiledImage), PL, FT, 0, IT, PR - PL, IH)
         else
         {$ENDIF !NoGDIPlus}
         if NoMask then
           BitBlt(Canvas.Handle, PL, FT, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcCopy)
         else
         begin
-          InitFullBG(FullBG,PR - PL, IH,Cell.MasterList.IsCopy);
+          InitFullBG(FullBG, PR - PL, IH, Cell.IsCopy);
           BitBlt(FullBG.Canvas.Handle,  0,  0, PR - PL, IH, Canvas.Handle, PL, FT, SrcCopy);
           BitBlt(FullBG.Canvas.Handle,  0,  0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcInvert);
           BitBlt(FullBG.Canvas.Handle,  0,  0, PR - PL, IH, TiledMask.Canvas.Handle, 0, IT, SRCAND);
@@ -8868,16 +8158,15 @@ begin
         end
       else
       {$IFNDEF NoGDIPlus}
-      if TiledImage is THtGpBitmap then {printing}
+      if TiledImage is ThtGpBitmap then {printing}
       begin
         if Cell.BkGnd then
         begin
-          DrawGpImage(FullBg.Canvas.Handle, THtGpImage(TiledImage), 0, 0);
+          DrawGpImage(FullBg.Canvas.Handle, ThtGpImage(TiledImage), 0, 0);
           PrintBitmap(Canvas, PL, FT, PR - PL, IH, FullBG);
         end
         else
-          PrintGpImageDirect(Canvas.Handle, THtGpImage(TiledImage), PL, PT,
-            Cell.MasterList.ScaleX, Cell.MasterList.ScaleY);
+          PrintGpImageDirect(Canvas.Handle, ThtGpImage(TiledImage), PL, PT, Cell.Document.ScaleX, Cell.Document.ScaleY);
       end
       else
       {$ENDIF !NoGDIPlus}
@@ -8885,7 +8174,7 @@ begin
         PrintBitmap(Canvas, PL, FT, PR - PL, IH, TBitmap(TiledImage))
       else if Cell.BkGnd then
       begin
-        InitFullBG(FullBG,PR - PL, IH,Cell.MasterList.IsCopy);
+        InitFullBG(FullBG, PR - PL, IH, Cell.IsCopy);
         BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SrcInvert);
         BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TiledMask.Canvas.Handle, 0, IT, SRCAND);
         BitBlt(FullBG.Canvas.Handle, 0, 0, PR - PL, IH, TBitmap(TiledImage).Canvas.Handle, 0, IT, SRCPaint);
@@ -8907,7 +8196,7 @@ begin
       Rslt := GetClipRgn(Canvas.Handle, SaveRgn); {Rslt = 1 for existing region, 0 for none}
     {Form the region for this cell}
       GetWindowOrgEx(Canvas.Handle, Point); {when scrolling or animated Gifs, canvas may not start at X=0, Y=0}
-      if not Cell.MasterList.Printing then
+      if not Cell.Document.Printing then
         if IsWin95 then
           Rgn := CreateRectRgn(BL - Point.X, Max(BT - Point.Y, -32000), BR - Point.X, Min(BB - Point.Y, 32000))
         else
@@ -8947,56 +8236,56 @@ begin
     try
       DrawBorder(Canvas, Rect(BL, BT, BR, BB), Rect(PL, PT, PR, PB),
         htColors(MargArray[BorderLeftColor], MargArray[BorderTopColor], MargArray[BorderRightColor], MargArray[BorderBottomColor]),
-        htStyles(BorderStyleType(MargArray[BorderLeftStyle]), BorderStyleType(MargArray[BorderTopStyle]), BorderStyleType(MargArray[BorderRightStyle]), BorderStyleType(MargArray[BorderBottomStyle])),
-        MargArray[BackgroundColor], Cell.MasterList.Printing{$ifdef has_StyleElements},Cell.MasterList.StyleElements{$endif});
+        htStyles(ThtBorderStyle(MargArray[BorderLeftStyle]), ThtBorderStyle(MargArray[BorderTopStyle]), ThtBorderStyle(MargArray[BorderRightStyle]), ThtBorderStyle(MargArray[BorderBottomStyle])),
+        MargArray[BackgroundColor], Cell.Document.Printing{$ifdef has_StyleElements},Cell.Document.StyleElements{$endif});
     except
     end;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-procedure TCellObj.setBorderBottom(const Value: Integer);
+procedure TCellObj.SetBorderBottom(const Value: Integer);
 begin
   FBrd.Bottom := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-procedure TCellObj.setBorderLeft(const Value: Integer);
+procedure TCellObj.SetBorderLeft(const Value: Integer);
 begin
   FBrd.Left := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-procedure TCellObj.setBorderRight(const Value: Integer);
+procedure TCellObj.SetBorderRight(const Value: Integer);
 begin
   FBrd.Right := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-procedure TCellObj.setBorderTop(const Value: Integer);
+procedure TCellObj.SetBorderTop(const Value: Integer);
 begin
   FBrd.Top := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-procedure TCellObj.setPaddingBottom(const Value: Integer);
+procedure TCellObj.SetPaddingBottom(const Value: Integer);
 begin
   FPad.Bottom := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-procedure TCellObj.setPaddingLeft(const Value: Integer);
+procedure TCellObj.SetPaddingLeft(const Value: Integer);
 begin
   FPad.Left := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-procedure TCellObj.setPaddingRight(const Value: Integer);
+procedure TCellObj.SetPaddingRight(const Value: Integer);
 begin
   FPad.Right := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 08.01.2012 --
-procedure TCellObj.setPaddingTop(const Value: Integer);
+procedure TCellObj.SetPaddingTop(const Value: Integer);
 begin
   FPad.Top := Value;
 end;
@@ -9011,10 +8300,10 @@ begin
   inherited Create;
   if Assigned(Attr) then
     for I := 0 to Attr.Count - 1 do
-      with TAttribute(Attr[I]) do
+      with Attr[I] do
         case Which of
           BGColorSy:
-            BkGnd := ColorFromString(Name, False, BkColor);
+            BkGnd := TryStrToColor(Name, False, BkColor);
           BackgroundSy:
             BkImage := Name;
           HeightSy:
@@ -9037,18 +8326,18 @@ end;
 
 {----------------TCellList.CreateCopy}
 
-constructor TCellList.CreateCopy(AMasterList: ThtDocument; T: TCellList);
+constructor TCellList.CreateCopy(Parent: TBlock; T: TCellList);
 var
   I: Integer;
 begin
-  inherited create;
+  inherited Create;
   BreakBefore := T.BreakBefore;
   BreakAfter := T.BreakAfter;
   KeepIntact := T.KeepIntact;
   RowType := T.Rowtype;
   for I := 0 to T.Count - 1 do
     if Assigned(T[I]) then
-      Add(T[I].Clone(AMasterList))
+      Add(T[I].Clone(Parent))
     else
       Add(nil);
 end;
@@ -9124,8 +8413,8 @@ end;
 
 {----------------TCellList.DrawLogic1}
 
-function TCellList.DrawLogic1(Canvas: TCanvas; const Widths: IntArray; Span,
-  CellSpacing, AHeight, Rows: Integer; out Desired: Integer; out Spec, More: boolean): Integer;
+function TCellList.DrawLogicA(Canvas: TCanvas; const Widths: TIntArray; Span, CellSpacing, AHeight, Rows: Integer;
+  out Desired: Integer; out Spec, More: boolean): Integer;
 {Find vertical size of each cell, Row height of this row.  But final Y position
  is not known at this time.
  Rows is number rows in table.
@@ -9188,30 +8477,29 @@ end;
 
 {----------------TCellList.DrawLogic2}
 
-procedure TCellList.DrawLogic2(Canvas: TCanvas; Y: Integer;
-  CellSpacing: Integer; var Curs: Integer);
+procedure TCellList.DrawLogicB(Canvas: TCanvas; Y, CellSpacing: Integer; var Curs: Integer);
 {Calc Y indents. Set up Y positions of all cells.}
 var
   I: Integer;
   CellObj: TCellObjBase;
 begin
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TCellObj.DrawLogic2');
   CodeSite.SendFmtMsg('Y           = [%d]',[Y]);
   CodeSite.SendFmtMsg('CellSpacing = [%d]',[CellSpacing]);
   CodeSite.SendFmtMsg('Curs         = [%d]',[Curs]);
   CodeSite.AddSeparator;
-   {$ENDIF}
+{$ENDIF}
   for I := 0 to Count - 1 do
   begin
     CellObj := Items[I];
     if (CellObj <> nil) and (CellObj.ColSpan > 0) and (CellObj.RowSpan > 0) then
       CellObj.DrawLogic2(Canvas, Y, CellSpacing, Curs);
   end;
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.SendFmtMsg('Curs         = [%d]',[Curs]);
   CodeSite.ExitMethod(Self,'TCellObj.DrawLogic2');
-   {$ENDIF}
+{$ENDIF}
 end;
 
 //-- BG ---------------------------------------------------------- 12.09.2010 --
@@ -9222,7 +8510,7 @@ end;
 
 {----------------TCellList.Draw}
 
-function TCellList.Draw(Canvas: TCanvas; MasterList: ThtDocument; const ARect: TRect; const Widths: IntArray;
+function TCellList.Draw(Canvas: TCanvas; Document: ThtDocument; const ARect: TRect; const Widths: TIntArray;
   X, Y, YOffset, CellSpacing: Integer; Border: boolean; Light, Dark: TColor; MyRow: Integer): Integer;
 var
   I, Spacing: Integer;
@@ -9233,7 +8521,7 @@ begin
   Result := RowHeight + Y;
   Spacing := CellSpacing div 2;
 
-  with MasterList do {check CSS page break properties}
+  with Document do {check CSS page break properties}
     if Printing then
       if BreakBefore then
       begin
@@ -9279,7 +8567,7 @@ begin
             PageBottom := Result + Spacing;
           end;
 
-  with MasterList do {avoid splitting any small rows}
+  with Document do {avoid splitting any small rows}
     if Printing and (RowSpanHeight <= 100) and
       (Y + RowSpanHeight > PageBottom) then
     begin
@@ -9292,7 +8580,7 @@ begin
     end;
 
   if (YO + RowSpanHeight >= ARect.Top) and (YO < ARect.Bottom) and
-    (not MasterList.Printing or (Y < MasterList.PageBottom)) then
+    (not Document.Printing or (Y < Document.PageBottom)) then
     for I := 0 to Count - 1 do
     begin
       CellObj := Items[I];
@@ -9304,6 +8592,7 @@ end;
 
 //-- BG ---------------------------------------------------------- 09.02.2013 --
 function TryStrToTableFrame(const Str: ThtString; var Frame: TTableFrame): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 var
   Upr: string;
 begin
@@ -9333,6 +8622,7 @@ end;
 
 //-- BG ---------------------------------------------------------- 09.02.2013 --
 function TryStrToTableRules(const Str: ThtString; var Rules: TTableRules): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 var
   Upr: string;
 begin
@@ -9354,13 +8644,14 @@ end;
 
 {----------------THtmlTable.Create}
 
-constructor THtmlTable.Create(Master: ThtDocument; Attr: TAttributeList;
-  Prop: TProperties);
+constructor THtmlTable.Create(Parent: TCellBasic; Attr: TAttributeList; Prop: TProperties);
 var
   I: Integer;
   A: TAttribute;
 begin
-  inherited Create(Master, Prop);
+  inherited Create(Parent, Attr, Prop);
+  if FDisplay = pdUnassigned then
+    FDisplay := pdTable;
   Rows := TRowList.Create;
 
   CellPadding := 1;
@@ -9408,13 +8699,13 @@ begin
           CellPadding := Min(50, Max(0, Value));
 
         BorderColorSy:
-          ColorFromString(Name, False, BorderColor);
+          TryStrToColor(Name, False, BorderColor);
 
         BorderColorLightSy:
-          ColorFromString(Name, False, BorderColorLight);
+          TryStrToColor(Name, False, BorderColorLight);
 
         BorderColorDarkSy:
-          ColorFromString(Name, False, BorderColorDark);
+          TryStrToColor(Name, False, BorderColorDark);
       end;
   if Prop.Collapse then
     Cellspacing := -1;
@@ -9422,16 +8713,15 @@ end;
 
 {----------------THtmlTable.CreateCopy}
 
-constructor THtmlTable.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor THtmlTable.CreateCopy(OwnerCell: TCellBasic; Source: THtmlNode);
 var
   I: Integer;
-  HtmlTable: THtmlTable absolute T;
+  HtmlTable: THtmlTable absolute Source;
 begin
-  assert(T is THtmlTable);
-  inherited;
+  inherited CreateCopy(OwnerCell,Source);
   Rows := TRowList.Create;
   for I := 0 to HtmlTable.Rows.Count - 1 do
-    Rows.Add(TCellList.CreateCopy(Document, {OwnerCell.OwnerBlock,} HtmlTable.Rows[I]));
+    Rows.Add(TCellList.CreateCopy(OwnerCell.OwnerBlock, HtmlTable.Rows[I]));
 
   Move(HtmlTable.Initialized, Initialized, PtrSub(@EndList, @Initialized));
 
@@ -9472,7 +8762,7 @@ end;
 
 {----------------THtmlTable.DoColumns}
 
-procedure THtmlTable.DoColumns(Count: Integer; const SpecWidth: TSpecWidth; VAlign: AlignmentType; const Align: ThtString);
+procedure THtmlTable.DoColumns(Count: Integer; const SpecWidth: TSpecWidth; VAlign: ThtAlignmentStyle; const Align: ThtString);
 {add the <col> / <colgroup> info to the Cols list}
 var
   I: Integer;
@@ -9490,7 +8780,7 @@ procedure THtmlTable.Initialize;
 
   function DummyCell(RSpan: Integer): TCellObjBase;
   begin
-    Result := TDummyCellObj.Create(Document, RSpan);
+    Result := TDummyCellObj.Create(RSpan);
 //    if BkGnd then {transfer bgcolor to cell if no Table image}
 //    begin
 //      Result.Cell.BkGnd := True;
@@ -9555,7 +8845,7 @@ procedure THtmlTable.Initialize;
               begin {insert dummy cells in following rows if RowSpan > 1}
                 while Rows[K].Count < Cl do {add padding if row is short}
                   Rows[K].Add(DummyCell(0));
-                if Rows[K].Count < NumCols then // in an invalid table definition spanned cells may overlap and thus required dummies could be present, yet. 
+                if Rows[K].Count < NumCols then // in an invalid table definition spanned cells may overlap and thus required dummies could be present, yet.
                   Rows[K].Insert(Cl, DummyCell(0));
               end;
           end;
@@ -9607,7 +8897,7 @@ procedure THtmlTable.Initialize;
           for I := Row.Count to NumCols - 1 do
             Row.Add(DummyCell(1));
       end;
-      
+
       // continue with next row not spanned by this cell.
       if (Cl >= 0) and (CellObj.RowSpan > 0) then
         Inc(Rw, CellObj.RowSpan)
@@ -9657,7 +8947,7 @@ begin
   end; {if not ListsProcessed}
 end;
 
-procedure THtmlTable.IncreaseWidthsByWidth(WidthType: TWidthType; var Widths: IntArray;
+procedure THtmlTable.IncreaseWidthsByWidth(WidthType: TWidthType; var Widths: TIntArray;
   StartIndex, EndIndex, Required, Spanned, Count: Integer);
 // Increases width of spanned columns relative to given widths.
 var
@@ -9683,7 +8973,7 @@ begin
       end;
 end;
 
-procedure THtmlTable.IncreaseWidthsByPercentage(var Widths: IntArray;
+procedure THtmlTable.IncreaseWidthsByPercentage(var Widths: TIntArray;
   StartIndex, EndIndex, Required, Spanned, Percent, Count: Integer);
 // Increases width of spanned columns relative to given percentage.
 var
@@ -9710,8 +9000,8 @@ begin
       end;
 end;
 
-procedure THtmlTable.IncreaseWidthsByMinMaxDelta(WidthType: TWidthType; var Widths: IntArray;
-  StartIndex, EndIndex, Excess, DeltaWidth, Count: Integer; const Deltas: IntArray);
+procedure THtmlTable.IncreaseWidthsByMinMaxDelta(WidthType: TWidthType; var Widths: TIntArray;
+  StartIndex, EndIndex, Excess, DeltaWidth, Count: Integer; const Deltas: TIntArray);
 // Increases width of spanned columns relative to difference between min and max widths.
 var
   AddedExcess, AddedDelta, I, Add: Integer;
@@ -9762,7 +9052,7 @@ begin
 end;
 
 procedure THtmlTable.IncreaseWidthsRelatively(
-  var Widths: IntArray;
+  var Widths: TIntArray;
   StartIndex, EndIndex, Required, SpannedMultis: Integer; ExactRelation: Boolean);
 // Increases width of spanned columns according to relative columns specification.
 // Does not touch columns specified by percentage or absolutely.
@@ -9809,7 +9099,7 @@ begin
       end;
 end;
 
-procedure THtmlTable.IncreaseWidthsEvenly(WidthType: TWidthType; var Widths: IntArray;
+procedure THtmlTable.IncreaseWidthsEvenly(WidthType: TWidthType; var Widths: TIntArray;
   StartIndex, EndIndex, Required, Spanned, Count: Integer);
 // Increases width of spanned columns of given type evenly.
 var
@@ -9856,7 +9146,7 @@ procedure THtmlTable.GetMinMaxWidths(Canvas: TCanvas; TheWidth: Integer);
     OldType := NewType;
   end;
 
-  procedure UpdateRelativeWidths(var Widths: IntArray; const ColumnSpecs: TWidthTypeArray; StartIndex, EndIndex: Integer);
+  procedure UpdateRelativeWidths(var Widths: TIntArray; const ColumnSpecs: TWidthTypeArray; StartIndex, EndIndex: Integer);
   // Increases width of spanned columns according to relative columns specification.
   // Does not touch columns specified by percentage or absolutely.
   var
@@ -9925,7 +9215,7 @@ var
 
   procedure IncreaseMinMaxWidthsByMinMaxDelta(WidthType: TWidthType; StartIndex, EndIndex: Integer);
   var
-    Deltas: IntArray;
+    Deltas: TIntArray;
     I: Integer;
   begin
     Deltas := SubArray(MaxWidths, MinWidths);
@@ -9945,7 +9235,7 @@ var
   I, J, K, Span, EndIndex: Integer;
   Cells: TCellList;
   CellObj: TCellObjBase;
-  MaxSpans: IntArray;
+  MaxSpans: TIntArray;
   MaxSpan: Integer;
   MultiCount: Integer;
 begin
@@ -10028,8 +9318,9 @@ begin
               wtAbsolute:
               begin
                 // BG, 07.10.2012: issue 55: wrong CellMax calculation
-                CellMin := Max(CellMin, Value);   // CellMin should be at least the given absolute value
-                CellMax := Min(CellMax, Value);   // CellMax should be at most  the given absolute value
+                //CellMin := Max(CellMin, Value);   // CellMin should be at least the given absolute value
+                //CellMax := Min(CellMax, Value);   // CellMax should be at most  the given absolute value
+                CellMax := Value;   // CellMax should be at most  the given absolute value
                 CellMax := Max(CellMax, CellMin); // CellMax should be at least CellMin
               end;
 
@@ -10200,14 +9491,14 @@ end;
 
 {----------------THtmlTable.DrawLogic}
 
-function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+function THtmlTable.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
   var MaxWidth, Curs: Integer): Integer;
 
   function FindTableWidth: Integer;
 
     procedure IncreaseWidths(WidthType: TWidthType; MinWidth, NewWidth, Count: Integer);
     var
-      Deltas: IntArray;
+      Deltas: TIntArray;
       D, W: Integer;
     begin
       Deltas := SubArray(MaxWidths, MinWidths);
@@ -10221,7 +9512,7 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
       end;
     end;
 
-    procedure CalcPercentDeltas(var PercentDeltas: IntArray; NewWidth: Integer);
+    procedure CalcPercentDeltas(var PercentDeltas: TIntArray; NewWidth: Integer);
     var
       I: Integer;
       Percent, PercentDelta: Integer;
@@ -10236,8 +9527,8 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
         end;
     end;
 
-    procedure IncreaseWidthsByPercentage(var Widths: IntArray;
-      const PercentDeltas: IntArray;
+    procedure IncreaseWidthsByPercentage(var Widths: TIntArray;
+      const PercentDeltas: TIntArray;
       StartIndex, EndIndex, Required, Spanned, Percent, Count: Integer);
     // Increases width of columns relative to given percentages.
     var
@@ -10272,7 +9563,7 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
     Specified: boolean;
     NewWidth, MaxWidth, MinWidth, D, W, I: Integer;
     Counts: TIntegerPerWidthType;
-    PercentDeltas: IntArray;
+    PercentDeltas: TIntArray;
     PercentAbove0Count: Integer;
     PercentDeltaAbove0Count: Integer;
   begin
@@ -10292,7 +9583,7 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
 
     {fill in the Widths array}
     if MinWidth > NewWidth then
-      // The minimum table width fits exactly or is too wide. Thus use minimum widths, table might expand.
+      // The minimum table width is too wide. Thus use minimum widths, table might expand.
       Widths := Copy(MinWidths)
     else
     begin
@@ -10309,58 +9600,85 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
         end;
 
       Widths := Copy(MinWidths);
-      if (PercentAbove0Count > 0) and (NewWidth > 0) then
+
+      // As minimum widths fit into table try to preserve given absolute widths:
+      Counts[wtAbsolute] := 0;
+      W := 0;
+      for I := 0 to NumCols - 1 do
       begin
-        // Calculate widths with respect to percentage specifications.
-        // Don't shrink Column i below MinWidth[i]! Therefor spread exessive space
-        // trying to fit the percentage demands.
-        // If there are more than 100% percent reduce linearly to 100% (including
-        // the corresponding percentages of the MinWidth of all other columns).
-        SetLength(PercentDeltas, NumCols);
-        CalcPercentDeltas(PercentDeltas, NewWidth);
-
-        PercentDeltaAbove0Count := 0;
-        for I := 0 to NumCols - 1 do
-          if PercentDeltas[I] > 0 then
-            Inc(PercentDeltaAbove0Count);
-
-        IncreaseWidthsByPercentage(Widths, PercentDeltas, 0, NumCols - 1, NewWidth, MinWidth, Sum(PercentDeltas), PercentDeltaAbove0Count);
+        case ColumnSpecs[I] of
+          wtAbsolute:
+          begin
+            Widths[i] := MaxWidths[i];
+            Inc(Counts[wtAbsolute]);
+          end;
+        end;
+        Inc(W, Widths[i]);
       end;
-      MinWidth := Sum(Widths);
 
-      if MinWidth > NewWidth then
-        // Table is too small for given percentage specifications.
-        // Shrink percentage columns to fit exactly into NewWidth. All other columns are at minimum.
-        IncreaseWidths(wtPercent, MinWidth, NewWidth, Counts[wtPercent])
-      else if not Specified and (MaxWidth <= NewWidth) then
-        // Table width not specified and maximum widths fits into available width, table might be smaller than NewWidth
-        Widths := Copy(MaxWidths)
-      else if MinWidth < NewWidth then
+      if W > NewWidth then
       begin
-        // Expand columns to fit exactly into NewWidth.
-        // Prefer widening columns without or with relative specification.
-        CountsPerType(Counts, ColumnSpecs, 0, NumCols - 1);
-        if Counts[wtNone] > 0 then
+        // Given absolute widths plus minimum widths of other columns do not fit into table!
+        // Thus reduce the absolute widths as less as possible:
+
+        IncreaseWidths(wtAbsolute, W, NewWidth, Counts[wtAbsolute]);
+      end
+      else
+      begin
+        if (PercentAbove0Count > 0) and (NewWidth > 0) then
         begin
-          // a) There is at least 1 column without any width constraint: modify this/these.
-          IncreaseWidths(wtNone, MinWidth, NewWidth, Counts[wtNone]);
-        end
-        else if Counts[wtRelative] > 0 then
+          // Calculate widths with respect to percentage specifications.
+          // Don't shrink Column i below MinWidth[i]! Therefor spread exessive space
+          // trying to fit the percentage demands.
+          // If there are more than 100% percent reduce linearly to 100% (including
+          // the corresponding percentages of the MinWidth of all other columns).
+          SetLength(PercentDeltas, NumCols);
+          CalcPercentDeltas(PercentDeltas, NewWidth);
+
+          PercentDeltaAbove0Count := 0;
+          for I := 0 to NumCols - 1 do
+            if PercentDeltas[I] > 0 then
+              Inc(PercentDeltaAbove0Count);
+
+          IncreaseWidthsByPercentage(Widths, PercentDeltas, 0, NumCols - 1, NewWidth, MinWidth, Sum(PercentDeltas), PercentDeltaAbove0Count);
+        end;
+        MinWidth := Sum(Widths);
+
+        if MinWidth > NewWidth then
+          // Table (NewWidth) is too small for given percentage specifications.
+          // Shrink percentage columns to fit exactly into NewWidth. All other columns are at minimum.
+          IncreaseWidths(wtPercent, MinWidth, NewWidth, Counts[wtPercent])
+        else if not Specified and (MaxWidth <= NewWidth) then
+          // Table width not specified and maximum widths fits into available width, table might be smaller than NewWidth
+          Widths := Copy(MaxWidths)
+        else if MinWidth < NewWidth then
         begin
-          // b) There is at least 1 column with relative width: modify this/these.
-          W := NewWidth - MinWidth;
-          D := SumOfType(wtRelative, ColumnSpecs, Widths, 0, NumCols - 1);
-          IncreaseWidthsRelatively(Widths, 0, NumCols - 1, D + W, Sum(Multis), False);
-        end
-        else if Counts[wtPercent] > 0 then
-        begin
-          // c) There is at least 1 column with percentage width: modify this/these.
-          IncreaseWidths(wtPercent, MinWidth, NewWidth, Counts[wtPercent]);
-        end
-        else
-        begin
-          // d) All columns have absolute widths: modify relative to current width.
-          IncreaseWidths(wtAbsolute, MinWidth, NewWidth, Counts[wtAbsolute]);
+          // Expand columns to fit exactly into NewWidth.
+          // Prefer widening columns without or with relative specification.
+          CountsPerType(Counts, ColumnSpecs, 0, NumCols - 1);
+
+          if Counts[wtNone] > 0 then
+          begin
+            // a) There is at least 1 column without any width constraint: modify this/these.
+            IncreaseWidths(wtNone, MinWidth, NewWidth, Counts[wtNone]);
+          end
+          else if Counts[wtRelative] > 0 then
+          begin
+            // b) There is at least 1 column with relative width: modify this/these.
+            W := NewWidth - MinWidth;
+            D := SumOfType(wtRelative, ColumnSpecs, Widths, 0, NumCols - 1);
+            IncreaseWidthsRelatively(Widths, 0, NumCols - 1, D + W, Sum(Multis), False);
+          end
+          else if Counts[wtPercent] > 0 then
+          begin
+            // c) There is at least 1 column with percentage width: modify this/these.
+            IncreaseWidths(wtPercent, MinWidth, NewWidth, Counts[wtPercent]);
+          end
+          else
+          begin
+            // d) All columns have absolute widths: modify relative to current width.
+            IncreaseWidths(wtAbsolute, MinWidth, NewWidth, Counts[wtAbsolute]);
+          end;
         end;
       end;
     end;
@@ -10376,7 +9694,7 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
       I, J, K, H, Span, TotalMinHt, TotalDesHt, AddOn,
         Sum, AddedOn, Desired, UnSpec: Integer;
       More, Mr, IsSpeced: boolean;
-      MinHts, DesiredHts: IntArray;
+      MinHts, DesiredHts: TIntArray;
       SpecHts: array of boolean;
       F: double;
     begin
@@ -10407,7 +9725,7 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
           begin
             if J + Span > Rows.Count then
               Break; {otherwise will overlap}
-            H := DrawLogic1(Canvas, Widths, Span, CellSpacing, Max(0, AHeight - Rows.Count * CellSpacing),
+            H := DrawLogicA(Canvas, Widths, Span, CellSpacing, Max(0, AHeight - Rows.Count * CellSpacing),
               Rows.Count, Desired, IsSpeced, Mr) + CellSpacing;
             Inc(Desired, Cellspacing);
             More := More or Mr;
@@ -10557,7 +9875,7 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
         RowSpanHeight := 0;
         Inc(Result, RowHeight);
         for I := 0 to Count - 1 do
-          if Items[I] is TCellOBJ then
+          if Items[I] is TCellObj then
           begin
             CellObj := TCellObj(Items[I]);
             with CellObj do
@@ -10569,12 +9887,12 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
                 RowSpanHeight := Ht;
             end;
           end;
-      {DrawLogic2 is only called in nested tables if the outer table is calling DrawLogic2}
+      {DrawLogicB is only called in nested tables if the outer table is calling DrawLogic2}
         if Document.TableNestLevel = 1 then
           Document.InLogic2 := True;
         try
           if Document.InLogic2 then
-            DrawLogic2(Canvas, Y, CellSpacing, Curs);
+            DrawLogicB(Canvas, Y, CellSpacing, Curs);
         finally
           if Document.TableNestLevel = 1 then
             Document.InLogic2 := False;
@@ -10588,7 +9906,7 @@ function THtmlTable.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight
 var
   TopY: Integer;
   FirstLinePtr: PInteger;
-begin
+begin {THtmlTable.DrawLogic}
   {$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'THtmlTable.DrawLogic');
 
@@ -10857,15 +10175,15 @@ function THtmlTable.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentMana
     end;
 
   begin
-    if TTableBlock(Owner).TableBorder then
+    if TTableBlock(OwnerBlock).TableBorder then
     begin
       TopBorder := BorderWidth;
       BottomBorder := BorderWidth;
     end
     else
     begin
-      TopBorder := Owner.MargArray[BorderTopWidth];
-      BottomBorder := Owner.MargArray[BorderBottomWidth];
+      TopBorder := OwnerBlock.MargArray[BorderTopWidth];
+      BottomBorder := OwnerBlock.MargArray[BorderBottomWidth];
     end;
 
     case TablePartRec.TablePart of
@@ -10890,6 +10208,12 @@ begin
     YO := Y - YOffset;
 
     DrawX := X;
+
+    //>-- DZ
+    DrawRect.Top    := Y;
+    DrawRect.Left   := X;
+    DrawRect.Right  := DrawRect.Left + TableWidth;
+    DrawRect.Bottom := DrawRect.Top + DrawHeight;
     //DrawY := Y;
 
     if (YO + DrawHeight >= ARect.Top) and (YO < ARect.Bottom) or Document.Printing then
@@ -10909,9 +10233,9 @@ end;
 
 function THtmlTable.GetURL(Canvas: TCanvas; X, Y: Integer;
   out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj};
-  out ATitle: ThtString): guResultType;
+  out ATitle: ThtString): ThtguResultType;
 
-  function GetTableURL(X: Integer; Y: Integer): guResultType;
+  function GetTableURL(X: Integer; Y: Integer): ThtguResultType;
   var
     I, J, XX: Integer;
     Row: TCellList;
@@ -10979,10 +10303,10 @@ function THtmlTable.PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Inte
   end;
 
 begin
-  if (Y >= ContentTop) and (Y < ContentBot) and (X >= DrawX) and (X <= TableWidth + DrawX) then
-    Result := GetTableObj(X, Y)
+  if (Y >= ContentTop) and (Y < ContentBot) and (X >= DrawX) and (X <= TableWidth + DrawX) and GetTableObj(X, Y) then
+    Result := True
   else
-    Result := False;
+    Result := inherited PtInObject(X, Y, Obj, IX, IY);
 end;
 
 {----------------THtmlTable.FindCursor}
@@ -10990,8 +10314,7 @@ end;
 function THtmlTable.FindCursor(Canvas: TCanvas; X, Y: Integer;
   out XR, YR, CaretHt: Integer; out Intext: boolean): Integer;
 
-  function GetTableCursor(X, Y: Integer;
-    out XR, YR, CaretHt: Integer; out Intext: boolean): Integer;
+  function GetTableCursor(X, Y: Integer; out XR, YR, CaretHt: Integer; out Intext: boolean): Integer;
   var
     I, J, XX: Integer;
     Row: TCellList;
@@ -11028,7 +10351,7 @@ end;
 
 {----------------THtmlTable.CursorToXY}
 
-function THtmlTable.CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean;
+function THtmlTable.CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean;
 {note: returned X value is not correct here but it isn't used}
 var
   I, J: Integer;
@@ -11048,13 +10371,13 @@ begin
         end;
       end;
     end;
-    
+
   Result := False;
 end;
 
 {----------------THtmlTable.GetChAtPos}
 
-function THtmlTable.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean;
+function THtmlTable.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean;
 var
   I, J: Integer;
   Row: TCellList;
@@ -11080,7 +10403,7 @@ end;
 
 {----------------THtmlTable.FindString}
 
-function THtmlTable.FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function THtmlTable.FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 var
   I, J: Integer;
   Row: TCellList;
@@ -11103,7 +10426,7 @@ end;
 
 {----------------THtmlTable.FindStringR}
 
-function THtmlTable.FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function THtmlTable.FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 var
   I, J: Integer;
   Row: TCellList;
@@ -11203,26 +10526,41 @@ begin
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 01.12.2013 --
+constructor TSection.Create(Parent: TCellBasic);
+begin
+  inherited Create(Parent, nil, nil);
+  FDisplay := pdInline; // A section is always inline as the section is intended to handle consecutive inline elements.  
+  Buff := PWideChar(BuffS);
+  Fonts := TFontList.Create;
+  Images := TSizeableObjList.Create;
+  FormControls := TFormControlObjList.Create(False);
+  Lines := TFreeList.Create;
+end;
+
 {----------------TSection.Create}
 
-constructor TSection.Create(AMasterList: ThtDocument; L: TAttributeList; Prop: TProperties; AnURL: TUrlTarget; OwnerCell: TCellBasic; FirstItem: boolean);
+constructor TSection.Create(Parent: TCellBasic; Attr: TAttributeList; Prop: TProperties; AnURL: TUrlTarget; FirstItem: Boolean);
 var
   FO: TFontObj;
   T: TAttribute;
   S: ThtString;
-  Clr: ClearAttrType;
+  Clr: ThtClearStyle;
   Percent: boolean;
 begin
-  {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TSection.Create');
   StyleUn.LogProperties(Prop,'Prop');
   CodeSite.AddSeparator;
-  {$ENDIF}
-  inherited Create(AMasterList, Prop);
+{$ENDIF}
+  inherited Create(Parent, Attr, Prop);
+  if FDisplay = pdUnassigned then
+    FDisplay := pdInline;
   Buff := PWideChar(BuffS);
-  Len := 0;
-  BuffSize := 0;
   Fonts := TFontList.Create;
+  Images := TSizeableObjList.Create;
+  FormControls := TFormControlObjList.Create(False);
+  Lines := TFreeList.Create;
 
   FO := TFontObj.Create(Self, Prop.GetFont, 0);
   FO.Title := Prop.PropTitle;
@@ -11234,11 +10572,10 @@ begin
     FO.UrlTarget.Assign(AnUrl);
     Document.LinkList.Add(FO);
 {$IFNDEF NoTabLink}
-    if not AMasterList.StopTab then
+    if not Document.StopTab then
       FO.CreateTabControl(AnUrl.TabIndex);
 {$ENDIF}
   end;
-
   Fonts.Add(FO);
 
   LineHeight := Prop.GetLineHeight(Abs(FO.TheFont.Height));
@@ -11249,12 +10586,9 @@ begin
       FLPercent := Min(FirstLineIndent, 90);
   end;
 
-  Images := TFloatingObjList.Create;
-  FormControls := TFormControlObjList.Create(False);
-
-  if Assigned(L) then
+  if Assigned(Attr) then
   begin
-    if L.Find(ClearSy, T) then
+    if Attr.Find(ClearSy, T) then
     begin
       S := LowerCase(T.Name);
       if (S = 'left') then
@@ -11264,13 +10598,10 @@ begin
       else
         ClearAttr := clAll;
     end;
-    if L.TheID <> '' then
-      Document.IDNameList.AddObject(L.TheID, Self);
   end;
   if Prop.GetClear(Clr) then
     ClearAttr := Clr;
 
-  Lines := TFreeList.Create;
   if Prop.Props[TextAlign] = 'right' then
     Justify := Right
   else if Prop.Props[TextAlign] = 'center' then
@@ -11279,37 +10610,63 @@ begin
     Justify := FullJustify
   else
     Justify := Left;
+
   BreakWord := Prop.Props[WordWrap] = 'break-word';
-  {$IFDEF JPM_DEBUGGING}
+
+  if Self is TPreFormated then
+    WhiteSpaceStyle := wsPre
+  else if Document.NoBreak then
+    WhiteSpaceStyle := wsNoWrap
+  else
+    WhiteSpaceStyle := wsNormal;
+  if VarIsOrdinal(Prop.Props[piWhiteSpace]) then
+    WhiteSpaceStyle := ThtWhiteSpaceStyle(Prop.Props[piWhiteSpace])
+  else if VarIsStr(Prop.Props[piWhiteSpace]) then
+  begin
+    if not TryStrToWhiteSpace(Prop.Props[piWhiteSpace],WhiteSpaceStyle) then
+    begin
+    end;
+//    if Prop.Props[piWhiteSpace] = 'pre' then
+//      WhiteSpaceStyle := wsPre
+//    else if Prop.Props[piWhiteSpace] = 'nowrap' then
+//      WhiteSpaceStyle := wsNoWrap
+//    else if Prop.Props[piWhiteSpace] = 'pre-wrap' then
+//      WhiteSpaceStyle := wsPreWrap
+//    else if Prop.Props[piWhiteSpace] = 'pre-line' then
+//      WhiteSpaceStyle := wsPreLine
+//    else if Prop.Props[piWhiteSpace] = 'normal' then
+ //     WhiteSpaceStyle := wsNormal;
+  end;
+{$IFDEF JPM_DEBUGGING}
   CodeSite.ExitMethod(Self,'TSection.Create');
-  {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TSection.CreateCopy}
 
-constructor TSection.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor TSection.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
 var
-  TT: TSection;
+  T: TSection absolute Source;
 begin
-  inherited CreateCopy(AMasterList, T);
-  TT := T as TSection;
-  Len := TT.Len;
-  BuffSize := TT.BuffSize;
-  BuffS := TT.BuffS;
+  inherited CreateCopy(Parent,Source);
+  Len := T.Len;
+  BuffS := T.BuffS;
   SetLength(BuffS, Length(BuffS));
   Buff := PWideChar(BuffS);
-  Brk := TT.Brk;
-  Fonts := TFontList.CreateCopy(Self, TT.Fonts);
-  Images := TFloatingObjList.CreateCopy(AMasterList, TT.Images);
-  FormControls := TFormControlObjList.Create(False);
-  FormControls.Assign(TT.FormControls);
+  Brk := T.Brk;
+  Fonts := TFontList.CreateCopy(Self, T.Fonts);
+  //TODO -oBG, 24.03.2011: TSection has no Cell, but owns images. Thus Parent must be a THtmlNode.
+  //  and ThtDocument should become a TBodyBlock instead of a SectionList.
+  Images := TSizeableObjList.CreateCopy(Parent {must be Self}, T.Images);
+  FormControls := TFormControlObjList.CreateCopy(Parent, T.FormControls);
   Lines := TFreeList.Create;
-  Justify := TT.Justify;
-  ClearAttr := TT.ClearAttr;
-  LineHeight := TT.LineHeight;
-  FirstLineIndent := TT.FirstLineIndent;
-  FLPercent := TT.FLPercent;
-  BreakWord := TT.BreakWord;
+  Justify := T.Justify;
+  ClearAttr := T.ClearAttr;
+  LineHeight := T.LineHeight;
+  FirstLineIndent := T.FirstLineIndent;
+  FLPercent := T.FLPercent;
+  BreakWord := T.BreakWord;
+  WhiteSpaceStyle := T.WhiteSpaceStyle;
 end;
 
 {----------------TSection.Destroy}
@@ -11318,9 +10675,6 @@ destructor TSection.Destroy;
 var
   i: Integer;
 begin
-  if XP <> nil then
-    Freemem(XP);
-
   { Yunqa.de: Do not leave references to deleted font objects in the
     HtmlViewer's link list. Otherwise TURLTarget.SetLast might see an access
     violation. }
@@ -11329,11 +10683,11 @@ begin
       for i := 0 to Fonts.Count - 1 do
         Document.LinkList.Remove(Fonts[i]);
 
-  Fonts.Free;
-  Images.Free;
-  FormControls.Free;
   SIndexList.Free;
   Lines.Free;
+  FormControls.Free;
+  Images.Free;
+  Fonts.Free;
   inherited Destroy;
 end;
 
@@ -11368,37 +10722,41 @@ end;
 
 procedure TSection.AddChar(C: WideChar; Index: Integer);
 var
-  Tok: TokenObj;
+  Tok: TTokenObj;
 begin
-  Tok := TokenObj.Create;
+  Tok := TTokenObj.Create;
   Tok.AddUnicodeChar(C, Index);
   AddTokenObj(Tok);
   Tok.Free;
 end;
 
-function TSection.GetIndexObj(I: Integer): IndexObj;
+function TSection.GetIndexObj(I: Integer): ThtIndexObj;
 begin
   Result := SIndexList[I];
 end;
 
 procedure TSection.AddOpBrk;
+var
+  L: Integer;
 begin
-  if Brk <> '' then
-    Brk[Length(Brk)] := 'a';
+  L := Length(Brk);
+  if L > 0 then
+    Brk[L - 1] := twOptional;
 end;
 
 {----------------TSection.AddTokenObj}
 
-procedure TSection.AddTokenObj(T: TokenObj);
+procedure TSection.AddTokenObj(T: TTokenObj);
 var
-  L, I: Integer;
-  C: AnsiChar;
+  L, I, J: Integer;
+  C: ThtTextWrap;
   St, StU: WideString;
   Small: boolean;
   LastProps: TProperties;
 begin
   if T.Count = 0 then
     Exit;
+
   { Yunqa.de: Simple hack to support <span style="display:none"> }
   LastProps := Document.PropStack.Last;
   if (LastProps.Display = pdNone) and (LastProps.PropSym in [
@@ -11407,28 +10765,36 @@ begin
   then
     Exit;
 
-  L := Len + T.Count;
-  if BuffSize < L + 3 then
-    Allocate(L + 500); {L+3 to permit additions later}
   case LastProps.GetTextTransform of
     txUpper:
-      St := WideUpperCase1(T.S);
+      St := htUpperCase(T.S);
     txLower:
-      St := WideLowerCase1(T.S);
+      St := htLowerCase(T.S);
   else
     St := T.S;
   end;
-  Move(T.I[1], XP^[Len], T.Count * Sizeof(Integer));
-  if Document.NoBreak or (Self is TPreformated) then
-    C := 'n'
+
+  L := Len + T.Count;
+  if Length(XP) < L + 3 then
+    Allocate(L + 500); {L+3 to permit additions later}
+
+  // add positions in source
+  Move(T.I[1], XP[Len], T.Count * Sizeof(Integer));
+
+  // BG, 31.08.2011: added: WhiteSpaceStyle
+  if Document.NoBreak or (WhiteSpaceStyle in [wsPre, wsPreLine, wsNoWrap]) then
+    C := twNo
   else
-    C := 'y';
-  for I := 1 to T.Count do
-    Brk := Brk + C;
+    C := twYes;
+
+  J := Length(Brk);
+  SetLength(Brk, J + T.Count);
+  for I := J to J + T.Count - 1 do
+    Brk[I] := C;
 
   if LastProps.GetFontVariant = 'small-caps' then
   begin
-    StU := WideUpperCase1(St);
+    StU := htUpperCase(St);
     BuffS := BuffS + StU;
     Small := False;
     for I := 1 to Length(St) do
@@ -11481,72 +10847,90 @@ var
 
   procedure Remove(I: Integer);
   begin
-    Move(XP^[I], XP^[I - 1], ((Length(BuffS)) - I) * Sizeof(Integer));
+    Move(XP[I], XP[I - 1], (Length(BuffS) - I) * Sizeof(Integer));
+    Move(Brk[I], Brk[I - 1], (Length(Brk) - I) * Sizeof(ThtTextWrap));
+    SetLength(Brk, Length(Brk) - 1);
     System.Delete(BuffS, I, 1);
-    System.Delete(Brk, I, 1);
     FormControls.Decrement(I - 1);
     Fonts.Decrement(I - 1, Document);
     Images.Decrement(I - 1);
   end;
 
 begin
-  while (Length(BuffS) > 0) and (BuffS[1] = ' ') do
-    Remove(1);
-
-  I := WidePos(Shy, BuffS);
-  while I > 0 do
+  if WhiteSpaceStyle in [wsPre] then
   begin
-    Remove(I);
-    if (I > 1) and (Brk[I - 1] <> 'n') then
-      Brk[I - 1] := 's';
-    I := WidePos(Shy, BuffS);
-  end;
-
-  I := WidePos('  ', BuffS);
-  while I > 0 do
-  begin
-    if Brk[I] = 'n' then
-      Remove(I)
-    else
-      Remove(I + 1);
-    I := WidePos('  ', BuffS);
-  end;
-
-{After floating images at start, delete an annoying space}
-  for I := Length(BuffS) - 1 downto 1 do
-    if (BuffS[I] = ImgPan) and (Images.FindImage(I - 1).Floating in [ALeft, ARight])
-      and (BuffS[I + 1] = ' ') then
-      Remove(I + 1);
-
-  I := WidePos(WideString(' ' + #8), BuffS); {#8 is break ThtChar}
-  while I > 0 do
-  begin
-    Remove(I);
-    I := WidePos(WideString(' ' + #8), BuffS);
-  end;
-
-  I := WidePos(WideString(#8 + ' '), BuffS);
-  while I > 0 do
-  begin
-    Remove(I + 1);
-    I := WidePos(WideString(#8 + ' '), BuffS);
-  end;
-
-  if (Length(BuffS) > 1) and (BuffS[Length(BuffS)] = #8) then
-    Remove(Length(BuffS));
-
-  if (Length(BuffS) > 1) and (BuffS[Length(BuffS)] = ' ') then
-    Remove(Length(BuffS));
-
-  if (BuffS <> #8) and (Length(BuffS) > 0) and (BuffS[Length(BuffS)] <> ' ') then
-  begin
-    FO := Fonts.Items[Fonts.Count - 1]; {keep font the same for inserted space}
+    FO := TFontObj(Fonts.Items[Fonts.Count - 1]); {keep font the same for inserted space}
     if FO.Pos = Length(BuffS) then
       Inc(FO.Pos);
     BuffS := BuffS + ' ';
-    XP^[Length(BuffS) - 1] := TagIndex;
-  end;
+    Allocate(Length(BuffS) + 500);
+    XP[Length(BuffS) - 1] := XP[Length(BuffS) - 2] + 1;
+  end
+  else
+  begin
+    while (Length(BuffS) > 0) and (BuffS[1] = ' ') do
+      Remove(1);
 
+    I := WidePos(Shy, BuffS);
+    while I > 0 do
+    begin
+      Remove(I);
+      if (I > 1) and (Brk[I - 2] <> twNo) then
+        Brk[I - 2] := twSoft;
+      I := WidePos(Shy, BuffS);
+    end;
+
+    if WhiteSpaceStyle in [wsNormal, wsNoWrap, wsPreLine] then
+    begin
+      while (Length(BuffS) > 0) and (BuffS[1] = ' ') do
+        Remove(1);
+
+      I := WidePos('  ', BuffS);
+      while I > 0 do
+      begin
+        if Brk[I - 1] = twNo then
+          Remove(I)
+        else
+          Remove(I + 1);
+        I := WidePos('  ', BuffS);
+      end;
+
+      {After floating images at start, delete an annoying space}
+      for I := Length(BuffS) - 1 downto 1 do
+        if (BuffS[I] = ImgPan) and (Images.FindObject(I - 1).Floating in [ALeft, ARight])
+          and (BuffS[I + 1] = ' ') then
+          Remove(I + 1);
+
+      I := WidePos(UnicodeString(' '#8), BuffS); {#8 is break char}
+      while I > 0 do
+      begin
+        Remove(I);
+        I := WidePos(UnicodeString(' '#8), BuffS);
+      end;
+
+      I := WidePos(UnicodeString(#8' '), BuffS);
+      while I > 0 do
+      begin
+        Remove(I + 1);
+        I := WidePos(UnicodeString(#8' '), BuffS);
+      end;
+
+      if (Length(BuffS) > 1) and (BuffS[Length(BuffS)] = #8) then
+        Remove(Length(BuffS));
+
+      if (Length(BuffS) > 1) and (BuffS[Length(BuffS)] = ' ') then
+        Remove(Length(BuffS));
+
+      if (BuffS <> #8) and (Length(BuffS) > 0) and (BuffS[Length(BuffS)] <> ' ') then
+      begin
+        FO := TFontObj(Fonts.Items[Fonts.Count - 1]); {keep font the same for inserted space}
+        if FO.Pos = Length(BuffS) then
+          Inc(FO.Pos);
+        BuffS := BuffS + ' ';
+        XP[Length(BuffS) - 1] := TagIndex;
+      end;
+    end;
+  end;
   Finish;
 end;
 
@@ -11556,31 +10940,30 @@ procedure TSection.Finish;
 {complete some things after all information added}
 var
   Last, I: Integer;
-  IO: IndexObj;
+  IO: ThtIndexObj;
 begin
   Buff := PWideChar(BuffS);
   Len := Length(BuffS);
   if Len > 0 then
   begin
-    Brk := Brk + 'y';
-    if Assigned(XP) then {XP = Nil when printing}
+    SetLength(Brk, Length(Brk) + 1);
+    Brk[Length(Brk) - 1] := twYes;
+    if not IsCopy then
     begin
       Last := 0; {to prevent warning msg}
       SIndexList := TFreeList.Create;
       for I := 0 to Len - 1 do
       begin
-        if (I = 0) or (XP^[I] <> Last + 1) then
+        if (I = 0) or (XP[I] <> Last + 1) then
         begin
-          IO := IndexObj.Create;
+          IO := ThtIndexObj.Create;
           IO.Pos := I;
-          IO.Index := XP^[I];
+          IO.Index := XP[I];
           SIndexList.Add(IO);
         end;
-        Last := XP^[I];
+        Last := XP[I];
       end;
-      FreeMem(XP);
-      XP := nil;
-      BuffSize := 0;
+      SetLength(XP, 0);
     end;
   end;
   if Len > 0 then
@@ -11594,11 +10977,8 @@ end;
 
 procedure TSection.Allocate(N: Integer);
 begin
-  if BuffSize < N then
-  begin
-    ReAllocMem(XP, N * Sizeof(Integer));
-    BuffSize := N;
-  end;
+  if Length(XP) < N then
+    SetLength(XP, N);
 end;
 
 {----------------TSection.ChangeFont}
@@ -11607,8 +10987,8 @@ procedure TSection.ChangeFont(Prop: TProperties);
 var
   FO: TFontObj;
   LastUrl: TUrlTarget;
-  NewFont: TMyFont;
-  Align: AlignmentType;
+  NewFont: ThtFont;
+  Align: ThtAlignmentStyle;
 begin
   FO := Fonts[Fonts.Count - 1];
   LastUrl := FO.UrlTarget;
@@ -11642,8 +11022,8 @@ procedure TSection.HRef(IsHRef: Boolean; List: ThtDocument; AnURL: TUrlTarget;
   Attributes: TAttributeList; Prop: TProperties);
 var
   FO: TFontObj;
-  NewFont: TMyFont;
-  Align: AlignmentType;
+  NewFont: ThtFont;
+  Align: ThtAlignmentStyle;
 begin
   FO := Fonts[Fonts.Count - 1];
   NewFont := Prop.GetFont;
@@ -11679,27 +11059,46 @@ begin
     FO.SScript := ANone;
 end;
 
-function TSection.AddImage(L: TAttributeList; ACell: TCellBasic; Index: Integer): TImageObj;
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+function TSection.AddFrame(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TFrameObj;
 begin
-  Result := TImageObj.Create(Document, Len, L);
-  Result.MyCell := ACell;
+  Result := TFrameObj.Create(ACell, Len, L, Prop);
+  Images.Add(Result);
+  AddChar(ImgPan, Index); {marker for iframe}
+end;
+
+function TSection.AddImage(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TImageObj;
+begin
+  Result := TImageObj.Create(ACell, Len, L, Prop);
   Images.Add(Result);
   AddChar(ImgPan, Index); {marker for image}
 end;
 
-function TSection.AddPanel(L: TAttributeList;
-  ACell: TCellBasic; Index: Integer): TPanelObj;
+function TSection.AddPanel(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TPanelObj;
 begin
-  Result := TPanelObj.Create(Document, Len, L, ACell, False);
+  Result := TPanelObj.Create(ACell, Len, L, Prop, False);
   Images.Add(Result);
   AddChar(ImgPan, Index); {marker for panel}
 end;
 
-function TSection.CreatePanel(L: TAttributeList;
-  ACell: TCellBasic): TPanelObj;
+function TSection.AddProgress(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TProgressObj;
+begin
+  Result := TProgressObj.Create(ACell, Len, L, Prop, False);
+  Images.Add(Result);
+  AddChar(ImgPan, Index); {marker for progress}
+end;
+
+function TSection.AddMeter(L: TAttributeList; ACell: TCellBasic; Index: Integer; Prop: TProperties): TMeterObj;
+begin
+  Result := TMeterObj.Create(ACell, Len, L, Prop, False);
+  Images.Add(Result);
+  AddChar(ImgPan, Index); {marker for progress}
+end;
+
+function TSection.CreatePanel(L: TAttributeList; ACell: TCellBasic; Prop: TProperties): TPanelObj;
 {Used by object tag}
 begin
-  Result := TPanelObj.Create(Document, Len, L, ACell, True);
+  Result := TPanelObj.Create(ACell, Len, L, Prop, True);
 end;
 
 procedure TSection.AddPanel1(PO: TPanelObj; Index: Integer);
@@ -11720,86 +11119,90 @@ var
   S: ThtString;
   IO: TImageObj;
   ButtonControl: TButtonFormControlObj;
-
-  function CreateEditFCO: TEditFormControlObj;
-  begin
-    Result := TEditFormControlObj.Create(AMasterList, Len, L, S, Prop);
-  end;
-
+  FCT: (fctUnknown, fctImage, fctFile);
 begin
   S := '';
+  FCT := fctUnknown;
   case Which of
     InputSy:
     begin
+      FCO := nil;
       if L.Find(TypeSy, T) then
       begin
         S := LowerCase(T.Name);
-        if (S = 'text') or (S = 'password') or (S = 'file') then
-          FCO := CreateEditFCO
-        else if (S = 'submit') or (S = 'reset') or (S = 'button') then
-          FCO := TButtonFormControlObj.Create(AMasterList, Len, L, S, Prop)
+        if (S = 'submit') or (S = 'reset') or (S = 'button') then
+          FCO := TButtonFormControlObj.Create(ACell, Len, L, Prop)
         else if S = 'radio' then
-          FCO := TRadioButtonFormControlObj.Create(AMasterList, Len, L, ACell)
+          FCO := TRadioButtonFormControlObj.Create(ACell, Len, L, Prop)
         else if S = 'checkbox' then
-          FCO := TCheckBoxFormControlObj.Create(AMasterList, Len, L, Prop)
+          FCO := TCheckBoxFormControlObj.Create(ACell, Len, L, Prop)
         else if S = 'hidden' then
-          FCO := THiddenFormControlObj.Create(AMasterList, Len, L)
+          FCO := THiddenFormControlObj.Create(ACell, Len, L, Prop)
         else if S = 'image' then
-          FCO := TImageFormControlObj.Create(AMasterList, Len, L)
-        else
-          FCO := CreateEditFCO;
-      end
-      else
-        FCO := CreateEditFCO;
-
+        begin
+          FCT := fctImage;
+          FCO := TImageFormControlObj.Create(ACell, Len, L, Prop);
+        end
+        else if S = 'file' then
+        begin
+          FCT := fctFile;
+          FCO := TEditFormControlObj.Create(ACell, Len, L, Prop);
+        end;
+      end;
+      if FCO = nil then
+        FCO := TEditFormControlObj.Create(ACell, Len, L, Prop);
     end;
 
     SelectSy:
     begin
       if L.Find(MultipleSy, T) or L.Find(SizeSy, T) and (T.Value > 1) then
-        FCO := TListBoxFormControlObj.Create(AMasterList, Len, L, Prop)
+        FCO := TListBoxFormControlObj.Create(ACell, Len, L, Prop)
       else
-        FCO := TComboFormControlObj.Create(AMasterList, Len, L, Prop);
+        FCO := TComboFormControlObj.Create(ACell, Len, L, Prop);
     end;
   else
-    FCO := TTextAreaFormControlObj.Create(AMasterList, Len, L, Prop);
+    FCO := TTextAreaFormControlObj.Create(ACell, Len, L, Prop);
   end;
 
-  if S = 'image' then
-  begin
-    IO := AddImage(L, ACell, Index); {leave out of FormControlList}
-    IO.MyFormControl := TImageFormControlObj(FCO);
-    TImageFormControlObj(FCO).MyImage := IO;
-  end
-  else if S = 'file' then
-  begin
-    FormControls.Add(FCO);
-    AddChar(FmCtl, Index); {marker for FormControl}
-    Brk[Len] := 'n'; {don't allow break between these two controls}
-    ButtonControl := TButtonFormControlObj.Create(AMasterList, Len, L, S, Prop);
-    ButtonControl.MyEdit := TEditFormControlObj(FCO);
-    FormControls.Add(ButtonControl);
-  {the following fixup puts the ID on the TEdit and deletes it from the Button}
-    if L.TheID <> '' then
-      Document.IDNameList.AddObject(L.TheID, FCO);
-    FCO.Value := ''; {value attribute should not show in TEdit}
-    TEditFormControlObj(FCO).Text := '';
-    AddChar(FmCtl, Index);
-    Brk[Len] := 'n';
-  end
-  else if S <> 'hidden' then
-  begin
+  case FCT of
+
+    fctImage:
+    begin
+      IO := AddImage(L, ACell, Index, Prop); {leave out of FormControlList}
+      IO.MyFormControl := TImageFormControlObj(FCO);
+      TImageFormControlObj(FCO).MyImage := IO;
+    end;
+
+    fctFile:
+    begin
+      FormControls.Add(FCO);
+      AddChar(FmCtl, Index); {marker for FormControl}
+      Brk[Len - 1] := twNo; {don't allow break between these two controls}
+      ButtonControl := TButtonFormControlObj.Create(ACell, Len, L, Prop);
+      ButtonControl.MyEdit := TEditFormControlObj(FCO);
+      FormControls.Add(ButtonControl);
+    {the following fixup puts the ID on the TEdit and deletes it from the Button}
+      if L.TheID <> '' then
+        Document.IDNameList.AddObject(L.TheID, FCO);
+      FCO.Value := ''; {value attribute should not show in TEdit}
+      TEditFormControlObj(FCO).Text := '';
+      AddChar(FmCtl, Index);
+      Brk[Len - 1] := twNo;
+    end;
+
+  else
     FormControls.Add(FCO);
     AddChar(FmCtl, Index); {marker for FormControl}
   end;
+
   if Prop.HasBorderStyle then {start of inline border}
     Document.ProcessInlines(Index, Prop, True);
-  Result := FCO;
-  {$ifdef has_StyleElements}
+{$ifdef has_StyleElements}
   if FCO.GetControl <> nil then begin
-    Result.GetControl.StyleElements := AMasterList.StyleElements;
+    FCO.GetControl.StyleElements := AMasterList.StyleElements;
   end;
-  {$endif}
+{$endif}
+  Result := FCO;
 end;
 
 {----------------TSection.FindCountThatFits}
@@ -11811,11 +11214,11 @@ function TSection.FindCountThatFits(Canvas: TCanvas; Width: Integer; Start: PWid
 //  TSection.FindCountThatFits1() is used in TSection.DrawLogic().
 //  TSection.FindCountThatFits() is used in TSection.GetURL() and TSection.FindCursor().
 var
-  Cnt, XX, YY, I, J, J1, J2, J3, OHang, Tmp: Integer;
+  Cnt, XX, YY, I, J, J1, J2, J3: Integer;
   Picture: boolean;
-  Align: AlignmentType;
-  HSpcL, HSpcR: Integer;
-  FLObj: TFloatingObj;
+  FlObj: TFloatingObj; //TSizeableObj;
+  FcObj: TFloatingObj; //TFormControlObj;
+  FO: TFontObj;
   Extent: TSize;
 const
   OldStart: PWideChar = nil;
@@ -11835,15 +11238,15 @@ begin
   YY := 0;
   while True do
   begin
-    Fonts.GetFontAt(Start - Buff, OHang).AssignToCanvas(Canvas);
-    J1 := Fonts.GetFontCountAt(Start - Buff, Len);
-    J2 := Images.GetImageCountAt(Start - Buff);
-    J3 := FormControls.GetControlCountAt(Start - Buff);
+    //Fonts.GetFontAt(Start - Buff, OHang).AssignToCanvas(Canvas);
+    J1 := Fonts.GetFontObjAt(Start - Buff, Len, FO);
+    FO.TheFont.AssignToCanvas(Canvas);
+    J2 := Images.GetObjectAt(Start - Buff, FlObj);
+    J3 := FormControls.GetObjectAt(Start - Buff, FcObj);
     if J2 = 0 then
     begin
-      Tmp := Images.GetWidthAt(Start - Buff, Align, HSpcL, HSpcR, FlObj);
-      if not (Align in [ALeft, ARight]) then
-        XX := XX + Tmp + HSpcL + HSpcR;
+      if not (FlObj.Floating in [ALeft, ARight]) then
+        Inc(XX, FlObj.TotalWidth);
       I := 1; J := 1;
       Picture := True;
       if XX > Width then
@@ -11851,8 +11254,8 @@ begin
     end
     else if J3 = 0 then
     begin
-      XX := XX + FormControls.GetWidthAt(Start - Buff, HSpcL, HSpcR);
-      XX := XX + HSpcL + HSpcR;
+      if not (FcObj.Floating in [ALeft, ARight]) then
+        Inc(XX, FcObj.TotalWidth);
       I := 1; J := 1;
       Picture := True;
       if XX > Width then
@@ -11888,12 +11291,14 @@ begin
 end;
 
 function WrapChar(C: WideChar): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 begin
   Result := Ord(C) >= $3000;
 end;
 
 //-- BG ---------------------------------------------------------- 27.01.2012 --
 function CanWrapAfter(C: WideChar): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 begin
   case C of
     WideChar('-'), WideChar('/'), WideChar('?'):
@@ -11905,6 +11310,7 @@ end;
 
 //-- BG ---------------------------------------------------------- 20.09.2010 --
 function CanWrap(C: WideChar): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 begin
   case C of
     WideChar(' '), WideChar('-'), WideChar('/'), WideChar('?'), ImgPan, FmCtl, BrkCh:
@@ -11919,90 +11325,96 @@ end;
 procedure TSection.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
 {Min is the width the section would occupy when wrapped as tightly as possible.
  Max, the width if no wrapping were used.}
-var
-  I, Indx, FloatMin: Integer;
-  P, P1: PWideChar;
-  Obj: TObject;
-  SoftHyphen: Boolean;
 
-  function FindTextWidthB(Canvas: TCanvas; Start: PWideChar; N: Integer; RemoveSpaces: boolean): Integer;
+  procedure MinMaxWidthOfBlocks(Objects: TFloatingObjList);
+  var
+    I: Integer;
+    Obj: TFloatingObj;
   begin
-    Result := FindTextWidth(Canvas, Start, N, RemoveSpaces);
-    if Start = Buff then
-      if FLPercent = 0 then {not a percent}
-        Inc(Result, FirstLineIndent)
-      else
-        Result := (100 * Result) div (100 - FLPercent);
-    if SoftHyphen then
-      Result := Result + Canvas.TextWidth('-');
-  end;
-
-begin
-   {$IFDEF JPM_DEBUGGING}
-  CodeSite.EnterMethod(Self,'TSection.MinMaxWidth');
-  CodeSite.AddSeparator;
-   {$ENDIF}
-  if (StoredMin > 0) and (Images.Count = 0) then
-  begin
-    Min := StoredMin;
-    Max := StoredMax;
-   {$IFDEF JPM_DEBUGGING}
-   CodeSite.SendFmtMsg('Min = [%d]',[Min]);
-   CodeSite.SendFmtMsg('Max = [%d]',[Max]);
-  CodeSiteLogging.CodeSite.ExitMethod(Self,'TSection.MinMaxWidth');
-   {$ENDIF}
-    Exit;
-  end;
-  Min := 0;
-  Max := 0;
-  if Len = 0 then begin
-   {$IFDEF JPM_DEBUGGING}
-   CodeSite.SendFmtMsg('Min = [%d]',[Min]);
-   CodeSite.SendFmtMsg('Max = [%d]',[Max]);
-  CodeSiteLogging.CodeSite.ExitMethod(Self,'TSection.MinMaxWidth');
-   {$ENDIF}
-    Exit;
-  end;
-
-  for I := 0 to Images.Count - 1 do {call drawlogic for all the images}
-  begin
-    Obj := Images[I];
-    with TFloatingObj(Obj) do
+    for I := 0 to Objects.Count - 1 do {call drawlogic for all the objects}
     begin
-      DrawLogic(Self.Document, Canvas, Fonts.GetFontObjAt(Pos, Indx), 0, 0);
-      if not PercentWidth then
-        if Floating in [ALeft, ARight] then
+      Obj := Objects[I];
+      Obj.DrawLogicInline(Canvas, Fonts.GetFontObjAt(Obj.StartCurs), 0, 0);
+      if not Obj.PercentWidth then
+        if Obj.Floating in [ALeft, ARight] then
         begin
-          Max := Max + ImageWidth + HSpaceL + HSpaceR;
-          Brk[Pos + 1] := 'y'; {allow break after floating image}
-          Min := Math.Max(Min, ImageWidth + HSpaceL + HSpaceR);
+          Inc(Max, Obj.TotalWidth);
+          Brk[Obj.StartCurs] := twYes; {allow break after floating object}
+          Min := Math.Max(Min, Obj.TotalWidth);
         end
         else
-          Min := Math.Max(Min, ImageWidth);
+          Min := Math.Max(Min, Obj.ClientWidth);
     end;
   end;
-  FloatMin := Min;
 
-  for I := 0 to FormControls.Count - 1 do {get Min for form controls}
+var
+  SoftHyphen: Boolean;
+
+  function FindTextWidthB(Canvas: TCanvas; Start: PWideChar; N: Integer; RemoveSpaces: boolean): TSize;
   begin
-    Obj := FormControls[I];
-    if Obj is TFormControlObj then
-      with TFormControlObj(FormControls[I]) do
-        if not PercentWidth then
-          Min := Math.Max(Min, Width + HSpaceL + HSpaceR);
+    Result := FindTextSize(Canvas, Start, N, RemoveSpaces);
+    if Start = Buff then
+      if FLPercent = 0 then {not a percent}
+        Inc(Result.cx, FirstLineIndent)
+      else
+        Result.cx := (100 * Result.cx) div (100 - FLPercent);
+    if SoftHyphen then
+      Inc(Result.cx, Canvas.TextWidth('-'));
   end;
+
+var
+  I, FloatMin: Integer;
+  P, P1: PWideChar;
+begin
+  Min := 0;
+  Max := 0;
+  if Len = 0 then
+    Exit;
+
+  if not BreakWord and (WhiteSpaceStyle in [wsPre, wsNoWrap]) then
+  begin
+    if StoredMax.cx = 0 then
+    begin
+      StoredMax := FindTextSize(Canvas, Buff, Len - 1, False);
+      Max := StoredMax.cx;
+    end
+    else
+      Max := StoredMax.cx;
+    Min := Math.Min(MaxHScroll, Max);
+    Exit;
+  end;
+
+{$IFDEF JPM_DEBUGGING}
+  CodeSite.EnterMethod(Self,'TSection.MinMaxWidth');
+  CodeSite.AddSeparator;
+{$ENDIF}
+  if (StoredMin.cx > 0) and (Images.Count = 0) then
+  begin
+    Min := StoredMin.cx;
+    Max := StoredMax.cx;
+{$IFDEF JPM_DEBUGGING}
+    CodeSite.SendFmtMsg('Stored Min = [%d]',[Min]);
+    CodeSite.SendFmtMsg('Stored Max = [%d]',[Max]);
+    CodeSite.ExitMethod(Self,'TSection.MinMaxWidth');
+{$ENDIF}
+    Exit;
+  end;
+
+  MinMaxWidthOfBlocks(Images);
+  MinMaxWidthOfBlocks(FormControls);
+  FloatMin := Min;
 
   SoftHyphen := False;
   P := Buff;
-  P1 := StrScanW(P, BrkCh); {look for break ThtChar}
+  P1 := StrScanW(P, BrkCh); {look for break char}
   while Assigned(P1) do
   begin
-    Max := Math.Max(Max, FindTextWidthB(Canvas, P, P1 - P, False));
+    Max := Math.Max(Max, FindTextWidthB(Canvas, P, P1 - P, False).cx);
     P := P1 + 1;
     P1 := StrScanW(P, BrkCh);
   end;
   P1 := StrScanW(P, #0); {look for the end}
-  Max := Math.Max(Max, FindTextWidthB(Canvas, P, P1 - P, True)); // + FloatMin;
+  Max := Math.Max(Max, FindTextWidthB(Canvas, P, P1 - P, True).cx); // + FloatMin;
 
   P := Buff;
   if not BreakWord then
@@ -12015,7 +11427,7 @@ begin
     {find the next string of chars that can't be wrapped}
     begin
       SoftHyphen := False;
-      if CanWrap(P1^) and (Brk[I] = 'y') then
+      if CanWrap(P1^) and (Brk[I - 1] = twYes) then
       begin
         Inc(P1);
         Inc(I);
@@ -12025,19 +11437,19 @@ begin
         repeat
           Inc(P1);
           Inc(I);
-          case Brk[I - 1] of
-            's', 'a':
+          case Brk[I - 2] of
+            twSoft, twOptional:
               break;
           end;
-        until (P1^ = #0) or (CanWrap(P1^) and (Brk[I] = 'y'));
-        SoftHyphen := Brk[I - 1] = 's';
+        until (P1^ = #0) or (CanWrap(P1^) and (Brk[I - 1] = twYes));
+        SoftHyphen := Brk[I - 2] = twSoft;
         if CanWrapAfter(P1^) then
         begin
           Inc(P1);
           Inc(I);
         end;
       end;
-      Min := Math.Max(Min, FindTextWidthB(Canvas, P, P1 - P, True));
+      Min := Math.Max(Min, FindTextWidthB(Canvas, P, P1 - P, True).cx);
       while True do
         case P1^ of
           WideChar(' '), ImgPan, FmCtl, BrkCh:
@@ -12054,35 +11466,39 @@ begin
   else
     while P^ <> #0 do
     begin
-      Min := Math.Max(Min, FindTextWidthB(Canvas, P, 1, True));
+      Min := Math.Max(Min, FindTextWidthB(Canvas, P, 1, True).cx);
       Inc(P);
     end;
 
   Min := Math.Max(FloatMin, Min);
-  StoredMin := Min;
-  StoredMax := Max;
-   {$IFDEF JPM_DEBUGGING}
-   CodeSite.SendFmtMsg('Min = [%d]',[Min]);
-   CodeSite.SendFmtMsg('Max = [%d]',[Max]);
+  StoredMin.cx := Min;
+  StoredMax.cx := Max;
+  StoredMin.cy := 0;
+  StoredMax.cy := 0;
+{$IFDEF JPM_DEBUGGING}
+  CodeSite.SendFmtMsg('Min = [%d]',[Min]);
+  CodeSite.SendFmtMsg('Max = [%d]',[Max]);
   CodeSite.ExitMethod(Self,'TSection.MinMaxWidth');
-   {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TSection.FindTextWidth}
 
-function TSection.FindTextWidth(Canvas: TCanvas; Start: PWideChar; N: Integer; RemoveSpaces: boolean): Integer;
+function TSection.FindTextSize(Canvas: TCanvas; Start: PWideChar; N: Integer; RemoveSpaces: boolean): TSize;
 {find actual line width of N chars starting at Start.  If RemoveSpaces set,
  don't count spaces on right end}
 var
-  I, J, J1, OHang, Wid, HSpcL, HSpcR: Integer;
-  Align: AlignmentType;
-  FlObj: TFloatingObj;
+  I, J, J1: Integer;
+  FlObj: TFloatingObj; //TSizeableObj;
+  FcObj: TFloatingObj; //TFormControlObj;
+  FO: TFontObj;
 begin
    {$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TSection.FindTextWidth');
   CodeSite.AddSeparator;
    {$ENDIF}
-  Result := 0;
+  Result.cx := 0;
+  Result.cy := 0;
   if RemoveSpaces then
     while True do
       case (Start + N - 1)^ of
@@ -12094,31 +11510,42 @@ begin
       end;
   while N > 0 do
   begin
-    J := Images.GetImageCountAt(Start - Buff);
-    J1 := FormControls.GetControlCountAt(Start - Buff);
+    J := Images.GetObjectAt(Start - Buff, FlObj);
+    J1 := FormControls.GetObjectAt(Start - Buff, FcObj);
     if J = 0 then {it's an image}
     begin
-      Wid := Images.GetWidthAt(Start - Buff, Align, HSpcL, HSpcR, FlObj);
     {Here we count floating images as 1 ThtChar but do not include their width,
       This is required for the call in FindCursor}
-      if not (Align in [ALeft, ARight]) then
-        Inc(Result, Wid + HSpcL + HSpcR);
+      if not (FlObj.Floating in [ALeft, ARight]) then
+      begin
+        Inc(Result.cx, FlObj.TotalWidth);
+        Result.cy := Max(Result.cy, FlObj.TotalHeight);
+      end;
       Dec(N); {image counts as one ThtChar}
       Inc(Start);
     end
     else if J1 = 0 then
     begin
-      Inc(Result, FormControls.GetWidthAt(Start - Buff, HSpcL, HSpcR) + HSpcL + HSpcR);
+      if not (FcObj.Floating in [ALeft, ARight]) then
+      begin
+        Inc(Result.cx, FcObj.TotalWidth);
+        Result.cy := Max(Result.cy, FcObj.TotalHeight);
+      end;
       Dec(N); {control counts as one ThtChar}
       Inc(Start);
     end
     else
     begin
-      Fonts.GetFontAt(Start - Buff, OHang).AssignToCanvas(Canvas);
+      //Fonts.GetFontAt(Start - Buff, OHang).AssignToCanvas(Canvas);
       I := Min(J, J1);
-      I := Min(I, Min(Fonts.GetFontCountAt(Start - Buff, Len), N));
-      Assert(I > 0, 'I less than or = 0 in FindTextWidth');
-      Inc(Result, GetXExtent(Canvas.Handle, Start, I) + OHang);
+      I := Min(I, Min(Fonts.GetFontObjAt(Start - Buff, Len, FO), N));
+      FO.TheFont.AssignToCanvas(Canvas);
+      //Assert(I > 0, 'I less than or = 0 in FindTextWidth');
+      with GetTextExtent(Canvas.Handle, Start, I) do
+      begin
+        Inc(Result.cx, cx + FO.Overhang);
+        Result.cy := Max(Result.cy, cy);
+      end;
       if I = 0 then
         Break;
       Dec(N, I);
@@ -12126,7 +11553,8 @@ begin
     end;
   end;
   {$IFDEF JPM_DEBUGGING}
-  CodeSite.SendFmtMsg('Result = [%d]',[Result]);
+  CodeSite.SendFmtMsg('Result.cx = [%d]',[Result.cx ]);
+  CodeSite.SendFmtMsg('Result.cy = [%d]',[Result.cy ]);
   CodeSite.ExitMethod(Self,'TSection.FindTextWidth');
   {$ENDIF}
 end;
@@ -12137,38 +11565,38 @@ function TSection.FindTextWidthA(Canvas: TCanvas; Start: PWideChar; N: Integer):
 {find actual line width of N chars starting at Start.
  BG: The only difference to FindTextWidth is the '- OHang' when incrementing the result.}
 var
-  I, J, J1, OHang, Wid, HSpcL, HSpcR: Integer;
-  Align: AlignmentType;
-  FlObj: TFloatingObj;
+  I, J, J1: Integer;
+  FlObj: TFloatingObj; //TSizeableObj;
+  FcObj: TFloatingObj; //TFormControlObj;
+  FO: TFontObj;
 begin
   Result := 0;
   while N > 0 do
   begin
-    J := Images.GetImageCountAt(Start - Buff);
-    J1 := FormControls.GetControlCountAt(Start - Buff);
+    J := Images.GetObjectAt(Start - Buff, FlObj);
+    J1 := FormControls.GetObjectAt(Start - Buff, FcObj);
     if J = 0 then {it's an image}
     begin
-      Wid := Images.GetWidthAt(Start - Buff, Align, HSpcL, HSpcR, FlObj);
     {Here we count floating images as 1 ThtChar but do not include their width,
       This is required for the call in FindCursor}
-      if not (Align in [ALeft, ARight]) then
-        Inc(Result, Wid + HSpcL + HSpcR);
+      if not (FlObj.Floating in [ALeft, ARight]) then
+        Inc(Result, FlObj.TotalWidth);
       Dec(N); {image counts as one ThtChar}
       Inc(Start);
     end
     else if J1 = 0 then
     begin
-      Inc(Result, FormControls.GetWidthAt(Start - Buff, HSpcL, HSpcR) + HSpcL + HSpcR);
+      if not (FcObj.Floating in [ALeft, ARight]) then
+        Inc(Result, FcObj.TotalWidth);
       Dec(N); {control counts as one ThtChar}
       Inc(Start);
     end
     else
     begin
-      Fonts.GetFontAt(Start - Buff, OHang).AssignToCanvas(Canvas);
-      I := Min(J, J1);
-      I := Min(I, Min(Fonts.GetFontCountAt(Start - Buff, Len), N));
+      I := Min(Min(J, J1), Min(Fonts.GetFontObjAt(Start - Buff, Len, FO), N));
+      FO.TheFont.AssignToCanvas(Canvas);
       Assert(I > 0, 'I less than or = 0 in FindTextWidthA');
-      Inc(Result, GetXExtent(Canvas.Handle, Start, I) - OHang);
+      Inc(Result, GetTextExtent(Canvas.Handle, Start, I).cx - FO.Overhang);
       if I = 0 then
         Break;
       Dec(N, I);
@@ -12179,8 +11607,8 @@ end;
 
 {----------------TSection.DrawLogic}
 
-function TSection.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-  var MaxWidth: Integer; var Curs: Integer): Integer;
+function TSection.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+  var MaxWidth, Curs: Integer): Integer;
 {returns height of the section}
 
   function FindCountThatFits1(Canvas: TCanvas; Start: PWideChar; MaxChars, X, Y: Integer;
@@ -12188,26 +11616,87 @@ function TSection.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, 
   {Given a width, find the count of chars (<= Max) which will fit allowing for font changes.
     Line wrapping will be done later}
   //BG, 06.02.2011: Why are there 2 methods and why can't GetURL and FindCursor use the formatting results of DrawLogic?
-  //  FindCountThatFits1() is part of TSection.DrawLogic() and fills IMgr with the embedded floating images.
+  //  FindCountThatFits1() is part of TSection.DrawLogic() and fills IMgr with the embedded floating objects.
   //  TSection.FindCountThatFits() is used in TSection.GetURL() and TSection.FindCursor().
+
+
+  type
+    TResultCode = (rsOk, rsContinue, rsBreak);
+
+    function DrawLogicOfObject(FlObj: TFloatingObj; var XX, YY, Width, Cnt, FloatingImageCount: Integer): TResultCode;
+    var
+      X1, X2, W, H: Integer;
+    begin
+      Result := rsOk;
+      if FlObj.Floating in [ALeft, ARight] then
+      begin
+        if Start > DoneFlObjPos then
+        begin
+          ImgY := Max(Y, ImgY);
+          W := FlObj.TotalWidth;
+          H := FlObj.TotalHeight;
+          case FlObj.Floating of
+            ALeft:
+            begin
+              IMgr.AlignLeft(ImgY, W, XX, YY);
+              FlObj.Indent := IMgr.AddLeft(ImgY, ImgY + H, W).X - W + FlObj.HSpaceL;
+            end;
+
+            ARight:
+            begin
+              IMgr.AlignRight(ImgY, W, XX, YY);
+              FlObj.Indent := IMgr.AddRight(ImgY, ImgY + H, W).X + FlObj.HSpaceL;
+            end;
+          end;
+          FlObj.DrawYY := ImgY + FlObj.VSpaceT;
+          ImgHt := Max(ImgHt, H);
+          DoneFlObjPos := Start;
+
+          // go on with the line:
+          X1 := IMgr.LeftIndent(Y);
+          X2 := IMgr.RightSide(Y);
+          Width := X2 - X1;
+          Inc(FloatingImageCount);
+          if Cnt >= FloatingImageCount then
+            Result := rsContinue;
+        end;
+      end
+      else
+      begin
+        ImgHt := Max(ImgHt, FlObj.TotalHeight);
+        Inc(XX, FlObj.TotalWidth);
+        if XX > Width then
+          Result := rsBreak;
+      end;
+    end;
+
   var
-    Cnt, XX, YY, I, J, J1, J2, J3, X1, X2, W, H, OHang, Width: Integer;
+    Cnt, I, J, J1, J2, J3, X1, X2, Width, D, H: Integer;
+    XX: Integer; // current width of row in pixels (== current horizontal position).
+    YY: Integer; // current height of row in pixels.
     Picture: boolean;
-    FlObj: TFloatingObj;
-    FcObj: TFormControlObj;
+    FlObj: TFloatingObj; //TSizeableObj;
+    FcObj: TFloatingObj; //TFormControlObj;
+    FO: TFontObj;
     BrChr, TheStart: PWideChar;
-    Font, LastFont: TMyFont;
+    //Font,
+    LastFont: ThtFont;
     Save: TSize;
     FoundBreak: boolean;
     HyphenWidth: Integer;
     FloatingImageCount: Integer;
+    InitialFloatingLeftCount: Integer;
+    InitialFloatingRightCount: Integer;
   begin
     LastFont := nil;
     TheStart := Start;
     ImgHt := 0;
+    InitialFloatingLeftCount := IMgr.L.Count;
+    InitialFloatingRightCount := IMgr.R.Count;
 
     BrChr := StrScanW(TheStart, BrkCh); {see if a break char}
-    if Assigned(BrChr) and (BrChr - TheStart < MaxChars) then
+    FoundBreak := Assigned(BrChr) and (BrChr - TheStart < MaxChars);
+    if FoundBreak then
     begin
       MaxChars := BrChr - TheStart;
       if MaxChars = 0 then
@@ -12215,10 +11704,7 @@ function TSection.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, 
         Result := 1;
         Exit; {single character fits}
       end;
-      FoundBreak := True;
-    end
-    else
-      FoundBreak := False;
+    end;
 
     X1 := IMgr.LeftIndent(Y);
     if Start = Buff then
@@ -12227,7 +11713,7 @@ function TSection.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, 
     Width := X2 - X1;
 
     if (Start = Buff) and (Images.Count = 0) and (FormControls.Count = 0) then
-      if Fonts.GetFontCountAt(0, Len) = Len then
+      if Fonts.GetFontObjAt(0, Len, FO) = Len then
         if MaxChars * Fonts[0].tmMaxCharWidth <= Width then {try a shortcut}
         begin {it will all fit}
           Result := MaxChars;
@@ -12242,76 +11728,49 @@ function TSection.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, 
     YY := 0;
     while True do
     begin
-      Font := Fonts.GetFontAt(Start - Buff, OHang);
-      if Font <> LastFont then {may not have to load font}
+      J1 := Min(Fonts.GetFontObjAt(Start - Buff, Len, FO), MaxChars - Cnt);
+      if FO.TheFont <> LastFont then {may not have to load font}
       begin
-        Font.AssignToCanvas(Canvas);
-        LastFont := Font;
+        LastFont := FO.TheFont;
+        LastFont.AssignToCanvas(Canvas);
       end;
-      J1 := Min(Fonts.GetFontCountAt(Start - Buff, Len), MaxChars - Cnt);
-      J2 := Images.GetImageCountAt(Start - Buff);
-      J3 := FormControls.GetControlCountAt(Start - Buff);
+      J2 := Images.GetObjectAt(Start - Buff, FlObj);
+      J3 := FormControls.GetObjectAt(Start - Buff, FcObj);
       if J2 = 0 then
       begin {next is an image}
         I := 1;
         J := 1;
         Picture := True;
-        FlObj := Images.FindImage(Start - Buff);
-        if FlObj.Floating in [ALeft, ARight] then
-        begin
-          if Start > DoneFlObjPos then
+        case DrawLogicOfObject(FlObj, XX, YY, Width, Cnt, FloatingImageCount) of
+          rsContinue:
           begin
-            ImgY := Max(Y, ImgY);
-            W := FlObj.TotalWidth;
-            H := FlObj.TotalHeight;
-            case FlObj.Floating of
-              ALeft:
-              begin
-                IMgr.AlignLeft(ImgY, W, XX, YY);
-                FlObj.Indent := IMgr.AddLeft(ImgY, ImgY + H, W).X - W + FlObj.HSpaceL;
-              end;
-
-              ARight:
-              begin
-                IMgr.AlignRight(ImgY, W, XX, YY);
-                FlObj.Indent := IMgr.AddRight(ImgY, ImgY + H, W).X + FlObj.HSpaceL;
-              end;
-            end;
-            FlObj.DrawYY := ImgY + FlObj.VSpaceT;
-            ImgHt := Max(ImgHt, H);
-            DoneFlObjPos := Start;
-
-            // go on with the line:
-            X1 := IMgr.LeftIndent(Y);
-            X2 := IMgr.RightSide(Y);
-            Width := X2 - X1;
-            Inc(FloatingImageCount);
-            if Cnt >= FloatingImageCount then
-            begin
-              Start := TheStart;
-              Cnt := 0;
-              XX := 0;
-              continue;
-            end;
+            Start := TheStart;
+            Cnt := 0;
+            XX := 0;
+            continue;
           end;
-        end
-        else
-        begin
-          ImgHt := Max(ImgHt, FlObj.TotalHeight);
-          Inc(XX, FlObj.TotalWidth);
-          if XX > Width then
+
+          rsBreak:
             break;
         end;
       end
       else if J3 = 0 then
       begin
-        FcObj := FormControls.FindControl(Start - Buff);
-        Inc(XX, FcObj.TotalWidth);
         I := 1;
         J := 1;
         Picture := True;
-        if XX > Width then
-          break;
+        case DrawLogicOfObject(FcObj, XX, YY, Width, Cnt, FloatingImageCount) of
+          rsContinue:
+          begin
+            Start := TheStart;
+            Cnt := 0;
+            XX := 0;
+            continue;
+          end;
+
+          rsBreak:
+            break;
+        end;
       end
       else
       begin
@@ -12319,7 +11778,7 @@ function TSection.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, 
         J := Min(J1, J2);
         J := Min(J, J3);
         I := FitText(Canvas.Handle, Start, J, Width - XX, Save);
-        if (I > 0) and (Brk[TheStart - Buff + Cnt + I] = 's') then
+        if (I > 0) and (Brk[TheStart - Buff + Cnt + I - 1] = twSoft) then
         begin {a hyphen could go here}
           HyphenWidth := Canvas.TextWidth('-');
           if XX + Save.cx + HyphenWidth > Width then
@@ -12346,201 +11805,259 @@ function TSection.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, 
       Inc(Start, I);
     end;
     Result := Cnt;
+
     if FoundBreak and (Cnt = MaxChars) then
       Inc(Result);
-  end;
 
-var
-  PStart, Last: PWideChar;
-  ImgHt: Integer;
-  Finished: boolean;
-  LR: LineRec;
-  AccumImgBot: Integer;
+    // adjust floating objects top position, in case they have been moved down and line height has been changed.
+    H := Max(YY, ImgHt);
+    IMgr.AdjustY(InitialFloatingLeftCount, InitialFloatingRightCount, Y, H);
 
-  function GetClearSpace(ClearAttr: ClearAttrType): Integer;
-  var
-    CL, CR: Integer;
-  begin
-    Result := 0;
-    if (ClearAttr <> clrNone) then
-    begin {may need to move down past floating image}
-      IMgr.GetClearY(CL, CR);
-      case ClearAttr of
-        clLeft: Result := Max(0, CL - Y - 1);
-        clRight: Result := Max(0, CR - Y - 1);
-        clAll: Result := Max(CL - Y - 1, Max(0, CR - Y - 1));
-      end;
-    end;
-  end;
-
-  procedure LineComplete(NN: Integer);
-  var
-    I, J, DHt, Desc, Tmp, TmpRt, Cnt, Index, H, SB, SA: Integer;
-    FO: TFontObj;
-    Align: AlignmentType;
-    FormAlign: AlignmentType;
-    NoChar: boolean;
-    P: PWideChar;
-    FCO: TFormControlObj;
-    FlObj: TFloatingObj;
-    LRTextWidth: Integer;
-    OHang: Integer;
-  begin
-    DHt := 0; {for the fonts on this line get the maximum height}
-    Cnt := 0;
-    Desc := 0;
-    P := PStart;
-    if (NN = 1) and (P^ = BrkCh) then
-      NoChar := False
-    else
-    begin
-      NoChar := True;
-      for I := 0 to NN - 1 do
-      begin
-        case P^ of
-          FmCtl, ImgPan, BrkCh:;
-        else
-          if not ((P = Last) and (Last^ = ' ')) then
-          begin {check for the no character case}
-            NoChar := False;
-            Break;
+    D := 0;
+    for I := 0 to Images.Count - 1 do
+      with Images[I] do
+        if Floating in [ALeft, ARight] then
+          if DrawYY > Y + VSpaceT then
+          begin
+            if DrawYY < Y + H + VSpaceT then
+              D := Y + H + VSpaceT - DrawYY;
+            Inc(DrawYY, D);
           end;
-        end;
-        Inc(P);
-      end;
-    end;
 
-    Align := ANone;
-    if not NoChar then
+    D := 0;
+    for I := 0 to FormControls.Count - 1 do
+      with FormControls[I] do
+        if Floating in [ALeft, ARight] then
+          if DrawYY > Y + VSpaceT then
+          begin
+            if DrawYY < Y + H + VSpaceT then
+              D := Y + H + VSpaceT - DrawYY; // FYValue;
+            Inc(DrawYY, D);
+          end;
+  end;
+
+  procedure DoDrawLogic;
+
+    procedure DrawLogicOfObjects(Objects: TFloatingObjList; Width: Integer);
+    var
+      I: Integer;
+      Obj: TFloatingObj;
     begin
-      repeat
-        FO := Fonts.GetFontObjAt(PStart - Buff + Cnt, Index);
-        Tmp := FO.GetHeight(Desc);
-        DHt := Max(DHt, Tmp);
-        LR.Descent := Max(LR.Descent, Desc);
-        J := Fonts.GetFontCountAt(PStart - Buff + Cnt, Len);
-        Inc(Cnt, J);
-      until Cnt >= NN;
-      Align := FO.SScript;
-    end;
-
-    {if there are images or line-height, then maybe they add extra space}
-    SB := 0; // vertical space before DHt / Text
-    SA := 0; // vertical space after DHt / Text
-    if not NoChar then
-    begin
-      if LineHeight > DHt then
+      for I := 0 to Objects.Count - 1 do {call drawlogic for all the objects}
       begin
-        // BG, 28.08.2011: too much space below an image: SA and SB depend on Align:
-        case Align of
-          aTop:
-            SA := LineHeight - DHt;
-
-          aMiddle:
-            begin
-              SB := (LineHeight - DHt) div 2;
-              SA := (LineHeight - DHt) - SB;
-            end;
-        else
-//          aNone:
-//          aBaseline,
-//          aBottom:
-            SB := LineHeight - DHt;
-        end;
-      end
-      else if LineHeight >= 0 then
-      begin
-        SB := (LineHeight - DHt) div 2;
-        SA := (LineHeight - DHt) - SB;
-      end;
-    end;
-
-    Cnt := 0;
-    repeat
-      Cnt := Cnt + Images.GetImageCountAt(PStart - Buff + Cnt);
-      if Cnt < NN then
-      begin
-        H := Images.GetHeightAt(PStart - Buff + Cnt, Align, FlObj);
-        if FlObj.Floating = ANone then
+        Obj := Objects[I];
+        Obj.DrawLogicInline(Canvas, Fonts.GetFontObjAt(Obj.StartCurs), 0, 0);
+        // BG, 28.08.2011:
+        if OwnerBlock.HideOverflow then
         begin
-          FlObj.DrawYY := Y; {approx y dimension}
-          if (FLObj is TImageObj) and Assigned(TImageObj(FLObj).MyFormControl) then
-            TImageObj(FLObj).MyFormControl.FYValue := Y;
+          if Obj.ClientWidth > Width then
+            Obj.ClientWidth := Width;
+        end
+        else
+          MaxWidth := Max(MaxWidth, Obj.ClientWidth); {HScrollBar for wide images}
+      end;
+    end;
+
+  var
+    PStart, Last: PWideChar;
+    ImgHt: Integer;
+    Finished: boolean;
+    LR: ThtLineRec;
+    AccumImgBot: Integer;
+
+    function GetClearSpace(ClearAttr: ThtClearStyle): Integer;
+    var
+      CL, CR: Integer;
+    begin
+      Result := 0;
+      if (ClearAttr <> clrNone) then
+      begin {may need to move down past floating image}
+        IMgr.GetClearY(CL, CR);
+        case ClearAttr of
+          clLeft: Result := Max(0, CL - Y - 1);
+          clRight: Result := Max(0, CR - Y - 1);
+          clAll: Result := Max(CL - Y - 1, Max(0, CR - Y - 1));
+        end;
+      end;
+    end;
+
+    procedure LineComplete(NN: Integer);
+    var
+      I, J, DHt, Desc, Tmp, TmpRt, Cnt, H, SB, SA: Integer;
+      FO: TFontObj;
+      Align: ThtAlignmentStyle;
+      NoChar: boolean;
+      P: PWideChar;
+      FlObj: TFloatingObj; //TSizeableObj;
+      FcObj: TFloatingObj; //TFormControlObj;
+      LRTextWidth: Integer;
+      OHang: Integer;
+
+      function FindSpaces: Integer;
+      var
+        I: Integer;
+      begin
+        Result := 0;
+        for I := 0 to NN - 2 do {-2 so as not to count end spaces}
+          if ((PStart + I)^ = ' ') or ((PStart + I)^ = #160) then
+            Inc(Result);
+      end;
+
+    begin
+      DHt := 0; {for the fonts on this line get the maximum height}
+      Cnt := 0;
+      Desc := 0;
+      P := PStart;
+      if (NN = 1) and (P^ = BrkCh) then
+        NoChar := False
+      else
+      begin
+        NoChar := True;
+        for I := 0 to NN - 1 do
+        begin
+          case P^ of
+            FmCtl, ImgPan, BrkCh:;
+          else
+            if not ((P = Last) and (Last^ = ' ')) then
+            begin {check for the no character case}
+              NoChar := False;
+              Break;
+            end;
+          end;
+          Inc(P);
+        end;
+      end;
+
+      Align := ANone;
+      if not NoChar then
+      begin
+        repeat
+          J := Fonts.GetFontObjAt(PStart - Buff + Cnt, Len, FO);
+          Tmp := FO.GetHeight(Desc);
+          DHt := Max(DHt, Tmp);
+          LR.Descent := Max(LR.Descent, Desc);
+          Inc(Cnt, J);
+        until Cnt >= NN;
+        Align := FO.SScript;
+      end;
+
+      {if there are images or line-height, then maybe they add extra space}
+      SB := 0; // vertical space before DHt / Text
+      SA := 0; // vertical space after DHt / Text
+      if not NoChar then
+      begin
+        if LineHeight > DHt then
+        begin
+          // BG, 28.08.2011: too much space below an image: SA and SB depend on Align:
           case Align of
-            aTop: 
-              SA := Max(SA, H - DHt);
+            aTop:
+              SA := LineHeight - DHt;
 
             aMiddle:
               begin
-                if DHt = 0 then
-                begin
-                  DHt := Fonts.GetFontObjAt(PStart - Buff, Index).GetHeight(Desc);
-                  LR.Descent := Desc;
-                end;
-                Tmp := (H - DHt) div 2;
-                SA := Max(SA, Tmp);
-                SB := Max(SB, (H - DHt - Tmp));
+                SB := (LineHeight - DHt) div 2;
+                SA := (LineHeight - DHt) - SB;
               end;
+          else
+//            aNone,
+//            aBaseline,
+//            aBottom:
+              SB := LineHeight - DHt;
+          end;
+        end
+        else if LineHeight >= 0 then
+        begin
+          SB := (LineHeight - DHt) div 2;
+          SA := (LineHeight - DHt) - SB;
+        end;
+      end;
 
+      Cnt := 0;
+      repeat
+        Inc(Cnt, Images.GetObjectAt(PStart - Buff + Cnt, FlObj));
+        if Cnt < NN then
+        begin
+          H := FlObj.TotalHeight;
+          if FlObj.Floating = ANone then
+          begin
+            FlObj.DrawYY := Y; {approx y dimension}
+            if (FLObj is TImageObj) and Assigned(TImageObj(FLObj).MyFormControl) then
+              TImageObj(FLObj).MyFormControl.DrawYY := Y; // FYValue := Y;
+            case FlObj.VertAlign of
+              aTop:
+                SA := Max(SA, H - DHt);
+
+              aMiddle:
+                begin
+                  if DHt = 0 then
+                  begin
+                    DHt := Fonts.GetFontObjAt(PStart - Buff).GetHeight(Desc);
+                    LR.Descent := Desc;
+                  end;
+                  Tmp := (H - DHt) div 2;
+                  SA := Max(SA, Tmp);
+                  SB := Max(SB, (H - DHt - Tmp));
+                end;
               aBaseline,
               aBottom:
                 SB := Max(SB, H - (DHt - LR.Descent));
+            end;
           end;
         end;
-      end;
-      Inc(Cnt); {to skip by the image}
-    until Cnt >= NN;
-
-    Cnt := 0; {now check on form controls}
-    repeat
-      Inc(Cnt, FormControls.GetControlCountAt(PStart - Buff + Cnt));
-      if Cnt < NN then
-      begin
-        FCO := FormControls.FindControl(PStart - Buff + Cnt);
-        H := FormControls.GetHeightAt(PStart - Buff + Cnt, FormAlign);
-        case FormAlign of
-          ATop:
-            SA := Max(SA, H + FCO.VSpaceB + FCO.VSpaceT - Dht);
-          AMiddle:
-            begin
-              Tmp := (H - DHt) div 2;
-              SA := Max(SA, Tmp + FCO.VSpaceB);
-              SB := Max(SB, (H - DHt - Tmp + FCO.VSpaceT));
-            end;
-          ABaseline:
-            SB := Max(SB, H + FCO.VSpaceT + FCO.VSpaceB - (DHt - LR.Descent));
-          ABottom:
-            SB := Max(SB, H + FCO.VSpaceT + FCO.VSpaceB - DHt);
-        end;
-        if Assigned(FCO) and not Document.IsCopy then
-          FCO.FYValue := Y;
-      end;
-      Inc(Cnt); {to skip by the control}
-    until Cnt >= NN;
-
-{$IFNDEF NoTabLink}
-    if not Document.IsCopy then
-    begin
-      Cnt := 0; {now check URLs}
-      repeat
-        FO := Fonts.GetFontObjAt(PStart - Buff + Cnt, Index);
-        FO.AssignY(Y);
-        Cnt := Cnt + Fonts.GetFontCountAt(PStart - Buff + Cnt, Len);
+        Inc(Cnt); {to skip by the image}
       until Cnt >= NN;
-    end;
-{$ENDIF}
 
-    LR.Start := PStart;
-    LR.LineHt := DHt;
-    LR.Ln := NN;
-    if Brk[PStart - Buff + NN] = 's' then {see if there is a soft hyphen on the end}
-      LR.Shy := True;
-    TmpRt := IMgr.RightSide(Y);
-    Tmp := IMgr.LeftIndent(Y);
-    if PStart = Buff then
-      Tmp := Tmp + FirstLineIndent;
+      Cnt := 0; {now check on form controls}
+      repeat
+        Inc(Cnt, FormControls.GetObjectAt(PStart - Buff + Cnt, FcObj));
+        if Cnt < NN then
+        begin
+          H := FcObj.TotalHeight;
+          if FcObj.Floating = ANone then
+          begin
+            case FcObj.VertAlign of
+              ATop:
+                SA := Max(SA, H - Dht);
+              AMiddle:
+                begin
+                  Tmp := (FcObj.ClientHeight - DHt) div 2;
+                  SA := Max(SA, Tmp + FcObj.VSpaceB);
+                  SB := Max(SB, (FcObj.ClientHeight - DHt - Tmp + FcObj.VSpaceT));
+                end;
+              ABaseline:
+                SB := Max(SB, H - (DHt - LR.Descent));
+              ABottom:
+                SB := Max(SB, H - DHt);
+            end;
+            if not IsCopy then
+              FcObj.DrawYY := Y; //FYValue := Y;
+          end;
+        end;
+        Inc(Cnt); {to skip by the control}
+      until Cnt >= NN;
 
-      LRTextWidth := FindTextWidth(Canvas, PStart, NN, True);
+  {$IFNDEF NoTabLink}
+      if Length(XP) <> 0 then
+      begin
+        Cnt := 0; {now check URLs}
+        repeat
+          Inc(Cnt, Fonts.GetFontObjAt(PStart - Buff + Cnt, Len, FO));
+          FO.AssignY(Y);
+        until Cnt >= NN;
+      end;
+  {$ENDIF}
+
+      LR.Start := PStart;
+      LR.LineHt := DHt;
+      LR.Ln := NN;
+      if Brk[PStart - Buff + NN - 1] = twSoft then {see if there is a soft hyphen on the end}
+        LR.Shy := True;
+      TmpRt := IMgr.RightSide(Y);
+      Tmp := IMgr.LeftIndent(Y);
+      if PStart = Buff then
+        Tmp := Tmp + FirstLineIndent;
+
+      LRTextWidth := FindTextSize(Canvas, PStart, NN, True).cx;
       if LR.Shy then
       begin {take into account the width of the hyphen}
         Fonts.GetFontAt(PStart - Buff + NN - 1, OHang).AssignToCanvas(Canvas);
@@ -12557,7 +12074,7 @@ var
         if not Finished then
         begin
           LR.Extra := TmpRt - Tmp - LRTextWidth;
-          LR.Spaces := FindSpaces(PStart,NN);
+          LR.Spaces := FindSpaces;
         end;
       end;
       LR.DrawWidth := TmpRt - Tmp;
@@ -12571,19 +12088,295 @@ var
       LR.LineImgHt := Max(Tmp, ImgHt);
     end;
 
+  var
+    P: PWideChar;
+    MaxChars: Integer;
+    N, NN, Width, I: Integer;
+    Tmp: Integer;
+    Obj: TFloatingObj;
+    TopY, HtRef: Integer;
+    //Ctrl: TFormControlObj;
+    //BG, 06.02.2011: floating objects:
+    PDoneFlObj: PWideChar;
+    YDoneFlObj: Integer;
+  begin {DoDrawLogic}
+    SectionHeight := 0;
+    AccumImgBot := 0;
+    TopY := Y;
+    PStart := Buff;
+    Last := Buff + Len - 1;
+    if Len = 0 then
+    begin
+      Result := GetClearSpace(ClearAttr);
+      DrawHeight := Result;
+      SectionHeight := Result;
+      ContentBot := Y + Result;
+      DrawBot := ContentBot;
+      MaxWidth := 0;
+      DrawWidth := 0;
+
+      DrawRect.Left   := X;
+      DrawRect.Top    := DrawTop;
+      DrawRect.Right  := DrawRect.Left + DrawWidth;
+      DrawRect.Bottom := DrawBot;
+      Exit;
+    end;
+    if FLPercent <> 0 then
+      FirstLineIndent := (FLPercent * AWidth) div 100; {percentage calculated}
+    Finished := False;
+    DrawWidth := IMgr.RightSide(Y) - X;
+    Width := Min(IMgr.RightSide(Y) - IMgr.LeftIndent(Y), AWidth);
+    MaxWidth := Width;
+    if AHeight = 0 then
+      HtRef := BlHt
+    else
+      HtRef := AHeight;
+
+    for I := 0 to Images.Count - 1 do {call drawlogic for all the images}
+    begin
+      Obj := Images[I];
+      Obj.DrawLogicInline(Canvas, Fonts.GetFontObjAt(Obj.StartCurs), Width, HtRef);
+      // BG, 28.08.2011:
+      if OwnerBlock.HideOverflow then
+      begin
+        if Obj.ClientWidth > Width then
+          Obj.ClientWidth := Width;
+      end
+      else
+        MaxWidth := Max(MaxWidth, Obj.ClientWidth); {HScrollBar for wide images}
+    end;
+
+    for I := 0 to FormControls.Count - 1 do
+    begin
+      Obj := FormControls[I];
+      Obj.DrawLogicInline(Canvas, Fonts.GetFontObjAt(Obj.StartCurs), Width, HtRef);
+      // BG, 28.08.2011:
+      if OwnerBlock.HideOverflow then
+      begin
+        if Obj.ClientWidth > Width then
+          Obj.ClientWidth := Width;
+      end
+      else
+        MaxWidth := Max(MaxWidth, Obj.ClientWidth);
+    end;
+
+    YDoneFlObj := Y;
+    PDoneFlObj := PStart - 1;
+    while not Finished do
+    begin
+      MaxChars := Last - PStart + 1;
+      if MaxChars <= 0 then
+        Break;
+      LR := ThtLineRec.Create(Document); {a new line}
+      if Lines.Count = 0 then
+      begin {may need to move down past floating image}
+        Tmp := GetClearSpace(ClearAttr);
+        if Tmp > 0 then
+        begin
+          LR.LineHt := Tmp;
+          Inc(SectionHeight, Tmp);
+          LR.Ln := 0;
+          LR.Start := PStart;
+          Inc(Y, Tmp);
+          Lines.Add(LR);
+          LR := ThtLineRec.Create(Document);
+        end;
+      end;
+
+      ImgHt := 0;
+      NN := 0;
+      if (WhiteSpaceStyle in [wsPre, wsPreLine, wsNoWrap]) and not BreakWord then
+        N := MaxChars
+      else
+      begin
+        NN := FindCountThatFits1(Canvas, PStart, MaxChars, X, Y, IMgr, YDoneFlObj, ImgHt, PDoneFlObj);
+        N := Max(NN, 1); {N = at least 1}
+      end;
+
+      AccumImgBot := Max(AccumImgBot, Y + ImgHt);
+      if NN = 0 then {if nothing fits, see if we can move down}
+        Tmp := IMgr.GetNextWiderY(Y) - Y
+      else
+        Tmp := 0;
+      if Tmp > 0 then
+      begin
+        //BG, 24.01.2010: do not move down images or trailing spaces.
+        P := PStart + N - 1; {the last ThtChar that fits}
+        if ((P^ = SpcChar) {or (P^ = FmCtl,} or (P^ = ImgPan) or WrapChar(P^)) and (Brk[P - Buff] <> twNo) or (P^ = BrkCh) then
+        begin {move past spaces so as not to print any on next line}
+          while (N < MaxChars) and ((P + 1)^ = ' ') do
+          begin
+            Inc(P);
+            Inc(N);
+          end;
+          Finished := N >= MaxChars;
+          LineComplete(N);
+        end
+        else
+        begin {move down to where it's wider}
+          LR.LineHt := Tmp;
+          Inc(SectionHeight, Tmp);
+          LR.Ln := 0;
+          LR.Start := PStart;
+          Inc(Y, Tmp);
+          Lines.Add(LR);
+        end
+      end {else can't move down or don't have to}
+      else if N = MaxChars then
+      begin {Do the remainder}
+        Finished := True;
+        LineComplete(N);
+      end
+      else
+      begin
+        P := PStart + N - 1; {the last ThtChar that fits}
+        if ((P^ = SpcChar) or (P^ = FmCtl) or (p^ = ImgPan) or WrapChar(P^)) and (Brk[P - Buff] <> twNo) or (P^ = BrkCh) then
+        begin {move past spaces so as not to print any on next line}
+          while (N < MaxChars) and ((P + 1)^ = ' ') do
+          begin
+            Inc(P);
+            Inc(N);
+          end;
+          Finished := N >= MaxChars;
+          LineComplete(N);
+        end
+        else if (N < MaxChars) and ((P + 1)^ = ' ') and (Brk[P - Buff + 1] <> twNo) then
+        begin
+          repeat
+            Inc(P);
+            Inc(N); {pass the space}
+          until (N >= MaxChars) or ((P + 1)^ <> ' ');
+          Finished := N >= MaxChars;
+          LineComplete(N);
+        end
+        else if (N < MaxChars) and (((P + 1)^ = FmCtl) or ((P + 1)^ = ImgPan)) and (Brk[PStart - Buff + N - 1] <> twNo) then {an image or control}
+        begin
+          Finished := False;
+          LineComplete(N);
+        end
+        else
+        begin
+          {non space, wrap it by backing off to previous wrappable char}
+          while P > PStart do
+          begin
+            case Brk[P - Buff] of
+              twNo: ;
+
+              twSoft,
+              twOptional:
+                break;
+
+            else
+              if CanWrap(P^) or WrapChar((P + 1)^) then
+                break; // can wrap after this or before next char.
+            end;
+            Dec(P);
+          end;
+
+          if (P = PStart) and ((not ((P^ = FmCtl) or (P^ = ImgPan))) or (Brk[PStart - Buff] = twNo)) then
+          begin
+            {no space found, forget the wrap, write the whole word and any spaces found after it}
+            if BreakWord then
+              LineComplete(N)
+            else
+            begin
+              P := PStart + N - 1;
+
+              while (P <> Last) and not CanWrapAfter(P^) and not (Brk[P - Buff] in [twSoft, twOptional])
+              do
+              begin
+                case Brk[P - Buff + 1] of
+                  twNo: ; // must not wrap after this char.
+                else
+                  case (P + 1)^ of
+                    ' ', FmCtl, ImgPan, BrkCh:
+                      break; // can wrap before this char.
+                  else
+                    if WrapChar((P + 1)^) then
+                      break; // can wrap before this char.
+                  end;
+                end;
+                Inc(P);
+              end;
+
+              while (P <> Last) and ((P + 1)^ = ' ') do
+              begin
+                Inc(P);
+              end;
+              if (P <> Last) and ((P + 1)^ = BrkCh) then
+                Inc(P);
+            {Line is too long, add spacer line to where it's clear}
+              Tmp := IMgr.GetNextWiderY(Y) - Y;
+              if Tmp > 0 then
+              begin
+                LR.LineHt := Tmp;
+                Inc(SectionHeight, Tmp);
+                LR.Ln := 0;
+                LR.Start := PStart;
+                Inc(Y, Tmp);
+                Lines.Add(LR);
+              end
+              else
+              begin {line is too long but do it anyway}
+                MaxWidth := Max(MaxWidth, FindTextSize(Canvas, PStart, P - PStart + 1, True).cx);
+                Finished := P = Last;
+                LineComplete(P - PStart + 1);
+              end;
+            end
+          end
+          else
+          begin {found space}
+            while (P + 1)^ = ' ' do
+            begin
+              if P = Last then
+              begin
+                Inc(P);
+                Dec(P);
+              end;
+              Inc(P);
+            end;
+            LineComplete(P - PStart + 1);
+          end;
+        end;
+      end;
+    end;
+    Curs := StartCurs + Len;
+
+    if Assigned(Document.FirstLineHtPtr) and (Lines.Count > 0) then {used for List items}
+      with ThtLineRec(Lines[0]) do
+        if (Document.FirstLineHtPtr^ = 0) then
+          Document.FirstLineHtPtr^ := YDraw + LineHt - Descent + SpaceBefore;
+
+    DrawHeight := AccumImgBot - TopY; {in case image overhangs}
+    if DrawHeight < SectionHeight then
+      DrawHeight := SectionHeight;
+    Result := SectionHeight;
+    ContentBot := TopY + SectionHeight;
+    DrawBot := TopY + DrawHeight;
+    with Document do
+    begin
+      if not IsCopy and (SectionNumber mod 50 = 0) and (ThisCycle <> CycleNumber)
+        and (SectionCount > 0) then
+        TheOwner.htProgress(ProgressStart + ((100 - ProgressStart) * SectionNumber) div SectionCount);
+      ThisCycle := CycleNumber; {only once per cycle}
+    end;
+
+    // BG, 28.08.2011:
+    if OwnerBlock.HideOverflow then
+      if MaxWidth > Width then
+        MaxWidth := Width;
+
+    DrawRect.Left   := X;
+    DrawRect.Top    := DrawTop;
+    DrawRect.Right  := DrawRect.Left + MaxWidth;
+    DrawRect.Bottom := DrawBot;
+  end; { DoDrawLogic}
+
 var
-  P: PWideChar;
-  MaxChars: Integer;
-  N, NN, Width, I, Indx: Integer;
-  Tmp: Integer;
-  Obj: TFloatingObj;
-  TopY, HtRef: Integer;
-  Ctrl: TFormControlObj;
-  //BG, 06.02.2011: floating objects:
-  PDoneFlObj: PWideChar;
-  YDoneFlObj: Integer;
+  Dummy: Integer;
+  Save: Integer;
 begin {TSection.DrawLogic}
-  {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TSection.DrawLogic');
   CodeSite.SendFmtMsg('X        = [%d]',[X]);
   CodeSite.SendFmtMsg('Y        = [%d]',[Y]);
@@ -12592,258 +12385,62 @@ begin {TSection.DrawLogic}
   CodeSite.SendFmtMsg('AWidth   = [%d]',[AWidth]);
   CodeSite.SendFmtMsg('AHeight  = [%d]',[AHeight]);
   CodeSite.SendFmtMsg('BlHt     = [%d]',[BlHt]);
-  if Assigned(IMgr) then begin
+  if Assigned(IMgr) then
+  begin
     CodeSite.SendFmtMsg('IMgr.LfEdge    = [%d]',[ IMgr.LfEdge ] );
     CodeSite.SendFmtMsg('IMgr.Width     = [%d]',[ IMgr.Width ] );
     CodeSite.SendFmtMsg('IMgr.ClipWidth = [%d]',[ IMgr.ClipWidth ] );
-  end else begin
+  end
+  else
+  begin
     CodeSite.SendMsg('IMgr      = nil');
   end;
   CodeSite.SendFmtMsg('MaxWidth = [%d]',[MaxWidth]);
   CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
   CodeSite.AddSeparator;
-  {$ENDIF}
+{$ENDIF}
+
   YDraw := Y;
-  AccumImgBot := 0;
-  TopY := Y;
-  ContentTop := Y;
   DrawTop := Y;
+  ContentTop := Y;
   StartCurs := Curs;
-  PStart := Buff;
-  Last := Buff + Len - 1;
-  SectionHeight := 0;
   Lines.Clear;
   TextWidth := 0;
-  if Len = 0 then
-  begin
-    Result := GetClearSpace(ClearAttr);
-    DrawHeight := Result;
-    SectionHeight := Result;
-    ContentBot := Y + Result;
-    DrawBot := ContentBot;
-    MaxWidth := 0;
-    DrawWidth := 0;
-    Exit;
-  end;
-  if FLPercent <> 0 then
-    FirstLineIndent := (FLPercent * AWidth) div 100; {percentage calculated}
-  Finished := False;
-  DrawWidth := IMgr.RightSide(Y) - X;
-  Width := Min(IMgr.RightSide(Y) - IMgr.LeftIndent(Y), AWidth);
-  MaxWidth := Width;
-  if AHeight = 0 then
-    HtRef := BlHt
-  else
-    HtRef := AHeight;
-  for I := 0 to Images.Count - 1 do {call drawlogic for all the images}
-  begin
-    Obj := TFloatingObj(Images[I]);
-    Obj.DrawLogic(Self.Document, Canvas, Fonts.GetFontObjAt(Obj.Pos, Indx), Width, HtRef);
-    MaxWidth := Max(MaxWidth, Obj.ImageWidth); {HScrollBar for wide images}
-  end;
-  for I := 0 to FormControls.Count - 1 do
-  begin
-    Ctrl := FormControls[I];
-    if Ctrl.PercentWidth then
-      Ctrl.Width := Max(10, Min(MulDiv(Ctrl.FWidth, Width, 100), Width - Ctrl.HSpaceL - Ctrl.HSpaceR));
-  	MaxWidth := Max(MaxWidth, Ctrl.Width);
-  end;
 
-  YDoneFlObj := Y;
-  PDoneFlObj := PStart - 1;
-  while not Finished do
+  if WhiteSpaceStyle in [wsPre, wsNoWrap] then
   begin
-    MaxChars := Last - PStart + 1;
-    if MaxChars <= 0 then
-      Break;
-    LR := LineRec.Create(Document); {a new line}
-    if Lines.Count = 0 then
-    begin {may need to move down past floating image}
-      Tmp := GetClearSpace(ClearAttr);
-      if Tmp > 0 then
-      begin
-        LR.LineHt := Tmp;
-        Inc(SectionHeight, Tmp);
-        LR.Ln := 0;
-        LR.Start := PStart;
-        Inc(Y, Tmp);
-        Lines.Add(LR);
-        LR := LineRec.Create(Document);
-      end;
+    if Len = 0 then
+    begin
+      Result := Fonts.GetFontObjAt(0).FontHeight;
+      SectionHeight := Result;
+      MaxWidth := 0;
+      DrawHeight := Result;
+      ContentBot := Y + Result;
+      DrawBot := ContentBot;
+
+      DrawRect.Left   := X;
+      DrawRect.Top    := DrawTop;
+      DrawRect.Right  := DrawRect.Left + MaxWidth;
+      DrawRect.Bottom := DrawRect.Top + SectionHeight;
+      exit;
     end;
 
-    ImgHt := 0;
-    NN := 0;
-    if (Self is TPreformated) and not BreakWord then
-      N := MaxChars
-    else
+    if not BreakWord then
     begin
-      NN := FindCountThatFits1(Canvas, PStart, MaxChars, X, Y, IMgr, YDoneFlObj, ImgHt, PDoneFlObj);
-      N := Max(NN, 1); {N = at least 1}
-    end;
-
-    AccumImgBot := Max(AccumImgBot, Y + ImgHt);
-    if NN = 0 then {if nothing fits, see if we can move down}
-      Tmp := IMgr.GetNextWiderY(Y) - Y
-    else
-      Tmp := 0;
-    if Tmp > 0 then
-    begin
-      //BG, 24.01.2010: do not move down images or trailing spaces.
-      P := PStart + N - 1; {the last ThtChar that fits}
-      if ((P^ = SpcChar) or {(P^ = FmCtl) or} (P^ = ImgPan) or WrapChar(P^)) and (Brk[P - Buff + 1] <> 'n') or (P^ = BrkCh) then
-      begin {move past spaces so as not to print any on next line}
-        while (N < MaxChars) and ((P + 1)^ = ' ') do
-        begin
-          Inc(P);
-          Inc(N);
-        end;
-        Finished := N >= MaxChars;
-        LineComplete(N);
-      end
-      else
-      begin {move down where it's wider}
-        LR.LineHt := Tmp;
-        Inc(SectionHeight, Tmp);
-        LR.Ln := 0;
-        LR.Start := PStart;
-        Inc(Y, Tmp);
-        Lines.Add(LR);
-      end
-    end {else can't move down or don't have to}
-    else if N = MaxChars then
-    begin {Do the remainder}
-      Finished := True;
-      LineComplete(N);
-    end
-    else
-    begin
-      P := PStart + N - 1; {the last ThtChar that fits}
-      if ((P^ = ThtChar(' ')) or (P^ = FmCtl) or (P^ = ImgPan) or WrapChar(P^)) and (Brk[P - Buff + 1] <> 'n') or (P^ = BrkCh) then
-      begin {move past spaces so as not to print any on next line}
-        while (N < MaxChars) and ((P + 1)^ = ' ') do
-        begin
-          Inc(P);
-          Inc(N);
-        end;
-        Finished := N >= MaxChars;
-        LineComplete(N);
-      end
-      else if (N < MaxChars) and ((P + 1)^ = ' ') and (Brk[P - Buff + 2] <> 'n') then
-      begin
-        repeat
-          Inc(N); {pass the space}
-          Inc(p);
-        until (N >= MaxChars) or ((P + 1)^ <> ' ');
-        Finished := N >= MaxChars;
-        LineComplete(N);
-      end
-      else if (N < MaxChars) and (((P + 1)^ = FmCtl) or ((P + 1)^ = ImgPan)) and (Brk[PStart - Buff + N] <> 'n') then {an image or control}
-      begin
-        Finished := False;
-        LineComplete(N);
-      end
-      else
-      begin {non space, wrap it by backing off to previous space or image}
-        while P > PStart do
-        begin
-          case Brk[P - Buff + 1] of
-            'n': ; // must not wrap after this char.
-
-            'a', 's': break; // can wrap after this char. BG, 16.12.2011: Why is 'y' missing here?
-          else
-            if CanWrap(P^) or WrapChar((P + 1)^) then
-              break; // can wrap after this or before next char.
-          end;
-          Dec(P);
-        end;
-
-        if (P = PStart) and (not ((P^ = FmCtl) or (P^ = ImgPan)) or (Brk[PStart - Buff + 1] = 'n')) then
-        begin {no space found, forget the wrap, write the whole word and any spaces found after it}
-          if BreakWord then
-            LineComplete(N)
-          else
-          begin
-            P := PStart + N - 1;
-
-            while (P <> Last) and not CanWrapAfter(P^) and not (Brk[P - Buff + 1] in ['a', 's'])
-            do
-            begin
-              case Brk[P - Buff + 2] of
-                'n': ; // must not wrap after this char.
-              else
-                case (P + 1)^ of
-                  ' ', FmCtl, ImgPan, BrkCh: break; // can wrap before this char.
-                else
-                  if WrapChar((P + 1)^) then
-                    break; // can wrap before this char.
-                end;
-              end;
-              Inc(P);
-            end;
-
-            while (P <> Last) and ((P + 1)^ = ' ') do
-            begin
-              Inc(P);
-            end;
-            if (P <> Last) and ((P + 1)^ = BrkCh) then
-              Inc(P);
-          {Line is too long, add spacer line to where it's clear}
-            Tmp := IMgr.GetNextWiderY(Y) - Y;
-            if Tmp > 0 then
-            begin
-              LR.LineHt := Tmp;
-              Inc(SectionHeight, Tmp);
-              LR.Ln := 0;
-              LR.Start := PStart;
-              Inc(Y, Tmp);
-              Lines.Add(LR);
-            end
-            else
-            begin {line is too long but do it anyway}
-              MaxWidth := Max(MaxWidth, FindTextWidth(Canvas, PStart, P - PStart + 1, True));
-              Finished := P = Last;
-              LineComplete(P - PStart + 1);
-            end;
-          end
-        end
-        else
-        begin {found space}
-          while (P + 1)^ = ' ' do
-          begin
-            if P = Last then
-            begin
-              Inc(P);
-              Dec(P);
-            end;
-            Inc(P);
-          end;
-          LineComplete(P - PStart + 1);
-        end;
-      end;
+    {call with large width to prevent wrapping}
+      Save := IMgr.Width;
+      IMgr.Width := 32000;
+      DoDrawLogic;
+      IMgr.Width := Save;
+      MinMaxWidth(Canvas, Dummy, MaxWidth); {return MaxWidth}
+      DrawRect.Right := DrawRect.Left + MaxWidth;
+      exit;
     end;
   end;
-  Curs := StartCurs + Len;
 
-  if Assigned(Document.FirstLineHtPtr) and (Lines.Count > 0) then {used for List items}
-    with LineRec(Lines[0]) do
-      if (Document.FirstLineHtPtr^ = 0) then
-        Document.FirstLineHtPtr^ := YDraw + LineHt - Descent + SpaceBefore;
+  DoDrawLogic;
 
-  DrawHeight := AccumImgBot - TopY; {in case image overhangs}
-  if DrawHeight < SectionHeight then
-    DrawHeight := SectionHeight;
-  Result := SectionHeight;
-  ContentBot := TopY + SectionHeight;
-  DrawBot := TopY + DrawHeight;
-  with Document do
-  begin
-    if not IsCopy and (SectionNumber mod 50 = 0) and (ThisCycle <> CycleNumber)
-      and (SectionCount > 0) then
-      TheOwner.htProgress(ProgressStart + ((100 - ProgressStart) * SectionNumber) div SectionCount);
-    ThisCycle := CycleNumber; {only once per cycle}
-  end;
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   if Assigned(IMgr) then begin
     CodeSite.SendFmtMsg('IMgr.LfEdge    = [%d]',[ IMgr.LfEdge ] );
     CodeSite.SendFmtMsg('IMgr.Width     = [%d]',[ IMgr.Width ] );
@@ -12855,17 +12452,17 @@ begin {TSection.DrawLogic}
   CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
   CodeSite.SendFmtMsg('Result   = [%d]',[Result]);
   CodeSite.ExitMethod(Self,'TSection.DrawLogic');
-   {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TSection.CheckForInlines}
 
-procedure TSection.CheckForInlines(LR: Linerec);
+procedure TSection.CheckForInlines(LR: ThtLineRec);
 {called before each line is drawn the first time to check if there are any
  inline borders in the line}
 var
   I: Integer;
-  BR: BorderRec;
+  BR: ThtBorderRec;
   StartBI, EndBI, LineStart: Integer;
 begin
   with LR do
@@ -12884,11 +12481,11 @@ begin
             BorderList := TFreeList.Create;
             FirstDraw := True; {there will be more processing needed}
           end;
-          BR := BorderRec.Create;
+          BR := ThtBorderRec.Create;
           BorderList.Add(BR);
           with BR do
           begin
-            BR.MargArray := InlineRec(Document.InlineList.Items[I]).MargArray; {get border data}
+            BR.MargArray := ThtInThtLineRec(Document.InlineList.Items[I]).MargArray; {get border data}
             if StartBI < LineStart then
             begin
               OpenStart := True; {continuation of border on line above, end is open}
@@ -12920,28 +12517,53 @@ end;
 function TSection.Draw1(Canvas: TCanvas; const ARect: TRect;
   IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
 var
-  I: Integer;
   MySelB, MySelE: Integer;
-  DC: HDC;
-  Ctrl: TFormControlObj;
   YOffset, Y, Desc: Integer;
+
+  //>-- DZ 19.09.2012
+  procedure AdjustDrawRect( aTop, aLeft, aWidth, aHeight: Integer ); overload;
+  begin
+     dec( aTop, Document.YOff );
+
+     if DrawRect.Top > aTop then
+       DrawRect.Top:= aTop;
+
+     if DrawRect.Left > aLeft then
+       DrawRect.Left:= aLeft;
+
+     if DrawRect.Right < aLeft + aWidth then
+       DrawRect.Right:= aLeft + aWidth;
+
+     if DrawRect.Bottom < aTop + aHeight then
+       DrawRect.Bottom:= aTop + aHeight;
+  end;
+
+  //>-- DZ 19.09.2012
+  procedure AdjustDrawRect( const aRect: TRect ); overload;
+  begin
+    AdjustDrawRect( aRect.Top, aRect.Left, aRect.Right - aRect.Left, aRect.Bottom - aRect.Top );
+  end;
 
   procedure DrawTheText(LineNo: Integer);
   var
-    I, J, J1, J2, J3, J4, Index, Addon, TopP, BottomP, LeftT, Tmp, K: Integer;
-    Obj: TFloatingObj;
+    I, J, J1, J2, J3, J4,
+    //Index,
+    Addon, TopP, BottomP, LeftT, Tmp, K: Integer;
+    FlObj: TFloatingObj;
+    FcObj: TFormControlObj;
     FO: TFontObj;
+    DC: HDC;
     ARect: TRect;
     Inverted, NewCP: boolean;
     Color: TColor;
     CPx, CPy, CP1x: Integer;
-    BR: BorderRec;
-    LR: LineRec;
+    BR: ThtBorderRec;
+    LR: ThtLineRec;
     Start: PWideChar;
     Cnt, Descent: Integer;
-    St: WideString;
+    St: UnicodeString;
 
-    function AddHyphen(P: PWideChar; N: Integer): WideString;
+    function AddHyphen(P: PWideChar; N: Integer): UnicodeString;
     var
       I: Integer;
     begin
@@ -12958,7 +12580,7 @@ var
       Result := False;
       C := Start - Buff;
       Count := 32000;
-      if Document.IsCopy then
+      if IsCopy then
         Exit;
       if (MySelE < MySelB) or ((MySelE = MySelB) and
         not Document.ShowDummyCaret) then
@@ -12979,7 +12601,7 @@ var
     end;
 
   begin {Y is at bottom of line here}
-    LR := LineRec(Lines[LineNo]);
+    LR := ThtLineRec(Lines[LineNo]);
     Start := LR.Start;
     Cnt := LR.Ln;
     Descent := LR.Descent;
@@ -12990,19 +12612,19 @@ var
     CP1x := CPx;
     LR.DrawY := Y - LR.LineHt;
     LR.DrawXX := CPx;
+    AdjustDrawRect( LR.DrawY, LR.DrawXX, LR.DrawWidth, LR.LineHt ); //>-- DZ 19.09.2012
     while Cnt > 0 do
     begin
       I := 1;
-      J1 := Fonts.GetFontCountAt(Start - Buff, Len) - 1;
-      J2 := Images.GetImageCountAt(Start - Buff) - 1;
-      J4 := FormControls.GetControlCountAt(Start - Buff) - 1;
-      FO := Fonts.GetFontObjAt(Start - Buff, Index);
+      J1 := Fonts.GetFontObjAt(Start - Buff, Len, FO) - 1;
+      J2 := Images.GetObjectAt(Start - Buff, FlObj) - 1;
+      J4 := FormControls.GetObjectAt(Start - Buff, FcObj) - 1;
 
     {if an inline border, find it's boundaries}
       if LR.FirstDraw and Assigned(LR.BorderList) then
         for K := 0 to LR.BorderList.Count - 1 do {may be several inline borders}
         begin
-          BR := BorderRec(LR.BorderList.Items[K]);
+          BR := ThtBorderRec(LR.BorderList.Items[K]);
           if (Start - Buff = BR.BStart) then
           begin {this is it's start}
             BR.bRect.Top := Y - FO.GetHeight(Desc) - Descent + Desc + 1;
@@ -13022,10 +12644,9 @@ var
       Canvas.Font.Color := ThemedColor(Canvas.Font.Color{$ifdef has_StyleElements},seFont in Document.StyleElements{$endif});
       if J2 = -1 then
       begin {it's an image or panel}
-        Obj := Images.FindImage(Start - Buff);
-        if Obj is TImageObj then
+        if FlObj is TImageObj then
         begin
-          if Obj.Floating in [ALeft, ARight] then
+          if FlObj.Floating in [ALeft, ARight] then
           begin
             //BG, 02.03.2011: Document is the Document, thus we must
             //  feed it with document coordinates: X,Y is in document coordinates,
@@ -13034,14 +12655,16 @@ var
             //  had its own IMgr and nested blocks had nested IMgrs with coordinates
             //  relative to the containing block, the document coordinates of an inner
             //  block were the sum of all LfEdges of the containing blocks.
-            Document.DrawList.AddImage(TImageObj(Obj), Canvas,
-              IMgr.LfEdge + Obj.Indent, Obj.DrawYY, Y - Descent, FO);
+            //
+            // correct x-position for floating images: IMgr.LfEdge + Obj.Indent
+            Document.DrawList.AddImage(TImageObj(FlObj), Canvas,
+              IMgr.LfEdge + FlObj.Indent, FlObj.DrawYY, Y - Descent, FO);
 
           {if a boundary is on a floating image, remove it}
             if LR.FirstDraw and Assigned(LR.BorderList) then
               for K := LR.BorderList.Count - 1 downto 0 do
               begin
-                BR := BorderRec(LR.BorderList.Items[K]);
+                BR := ThtBorderRec(LR.BorderList.Items[K]);
                 if (Start - Buff = BR.BStart) and (BR.BEnd = BR.BStart + 1) then
                   LR.BorderList.Delete(K);
               end;
@@ -13049,215 +12672,183 @@ var
           else
           begin
             SetTextJustification(Canvas.Handle, 0, 0);
-            if Owner <> nil then
-              TImageObj(Obj).Positioning := Owner.Positioning
+            if OwnerBlock <> nil then
+              FlObj.Positioning := OwnerBlock.Positioning
             else
-              TImageObj(Obj).Positioning := posStatic;
-            TImageObj(Obj).Draw(Canvas, CPx + Obj.HSpaceL, LR.DrawY, Y - Descent, FO);
+              FlObj.Positioning := posStatic;
+            TImageObj(FlObj).DrawInline(Canvas, CPx + FlObj.HSpaceL, LR.DrawY, Y - Descent, FO);
           {see if there's an inline border for the image}
             if LR.FirstDraw and Assigned(LR.BorderList) then
               for K := 0 to LR.BorderList.Count - 1 do
               begin
-                BR := BorderRec(LR.BorderList.Items[K]);
+                BR := ThtBorderRec(LR.BorderList.Items[K]);
                 if (Start - Buff >= BR.BStart) and (Start - Buff <= BR.BEnd) then
                 begin {there is a border here, find the image dimensions}
-                  with TImageObj(Obj) do
-                    case VertAlign of
-                      ATop, ANone:
-                        begin
-                          TopP := Y - LR.LineHt + VSpaceT;
-                          BottomP := Y - LR.LineHT + ImageHeight + VSpaceT;
-                        end;
-                      AMiddle:
-                        begin
-                          TopP := Y - Descent + FO.Descent - (FO.tmHeight div 2) - ((ImageHeight - VSpaceT + VSpaceB) div 2);
-                          BottomP := Y - Descent + FO.Descent - (FO.tmHeight div 2) - ((ImageHeight - VSpaceT + VSpaceB) div 2) + ImageHeight;
-                        end;
-                      ABottom, ABaseline:
-                        begin
-                          TopP := Y - Descent - Obj.ImageHeight - VSpaceB;
-                          BottomP := Y - Descent - VSpaceB;
-                        end;
-                    else
-                      begin
-                        TopP := 0; {to eliminate warning msg}
-                        BottomP := 0;
-                      end;
-                    end;
-                  if (Start - Buff = BR.BStart) then
+                  case FlObj.VertAlign of
+
+                    ATop, ANone:
+                      TopP := Y - LR.LineHt + FlObj.VSpaceT;
+
+                    AMiddle:
+                      TopP := Y - Descent + FO.Descent - FO.tmHeight div 2 - (FlObj.ClientHeight - FlObj.VSpaceT + FlObj.VSpaceB) div 2;
+
+                    ABottom, ABaseline:
+                      TopP := Y - Descent - FlObj.VSpaceB - FlObj.ClientHeight;
+
+                  else
+                    TopP := 0; {to eliminate warning msg}
+                  end;
+                  BottomP := TopP + FlObj.ClientHeight;
+
+                  if Start - Buff = BR.BStart then
                   begin {border starts at image}
-                    BR.bRect.Top := ToPP;
-                    BR.bRect.Left := CPx + TImageObj(Obj).HSpaceL;
+                    BR.bRect.Top := TopP;
+                    BR.bRect.Left := CPx + FlObj.HSpaceL;
                     if BR.BEnd = BR.BStart + 1 then {border ends with image also, rt side set by image width}
-                      BR.bRect.Right := BR.bRect.Left + TImageObj(Obj).ImageWidth;
+                      BR.bRect.Right := BR.bRect.Left + FlObj.ClientWidth;
                     BR.bRect.Bottom := BottomP;
                   end
-                  else if Start - Buff = BR.BEnd then
-                  else
+                  else if Start - Buff <> BR.BEnd then
                   begin {image is included in border and may effect the border top and bottom}
-                    BR.bRect.Top := Min(BR.bRect.Top, ToPP);
+                    BR.bRect.Top := Min(BR.bRect.Top, TopP);
                     BR.bRect.Bottom := Max(BR.bRect.Bottom, BottomP);
                   end;
                 end;
               end;
-            CPx := CPx + Obj.ImageWidth + Obj.HSpaceL + Obj.HSpaceR;
+            CPx := CPx + FlObj.TotalWidth;
             NewCP := True;
           end;
         end
         else
-        begin {it's a Panel}
-          with TPanelObj(Obj) do
+        begin {it's a Panel or Frame}
+          if FlObj is TControlObj then
+            TControlObj(FlObj).ShowIt := True;
+          if FlObj.Floating in [ALeft, ARight] then
           begin
-            ShowIt := True;
-            if Obj.Floating in [ALeft, ARight] then
-            begin
-              LeftT := IMgr.LfEdge + Obj.Indent;
-              TopP := Obj.DrawYY - YOffset;
-              {check for border.  For floating panel, remove it}
-              if LR.FirstDraw and Assigned(LR.BorderList) then
-                for K := LR.BorderList.Count - 1 downto 0 do
-                begin
-                  BR := BorderRec(LR.BorderList.Items[K]);
-                  if (Start - Buff = BR.BStart) and (BR.BEnd = BR.BStart + 1) then
-                    LR.BorderList.Delete(K);
-                end;
-            end
-            else
-            begin
-              LeftT := CPx + Obj.HSpaceL;
-              case Obj.VertAlign of
-                ATop, ANone: TopP := Y - YOffset - LR.LineHt + Obj.VSpaceT;
-                AMiddle: TopP := Y - YOffset - FO.tmHeight div 2 - (ImageHeight - Obj.VSpaceT + Obj.VSpaceB) div 2;
-                ABottom, ABaseline: TopP := Y - YOffset - ImageHeight - Descent - Obj.VSpaceB;
-              else
-                TopP := 0; {to eliminate warning msg}
+            LeftT := IMgr.LfEdge + FlObj.Indent;
+            TopP := FlObj.DrawYY;
+            {check for border.  For floating panel, remove it}
+            if LR.FirstDraw and Assigned(LR.BorderList) then
+              for K := LR.BorderList.Count - 1 downto 0 do
+              begin
+                BR := ThtBorderRec(LR.BorderList.Items[K]);
+                if (Start - Buff = BR.BStart) and (BR.BEnd = BR.BStart + 1) then
+                  LR.BorderList.Delete(K);
               end;
-            {Check for border on inline panel}
-              if LR.FirstDraw and Assigned(LR.BorderList) then
-                for K := 0 to LR.BorderList.Count - 1 do
+          end
+          else
+          begin
+            LeftT := CPx + FlObj.HSpaceL;
+            case FlObj.VertAlign of
+              ANone,
+              ATop:      TopP := Y - LR.LineHt + FlObj.VSpaceT;
+
+              AMiddle:   TopP := Y - FO.tmHeight div 2 - (FlObj.ClientHeight - FlObj.VSpaceT + FlObj.VSpaceB) div 2;
+
+              ABottom,
+              ABaseline: TopP := Y - Descent - FlObj.ClientHeight - FlObj.VSpaceB;
+            else
+                         TopP := 0; {to eliminate warning msg}
+            end;
+          {Check for border on inline panel}
+            if LR.FirstDraw and Assigned(LR.BorderList) then
+              for K := 0 to LR.BorderList.Count - 1 do
+              begin
+                BR := ThtBorderRec(LR.BorderList.Items[K]);
+                if (Start - Buff >= BR.BStart) and (Start - Buff <= BR.BEnd) then
                 begin
-                  BR := BorderRec(LR.BorderList.Items[K]);
-                  if (Start - Buff >= BR.BStart) and (Start - Buff <= BR.BEnd) then
-                  begin
-                    if (Start - Buff = BR.BStart) then
-                    begin {border starts on panel}
-                      BR.bRect.Top := ToPP + YOffSet;
-                      BR.bRect.Left := CPx + HSpaceL;
-                      if BR.BEnd = BR.BStart + 1 then {border also ends with panel}
-                        BR.bRect.Right := BR.bRect.Left + ImageWidth;
-                      BR.bRect.Bottom := TopP + YOffSet + ImageHeight;
-                    end
-                    else if Start - Buff = BR.BEnd then
-                    else
-                    begin {Panel is included in border, may effect top and bottom}
-                      BR.bRect.Top := Min(BR.bRect.Top, ToPP + YOffSet);
-                      BR.bRect.Bottom := Max(BR.bRect.Bottom, TopP + YOffSet + ImageHeight);
-                    end;
+                  if (Start - Buff = BR.BStart) then
+                  begin {border starts on panel}
+                    BR.bRect.Top := TopP;
+                    BR.bRect.Left := CPx + FlObj.HSpaceL;
+                    if BR.BEnd = BR.BStart + 1 then {border also ends with panel}
+                      BR.bRect.Right := BR.bRect.Left + FlObj.ClientWidth;
+                    BR.bRect.Bottom := TopP + FlObj.ClientHeight;
+                  end
+                  else if Start - Buff = BR.BEnd then
+                  else
+                  begin {Panel is included in border, may effect top and bottom}
+                    BR.bRect.Top := Min(BR.bRect.Top, TopP);
+                    BR.bRect.Bottom := Max(BR.bRect.Bottom, TopP + FlObj.ClientHeight);
                   end;
                 end;
-              Inc(CPx, ImageWidth + Obj.HSpaceL + Obj.HSpaceR);
-              NewCP := True;
-            end;
-            if Document.IsCopy then
-              TPanelObj(Obj).Draw(Canvas, LeftT, TopP)
-            else
-            begin
-              Panel.Top := TopP;
-              Panel.Left := LeftT;
-              if Panel.FVisible then
-                Panel.Show
-              else
-                Panel.Hide;
-            end;
-            DrawXX := LeftT;
+              end;
+            Inc(CPx, FlObj.TotalWidth);
+            NewCP := True;
           end;
+
+          FlObj.DrawInline(Canvas, LeftT, TopP - YOffset, TopP - YOffset - Descent, FO);
+
         end;
       end
       else if J4 = -1 then
       begin {it's a form control}
-        Ctrl := FormControls.FindControl(Start - Buff);
-        if not Ctrl.Hidden then
-          with Ctrl do
+        if not FcObj.Hidden then
+        begin
+          FcObj.ShowIt := True;
+          if FcObj.Floating in [ALeft, ARight] then
           begin
-            ShowIt := True;
-            case FormAlign of
-              ATop:
-                TopP := LR.DrawY + VSpaceT - YOffset;
-              AMiddle:
-                TopP := Y - ((LR.LineHt + Height) div 2) - YOffset;
-              ABaseline:
-                TopP := Y - Height - VSpaceB - Descent - YOffset; {sits on baseline}
-              ABottom:
-                TopP := Y - Height - VSpaceB - YOffset;
+            LeftT := IMgr.LfEdge + FcObj.Indent;
+            TopP := FcObj.DrawYY - YOffset;
+            {check for border.  For floating panel, remove it}
+            if LR.FirstDraw and Assigned(LR.BorderList) then
+              for K := LR.BorderList.Count - 1 downto 0 do
+              begin
+                BR := ThtBorderRec(LR.BorderList.Items[K]);
+                if (Start - Buff = BR.BStart) and (BR.BEnd = BR.BStart + 1) then
+                  LR.BorderList.Delete(K);
+              end;
+          end
+          else
+          begin
+            LeftT := CPx + FcObj.HSpaceL;
+            case FcObj.VertAlign of
+              ANone,
+              ATop:      TopP := LR.DrawY + FcObj.VSpaceT - YOffset;
+              AMiddle:   TopP := Y - ((LR.LineHt + FcObj.ClientHeight) div 2) - YOffset;
+              ABaseline: TopP := Y - FcObj.ClientHeight - FcObj.VSpaceB - Descent - YOffset; {sits on baseline}
+              ABottom:   TopP := Y - FcObj.ClientHeight - FcObj.VSpaceB - YOffset;
             else
-              TopP := Y; {never get here}
+                         TopP := Y; {never get here}
             end;
-            if Ctrl is TRadioButtonFormControlObj then
+            if FcObj is TRadioButtonFormControlObj then
               Inc(Topp, 2)
-            else if Ctrl is TCheckBoxFormControlObj then
+            else if FcObj is TCheckBoxFormControlObj then
               Inc(Topp, 1);
+
           {Check for border}
             if LR.FirstDraw and Assigned(LR.BorderList) then
               for K := 0 to LR.BorderList.Count - 1 do
               begin
-                BR := BorderRec(LR.BorderList.Items[K]);
+                BR := ThtBorderRec(LR.BorderList.Items[K]);
                 if (Start - Buff >= BR.BStart) and (Start - Buff <= BR.BEnd) then
                 begin
                   if (Start - Buff = BR.BStart) then
                   begin {border starts with Form control}
                     BR.bRect.Top := ToPP + YOffSet;
-                    BR.bRect.Left := CPx + HSpaceL;
+                    BR.bRect.Left := CPx + FcObj.HSpaceL;
                     if BR.BEnd = BR.BStart + 1 then {border is confined to form control}
-                      BR.bRect.Right := BR.bRect.Left + Width;
-                    BR.bRect.Bottom := TopP + YOffSet + Height;
+                      BR.bRect.Right := BR.bRect.Left + FcObj.ClientWidth;
+                    BR.bRect.Bottom := TopP + YOffSet + FcObj.ClientHeight;
                   end
                   else if Start - Buff = BR.BEnd then
                   else
                   begin {form control is included in border}
                     BR.bRect.Top := Min(BR.bRect.Top, ToPP + YOffSet);
-                    BR.bRect.Bottom := Max(BR.bRect.Bottom, TopP + YOffSet + Height);
+                    BR.bRect.Bottom := Max(BR.bRect.Bottom, TopP + YOffSet + FcObj.ClientHeight);
                   end;
                 end;
               end;
-            if Document.IsCopy then
-              Ctrl.Draw(Canvas, CPx + Ctrl.HSpaceL, TopP)
-            else
-            begin
-              Show;
-              Top := TopP;
-              Left := CPx + Ctrl.HSpaceL;
-              if Ctrl is TRadioButtonFormControlObj then
-                with TRadioButtonFormControlObj(Ctrl) do
-                begin
-                  Show;
-                  if MyCell.BkGnd then
-                    Color := MyCell.BkColor
-                  else
-                    Color := Document.Background;
-                end;
-              if Ctrl.Active and ((Ctrl is TRadioButtonFormControlObj) or
-                (Ctrl is TCheckBoxFormControlObj)) then
-              begin
-                Canvas.Brush.Color := clWhite;
-                //SaveColor := SetTextColor(Handle, clBlack);
-                if Document.TheOwner.ShowFocusRect then //MK20091107
-                begin
-                  if (Ctrl is TRadioButtonFormControlObj) then
-                  begin
-                    if Screen.PixelsPerInch > 100 then
-                      Canvas.DrawFocusRect(Rect(Left - 2, Top - 2, Left + 18, Top + 18))
-                    else
-                      Canvas.DrawFocusRect(Rect(Left - 3, Top - 2, Left + 16, Top + 16));
-                  end
-                  else
-                    Canvas.DrawFocusRect(Rect(Left - 3, Top - 3, Left + 16, Top + 16));
-                end;
-                //SetTextColor(Handle, SaveColor);
-              end;
-            end;
-            Inc(CPx, Width + Ctrl.HSpaceL + Ctrl.HSpaceR);
+          end;
+
+          FcObj.DrawInline(Canvas, LeftT, TopP, TopP - Descent, FO);
+
+          if not (FcObj.Floating in [ALeft, ARight]) then
+          begin
+            Inc(CPx, FcObj.TotalWidth);
             NewCP := True;
           end;
+        end;
       end
       else
       begin
@@ -13334,11 +12925,11 @@ var
               ' ', BrkCh:
                 Dec(Tmp); {at end of line, don't show space or break}
             end;
-          if (Self is TPreformated) and not Owner.HideOverflow then
+          if (WhiteSpaceStyle in [wsPre, wsPreLine, wsNoWrap]) and not OwnerBlock.HideOverflow then
           begin {so will clip in Table cells}
             ARect := Rect(IMgr.LfEdge, Y - LR.LineHt - LR.SpaceBefore - YOffset, X + IMgr.ClipWidth, Y - YOffset + 1);
             ExtTextOutW(Canvas.Handle, CPx, CPy, ETO_CLIPPED, @ARect, Start, Tmp, nil);
-            CP1x := CPx + GetXExtent(Canvas.Handle, Start, Tmp);
+            CP1x := CPx + GetTextExtent(Canvas.Handle, Start, Tmp).cx;
           end
           else
           begin
@@ -13352,19 +12943,19 @@ var
               begin
                 St := AddHyphen(Start, Tmp);
                 TextOutW(Canvas.Handle, CPx, CPy, PWideChar(St), Length(St));
-                CP1x := CPx + GetXExtent(Canvas.Handle, PWideChar(St), Length(St));
+                CP1x := CPx + GetTextExtent(Canvas.Handle, PWideChar(St), Length(St)).cx;
               end
               else
               begin
                 TextOutW(Canvas.Handle, CPx, CPy, Start, Tmp);
-                CP1x := CPx + GetXExtent(Canvas.Handle, Start, Tmp);
+                CP1x := CPx + GetTextExtent(Canvas.Handle, Start, Tmp).cx;
               end
             end
             else
             begin {Win95}
             {Win95 has bug which extends text underline for proportional font in TextOutW.
              Use clipping to clip the extra underline.}
-              CP1x := CPx + GetXExtent(Canvas.Handle, Start, Tmp);
+              CP1x := CPx + GetTextExtent(Canvas.Handle, Start, Tmp).cx;
               ARect := Rect(CPx, Y - LR.LineHt - LR.SpaceBefore - YOffset, CP1x, Y - YOffset + 1);
               ExtTextOutW(Canvas.Handle, CPx, CPy, ETO_CLIPPED, @ARect, Start, Tmp, nil)
             end;
@@ -13380,7 +12971,7 @@ var
           end;
         end;
 
-        if FO.Active or Document.IsCopy and Assigned(Document.LinkDrawnEvent)
+        if FO.Active or IsCopy and Assigned(Document.LinkDrawnEvent)
           and (FO.UrlTarget.Url <> '') then
         begin
           Tmp := Y - Descent + FO.Descent + Addon - YOffset;
@@ -13418,25 +13009,27 @@ var
     if LR.FirstDraw and Assigned(LR.BorderList) then
       for K := 0 to LR.BorderList.Count - 1 do
       begin
-        BR := BorderRec(LR.BorderList.Items[K]);
+        BR := ThtBorderRec(LR.BorderList.Items[K]);
         if BR.OpenEnd or (BR.BRect.Right = 0) then
           BR.BRect.Right := CPx;
+
+        AdjustDrawRect(BR.bRect); //>-- DZ 19.09.2012
       end;
   end;
 
   procedure DoDraw(I: Integer);
   {draw the Ith line in this section}
   var
-    BR: BorderRec;
+    BR: ThtBorderRec;
     K: Integer;
     XOffset: Integer;
   begin
-    with LineRec(Lines[I]) do
+    with ThtLineRec(Lines[I]) do
     begin
       Inc(Y, LineHt + SpaceBefore);
       if FirstDraw then
       begin {see if any inline borders in this line}
-        CheckForInlines(LineRec(Lines[I]));
+        CheckForInlines(ThtLineRec(Lines[I]));
         if FirstDraw then {if there are, need a first pass to get boundaries}
         begin
           FirstX := X;
@@ -13448,7 +13041,7 @@ var
       if Assigned(BorderList) then {draw any borders found in this line}
         for K := 0 to BorderList.Count - 1 do
         begin
-          BR := BorderRec(BorderList.Items[K]);
+          BR := ThtBorderRec(BorderList.Items[K]);
           BR.DrawTheBorder(Canvas, XOffset, YOffSet, Document.Printing{$ifdef has_StyleElements}, Document.StyleElements{$endif});
         end;
       DrawTheText(I); {draw the text, etc., in this line}
@@ -13457,6 +13050,9 @@ var
     Document.FirstPageItem := False;
   end;
 
+var
+  I: Integer;
+  DC: HDC;
 begin {TSection.Draw}
   Y := YDraw;
   Result := Y + SectionHeight;
@@ -13471,33 +13067,32 @@ begin {TSection.Draw}
     MySelB := Document.SelB - StartCurs;
     MySelE := Document.SelE - StartCurs;
     for I := 0 to Lines.Count - 1 do
-      with Document do
-        if Printing then
-          with LineRec(Lines[I]) do
+      if Document.Printing then
+        with ThtLineRec(Lines[I]) do
+        begin
+          if (Y + LineImgHt <= Document.PageBottom) then
           begin
-            if (Y + LineImgHt <= PageBottom) then
-            begin
-              if (Y + LineImgHt - 1 > ARect.Top + YOffSet) then
-                DoDraw(I)
-              else
-                Inc(Y, SpaceBefore + LineHt + SpaceAfter);
-            end
-            else if (LineImgHt >= ARect.Bottom - ARect.Top) or PageShortened then
+            if (Y - YOffSet + LineImgHt - 1 > ARect.Top) then
               DoDraw(I)
             else
-            begin
-              if (Owner <> nil) and (Owner.Positioning = PosAbsolute) then
-                DoDraw(I)
-              else if Y < PageBottom then
-                PageBottom := Y; {Dont' print, don't want partial line}
-            end;
-          end
-        else
-          with LineRec(Lines[I]) do
-            if ((Y - YOffset + LineImgHt + 40 >= ARect.Top) and (Y - YOffset - 40 < ARect.Bottom)) then
-              DoDraw(I)
-            else {do not completely draw extremely long paragraphs}
               Inc(Y, SpaceBefore + LineHt + SpaceAfter);
+          end
+          else if (LineImgHt >= ARect.Bottom - ARect.Top) or Document.PageShortened then
+            DoDraw(I)
+          else
+          begin
+            if (OwnerBlock <> nil) and (OwnerBlock.Positioning = PosAbsolute) then
+              DoDraw(I)
+            else if Y < Document.PageBottom then
+              Document.PageBottom := Y; {Dont' print, don't want partial line}
+          end;
+        end
+      else
+        with ThtLineRec(Lines[I]) do
+          if ((Y - YOffset + LineImgHt + 40 >= ARect.Top) and (Y - YOffset - 40 < ARect.Bottom)) then
+            DoDraw(I)
+          else {do not completely draw extremely long paragraphs}
+            Inc(Y, SpaceBefore + LineHt + SpaceAfter);
   end;
 end;
 
@@ -13511,7 +13106,7 @@ begin
   MySelB := Document.SelB - StartCurs;
   MySelE := Document.SelE - StartCurs;
   for I := 0 to Lines.Count - 1 do
-    with LineRec(Lines.Items[I]) do
+    with ThtLineRec(Lines.Items[I]) do
     begin
       Strt := Start - Buff;
       if (MySelE <= Strt) or (MySelB > Strt + Ln) then
@@ -13537,19 +13132,22 @@ end;
 function TSection.PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean;
 {Y is distance from start of section}
 begin
-  Result := (Images.Count > 0) and Images.PtInObject(X, Y, Obj, IX, IY);
+  if Images.PtInObject(X, Y, Obj, IX, IY) then
+    Result := True
+  else
+    Result := inherited PtInObject(X, Y, Obj, IX, IY);
 end;
 
 {----------------TSection.GetURL}
 
 function TSection.GetURL(Canvas: TCanvas; X, Y: Integer;
   out UrlTarg: TUrlTarget; out FormControl: TIDObject{TImageFormControlObj};
-  out ATitle: ThtString): guResultType;
+  out ATitle: ThtString): ThtguResultType;
  {Y is absolute}
 var
-  I, L, Index, Width, IX, IY, Posn: Integer;
+  I, L, Width, IX, IY, Posn: Integer;
   FO: TFontObj;
-  LR: LineRec;
+  LR: ThtLineRec;
   IMap, UMap: boolean;
   MapItem: TMapItem;
   ImageObj: TImageObj;
@@ -13568,9 +13166,9 @@ begin
 {First, check to see if in an image}
   if (Images.Count > 0) and Images.PtInImage(X, Y, IX, IY, Posn, IMap, UMap, MapItem, ImageObj) then
   begin
-    if ImageObj.ImageTitle <> '' then
+    if ImageObj.Title <> '' then
     begin
-      ATitle := ImageObj.ImageTitle;
+      ATitle := ImageObj.Title;
       Include(Result, guTitle);
     end
     else if ImageObj.Alt <> '' then
@@ -13600,7 +13198,7 @@ begin
     end
     else
     begin
-      FO := Fonts.GetFontObjAt(Posn, Index);
+      FO := Fonts.GetFontObjAt(Posn);
       if (FO.UrlTarget.Url <> '') then
       begin {found an URL}
         Include(Result, guUrl);
@@ -13619,7 +13217,7 @@ begin
     begin
       while I < Count do
       begin
-        LR := LineRec(Lines[I]);
+        LR := ThtLineRec(Lines[I]);
         if (Y > LR.DrawY) and (Y <= LR.DrawY + LR.LineHt) then
           Break;
         Inc(I);
@@ -13639,7 +13237,7 @@ begin
         SetTextJustification(Canvas.Handle, 0, 0);
       if L >= Ln then
         Exit;
-      FO := Fonts.GetFontObjAt(L + (Start - Buff), Index);
+      FO := Fonts.GetFontObjAt(L + (Start - Buff));
       if (FO.UrlTarget.Url <> '') then {found an URL}
         if not ((Start + L)^ = ImgPan) then {an image here would be in HSpace area}
         begin
@@ -13666,7 +13264,7 @@ function TSection.FindCursor(Canvas: TCanvas; X, Y: Integer;
  section}
 var
   I, H, L, Width, TotalHt, L1, W, Delta, OHang: Integer;
-  LR: LineRec;
+  LR: ThtLineRec;
 
 begin
   Result := -1;
@@ -13676,7 +13274,7 @@ begin
   LR := nil;
   while I < Lines.Count do
   begin
-    LR := LineRec(Lines[I]);
+    LR := ThtLineRec(Lines[I]);
     with LR do
       TotalHt := LineHt + SpaceBefore + SpaceAfter;
     if H + TotalHt > Y then
@@ -13707,7 +13305,7 @@ begin
     if (Justify = FullJustify) and (Spaces > 0) then
       SetTextJustification(Canvas.Handle, Extra, Spaces);
     L := FindCountThatFits(Canvas, Width, Start, Ln);
-    W := FindTextWidth(Canvas, Start, L, False);
+    W := FindTextSize(Canvas, Start, L, False).cx;
     XR := DrawXX + W;
     if L < Ln then
     begin {check to see if passed 1/2 character mark}
@@ -13729,15 +13327,14 @@ end;
 
 {----------------TSection.FindString}
 
-function TSection.FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
-{find the first occurance of the ThtString, ToFind, with a cursor value >= to From.
- ToFind is in lower case if MatchCase is False.  ToFind is known to have a length
- of at least one.
+function TSection.FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
+{find the first occurance of the ThtString, ToFind, with a cursor value >= From.
+ ToFind is in lower case if MatchCase is False. ToFind is known to have a length of at least one.
 }
 var
   P: PWideChar;
   I: Integer;
-  ToSearch: WideString;
+  ToSearch: UnicodeString;
 
 begin
   Result := -1;
@@ -13751,7 +13348,7 @@ begin
   if MatchCase then
     ToSearch := BuffS
   else
-    ToSearch := WideLowerCase1(BuffS); {ToFind already lower case}
+    ToSearch := htLowerCase(BuffS); {ToFind already lower case}
 
   P := StrPosW(PWideChar(ToSearch) + I, PWideChar(ToFind));
   if Assigned(P) then
@@ -13760,15 +13357,14 @@ end;
 
 {----------------TSection.FindStringR}
 
-function TSection.FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function TSection.FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 {find the first occurance of the ThtString, ToFind, with a cursor value <= to From.
- ToFind is in lower case if MatchCase is False.  ToFind is known to have a length
- of at least one.
+ ToFind is in lower case if MatchCase is False.  ToFind is known to have a length of at least one.
 }
 var
   P: PWideChar;
   ToFindLen: word;
-  ToMatch, ToSearch: WideString;
+  ToMatch, ToSearch: UnicodeString;
 
 begin
   Result := -1;
@@ -13783,7 +13379,7 @@ begin
   else
     ToSearch := Copy(BuffS, 1, From - StartCurs); {Search smaller part}
   if not MatchCase then
-    ToSearch := WideLowerCase1(ToSearch); {ToFind already lower case}
+    ToSearch := htLowerCase(ToSearch); {ToFind already lower case}
 
 {search backwards for the end ThtChar of ToFind}
   P := StrRScanW(PWideChar(ToSearch), ToFind[ToFindLen]);
@@ -13808,7 +13404,7 @@ end;
 function TSection.FindSourcePos(DocPos: Integer): Integer;
 var
   I: Integer;
-  IO: IndexObj;
+  IO: ThtIndexObj;
 begin
   Result := -1;
   if (Len = 0) or (DocPos >= StartCurs + Len) then
@@ -13832,7 +13428,7 @@ function TSection.FindDocPos(SourcePos: Integer; Prev: boolean): Integer;
  previous}
 var
   I: Integer;
-  IO, IOPrev: IndexObj;
+  IO, IOPrev: ThtIndexObj;
 begin
   Result := -1;
   if Len = 0 then
@@ -13865,7 +13461,7 @@ begin
       end;
       IOPrev := IO;
     end;
-  {after the last IndexObj in list}
+  {after the last ThtIndexObj in list}
     Result := StartCurs + IOPrev.Pos + (SourcePos - IOPrev.Index);
   end
   else {prev  -- we're iterating from the end of ThtDocument}
@@ -13895,17 +13491,17 @@ begin
       end;
       IOPrev := IO;
     end;
-  {after the last IndexObj in list}
+  {after the last ThtIndexObj in list}
     Result := StartCurs + IOPrev.Pos + (SourcePos - IOPrev.Index);
   end;
 end;
 
 {----------------TSection.CursorToXY}
 
-function TSection.CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean;
+function TSection.CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean;
 var
   I, Curs: Integer;
-  LR: LineRec;
+  LR: ThtLineRec;
 begin
   Result := False;
   if (Len = 0) or (Cursor > StartCurs + Len) then
@@ -13919,7 +13515,7 @@ begin
   begin
     while I < Count do
     begin
-      LR := LineRec(Lines[I]);
+      LR := ThtLineRec(Lines[I]);
       with LR do
       begin
         if Curs < Ln then
@@ -13936,7 +13532,7 @@ begin
   begin
     if LR.Spaces > 0 then
       SetTextJustification(Canvas.Handle, LR.Extra, LR.Spaces);
-    X := LR.DrawXX + FindTextWidth(Canvas, LR.Start, Curs, False);
+    X := LR.DrawXX + FindTextSize(Canvas, LR.Start, Curs, False).cx;
     if LR.Spaces > 0 then
       SetTextJustification(Canvas.Handle, 0, 0);
   end
@@ -13947,7 +13543,7 @@ end;
 
 {----------------TSection.GetChAtPos}
 
-function TSection.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean;
+function TSection.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean;
 begin
   Result := False;
   if (Len = 0) or (Pos < StartCurs) or (Pos >= StartCurs + Len) then
@@ -13959,20 +13555,16 @@ end;
 
 {----------------TPanelObj.Create}
 
-constructor TPanelObj.Create(AMasterList: ThtDocument; Position: Integer;
-  L: TAttributeList; ACell: TCellBasic; ObjectTag: boolean);
+constructor TPanelObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties; ObjectTag: boolean);
 var
   PntPanel: TWinControl; //TPaintPanel;
   I: Integer;
-  NewSpace: Integer;
-  S, Source, AName, AType: ThtString;
+  Source, AName, AType: ThtString;
 begin
-  inherited Create;
-  fMasterList := AMasterList;
-  Pos := Position;
+  inherited Create(Parent, Position, L, Prop);
   VertAlign := ABottom; {default}
   Floating := ANone;
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
+  PntPanel := {TPaintPanel(}Document.PPanel{)};
   Panel := ThvPanel.Create(PntPanel);
   Panel.Left := -4000;
   Panel.Parent := PntPanel;
@@ -13992,39 +13584,22 @@ begin
 {$endif}
     ParentFont := False;
 {$ifdef has_StyleElements}
-    Panel.StyleElements := AMasterList.StyleElements;
+    Panel.StyleElements := Document.StyleElements;
 {$endif}
   end;
-  NewSpace := -1;
+
+  if not PercentWidth and (SpecWidth > 0) then
+    Panel.Width := SpecWidth;
+
+  if not PercentHeight and (SpecHeight > 0) then
+    Panel.Height := SpecHeight;
+
   for I := 0 to L.Count - 1 do
-    with TAttribute(L[I]) do
+    with L[I] do
       case Which of
-        HeightSy:
-          if System.Pos('%', Name) = 0 then
-          begin
-            SpecHeight := Max(1, Value); {spec ht of 0 becomes 1}
-            Panel.Height := SpecHeight; {so panels ht will be set for OnPanelCreate}
-          end
-          else if (Value > 0) and (Value <= 100) then
-          begin
-            SpecHeight := Value;
-            PercentHeight := True;
-          end;
-        WidthSy:
-          if System.Pos('%', Name) = 0 then
-          begin
-            SpecWidth := Value;
-            Panel.Width := Value;
-          end
-          else
-          begin
-            Value := Max(1, Min(Value, 100));
-            SpecWidth := Value;
-            PercentWidth := True;
-          end;
-        HSpaceSy: NewSpace := Min(40, Abs(Value));
-        VSpaceSy: VSpaceT := Min(40, Abs(Value));
-        SrcSy: Source := Name;
+        SrcSy:
+          Source := Name;
+
         NameSy:
           begin
             AName := Name;
@@ -14033,209 +13608,321 @@ begin
             except {duplicate name will be ignored}
             end;
           end;
-        AlignSy:
-          begin
-            S := UpperCase(Name);
-            if S = 'TOP' then
-              VertAlign := ATop
-            else if (S = 'MIDDLE') or (S = 'ABSMIDDLE') then
-              VertAlign := AMiddle
-            else if S = 'LEFT' then
-              Floating := ALeft
-            else if S = 'RIGHT' then
-              Floating := ARight;
-          end;
+
         AltSy:
           begin
             SetAlt(CodePage, Name);
-            ImageTitle := Alt; {use Alt as default Title}
+            Title := Alt; {use Alt as default Title}
           end;
-        TypeSy: AType := Name;
-      end;
-  if NewSpace >= 0 then
-    HSpaceL := NewSpace
-  else if Floating in [ALeft, ARight] then
-    HSpaceL := ImageSpace {default}
-  else
-    HSpaceL := 0;
 
-  HSpaceR := HSpaceL;
-  VSpaceB := VSpaceT;
+        BorderSy:
+          begin
+            NoBorder := Value = 0;
+            BorderSize := Min(Max(0, Value), 10);
+          end;
+
+        TypeSy:
+          AType := Name;
+      end;
+
   with Panel do
   begin
     Caption := '';
-    if not ObjectTag and Assigned(AMasterList.PanelCreateEvent) then
-      AMasterList.PanelCreateEvent(AMasterList.TheOwner, AName, AType, Source, Panel);
+    if not ObjectTag and Assigned(Document.PanelCreateEvent) then
+      Document.PanelCreateEvent(Document.TheOwner, AName, AType, Source, Panel);
     SetWidth := Width;
     SetHeight := Height;
   end;
-  AMasterList.PanelList.Add(Self);
+  Document.PanelList.Add(Self);
 end;
 
-constructor TPanelObj.CreateCopy(AMasterList: ThtDocument; T: TPanelObj);
+constructor TPanelObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TPanelObj absolute Source;
 begin
-  assert(AMasterList is ThtDocument);
-  inherited CreateCopy(T);
+  inherited CreateCopy(Parent,Source);
   Panel := ThvPanel.Create(nil);
   with T.Panel do
     Panel.SetBounds(Left, Top, Width, Height);
   Panel.FVisible := T.Panel.FVisible;
   Panel.Color := T.Panel.Color;
-  Panel.Parent := AMasterList.PPanel;
-  SpecWidth := T.SpecWidth;
-  PercentWidth := T.PercentWidth;
-  SpecHeight := T.SpecHeight;
-  PercentHeight := T.PercentHeight;
+  Panel.Parent := Document.PPanel;
   SetHeight := T.SetHeight;
   SetWidth := T.SetWidth;
   OPanel := T.Panel; {save these for printing}
-  OSender := T.fMasterList.TheOwner;
-  PanelPrintEvent := T.fMasterList.PanelPrintEvent;
-  IsCopy := True;
+  OSender := T.Document.TheOwner;
+  PanelPrintEvent := T.Document.PanelPrintEvent;
 end;
 
 destructor TPanelObj.Destroy;
 begin
-  if Assigned(fMasterList) and Assigned(fMasterList.PanelDestroyEvent) then
-    fMasterList.PanelDestroyEvent(fMasterList.TheOwner, Panel);
+  if Assigned(Document) and Assigned(Document.PanelDestroyEvent) then
+    Document.PanelDestroyEvent(Document.TheOwner, Panel);
   Panel.Free;
   inherited Destroy;
 end;
 
-procedure TPanelObj.DrawLogic(SectionList: ThtDocument; Canvas: TCanvas;
-  FO: TFontObj; AvailableWidth, AvailableHeight: Integer);
-begin
-  if not ImageKnown or PercentWidth or PercentHeight then
-  begin
-    if PercentWidth then
-    begin
-      ImageWidth := MulDiv(AvailableWidth, SpecWidth, 100);
-      if SpecHeight <> 0 then
-        if PercentHeight then
-          ImageHeight := MulDiv(AvailableHeight, SpecHeight, 100)
-        else
-          ImageHeight := SpecHeight
-      else
-        ImageHeight := MulDiv(ImageWidth, SetHeight, SetWidth);
-    end
-    else if PercentHeight then
-    begin
-      ImageHeight := MulDiv(AvailableHeight, SpecHeight, 100);
-      if SpecWidth <> 0 then
-        ImageWidth := SpecWidth
-      else
-        ImageWidth := MulDiv(ImageHeight, SetWidth, SetHeight);
-    end
-    else if (SpecWidth <> 0) and (SpecHeight <> 0) then
-    begin {Both width and height specified}
-      ImageHeight := SpecHeight;
-      ImageWidth := SpecWidth;
-      ImageKnown := True;
-    end
-    else if SpecHeight <> 0 then
-    begin
-      ImageHeight := SpecHeight;
-      ImageWidth := MulDiv(SpecHeight, SetWidth, SetHeight);
-      ImageKnown := True;
-    end
-    else if SpecWidth <> 0 then
-    begin
-      ImageWidth := SpecWidth;
-      ImageHeight := MulDiv(SpecWidth, SetHeight, SetWidth);
-      ImageKnown := True;
-    end
-    else
-    begin {neither height and width specified}
-      ImageHeight := SetHeight;
-      ImageWidth := SetWidth;
-      ImageKnown := True;
-    end;
-    if not IsCopy then
-      with Panel do
-        if (ImageWidth > 0) and (ImageHeight > 0) then
-          SetBounds(Left, Top, ImageWidth, ImageHeight);
-  end;
-end;
-
-procedure TPanelObj.Draw(ACanvas: TCanvas; X1, Y1: Integer);
+procedure TPanelObj.DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
 var
-  OldBrushStyle: TBrushStyle;
-  OldBrushColor: TColor;
-  OldPenColor: TColor;
   Bitmap: TBitmap;
   OldHeight, OldWidth: Integer;
-  SaveFont: TFont;
 begin
-  if Panel.FVisible then
-    with ACanvas do
+  inherited DrawInline(Canvas,X,Y,YBaseline,FO);
+  if IsCopy then
+  begin
+    if Panel.FVisible then
+    begin
       if Assigned(PanelPrintEvent) then
       begin
         Bitmap := TBitmap.Create;
         OldHeight := Opanel.Height;
         OldWidth := Opanel.Width;
         try
-          Bitmap.Height := ImageHeight;
-          Bitmap.Width := ImageWidth;
-          with Opanel do
-            SetBounds(Left, Top, ImageWidth, ImageHeight);
+          Bitmap.Height := ClientHeight;
+          Bitmap.Width := ClientWidth;
+          OPanel.SetBounds(OPanel.Left, OPanel.Top, ClientWidth, ClientHeight);
           PanelPrintEvent(OSender, OPanel, Bitmap);
-          PrintBitmap(ACanvas, X1, Y1, ImageWidth, ImageHeight, Bitmap);
+          PrintBitmap(Canvas, X, Y, ClientWidth, ClientHeight, Bitmap);
         finally
-          with Opanel do
-            SetBounds(Left, Top, OldWidth, OldHeight);
-          Bitmap.Free;
-        end;
-      end
-      else
-      begin
-        OldBrushStyle := Brush.Style; {save style first}
-        OldBrushColor := Brush.Color;
-        OldPenColor := Pen.Color;
-        Pen.Color := clBlack;
-        Brush.Color := ThemedColor(Panel.Color{$ifdef has_StyleElements},seClient in fMasterList.StyleElements{$endif});
-        Brush.Style := bsSolid;
-
-        ACanvas.Rectangle(X1, Y1, X1 + ImageWidth, Y1 + ImageHeight);
-        SaveFont := TFont.Create;
-        try
-          SaveFont.Assign(ACanvas.Font);
-          with ACanvas.Font do
-          begin
-            Size := 8;
-            Name := 'Arial';
-          end;
-          if FAlt <> '' then
-            WrapTextW(ACanvas, X1 + 5, Y1 + 5, X1 + ImageWidth - 5, Y1 + ImageHeight - 5, FAlt);
-        finally
-          ACanvas.Font := SaveFont;
-          SaveFont.Free;
-          Brush.Color := OldBrushColor;
-          Brush.Style := OldBrushStyle; {style after color as color changes style}
-          Pen.Color := OldPenColor;
+          OPanel.SetBounds(OPanel.Left, OPanel.Top, OldWidth, OldHeight);
         end;
       end;
-end;
-
-procedure ThvPanel.SetVisible(Value: boolean);
-begin
-  if Value <> FVisible then
+    end;
+  end
+  else
   begin
-    FVisible := Value;
-    if FVisible then
-      Show
+    if Panel.FVisible then
+      Panel.Show
     else
-      Hide;
+      Panel.Hide;
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 15.12.2011 --
+function TPanelObj.GetBackgroundColor: TColor;
+begin
+  if Panel <> nil then
+    Result := Panel.Color
+  else
+    Result := inherited GetBackgroundColor;
+end;
+
+//-- BG ---------------------------------------------------------- 16.11.2011 --
+function TPanelObj.GetControl: TWinControl;
+begin
+  Result := Panel;
+end;
+
+{----------------TProgressObj.Create}
+
+constructor TProgressObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties; ObjectTag: boolean);
+var
+  PntPanel: TWinControl; //TPaintPanel;
+  I: Integer;
+  PositionSet: Boolean;
+begin
+  inherited Create(Parent, Position, L, Prop);
+  PositionSet := false;
+  VertAlign := ABottom; {default}
+  Floating := ANone;
+  PntPanel := Document.PPanel;
+  Progress := ThvProgressBar.Create(PntPanel);
+  with Progress do
+  begin
+    Left := -4000;
+    Top := -4000;
+    Parent := PntPanel;
+    Max := 100;  // making sure this is the default
+    Smooth := true;
+    Height := 20;
+    Width := 100;
+    Visible := True;
+{$ifdef has_StyleElements}
+    StyleElements := Document.StyleElements; // TODO: does this work? Cannot see in Delphi 6
+{$endif}
+  end;
+
+  if not PercentWidth and (SpecWidth > 0) then
+    Progress.Width := SpecWidth;
+
+  if not PercentHeight and (SpecHeight > 0) then
+    Progress.Height := SpecHeight;
+
+  for I := 0 to L.Count - 1 do
+    with L[I] do
+      case Which of
+        MaxSy:
+          Progress.Max := StrToIntDef( Name, 100 );
+
+        ValueSy:
+        begin
+          Progress.Position := StrToIntDef( Name, 0 );
+          PositionSet := true;
+        end;
+      end;
+
+  SetWidth := Progress.Width;
+  SetHeight := Progress.Height;
+
+  // if the value attribute is not set, then the progressbar goes to the indeterminate state 'pbstMarquee'.
+  if PositionSet then
+    Progress.Style := pbstNormal
+  else
+    Progress.Style := pbstMarquee;
+end;
+
+constructor TProgressObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TProgressObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  Progress := ThvProgressBar.Create(nil);
+  with T.Progress do
+    Progress.SetBounds(Left, Top, Width, Height);
+  Progress.Visible := T.Progress.Visible;
+  Progress.Parent := Document.PPanel;
+  Progress.Max := T.Progress.Max;
+  Progress.Position := T.Progress.Position;
+  SetHeight := T.SetHeight;
+  SetWidth := T.SetWidth;
+end;
+
+destructor TProgressObj.Destroy;
+begin
+  Progress.Free;
+  inherited Destroy;
+end;
+
+procedure TProgressObj.DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
+begin
+  inherited DrawInline(Canvas,X,Y,YBaseline,FO);
+
+  if Progress.Visible then
+    Progress.Show
+  else
+    Progress.Hide;
+end;
+
+function TProgressObj.GetControl: TWinControl;
+begin
+  Result := Progress;
+end;
+
+
+{----------------TMeterObj.Create}
+
+constructor TMeterObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties; ObjectTag: boolean);
+var
+  PntPanel: TWinControl; //TPaintPanel;
+  I: Integer;
+  //PositionSet: Boolean;
+begin
+  inherited Create(Parent, Position, L, Prop);
+  //PositionSet := false;
+  VertAlign := ABottom; {default}
+  Floating := ANone;
+  PntPanel := Document.PPanel;
+  Meter := ThvMeter.Create(PntPanel);
+  with Meter do
+  begin
+    Left := -4000;
+    Top := -4000;
+    Parent := PntPanel;
+    Max := 100;  // making sure this is the default
+    Smooth := true;
+    Height := 20;
+    Width := 100;
+    Visible := True;
+{$ifdef has_StyleElements}
+    StyleElements := Document.StyleElements; // TODO: does this work? Cannot see in Delphi 6
+{$endif}
+  end;
+
+  if not PercentWidth and (SpecWidth > 0) then
+    Meter.Width := SpecWidth;
+
+  if not PercentHeight and (SpecHeight > 0) then
+    Meter.Height := SpecHeight;
+
+  for I := 0 to L.Count - 1 do
+    with L[I] do
+      case Which of
+        HighSy:
+          Meter.High := StrToIntDef( Name, 100 );
+
+        LowSy:
+          Meter.Low := StrToIntDef( Name, 0 );
+
+        MaxSy:
+          Meter.Max := StrToIntDef( Name, 100 );
+
+        MinSy:
+          Meter.Min := StrToIntDef( Name, 0 );
+
+        OptimumSy:
+          Meter.Optimum := StrToIntDef( Name, 50 );
+
+        ValueSy:
+        begin
+          Meter.Position := StrToIntDef( Name, 0 );
+          //PositionSet := true;
+        end;
+      end;
+
+  SetWidth := Meter.Width;
+  SetHeight := Meter.Height;
+
+
+  Meter.Style := pbstNormal;
+end;
+
+constructor TMeterObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TMeterObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  Meter := ThvMeter.Create(nil);
+  with T.Meter do
+    Meter.SetBounds(Left, Top, Width, Height);
+  Meter.Visible := T.Meter.Visible;
+  Meter.Parent := Document.PPanel;
+  Meter.Max := T.Meter.Max;
+  Meter.Position := T.Meter.Position;
+  SetHeight := T.SetHeight;
+  SetWidth := T.SetWidth;
+end;
+
+destructor TMeterObj.Destroy;
+begin
+  Meter.Free;
+  inherited Destroy;
+end;
+
+procedure TMeterObj.DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
+begin
+  inherited DrawInline(Canvas,X,Y,YBaseline,FO);
+
+  if Meter.Visible then
+    Meter.Show
+  else
+    Meter.Hide;
+end;
+
+function TMeterObj.GetControl: TWinControl;
+begin
+  Result := Meter;
+end;
+
+
+
 {----------------TCell.Create}
 
-constructor TCell.Create(Master: ThtDocument);
+constructor TCell.Create(Parent: TBlock);
 begin
    {$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TCell.Create');
    {$ENDIF}
-  inherited Create(Master);
+  inherited Create(Parent);
   IMgr := TIndentManager.Create;
    {$IFDEF JPM_DEBUGGING}
   CodeSite.ExitMethod(Self,'TCell.Create');
@@ -14244,9 +13931,9 @@ end;
 
 {----------------TCell.CreateCopy}
 
-constructor TCell.CreateCopy(AMasterList: ThtDocument; T: TCellBasic);
+constructor TCell.CreateCopy(Parent: TBlock; T: TCellBasic);
 begin
-  inherited CreateCopy(AMasterList, T);
+  inherited CreateCopy(Parent, T);
   IMgr := TIndentManager.Create;
 end;
 
@@ -14259,14 +13946,14 @@ end;
 {----------------TCell.DoLogic}
 
 function TCell.DoLogic(Canvas: TCanvas; Y: Integer; Width, AHeight, BlHt: Integer;
-  var ScrollWidth: Integer; var Curs: Integer): Integer;
+  var ScrollWidth, Curs: Integer): Integer;
 {Do the entire layout of the cell or document. Return the total document pixel height}
 var
   IB: Integer;
   LIndex, RIndex: Integer;
   SaveID: TObject;
 begin
-   {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TCell.DoLogic');
   CodeSite.SendFmtMsg('Y           = [%d]',[Y]);
   CodeSite.SendFmtMsg('Width       = [%d]',[Width]);
@@ -14275,7 +13962,7 @@ begin
   CodeSite.SendFmtMsg('Cur         = [%d]',[Curs]);
   CodeSite.SendFmtMsg('ScrollWidth = [%d]',[ScrollWidth]);
   CodeSite.AddSeparator;
-   {$ENDIF}
+{$ENDIF}
   IMgr.Init(0, Width);
   SaveID := IMgr.CurrentID;
   IMgr.CurrentID := Self;
@@ -14287,14 +13974,14 @@ begin
 
   IMgr.FreeLeftIndentRec(LIndex);
   IMgr.FreeRightIndentRec(RIndex);
-  IB := IMgr.ImageBottom - YValue; {check for image overhang}
+  IB := IMgr.ImageBottom - Y; //YValue; {check for image overhang}
   IMgr.CurrentID := SaveID;
   if IB > Result then
     Result := IB;
-  {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSite.SendFmtMsg('Result = [%d]',[Result]);
   CodeSite.ExitMethod(Self,'TCell.DoLogic');
-  {$ENDIF}
+{$ENDIF}
 end;
 
 {----------------TCell.Draw}
@@ -14310,20 +13997,20 @@ end;
 
 {----------------TCellObjCell.CreateCopy}
 
-constructor TCellObjCell.CreateCopy(AMasterList: ThtDocument; T: TCellObjCell);
+constructor TCellObjCell.CreateCopy(Parent: TBlock; T: TCellObjCell);
 begin
-  inherited CreateCopy(AMasterList, T);
-  MyRect := T.MyRect; ;
+  inherited CreateCopy(Parent, T);
+  MyRect := T.MyRect;
 end;
 
 {----------------TCellObjCell.GetUrl}
 
 function TCellObjCell.GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget;
-  out FormControl: TIDObject{TImageFormControlObj}; out ATitle: ThtString): guResultType;
+  out FormControl: TIDObject{TImageFormControlObj}; out ATitle: ThtString): ThtguResultType;
 {Y is absolute}
 begin
   Result := inherited GetUrl(Canvas, X, Y, UrlTarg, FormControl, ATitle);
-  if PtInRect(MyRect, Point(X, Y - MasterList.YOFF)) then
+  if PtInRect(MyRect, Point(X, Y - Document.YOFF)) then
   begin
     if (not (guTitle in Result)) and (Title <> '') then
     begin
@@ -14345,10 +14032,90 @@ end;
 function TBlockCell.DoLogicX(Canvas: TCanvas; X, Y, XRef, YRef, Width, AHeight, BlHt: Integer;
   out ScrollWidth: Integer; var Curs: Integer): Integer;
 {Do the entire layout of the this cell.  Return the total pixel height}
-var
-  I, Sw, TheCount: Integer;
-  H, Tmp: Integer;
-  SB: TSectionBase;
+
+  function DoBlockLogic: Integer;
+  // Returns CellHeight
+  var
+    I, Sw, Tmp: Integer;
+    SB: TSectionBase;
+  begin
+    Result := 0;
+    for I := 0 to Count - 1 do
+    begin
+      SB := Items[I];
+      Tmp := SB.DrawLogic1(Canvas, X, Y + Result, XRef, YRef, Width, AHeight, BlHt, IMgr, Sw, Curs);
+      Inc(Result, Tmp);
+      if OwnerBlock.HideOverflow then
+        ScrollWidth := Width
+      else
+        ScrollWidth := Max(ScrollWidth, Sw);
+      if SB is TSection then
+        TextWidth := Max(TextWidth, TSection(SB).TextWidth);
+      if not (SB is TBlock) or (TBlock(SB).Positioning <> posAbsolute) then
+        tcContentBot := Max(tcContentBot, SB.ContentBot);
+      tcDrawTop := Min(tcDrawTop, SB.DrawTop);
+      tcDrawBot := Max(tcDrawBot, SB.DrawBot);
+    end;
+  end;
+
+//TODO -oBG, 15.03.2014: support display:inline
+{$ifdef DO_PD_INLINE}
+//  function DoInlineLogic: Integer;
+//  // Returns CellHeight
+//  var
+//    I, Sw, Tmp: Integer;
+//    LineSize: TSize;
+//    SB: TSectionBase;
+//    SC: TSection;
+//  begin
+//    Result := 0;
+//    LineSize.cx := 0;
+//    LineSize.cy := 0;
+//    for I := 0 to Count - 1 do
+//    begin
+//      SB := Items[I];
+//      if SB is TSection then
+//        SC := TSection(SB)
+//      else
+//        SC := nil;
+//      Tmp := SB.DrawLogic1(Canvas, X + LineSize.cx, Y + Result, XRef, YRef, Width, AHeight, BlHt, IMgr, Sw, Curs);
+//      if (SC <> nil) {and (SC.WhiteSpaceStyle in [wsPre, wsNoWrap])} then
+//      begin
+//        // Each section accumulates elements up to complete lines.
+//        Inc(Result, Tmp);
+//        if OwnerBlock.HideOverflow then
+//          ScrollWidth := Width
+//        else
+//          ScrollWidth := Max(ScrollWidth, Sw);
+//        TextWidth := Max(TextWidth, TSection(SB).TextWidth);
+//      end
+//      else
+//      begin
+//        if LineSize.cy < Tmp then
+//          LineSize.cy := Tmp;
+//        Inc(LineSize.cx, SB.DrawRect.Right - SB.DrawRect.Left);
+//        if LineSize.cx > Width then
+//        begin
+//          Inc(Result, LineSize.cy);
+//          if OwnerBlock.HideOverflow then
+//            ScrollWidth := Width
+//          else
+//            ScrollWidth := Max(ScrollWidth, LineSize.cx);
+//          if TextWidth < LineSize.cx then
+//            TextWidth := LineSize.cx;
+//          LineSize.cx := 0;
+//          LineSize.cy := 0;
+//        end;
+//      end;
+//      if not (SB is TBlock) or (TBlock(SB).Positioning <> posAbsolute) then
+//        tcContentBot := Max(tcContentBot, SB.ContentBot);
+//      tcDrawTop := Min(tcDrawTop, SB.DrawTop);
+//      tcDrawBot := Max(tcDrawBot, SB.DrawBot);
+//    end;
+//    Inc(Result, LineSize.cy);
+//  end;
+{$endif}
+
 begin
    {$IFDEF JPM_DEBUGGING}
   CodeSite.EnterMethod(Self,'TBlockCell.DoLogicX');
@@ -14360,37 +14127,25 @@ begin
   CodeSite.SendFmtMsg('ScrollWidth = [%d]',[ScrollWidth]);
   CodeSite.AddSeparator;
    {$ENDIF}
-  YValue := Y;
+//  YValue := Y;
   StartCurs := Curs;
-  H := 0;
+
   ScrollWidth := 0;
   TextWidth := 0;
   tcContentBot := 0;
   tcDrawTop := 990000;
   tcDrawBot := 0;
-  TheCount := Count;
-  I := 0;
-  while I < TheCount do
-  begin
-    SB := Items[I];
-    Tmp := SB.DrawLogic(Canvas, X, Y + H, XRef, YRef, Width, AHeight, BlHt, IMgr, Sw, Curs);
-    Inc(H, Tmp);
-    if Owner.HideOverflow then
-      ScrollWidth := Width
-    else
-      ScrollWidth := Max(ScrollWidth, Sw);
-    if SB is TSection then
-      TextWidth := Max(TextWidth, TSection(SB).TextWidth);
-    if (SB is TBlock) and (TBlock(SB).Positioning = posAbsolute) then
-    else
-      tcContentBot := Max(tcContentBot, SB.ContentBot);
-    tcDrawTop := Min(tcDrawTop, SB.DrawTop);
-    tcDrawBot := Max(tcDrawBot, SB.DrawBot);
-    Inc(I);
-  end;
+
+//TODO -oBG, 15.03.2014: support display:inline
+{$ifdef DO_PD_INLINE}
+  if CalcDisplayExtern = pdInline then
+    CellHeight := DoInlineLogic
+  else
+{$endif}
+    CellHeight := DoBlockLogic;
+
   Len := Curs - StartCurs;
-  Result := H;
-  CellHeight := Result;
+  Result := CellHeight;
   {$IFDEF JPM_DEBUGGING}
   CodeSite.SendFmtMsg('Curs = [%d]',[Curs]);
   CodeSite.SendFmtMsg('Result = [%d]',[Result]);
@@ -14411,7 +14166,7 @@ type
     AFO: TFontObj;
   end;
 
-procedure TDrawList.AddImage(Obj: TImageObj; Canvas: TCanvas; X, TopY, YBaseline: Integer; FO: TFontObj);
+procedure TDrawList.AddImage(Obj: TImageObj; Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
 var
   Result: TImageRec;
 begin
@@ -14419,7 +14174,7 @@ begin
   Result.AObj := Obj;
   Result.ACanvas := Canvas;
   Result.AX := X;
-  Result.AY := TopY;
+  Result.AY := Y;
   Result.AYBaseline := YBaseline;
   Result.AFO := FO;
   Add(Result);
@@ -14436,7 +14191,7 @@ begin
     Item := Items[I];
     if (Item is TImageRec) then
       with TImageRec(Item) do
-        AObj.Draw(ACanvas, AX, AY, AYBaseline, AFO);
+        AObj.DrawInline(ACanvas, AX, AY, AYBaseline, AFO);
     Inc(I);
   end;
 end;
@@ -14478,43 +14233,50 @@ begin
   Message.Result := DLGC_WantArrows; {else don't get the arrow keys}
 end;
 
-{----------------TFormCheckBox.WMGetDlgCode}
-
-procedure TFormCheckBox.WMGetDlgCode(var Message: TMessage);
-begin
-  Message.Result := DLGC_WantArrows; {this to eat the arrow keys}
-end;
-
 {----------------ThtTabcontrol.Destroy}
+
+destructor ThtTabControl.Destroy;
+var
+  ParentForm: TCustomForm;
+begin
+  // if this control was focused, return focus to the parent
+  if Focused then
+  begin
+    ParentForm := GetParentForm(Self);
+    if Assigned(ParentForm) then
+      ParentForm.ActiveControl := Self.Parent;
+  end;
+  inherited Destroy;
+end;
 
 procedure ThtTabcontrol.WMGetDlgCode(var Message: TMessage);
 begin
   Message.Result := DLGC_WantArrows; {this to eat the arrow keys}
 end;
 
-{----------------LineRec.Create}
+{----------------ThtLineRec.Create}
 
-constructor LineRec.Create(SL: ThtDocument);
+constructor ThtLineRec.Create(SL: ThtDocument);
 begin
   inherited Create;
   if SL.InlineList.Count > 0 then
     FirstDraw := True;
 end;
 
-procedure LineRec.Clear;
+procedure ThtLineRec.Clear;
 begin
   FreeAndNil(BorderList);
 end;
 
-destructor LineRec.Destroy;
+destructor ThtLineRec.Destroy;
 begin
   BorderList.Free;
-  inherited;
+  inherited Destroy;
 end;
 
-{----------------BorderRec.DrawTheBorder}
+{----------------ThtBorderRec.DrawTheBorder}
 
-procedure BorderRec.DrawTheBorder(Canvas: TCanvas; XOffset, YOffSet: Integer; Printing: boolean
+procedure ThtBorderRec.DrawTheBorder(Canvas: TCanvas; XOffset, YOffSet: Integer; Printing: boolean
       {$ifdef has_StyleElements}; const AStyleElements : TStyleElements {$endif});
 var
   IRect, ORect: TRect;
@@ -14543,14 +14305,25 @@ begin
 
   DrawBorder(Canvas, ORect, IRect,
     htColors(MargArray[BorderLeftColor], MargArray[BorderTopColor], MargArray[BorderRightColor], MargArray[BorderBottomColor]),
-    htStyles(BorderStyleType(MargArray[BorderLeftStyle]), BorderStyleType(MargArray[BorderTopStyle]), BorderStyleType(MargArray[BorderRightStyle]), BorderStyleType(MargArray[BorderBottomStyle])),
+    htStyles(ThtBorderStyle(MargArray[BorderLeftStyle]), ThtBorderStyle(MargArray[BorderTopStyle]), ThtBorderStyle(MargArray[BorderRightStyle]), ThtBorderStyle(MargArray[BorderBottomStyle])),
     MargArray[BackgroundColor], Printing{$ifdef has_StyleElements},AStyleElements{$endif})
 end;
 
 {----------------TPage.Draw1}
 
-function TPage.Draw1(Canvas: TCanvas; const ARect: TRect;
-  IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
+constructor TPage.Create(Parent: TCellBasic; Attributes: TAttributeList; AProp: TProperties);
+begin
+  inherited Create(Parent,Attributes,AProp);
+  if FDisplay = pdUnassigned then
+    FDisplay := pdBlock;
+end;
+
+//function TPage.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer;
+//begin
+//  Result := 0;
+//end;
+
+function TPage.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
 var
   YOffset, Y: Integer;
 begin
@@ -14566,19 +14339,20 @@ end;
 
 {----------------THorzLine.Create}
 
-constructor THorzLine.Create(AMasterList: ThtDocument; L: TAttributeList;
-  Prop: TProperties);
+constructor THorzLine.Create(Parent: TCellBasic; L: TAttributeList; Prop: TProperties);
 var
   LwName: ThtString;
   I: Integer;
   TmpColor: TColor;
 begin
-  inherited Create(AMasterList, Prop.GetDisplay);
+  inherited Create(Parent, L, Prop);
+  if FDisplay = pdUnassigned then
+    FDisplay := pdBlock;
   VSize := 2;
   Align := Centered;
   Color := clNone;
   for I := 0 to L.Count - 1 do
-    with TAttribute(L[I]) do
+    with L[I] do
       case Which of
         SizeSy: if (Value > 0) and (Value <= 20) then
           begin
@@ -14593,7 +14367,7 @@ begin
             end
             else
               Prop.Assign(Value, piWidth);
-        ColorSy: if ColorFromString(Name, False, Color) then
+        ColorSy: if TryStrToColor(Name, False, Color) then
             Prop.Assign(Color, StyleUn.Color);
         AlignSy:
           begin
@@ -14620,10 +14394,12 @@ begin
         Align := Centered;
 end;
 
-constructor THorzLine.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor THorzLine.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: THorzLine absolute Source;
 begin
-  inherited Create(AMasterList, T.Display);
-  System.Move((T as THorzline).VSize, VSize, PtrSub(@BkGnd, @VSize) + Sizeof(BkGnd));
+  inherited CreateCopy(Parent,Source);
+  System.Move(T.VSize, VSize, PtrSub(@BkGnd, @VSize) + Sizeof(BkGnd));
 end;
 
 procedure THorzLine.CopyToClipboard;
@@ -14631,7 +14407,7 @@ begin
   Document.CB.AddTextCR('', 0);
 end;
 
-function THorzLine.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+function THorzLine.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
   var MaxWidth: Integer; var Curs: Integer): Integer;
 begin
   {$IFDEF JPM_DEBUGGING}
@@ -14684,8 +14460,7 @@ end;
 
 {----------------THorzLine.Draw}
 
-function THorzLine.Draw1(Canvas: TCanvas; const ARect: TRect;
-  IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
+function THorzLine.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
 var
   XR: Integer;
   YT, YO, Y: Integer;
@@ -14735,109 +14510,6 @@ begin
     end;
 end;
 
-procedure TPreformated.ProcessText(TagIndex: Integer);
-var
-  FO: TFontObj;
-begin
-  FO := Fonts.Items[Fonts.Count - 1]; {keep font the same for inserted space}
-  if FO.Pos = Length(BuffS) then
-    Inc(FO.Pos);
-  BuffS := BuffS + ' ';
-  XP^[Length(BuffS) - 1] := XP^[Length(BuffS) - 2] + 1;
-  Finish;
-end;
-
-procedure TPreformated.MinMaxWidth(Canvas: TCanvas; out Min, Max: Integer);
-begin
-  if BreakWord then
-  begin
-    inherited;
-    Exit;
-  end;
-  if Len = 0 then
-  begin
-    Max := 0;
-    Min := 0;
-  end
-  else
-  begin
-    if StoredMax = 0 then
-    begin
-      Max := FindTextWidth(Canvas, Buff, Len - 1, False);
-      StoredMax := Max;
-    end
-    else
-      Max := StoredMax;
-    Min := Math.Min(MaxHScroll, Max);
-  end;
-end;
-
-function TPreFormated.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-  var MaxWidth: Integer; var Curs: Integer): Integer;
-var
-  Dummy: Integer;
-  Save: Integer;
-begin
-   {$IFDEF JPM_DEBUGGING}
-  CodeSite.EnterMethod(Self,'TPreFormated.DrawLogic');
-  CodeSite.SendFmtMsg('X        = [%d]',[X]);
-  CodeSite.SendFmtMsg('Y        = [%d]',[Y]);
-  CodeSite.SendFmtMsg('XRef     = [%d]',[XRef]);
-  CodeSite.SendFmtMsg('YRef     = [%d]',[YRef]);
-  CodeSite.SendFmtMsg('AWidth   = [%d]',[AWidth]);
-  CodeSite.SendFmtMsg('AHeight  = [%d]',[AHeight]);
-  CodeSite.SendFmtMsg('BlHt     = [%d]',[BlHt]);
-  if Assigned(IMgr) then begin
-    CodeSite.SendFmtMsg('IMgr.LfEdge    = [%d]',[ IMgr.LfEdge ] );
-    CodeSite.SendFmtMsg('IMgr.Width     = [%d]',[ IMgr.Width ] );
-    CodeSite.SendFmtMsg('IMgr.ClipWidth = [%d]',[ IMgr.ClipWidth ] );
-  end else begin
-    CodeSite.SendMsg('IMgr      = nil');
-  end;
-  CodeSite.SendFmtMsg('MaxWidth = [%d]',[MaxWidth]);
-  CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
-  CodeSite.AddSeparator;
-  {$ENDIF}
-
-  if Len = 0 then
-  begin
-    ContentTop := Y;
-    Result := Fonts.GetFontObjAt(0, Dummy).FontHeight;
-    SectionHeight := Result;
-    MaxWidth := 0;
-    YDraw := Y;
-    DrawHeight := Result;
-    ContentBot := Y + Result;
-    DrawBot := ContentBot;
-  end
-  else if not BreakWord then
-  begin
-  {call with large width to prevent wrapping}
-    Save := IMgr.Width;
-    IMgr.Width := 32000;
-    Result := inherited DrawLogic(Canvas, X, Y, XRef, YRef, AWidth, AHeight, BlHt, IMgr, Dummy, Curs);
-    IMgr.Width := Save;
-    MinMaxWidth(Canvas, Dummy, MaxWidth); {return MaxWidth}
-  end
-  else
-  begin
-    Result := inherited DrawLogic(Canvas, X, Y, XRef, YRef, AWidth, AHeight, BlHt, IMgr, MaxWidth, Curs);
-  end;
-   {$IFDEF JPM_DEBUGGING}
-  if Assigned(IMgr) then begin
-    CodeSite.SendFmtMsg('IMgr.LfEdge    = [%d]',[ IMgr.LfEdge ] );
-    CodeSite.SendFmtMsg('IMgr.Width     = [%d]',[ IMgr.Width ] );
-    CodeSite.SendFmtMsg('IMgr.ClipWidth = [%d]',[ IMgr.ClipWidth ] );
-  end else begin
-    CodeSite.SendMsg('IMgr      = nil');
-  end;
-  CodeSite.SendFmtMsg('MaxWidth = [%d]',[MaxWidth]);
-  CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
-  CodeSite.SendFmtMsg('Result   = [%d]',[Result]);
-  CodeSite.ExitMethod(Self,'TPreFormated.DrawLogic');
-  {$ENDIF}
-end;
-
 { THtmlPropStack }
 
 { Add a TProperties to the PropStack. }
@@ -14847,11 +14519,11 @@ var
   Tag: ThtString;
 begin
   Tag := SymbToStr(Sym);
-  NewProp := TProperties.Create(self, Self.MasterList.UseQuirksMode);
+  NewProp := TProperties.Create(Self, Document.UseQuirksMode);
   NewProp.PropSym := Sym;
   NewProp.Inherit(Tag, Last);
   Add(NewProp);
-  NewProp.Combine(MasterList.Styles, Tag, AClass, AnID, APseudo, ATitle, AProps, Count - 1);
+  NewProp.Combine(Document.Styles, Tag, AClass, AnID, APseudo, ATitle, AProps, Count - 1);
 end;
 
 procedure THtmlPropStack.PopProp;
@@ -14875,11 +14547,11 @@ begin
     begin
       if Items[I].HasBorderStyle then
       {this would be the end of an inline border}
-        MasterList.ProcessInlines(SIndex, Items[I], False);
+        Document.ProcessInlines(SIndex, Items[I], False);
       Delete(I);
       if I > 1 then {update any stack items which follow the deleted one}
         for J := I to Count - 1 do
-          Items[J].Update(Items[J - 1], MasterList.Styles, J);
+          Items[J].Update(Items[J - 1], Document.Styles, J);
       Break;
     end;
 end;
@@ -14888,15 +14560,15 @@ end;
 constructor THtmlStyleList.Create(AMasterList: ThtDocument);
 begin
   inherited Create;
-  MasterList := AMasterList;
-  Self.FUseQuirksMode := AMasterList.UseQuirksMode;
+  Document := AMasterList;
+  Self.FUseQuirksMode := Document.UseQuirksMode;
 end;
 
 //-- BG ---------------------------------------------------------- 08.03.2011 --
 procedure THtmlStyleList.SetLinksActive(Value: Boolean);
 begin
-  inherited;
-  MasterList.LinksActive := Value;
+//  inherited SetLinksActive(Value);
+  Document.LinksActive := Value;
 end;
 
 { TFieldsetBlock }
@@ -14918,7 +14590,7 @@ procedure TFieldsetBlock.ConvMargArray(BaseWidth, BaseHeight: Integer; out AutoC
 var
   PaddTop, Delta: Integer;
 begin
-  inherited;
+  inherited ConvMargArray(BaseWidth, BaseHeight,AutoCount);
   MargArray[MarginTop] := VMargToMarg(MargArrayO[MarginTop], False, BaseHeight, EmSize, ExSize, 10);
   Delta := Legend.CellHeight - (MargArray[MarginTop] + MargArray[BorderTopWidth] + MargArray[PaddingTop]);
   if Delta > 0 then
@@ -14930,12 +14602,11 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 05.10.2010 --
-constructor TFieldsetBlock.Create(Master: ThtDocument; Prop: TProperties; AnOwnerCell: TCellBasic;
-  Attributes: TAttributeList);
+constructor TFieldsetBlock.Create(Parent: TCellBasic; Attributes: TAttributeList; Prop: TProperties);
 var
-  Index: PropIndices;
+  Index: ThtPropIndices;
 begin
-  inherited;
+  inherited Create(Parent,Attributes,Prop);
   HasBorderStyle := True;
   for Index := BorderTopStyle to BorderLeftStyle do
     if VarIsIntNull(MargArrayO[Index]) or VarIsEmpty(MargArrayO[Index]) then
@@ -14952,28 +14623,27 @@ begin
   for Index := PaddingTop to PaddingLeft do
     if VarIsIntNull(MargArrayO[Index]) or VarIsEmpty(MargArrayO[Index]) then
       MargArrayO[Index] := 10;
-  FLegend := TBlockCell.Create(Master);
-  FLegend.FOwner := Self;
+  FLegend := TBlockCell.Create(Self);
 end;
 
 //-- BG ---------------------------------------------------------- 05.10.2010 --
-constructor TFieldsetBlock.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor TFieldsetBlock.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TFieldsetBlock absolute Source;
 begin
-  inherited;
-  FLegend := TBlockCell.CreateCopy(AMasterList, (T as TFieldsetBlock).FLegend);
-  FLegend.FOwner := Self;
+  inherited CreateCopy(Parent,Source);
+  FLegend := TBlockCell.CreateCopy(Self, T.FLegend);
 end;
 
 //-- BG ---------------------------------------------------------- 05.10.2010 --
 destructor TFieldsetBlock.Destroy;
 begin
   FLegend.Free;
-  inherited;
+  inherited Destroy;
 end;
 
 //-- BG ---------------------------------------------------------- 06.10.2010 --
-function TFieldsetBlock.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef,
-  YRef: Integer): Integer;
+function TFieldsetBlock.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
 var
   Rect: TRect;
 begin
@@ -14984,7 +14654,7 @@ begin
     Rect.Right := Rect.Left + Legend.TextWidth + 4;
     Rect.Top := YDraw - Document.YOff;
     Rect.Bottom := Rect.Top + Legend.CellHeight;
-    Legend.Draw(Canvas, ARect, NewWidth, Rect.Left + 2, YDraw, XRef, YRef);
+    Legend.Draw(Canvas, ARect, ContentWidth, Rect.Left + 2, YDraw, XRef, YRef);
     Rect := CalcClipRect(Canvas, Rect, Document.Printing);
     ExcludeClipRect(Canvas.Handle, Rect.Left, Rect.Top, Rect.Right, Rect.Bottom);
     Result := inherited Draw1(Canvas, ARect, IMgr, X, XRef, YRef);
@@ -14992,7 +14662,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 05.10.2010 --
-function TFieldsetBlock.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer;
+function TFieldsetBlock.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer;
   IMgr: TIndentManager; var MaxWidth, Curs: Integer): Integer;
 var
   BorderWidth: TRect;
@@ -15046,19 +14716,19 @@ begin
       BlockHeight := BlHt;
 
     L := X + BorderWidth.Left;
-    NewWidth := AWidth - BorderWidth.Left - BorderWidth.Right;
+    ContentWidth := AWidth - BorderWidth.Left - BorderWidth.Right;
 
     SaveID := IMgr.CurrentID;
     IMgr.CurrentID := Self;
     Legend.IMgr := IMgr;
     LI := IMgr.SetLeftIndent(L, Y);
-    RI := IMgr.SetRightIndent(L + NewWidth, Y);
-    Legend.DoLogicX(Canvas, X + BorderWidth.Left, Y, XRef, YRef, NewWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
+    RI := IMgr.SetRightIndent(L + ContentWidth, Y);
+    Legend.DoLogicX(Canvas, X + BorderWidth.Left, Y, XRef, YRef, ContentWidth, MargArray[piHeight], BlockHeight, ScrollWidth, Curs);
     IMgr.FreeLeftIndentRec(LI);
     IMgr.FreeRightIndentRec(RI);
     IMgr.CurrentID := SaveID;
 
-    Result := inherited DrawLogic(Canvas, X, Y, XRef, YRef, AWidth, AHeight, BlHt, IMgr, MaxWidth, Curs);
+    Result := inherited DrawLogic1(Canvas, X, Y, XRef, YRef, AWidth, AHeight, BlHt, IMgr, MaxWidth, Curs);
   end;
    {$IFDEF JPM_DEBUGGING}
   if Assigned(IMgr) then begin
@@ -15076,13 +14746,13 @@ begin
 end;
 
 
-procedure TFormControlObj.setValue(const Value: ThtString);
+procedure TFormControlObj.SetValue(const Value: ThtString);
 begin
   FValue := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 16.01.2011 --
-procedure TFormControlObj.SetWidth(Value: Integer);
+procedure TFormControlObj.SetClientWidth(Value: Integer);
 begin
   TheControl.Width := Value;
 end;
@@ -15091,18 +14761,6 @@ end;
 procedure TFormControlObj.Show;
 begin
   TheControl.Show;
-end;
-
-//-- BG ---------------------------------------------------------- 03.03.2011 --
-function TFormControlObj.TotalHeight: Integer;
-begin
-  Result := VSpaceT + Height + VSpaceB;
-end;
-
-//-- BG ---------------------------------------------------------- 03.03.2011 --
-function TFormControlObj.TotalWidth: Integer;
-begin
-  Result := HSpaceL + Width + HSpaceR;
 end;
 
 { TFormControlObjList }
@@ -15138,134 +14796,222 @@ begin
   Result := Get(Index);
 end;
 
+{ TSizeableObj }
 
-function TFormControlObjList.FindControl(Posn: integer): TFormControlObj;
-{find the control at a given character position}
-var
-  I: integer;
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+procedure TSizeableObj.CalcSize(AvailableWidth, AvailableHeight, SetWidth, SetHeight: Integer; IsClientSizeSpecified: Boolean);
+// Extracted from TPanelObj.DrawLogic() and TImageObj.DrawLogic()
 begin
-  for I := 0 to Count - 1 do
+  if PercentWidth then
   begin
-    Result := Items[I];
-    if Result.Pos = Posn then
-      Exit;
-  end;
-  Result := nil;
-end;
-
-function TFormControlObjList.GetHeightAt(Posn: integer; out FormAlign: AlignmentType): Integer;
-var
-  Ctrl: TFormControlObj;
-begin
-  Ctrl := FindControl(Posn);
-  if Assigned(Ctrl) then
+    ClientWidth := MulDiv(AvailableWidth, SpecWidth, 100);
+    if SpecHeight > 0 then
+      if PercentHeight then
+        ClientHeight := MulDiv(AvailableHeight, SpecHeight, 100)
+      else
+        ClientHeight := SpecHeight
+    else
+      ClientHeight := MulDiv(ClientWidth, SetHeight, SetWidth);
+  end
+  else if PercentHeight then
   begin
-    Result := Ctrl.Height;
-    FormAlign := Ctrl.FormAlign;
+    ClientHeight := MulDiv(AvailableHeight, SpecHeight, 100);
+    if SpecWidth > 0 then
+      ClientWidth := SpecWidth
+    else
+      ClientWidth := MulDiv(ClientHeight, SetWidth, SetHeight);
+  end
+  else if (SpecWidth > 0) and (SpecHeight > 0) then
+  begin {Both width and height specified}
+    ClientHeight := SpecHeight;
+    ClientWidth := SpecWidth;
+    ClientSizeKnown := True;
+  end
+  else if SpecHeight > 0 then
+  begin
+    ClientHeight := SpecHeight;
+    ClientWidth := MulDiv(SpecHeight, SetWidth, SetHeight);
+    ClientSizeKnown := IsClientSizeSpecified;
+  end
+  else if SpecWidth > 0 then
+  begin
+    ClientWidth := SpecWidth;
+    ClientHeight := MulDiv(SpecWidth, SetHeight, SetWidth);
+    ClientSizeKnown := IsClientSizeSpecified;
   end
   else
-    Result := -1;
+  begin {neither height and width specified}
+    ClientHeight := SetHeight;
+    ClientWidth := SetWidth;
+    ClientSizeKnown := IsClientSizeSpecified;
+  end;
 end;
 
-function TFormControlObjList.GetWidthAt(Posn: integer; out HSpcL, HSpcR: integer): integer;
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+constructor TSizeableObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
-  Ctrl: TFormControlObj;
+  I: Integer;
+  NewSpace: Integer;
+  S: ThtString;
 begin
-  Ctrl := FindControl(Posn);
-  if Assigned(Ctrl) then
+  inherited Create(Parent,Position,L,Prop);
+  NewSpace := -1;
+  SpecHeight := -1;
+  SpecWidth := -1;
+
+  for I := 0 to L.Count - 1 do
+    with L[I] do
+      case Which of
+
+        HeightSy:
+        begin
+          if System.Pos('%', Name) = 0 then
+          begin
+              SpecHeight := Value;
+          end
+          else if (Value >= 0) and (Value <= 100) then
+          begin
+            SpecHeight := Value;
+            PercentHeight := True;
+          end;
+        end;
+
+        WidthSy:
+          if System.Pos('%', Name) = 0 then
+          begin
+            SpecWidth := Value;
+          end
+          else if (Value >= 0) and (Value <= 100) then
+          begin
+            SpecWidth := Value;
+            PercentWidth := True;
+          end;
+
+        HSpaceSy:
+          NewSpace := Min(40, Abs(Value));
+
+        VSpaceSy:
+          VSpaceT := Min(40, Abs(Value));
+
+        AlignSy:
+          begin
+            S := htUpperCase(htTrim(Name));
+            if S = 'TOP' then
+              VertAlign := ATop
+            else if (S = 'MIDDLE') or (S = 'ABSMIDDLE') then
+              VertAlign := AMiddle
+            else if S = 'LEFT' then
+            begin
+              VertAlign := ANone;
+              Floating := ALeft;
+            end
+            else if S = 'RIGHT' then
+            begin
+              VertAlign := ANone;
+              Floating := ARight;
+            end;
+          end;
+      end;
+
+  if NewSpace >= 0 then
   begin
-    Result := Ctrl.Width;
-    HSpcL := Ctrl.HSpaceL;
-    HSpcR := Ctrl.HSpaceR;
+    HSpaceL := NewSpace;
   end
   else
-    Result := -1;
-end;
-
-function TFormControlObjList.GetControlCountAt(Posn: integer): integer;
-{Return count of chars before the next form control.  0 if at the control,
- 9999 if no controls after Posn}
-var
-  I, Pos: integer;
-begin
-  if Count = 0 then
   begin
-    Result := 9999;
-    Exit;
+    if Self.Document.UseQuirksMode then
+    begin
+       case Floating of
+         ALeft :
+           begin
+             HSpaceL := 0;
+             HSpaceR := ImageSpace;
+           end;
+         ARight :
+           begin
+             HSpaceL := ImageSpace;
+             HSpaceR := 0;
+           end;
+       end;
+    end;
   end;
-  I := 0;
-  while I < count do
-  begin
-    Pos := Items[I].Pos;
-    if Pos >= Posn then
-      break;
-    Inc(I);
-  end;
-  if I = Count then
-    Result := 9999
-  else
-    Result := Items[I].Pos - Posn;
+
+ {
+  if NewSpace >= 0 then
+    HSpaceL := NewSpace
+  else if Floating in [ALeft, ARight] then
+    HSpaceL := ImageSpace {default}
+{  else
+    HSpaceL := 0;
+
+  HSpaceR := HSpaceL;
+  VSpaceB := VSpaceT;
+    }
 end;
 
-procedure TFormControlObjList.Decrement(N: integer);
-{called when a character is removed to change the Position figure}
+constructor TSizeableObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
 var
-  I: integer;
+  T: TSizeableObj absolute Source;
 begin
-  for I := 0 to Count - 1 do
-    with Items[I] do
-      if Pos > N then
-        Dec(Pos);
-end;
-
-{ TFloatingObj }
-
-constructor TFloatingObj.CreateCopy(T: TFloatingObj);
-begin
-  inherited Create;
-  FAlt := T.FAlt;
-  ImageWidth := T.ImageWidth;
-  ImageHeight := T.ImageHeight;
-  NoBorder := T.NoBorder;
+  inherited CreateCopy(Parent,Source);
   BorderSize := T.BorderSize;
-  Indent := T.Indent;
-  VertAlign := T.VertAlign;
-  Floating := T.Floating;
-  HSpaceL := T.HSpaceL;
-  HSpaceR := T.HSpaceR;
-  VSpaceT := T.VSpaceT;
-  VSpaceB := T.VSpaceB;
-  Pos := T.Pos;
+  FAlt := T.FAlt;
+  FClientHeight := T.FClientHeight;
+  FClientWidth := T.FClientWidth;
+  ClientSizeKnown := T.ClientSizeKnown;
+  NoBorder := T.NoBorder;
+  SpecHeight := T.SpecHeight;
+  SpecWidth := T.SpecWidth;
+  Title := T.Title;
 end;
 
-function TFloatingObj.GetYPosition: Integer;
+//-- BG ---------------------------------------------------------- 30.08.2013 --
+procedure TSizeableObj.DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
+begin
+  if not IsCopy then
+    DrawXX := X;
+end;
+
+//-- BG ---------------------------------------------------------- 06.08.2013 --
+function TSizeableObj.GetClientHeight: Integer;
+begin
+  Result := FClientHeight;
+end;
+
+//-- BG ---------------------------------------------------------- 06.08.2013 --
+function TSizeableObj.GetClientWidth: Integer;
+begin
+  Result := FClientWidth;
+end;
+
+function TSizeableObj.GetYPosition: Integer;
 begin
   Result := DrawYY;
 end;
 
-procedure TFloatingObj.ProcessProperties(Prop: TProperties);
+procedure TSizeableObj.ProcessProperties(Prop: TProperties);
 const
   DummyHtWd = 200;
 var
-  MargArrayO: TVMarginArray;
-  MargArray: TMarginArray;
-  Align: AlignmentType;
+  MargArrayO: ThtVMarginArray;
+  MargArray: ThtMarginArray;
+  Align: ThtAlignmentStyle;
   EmSize, ExSize: Integer;
 begin
-  Prop.GetVertAlign(VertAlign);
-  Align := ANone;
+  if Prop.GetVertAlign(Align) then
+    VertAlign := Align;
   if Prop.GetFloat(Align) and (Align <> ANone) then
   begin
-    if HSpaceR = 0 then
-    begin {default is different for Align = left/right}
-      HSpaceR := ImageSpace;
-      HSpaceL := ImageSpace;
-    end;
+//    if HSpaceR = 0 then
+//    begin {default is different for Align = left/right}
+//      HSpaceR := ImageSpace;
+//      HSpaceL := ImageSpace;
+//    end;
     Floating := Align;
     VertAlign := ANone;
   end;
-  if ImageTitle = '' then {a Title attribute will have higher priority than inherited}
-    ImageTitle := Prop.PropTitle;
+  if Title = '' then {a Title attribute will have higher priority than inherited}
+    Title := Prop.PropTitle;
   Prop.GetVMarginArray(MargArrayO);
   EmSize := Prop.EmSize;
   ExSize := Prop.ExSize;
@@ -15326,10 +15072,29 @@ begin
     Inc(VSpaceT, MargArray[BorderTopWidth]);
     Inc(VSpaceB, MargArray[BorderBottomWidth]);
   end;
+  FDisplay := Prop.Display;
+end;
+
+//-- BG ---------------------------------------------------------- 14.10.2012 --
+function TSizeableObj.PtInDrawRect(X, Y: Integer; var IX, IY: Integer): Boolean;
+var
+  XO, YO, W, H: Integer;
+begin
+  // BG, 31.08.2013: deprecated. Method in base class does the same, doesn't it?
+  XO := X - DrawXX; {these are actual image, box if any is outside}
+  YO := Y - DrawYY;
+  W := ClientWidth - 2 * BorderSize;
+  H := ClientHeight - 2 * BorderSize;
+  Result := (XO >= 0) and (XO < W) and (YO >= 0) and (YO < H);
+  if Result then
+  begin
+    IX := XO;
+    IY := YO;
+  end;
 end;
 
 //-- BG ---------------------------------------------------------- 30.11.2010 --
-procedure TFloatingObj.SetAlt(CodePage: Integer; const Value: ThtString);
+procedure TSizeableObj.SetAlt(CodePage: Integer; const Value: ThtString);
 begin
   FAlt := Value;
   while Length(FAlt) > 0 do
@@ -15341,42 +15106,94 @@ begin
     end;
 end;
 
-//-- BG ---------------------------------------------------------- 02.03.2011 --
-function TFloatingObj.TotalHeight: Integer;
+//-- BG ---------------------------------------------------------- 31.08.2013 --
+procedure TSizeableObj.SetClientHeight(Value: Integer);
 begin
-  Result := VSpaceT + ImageHeight + VSpaceB;
+  FClientHeight := Value;
 end;
 
-//-- BG ---------------------------------------------------------- 02.03.2011 --
-function TFloatingObj.TotalWidth: Integer;
+//-- BG ---------------------------------------------------------- 31.08.2013 --
+procedure TSizeableObj.SetClientWidth(Value: Integer);
 begin
-  Result := HSpaceL + ImageWidth + HSpaceR;
+  FClientWidth := Value;
 end;
 
-{----------------TSectionBase.Create}
-
-constructor TSectionBase.Create(AMasterList: ThtDocument; ADisplay: TPropDisplay);
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+constructor TSizeableObj.SimpleCreate(Parent: TCellBasic);
 begin
-  inherited Create;
-  FDocument := AMasterList;
-  FDisplay := ADisplay;
-  ContentTop := 999999999; {large number in case it has Display: none; }
+  inherited Create(Parent, 0, nil, nil);
+  VertAlign := ABottom; {default}
+  Floating := ANone; {default}
+  NoBorder := True;
+  BorderSize := 0;
+  SpecHeight := -1;
+  SpecWidth := -1;
 end;
+
+{ TSectionBase }
 
 //-- BG ---------------------------------------------------------- 20.09.2009 --
-constructor TSectionBase.Create(AMasterList: ThtDocument; AProp: TProperties);
+constructor TSectionBase.Create(Parent: TCellBasic; Attributes: TAttributeList; AProp: TProperties);
 begin
-  Create(AMasterList, AProp.Display);
-  TagClass := AProp.PropTag + '.' + AProp.PropClass + '#' + AProp.PropID;
+  inherited Create(Parent,Attributes,AProp);
+  if AProp <> nil then
+  begin
+    FDisplay := AProp.Display;
+    TagClass := AProp.PropTag;
+//  end
+//  else
+//  begin
+//    FDisplay := pdUnassigned;
+//    TagClass := '';
+  end;
+
+  if Attributes <> nil then
+  begin
+    htAppendStr(TagClass, '.' + Attributes.TheClass + '#' + Attributes.TheID);
+  end;
+
+  ContentTop := 999999999; {large number in case it has Display: none; }
+
+  DrawRect.Top    := 999999999;
+  DrawRect.Left   := 999999999;
+  DrawRect.Bottom := 0;
+  DrawRect.Right  := 0;
 end;
 
-constructor TSectionBase.CreateCopy(AMasterList: ThtDocument; T: TSectionBase);
+constructor TSectionBase.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TSectionBase absolute Source;
 begin
-  inherited Create;
-  FDocument := AMasterList;
-  FDisplay := T.Display; //BG, 30.12.2010: issue-43: Invisible section is printed 
+  inherited CreateCopy(Parent,Source);
+  FDisplay := T.Display; //BG, 30.12.2010: issue-43: Invisible section is printed
   SectionHeight := T.SectionHeight;
   ZIndex := T.ZIndex;
+end;
+
+//-- BG ---------------------------------------------------------- 07.09.2013 --
+function TSectionBase.CalcDisplayExtern: ThtDisplayStyle;
+begin
+  case FDisplay of
+    pdInlineBlock,
+    pdInlineTable:
+      Result := pdInline;
+  else
+    Result := FDisplay;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 07.09.2013 --
+function TSectionBase.CalcDisplayIntern: ThtDisplayStyle;
+begin
+  case FDisplay of
+    pdInlineTable:
+      Result := pdTable;
+
+    pdInlineBlock:
+      Result := pdBlock;
+  else
+    Result := FDisplay;
+  end;
 end;
 
 procedure TSectionBase.CopyToClipboard;
@@ -15388,10 +15205,9 @@ begin
   Result := ContentTop;
 end;
 
-{ TSectionBase }
-
-function TSectionBase.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
-  var MaxWidth: Integer; var Curs: Integer): Integer;
+function TPage.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+  var MaxWidth, Curs: Integer): Integer;
+// This was TSectionBase.DrawLogic1, but actually TPage was the only descendant, that uses it.
 // Computes all coordinates of the section.
 //
 // Normal sections, absolutely positioned blocks and floating blocks start at given (X,Y) relative to document origin.
@@ -15399,8 +15215,8 @@ function TSectionBase.DrawLogic(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeig
 //
 // Returns the nominal height of the section (without overhanging floating blocks)
 begin
-  {$IFDEF JPM_DEBUGGING}
-  CodeSite.EnterMethod(Self,'TSectionBase.DrawLogic');
+{$IFDEF JPM_DEBUGGING}
+  CodeSite.EnterMethod(Self,'TPage.DrawLogic');
   CodeSite.SendFmtMsg('X        = [%d]',[X]);
   CodeSite.SendFmtMsg('Y        = [%d]',[Y]);
   CodeSite.SendFmtMsg('XRef     = [%d]',[XRef]);
@@ -15408,18 +15224,23 @@ begin
   CodeSite.SendFmtMsg('AWidth   = [%d]',[AWidth]);
   CodeSite.SendFmtMsg('AHeight  = [%d]',[AHeight]);
   CodeSite.SendFmtMsg('BlHt     = [%d]',[BlHt]);
-  if Assigned(IMgr) then begin
+  if Assigned(IMgr) then
+  begin
     CodeSite.SendFmtMsg('IMgr.LfEdge    = [%d]',[ IMgr.LfEdge ] );
     CodeSite.SendFmtMsg('IMgr.Width     = [%d]',[ IMgr.Width ] );
     CodeSite.SendFmtMsg('IMgr.ClipWidth = [%d]',[ IMgr.ClipWidth ] );
-  end else begin
+  end
+  else
+  begin
     CodeSite.SendMsg('IMgr      = nil');
   end;
   CodeSite.SendFmtMsg('MaxWidth = [%d]',[MaxWidth]);
   CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
   CodeSite.AddSeparator;
-  {$ENDIF}
+{$ENDIF}
   StartCurs := Curs;
+  Len := 0;
+  SectionHeight := 0;
   Result := SectionHeight;
   DrawHeight := SectionHeight;
   MaxWidth := 0;
@@ -15428,19 +15249,28 @@ begin
   YDraw := Y;
   ContentBot := Y + SectionHeight;
   DrawBot := Y + DrawHeight;
-   {$IFDEF JPM_DEBUGGING}
-  if Assigned(IMgr) then begin
+
+  //>-- DZ
+  DrawRect.Top    := DrawTop;
+  DrawRect.Left   := X;
+  DrawRect.Right  := DrawRect.Left + MaxWidth;
+  DrawRect.Bottom := DrawBot;
+{$IFDEF JPM_DEBUGGING}
+  if Assigned(IMgr) then
+  begin
     CodeSite.SendFmtMsg('IMgr.LfEdge    = [%d]',[ IMgr.LfEdge ] );
     CodeSite.SendFmtMsg('IMgr.Width     = [%d]',[ IMgr.Width ] );
     CodeSite.SendFmtMsg('IMgr.ClipWidth = [%d]',[ IMgr.ClipWidth ] );
-  end else begin
+  end
+  else
+  begin
     CodeSite.SendMsg('IMgr      = nil');
   end;
   CodeSite.SendFmtMsg('MaxWidth = [%d]',[MaxWidth]);
   CodeSite.SendFmtMsg('Curs     = [%d]',[Curs]);
   CodeSite.SendFmtMsg('Result   = [%d]',[Result]);
-  CodeSite.ExitMethod(Self,'TSectionBase.DrawLogic');
-   {$ENDIF}
+  CodeSite.ExitMethod(Self,'TPage.DrawLogic');
+{$ENDIF}
 end;
 
 function TSectionBase.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
@@ -15451,30 +15281,53 @@ end;
 
 function TSectionBase.GetURL(Canvas: TCanvas; X, Y: Integer;
   out UrlTarg: TUrlTarget; out FormControl: TIDObject{TImageFormControlObj};
-  out ATitle: ThtString): guResultType;
+  out ATitle: ThtString): ThtguResultType;
 begin
   Result := [];
   UrlTarg := nil;
   FormControl := nil;
 end;
 
+//-- BG ---------------------------------------------------------- 14.10.2012 --
+function TSectionBase.PtInDrawRect(X, Y: Integer; var IX, IY: Integer): Boolean;
+// inspired by >-- DZ 19.09.2012
+begin
+  case Display of
+    pdNone:
+      Result := False;
+  else
+    // BG, 14.10.2012: why isn't there a Document.XOff representing the horizontal scroll position?
+    // Dec(X, Document.XOff);
+    Dec(Y, Document.YOff);
+    Result := (X >= DrawRect.Left) and (X < DrawRect.Right) and (Y >= DrawRect.Top) and (Y < DrawRect.Bottom);
+    if Result then
+    begin
+      IX := X - DrawRect.Left;
+      IY := Y - DrawRect.Top;
+    end;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 14.10.2012 --
 function TSectionBase.PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): Boolean;
 begin
-  Result := False;
-  Obj := nil;
+  Result := PtInDrawRect(X, Y, IX, IY);
+  if Result then
+    Obj := Self;
 end;
 
 function TSectionBase.FindCursor(Canvas: TCanvas; X, Y: Integer; out XR, YR, CaretHt: Integer; out Intext: boolean): Integer;
 begin
   Result := -1;
+  InText := False;
 end;
 
-function TSectionBase.FindString(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function TSectionBase.FindString(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 begin
   Result := -1;
 end;
 
-function TSectionBase.FindStringR(From: Integer; const ToFind: WideString; MatchCase: boolean): Integer;
+function TSectionBase.FindStringR(From: Integer; const ToFind: UnicodeString; MatchCase: boolean): Integer;
 begin
   Result := -1;
 end;
@@ -15489,14 +15342,15 @@ begin
   Result := -1;
 end;
 
-function TSectionBase.CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean;
+function TSectionBase.CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean;
 begin
   Result := False;
 end;
 
-function TSectionBase.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TObject): boolean;
+function TSectionBase.GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean;
 begin
   Result := False;
+  Ch := #0;
   Obj := nil;
 end;
 
@@ -15518,7 +15372,7 @@ end;
 
 { TSectionBaseList }
 
-function TSectionBaseList.CursorToXY(Canvas: TCanvas; Cursor: Integer; out X, Y: Integer): boolean;
+function TSectionBaseList.CursorToXY(Canvas: TCanvas; Cursor: Integer; var X, Y: Integer): boolean;
 var
   I: Integer;
 begin
@@ -15552,19 +15406,33 @@ begin
     end
 end;
 
-function TSectionBaseList.getItem(Index: Integer): TSectionBase;
+function TSectionBaseList.GetItem(Index: Integer): TSectionBase;
 begin
   Result := inherited Items[Index];
+end;
+
+function TSectionBaseList.PtInObject(X, Y: Integer; var Obj: TObject; var IX, IY: Integer): Boolean;
+{Y is absolute}
+var
+  I: Integer;
+begin
+  for I := 0 to Count - 1 do
+    if Items[I].PtInObject(X, Y, Obj, IX, IY) then
+    begin
+      Result := True;
+      Exit;
+    end;
+  Result := False;
 end;
 
 { TChPosObj }
 
 //-- BG ---------------------------------------------------------- 04.03.2011 --
-constructor TChPosObj.Create(MasterList: ThtDocument; Pos: Integer);
+constructor TChPosObj.Create(Document: ThtDocument; Pos: Integer);
 begin
-  inherited Create;
+  inherited Create('');
   FChPos := Pos;
-  FDocument := MasterList;
+  FDocument := Document;
 end;
 
 //-- BG ---------------------------------------------------------- 06.03.2011 --
@@ -15577,11 +15445,234 @@ function TChPosObj.GetYPosition: Integer;
 var
   Pos, X, Y: Integer;
 begin
-  Pos := MasterList.FindDocPos(ChPos, False);
-  if MasterList.CursorToXY(nil, Pos, X, Y) then
+  Pos := Document.FindDocPos(ChPos, False);
+  if Document.CursorToXY(nil, Pos, X, Y) then
     Result := Y
   else
     Result := 0;
+end;
+
+{ TControlObj }
+
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+procedure TControlObj.DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
+var
+  OldBrushStyle: TBrushStyle;
+  OldBrushColor: TColor;
+  OldPenColor: TColor;
+  SaveFont: TFont;
+begin
+  inherited DrawInline(Canvas,X,Y,YBaseline,FO);
+  if IsCopy then
+  begin
+    OldBrushStyle := Canvas.Brush.Style; {save style first}
+    OldBrushColor := Canvas.Brush.Color;
+    OldPenColor := Canvas.Pen.Color;
+    Canvas.Pen.Color := ThemedColor(FO.TheFont.Color {$ifdef has_StyleElements},seFont in Document.StyleElements{$endif} );
+    Canvas.Brush.Color := ThemedColor(BackgroundColor {$ifdef has_StyleElements},seClient in Document.StyleElements{$endif});
+    Canvas.Brush.Style := bsSolid;
+    try
+      // paint a rectangular placeholder
+      Canvas.Rectangle(X, Y, X + ClientWidth, Y + ClientHeight);
+      if FAlt <> '' then
+      begin
+        // show the alternative text.
+        SaveFont := TFont.Create;
+        try
+          SaveFont.Assign(Canvas.Font);
+          Canvas.Font.Size := 8;
+          Canvas.Font.Name := 'Arial';
+          WrapTextW(Canvas, X + 5, Y + 5, X + ClientWidth - 5, Y + ClientHeight - 5, FAlt);
+        finally
+          Canvas.Font := SaveFont;
+          SaveFont.Free;
+        end;
+      end;
+    finally
+      Canvas.Brush.Color := OldBrushColor;
+      Canvas.Brush.Style := OldBrushStyle; {style after color as color changes style}
+      Canvas.Pen.Color := OldPenColor;
+    end;
+  end
+  else
+  begin
+    ClientControl.Left := X;
+    ClientControl.Top := Y;
+  end;
+end;
+
+procedure TControlObj.DrawLogicInline(Canvas: TCanvas; FO: TFontObj; AvailableWidth, AvailableHeight: Integer);
+var
+  Control: TControl;
+begin
+  if not ClientSizeKnown or PercentWidth or PercentHeight then
+  begin
+    CalcSize(AvailableWidth, AvailableHeight, SetWidth, SetHeight, True);
+    if not IsCopy then
+      if (ClientWidth > 0) and (ClientHeight > 0) then
+      begin
+        Control := ClientControl;
+        if Control <> nil then
+          Control.SetBounds(Control.Left, Control.Top, ClientWidth, ClientHeight);
+      end;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 15.12.2011 --
+function TControlObj.GetBackgroundColor: TColor;
+begin
+  Result := clNone;
+end;
+
+{ TFrameObj }
+
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+constructor TFrameObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+var
+  I: Integer;
+begin
+  inherited Create(Parent,Position,L,Prop);
+  for I := 0 to L.Count - 1 do
+    with L[I] do
+      case Which of
+        SrcSy:
+          FSource := htTrim(Name);
+
+        AltSy:
+          SetAlt(CodePage, Name);
+
+        FrameBorderSy:
+          NoBorder := Value = 0;
+
+        MarginWidthSy:
+          frMarginWidth := Value;
+
+        MarginHeightSy:
+          frMarginHeight := Value;
+
+        ScrollingSy:
+          NoScroll := CompareText(Name, 'NO') = 0; {auto and yes work the same}
+
+      end;
+
+  CreateFrame;
+  UpdateFrame;
+  SetWidth := FViewer.Width;
+  SetHeight := FViewer.Height;
+end;
+
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+constructor TFrameObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TFrameObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FSource := T.FSource;
+  frMarginWidth := T.frMarginWidth;
+  frMarginHeight := T.frMarginHeight;
+  NoScroll := T.NoScroll;
+  CreateFrame;
+end;
+
+//-- BG ---------------------------------------------------------- 13.11.2011 --
+procedure TFrameObj.CreateFrame;
+// Create a THtmlViewer, TFrameViewer or TFrameBrowser depending on host component.
+var
+  PaintPanel: TPaintPanel;
+  HtmlViewer: THtmlViewer;
+begin
+  PaintPanel := TPaintPanel(Document.PPanel);
+  HtmlViewer := PaintPanel.ParentViewer;
+  FViewer := HtmlViewer.CreateIFrameControl;
+  FViewer.Parent := PaintPanel;
+  if FSource <> '' then
+  begin
+    if Assigned(HtmlViewer.OnExpandName) then
+      HtmlViewer.OnExpandName(HtmlViewer, FSource, FUrl)
+    else
+      FUrl := HtmlViewer.HtmlExpandFilename(FSource);
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+destructor TFrameObj.Destroy;
+begin
+  FreeAndNil(FViewer);
+  inherited Destroy;
+end;
+
+//-- BG ---------------------------------------------------------- 16.11.2011 --
+procedure TFrameObj.DrawInline(Canvas: TCanvas; X, Y, YBaseline: Integer; FO: TFontObj);
+var
+  HtmlViewer: THtmlViewer;
+  Bitmap: TBitmap;
+begin
+  // BG, 11.12.2011: frames aren't printable.
+  if FViewer is THtmlViewer then
+  begin
+    HtmlViewer := THtmlViewer(FViewer);
+    Bitmap := TBitmap.Create;
+    try
+      Bitmap.HandleType := bmDIB;
+      Bitmap.PixelFormat := pf24Bit;
+      Bitmap.Width := ClientWidth;
+      Bitmap.Height := ClientHeight;
+      HtmlViewer.Draw(
+        Bitmap.Canvas,
+        HtmlViewer.VScrollBar.Position,
+        HtmlViewer.Width,
+        ClientWidth,
+        ClientHeight);
+      PrintBitmap(Canvas, X, Y, ClientWidth, ClientHeight, Bitmap);
+      //Bitmap.SaveToFile(Format('C:\temp\%x.bmp', [Integer(Self)]));
+    finally
+      Bitmap.Free;
+    end;
+  end
+  else
+    inherited DrawInline(Canvas,X,Y,YBaseline,FO);
+end;
+
+//-- BG ---------------------------------------------------------- 15.12.2011 --
+function TFrameObj.GetBackgroundColor: TColor;
+begin
+  if FViewer <> nil then
+    Result := FViewer.DefBackground
+  else
+    Result := inherited GetBackgroundColor;
+end;
+
+//-- BG ---------------------------------------------------------- 16.11.2011 --
+function TFrameObj.GetControl: TWinControl;
+begin
+  Result := FViewer;
+end;
+
+//-- BG ---------------------------------------------------------- 14.11.2011 --
+procedure TFrameObj.UpdateFrame;
+var
+  LCurrentStyle: TFontStyles; {as set by <b>, <i>, etc.}
+  LCurrentForm: ThtmlForm;
+  LPropStack: THtmlPropStack;
+  LNoBreak: boolean; {set when in <NoBr>}
+begin
+  if FUrl <> '' then
+  begin
+    LCurrentForm := Document.CurrentForm;
+    LCurrentStyle := Document.CurrentStyle;
+    LNoBreak := Document.NoBreak;
+    LPropStack := Document.PropStack;
+    Document.PropStack := THtmlPropStack.Create;
+    try
+      FViewer.Load(FUrl);
+    finally
+      Document.PropStack.Free;
+      Document.PropStack := LPropStack;
+      Document.CurrentForm := LCurrentForm;
+      Document.CurrentStyle := LCurrentStyle;
+      Document.NoBreak := LNoBreak;
+    end;
+  end;
 end;
 
 { TRowList }
@@ -15603,7 +15694,7 @@ end;
 { TColSpec }
 
 //-- BG ---------------------------------------------------------- 12.01.2012 --
-constructor TColSpec.Create(const Width: TSpecWidth; Align: ThtString; VAlign: AlignmentType);
+constructor TColSpec.Create(const Width: TSpecWidth; Align: ThtString; VAlign: ThtAlignmentStyle);
 begin
   inherited Create;
   FWidth := Width;
@@ -15617,15 +15708,277 @@ begin
   Create(ColSpec.FWidth, ColSpec.FAlign, ColSpec.FVAlign);
 end;
 
+{ TFloatingObj }
+
+//-- BG ---------------------------------------------------------- 12.11.2011 --
+function TFloatingObj.Clone(Parent: TCellBasic): TFloatingObj;
+begin
+  Result := TFloatingObjClass(ClassType).CreateCopy(Parent, Self);
+end;
+
+//-- BG ---------------------------------------------------------- 04.08.2013 --
+constructor TFloatingObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+begin
+  inherited Create(Parent,Position,L,Prop);
+  StartCurs := Position;
+  VertAlign := ABottom; {default}
+end;
+
+//-- BG ---------------------------------------------------------- 04.08.2013 --
+constructor TFloatingObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TFloatingObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  System.Move(T.VertAlign, VertAlign, PtrSub(@PercentHeight, @VertAlign) + SizeOf(PercentHeight));
+  DrawXX := T.DrawXX;
+  DrawYY := T.DrawYY;
+end;
+
+//-- BG ---------------------------------------------------------- 08.09.2013 --
+function TFloatingObj.Draw1(Canvas: TCanvas; const ARect: TRect; IMgr: TIndentManager; X, XRef, YRef: Integer): Integer;
+begin
+  Result := ContentBot;
+end;
+
+//-- BG ---------------------------------------------------------- 08.09.2013 --
+function TFloatingObj.DrawLogic1(Canvas: TCanvas; X, Y, XRef, YRef, AWidth, AHeight, BlHt: Integer; IMgr: TIndentManager;
+  var MaxWidth, Curs: Integer): Integer;
+begin
+  Result := SectionHeight;
+end;
+
+//-- BG ---------------------------------------------------------- 02.03.2011 --
+function TFloatingObj.TotalHeight: Integer;
+begin
+  Result := VSpaceT + ClientHeight + VSpaceB;
+end;
+
+//-- BG ---------------------------------------------------------- 02.03.2011 --
+function TFloatingObj.TotalWidth: Integer;
+begin
+  Result := HSpaceL + ClientWidth + HSpaceR;
+end;
+
+{ TFloatingObjList }
+
+//-- BG ---------------------------------------------------------- 05.08.2013 --
+constructor TFloatingObjList.CreateCopy(Parent: TCellBasic; T: TFloatingObjList);
+var
+  I: Integer;
+begin
+  inherited Create;
+  if T <> nil then
+    for I := 0 to T.Count - 1 do
+      Add(T.Items[I].Clone(Parent));
+end;
+
+//-- BG ---------------------------------------------------------- 07.08.2013 --
+procedure TFloatingObjList.Decrement(N: Integer);
+{called when a character is removed to change the Position figure}
+var
+  I: Integer;
+begin
+  for I := Count - 1 downto 0 do
+    with Items[I] do
+      if StartCurs > N then
+        Dec(StartCurs)
+      else
+        break;
+end;
+
+//-- BG ---------------------------------------------------------- 07.08.2013 --
+function TFloatingObjList.FindObject(Posn: Integer): TFloatingObj;
+{find the object at a given character position}
+begin
+  if GetObjectAt(Posn, Result) <> 0 then
+    Result := nil;
+end;
+
+//-- BG ---------------------------------------------------------- 07.08.2013 --
+function TFloatingObjList.GetItem(Index: Integer): TFloatingObj;
+begin
+  Result := Get(Index);
+end;
+
+//-- BG ---------------------------------------------------------- 05.08.2013 --
+function TFloatingObjList.GetObjectAt(Posn: Integer; out Obj): Integer;
+var
+  I: Integer;
+begin
+  for I := 0 to Count - 1 do
+  begin
+    Result := Items[I].StartCurs - Posn;
+    if Result >= 0 then
+    begin
+      TFloatingObj(Obj) := Items[I];
+      Exit;
+    end;
+  end;
+
+  TFloatingObj(Obj) := nil;
+  Result := 99999999;
+end;
+
+//-- BG ---------------------------------------------------------- 05.08.2013 --
+function TFloatingObjList.PtInImage(X, Y: Integer; out IX, IY, Posn: Integer; out AMap, UMap: boolean; out MapItem: TMapItem; out ImageObj: TImageObj): boolean;
+
+  function FindMap(const MapList: TFreeList; const MapName: ThtString): Boolean;
+  var
+    I: Integer;
+  begin
+    Result := False;
+    for I := 0 to MapList.Count - 1 do
+    begin
+      MapItem := MapList[I];
+      if MapItem.MapName = MapName then
+      begin
+        Result := True;
+        break;
+      end;
+    end;
+  end;
+
+var
+  I: Integer;
+  Obj: TObject;
+  ImgObj: TImageObj absolute Obj;
+begin
+  Result := False;
+  for I := 0 to Count - 1 do
+  begin
+    Obj := Items[I];
+    if Obj is TImageObj then
+    begin
+      if ImgObj.PtInDrawRect(X, Y, IX, IY) then
+      begin
+        Result := True;
+        AMap := ImgObj.IsMap;
+        Posn := ImgObj.StartCurs;
+        UMap := False;
+        ImageObj := TImageObj(Obj);
+        if ImgObj.UseMap then
+          UMap := FindMap(ImgObj.Document.MapList, ImgObj.MapName);
+        break;
+      end;
+    end;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 05.08.2013 --
+function TFloatingObjList.PtInObject(X, Y: Integer; out Obj: TObject; out IX, IY: Integer): boolean;
+var
+  I: Integer;
+  Item: TFloatingObj;
+begin
+  for I := 0 to Count - 1 do
+  begin
+    Item := Items[I];
+    if Item.PtInDrawRect(X, Y, IX, IY) then
+    begin
+      Obj := Item;
+      Result := True;
+      Exit;
+    end;
+  end;
+  Result := False;
+end;
+
+//-- BG ---------------------------------------------------------- 07.08.2013 --
+procedure TFloatingObjList.SetItem(Index: Integer; const Item: TFloatingObj);
+begin
+  Put(Index, Item);
+end;
+
+{ TBlockBase }
+
+//-- BG ---------------------------------------------------------- 31.08.2013 --
+constructor TBlockBase.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+begin
+  inherited Create(Parent, L, Prop);
+  if FDisplay = pdUnassigned then
+    FDisplay := pdBlock;
+  StartCurs := Position;
+  if Prop <> nil then
+  begin
+    if not Prop.GetFloat(Floating) then
+      Floating := ANone;
+    Positioning := Prop.GetPosition;
+  end
+  else
+  begin
+    Floating := ANone;
+    Positioning := posStatic;
+  end;
+  if Positioning = posAbsolute then
+    Floating := ANone;
+
+end;
+
+constructor TBlockBase.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TBlockBase absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  Positioning := T.Positioning;
+  Floating := T.Floating;
+  Indent := T.Indent;
+end;
+
+//{ TRenderSectionBaseList }
+//
+////-- BG ---------------------------------------------------------- 01.12.2013 --
+//procedure TRenderSectionBaseList.Notify(Ptr: Pointer; Action: TListNotification);
+//var
+//  Obj: TObject absolute Ptr;
+//begin
+//  inherited;
+//  if (Action = lnDeleted) and (Obj is TInlineSection) then
+//    Obj.Free;
+//end;
+//
+//{ TInlineSection }
+//
+////-- BG ---------------------------------------------------------- 01.12.2013 --
+//procedure TInlineSection.AddElement(Section: TSection);
+//var
+//  I: Integer;
+//begin
+//  // append Buff, Fonts, Images and FormControls
+//  BuffS := Buffs + Section.BuffS;
+//  Buff := PWideChar(Buffs);
+//
+//  for I := 0 to Section.Fonts.Count - 1 do
+//    Fonts.Add(TFontObj.CreateCopy(Section, Section.Fonts[I]));
+//
+//  for I := 0 to Section.Images.Count - 1 do
+//    Images.Add(Section.Images[I].Clone(Section.Images[I].OwnerCell));
+//
+//  for I := 0 to Section.FormControls.Count - 1 do
+//    FormControls.Add(Section.FormControls[I].Clone(Section.FormControls[I].OwnerCell));
+//end;
+//
+////-- BG ---------------------------------------------------------- 01.12.2013 --
+//constructor TInlineSection.Create(Parent: TCellBasic);
+//begin
+//  inherited Create(Parent);
+//end;
+
 initialization
 {$ifdef UNICODE}
 {$else}
-  {$IFDEF UseElPack}
+  {$ifdef UseElPack}
     UnicodeControls := True;
-  {$ENDIF}
+  {$endif}
 
-  {$IFDEF UseTNT}
+  {$ifdef UseTNT}
     UnicodeControls := not IsWin32Platform;
-  {$ENDIF}
+  {$endif}
 {$endif}
+  WaitStream := TMemoryStream.Create;
+  ErrorStream := TMemoryStream.Create;
+finalization
+  WaitStream.Free;
+  ErrorStream.Free;
 end.
+

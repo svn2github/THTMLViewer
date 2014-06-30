@@ -1,8 +1,7 @@
 {
-Version   11.4
+Version   11.5
 Copyright (c) 1995-2008 by L. David Baldwin
-Copyright (c) 2008-2010 by HtmlViewer Team
-Copyright (c) 2011-2013 by Bernd Gabriel
+Copyright (c) 2008-2013 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -34,9 +33,6 @@ unit FDemUnit;
 interface
 
 uses
-{$ifdef HasSystemUITypes}
-  System.UITypes,
-{$endif}
   SysUtils, Messages, Classes, Graphics, Controls, Forms, Dialogs,
   ExtCtrls, Menus, Clipbrd, ComCtrls, StdCtrls, Fontdlg,
 {$ifdef LCL}
@@ -76,9 +72,10 @@ uses
   HtmlGlobals,
   HtmlBuffer,
   URLSubs,
-  StyleUn,
+  StyleTypes,
   ReadHTML,
   HTMLSubs,
+  HTMLSbs1,
   HTMLUn2,
   Htmlview,
   FramView,
@@ -240,6 +237,9 @@ var
 
 implementation
 
+{$ifdef HasSystemUITypes}
+uses System.UITypes;
+{$endif}
 {$ifdef LCL}
   {$R *.lfm}
 {$else}
@@ -258,8 +258,11 @@ begin
   Width := (Screen.Width * 8) div 10;
   Height := (Screen.Height * 6) div 8;
 
-
   FrameViewer.HistoryMaxCount := MaxHistories;  {defines size of history list}
+{$ifdef HasGestures}
+  FrameViewer.Touch.InteractiveGestureOptions := [{igoPanSingleFingerHorizontal,} igoPanSingleFingerVertical, igoPanInertia];
+  FrameViewer.Touch.InteractiveGestures := [igPan];
+{$endif}
 
   for I := 0 to MaxHistories-1 do
   begin      {create the MenuItems for the history list}
@@ -346,85 +349,63 @@ var
   S, Params: ThtString;
   Ext: string;
   I, J, K: integer;
-  Viewer: ThtmlViewer;
-  ID: string;
-
 begin
-Handled := False;
+  Handled := False;
 
-{The following looks for a link of the form, "IDExpand_XXX".  This is interpreted
- as meaning a block with an ID="XXXPlus" or ID="XXXMinus" attribute should
- have its Display property toggled.
-} 
-I := Pos('IDEXPAND_', Uppercase(URL));
-if I=1 then
-  begin
-  Viewer := FrameViewer.ActiveViewer;
-  if Assigned(Viewer) then
-    begin
-    ID := Copy(URL, 10, Length(URL)-9);
-    if Viewer.IDDisplay[ID+'Minus'] = High(TPropDisplay) then
-      Viewer.IDDisplay[ID+'Minus'] := Low(TPropDisplay)
-    else
-      Viewer.IDDisplay[ID+'Minus'] := Succ(Viewer.IDDisplay[ID+'Minus']);
-    Viewer.IDDisplay[ID+'Plus'] := Viewer.IDDisplay[ID+'Minus'];
-    Viewer.Reformat;
-    end;
-  Handled := True;
-  Exit;
-  end;
-
-{check for various file types}
-I := Pos(':', URL);
-J := Pos('FILE:', UpperCase(URL));
-if (I <= 2) or (J > 0) then
+  {check for various file types}
+  I := Pos(':', URL);
+  J := Pos('FILE:', UpperCase(URL));
+  if (I <= 2) or (J > 0) then
   begin                      {apparently the URL is a filename}
-  S := URL;
-  K := Pos(' ', S);     {look for parameters}
-  if K = 0 then K := Pos('?', S);  {could be '?x,y' , etc}
-  if K > 0 then
+    S := URL;
+    K := Pos(' ', S);     {look for parameters}
+    if K = 0 then K := Pos('?', S);  {could be '?x,y' , etc}
+    if K > 0 then
     begin
-    Params := Copy(S, K+1, 255); {save any parameters}
-    setLength(S, K-1);            {truncate S}
+      Params := Copy(S, K+1, 255); {save any parameters}
+      setLength(S, K-1);            {truncate S}
     end
-  else Params := '';
-  S := (Sender as TFrameViewer).HTMLExpandFileName(S);
-  Ext := Uppercase(ExtractFileExt(S));
-  if Ext = '.WAV' then
+    else
+      Params := '';
+    S := (Sender as TFrameViewer).HTMLExpandFileName(S);
+    Ext := Uppercase(ExtractFileExt(S));
+    if Ext = '.WAV' then
     begin
-    Handled := True;
-{$ifndef MultiMediaMissing}
-    sndPlaySound(StrPCopy(PC, S), snd_ASync);
-{$endif}
+      Handled := True;
+  {$ifndef MultiMediaMissing}
+      sndPlaySound(StrPCopy(PC, S), snd_ASync);
+  {$endif}
     end
-  else if Ext = '.EXE' then
+    else if Ext = '.EXE' then
     begin
-    Handled := True;
-    StartProcess(S + ' ' + Params, SW_SHOW);
+      Handled := True;
+      StartProcess(S + ' ' + Params, SW_SHOW);
     end
-  else if (Ext = '.MID') or (Ext = '.AVI')  then
+    else if (Ext = '.MID') or (Ext = '.AVI')  then
     begin
-    Handled := True;
-    StartProcess('MPlayer.exe /play /close ' + S, SW_SHOW);
+      Handled := True;
+      StartProcess('MPlayer.exe /play /close ' + S, SW_SHOW);
     end;
-  {else ignore other extensions}
-  Edit2.Text := URL;
-  Exit;
+    {else ignore other extensions}
+    Edit2.Text := URL;
+    Exit;
   end;
-I := Pos('MAILTO:', UpperCase(URL));
-J := Pos('HTTP://', UpperCase(URL));
-if (I > 0) or (J > 0) then
+
+  I := Pos('MAILTO:', UpperCase(URL));
+  J := Pos('HTTP://', UpperCase(URL));
+  if (I > 0) or (J > 0) then
   begin
-  {Note: ShellExecute causes problems when run from Delphi 4 IDE}
-{$ifdef LCL}
-  OpenDocument(StrPCopy(PC, URL));
-{$else}
-  ShellExecute(Handle, nil, StrPCopy(PC, URL), nil, nil, SW_SHOWNORMAL);
-{$endif}
-  Handled := True;
-  Exit;
+    {Note: ShellExecute causes problems when run from Delphi 4 IDE}
+  {$ifdef LCL}
+    OpenDocument(StrPCopy(PC, URL));
+  {$else}
+    ShellExecute(Handle, nil, StrPCopy(PC, URL), nil, nil, SW_SHOWNORMAL);
+  {$endif}
+    Handled := True;
+    Exit;
   end;
-Edit2.Text := URL;   {other protocall}
+
+  Edit2.Text := URL;   {other protocall}
 end;
 
 procedure TForm1.HotSpotTargetCovered(Sender: TObject; const Target, URL: ThtString);

@@ -1,7 +1,7 @@
 {
-Version   11.4
+Version   11.5
 Copyright (c) 1995-2008 by L. David Baldwin,
-Copyright (c) 2008-2013 by HtmlViewer Team
+Copyright (c) 2008-2014 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -37,190 +37,131 @@ uses
   Windows,
 {$endif}
   Classes, Graphics, SysUtils, Math, Forms, Contnrs, Variants,
-  HtmlGlobals,
+  //
   HtmlBuffer,
-  HtmlSymb;
+  HtmlFonts,
+  HtmlGlobals,
+  HtmlSymb,
+  StyleTypes;
+
+{$ifdef UseOldStyleTypes}
+type
+  AlignmentType = ThtAlignmentStyle;
+  BorderStyleType = ThtBorderStyle;
+  ClearAttrType = ThtClearStyle;
+  ListBulletType = ThtBulletStyle;
+  PositionType = ThtBoxPositionStyle;
+  TTextTransformStyle = ThtTextTransformStyle;
+  TPropDisplay = ThtDisplayStyle;
+  VisibilityType = ThtVisibilityStyle;
+  TWhiteSpaceStyle = ThtWhiteSpaceStyle;
+{$endif}
 
 const
   CurColor_Val = 'currentColor';
   CurColorStr = 'currentcolor';
-  IntNull = -12345678;
-  Auto = -12348765;
-  AutoParagraph = -12348766;
-  ParagraphSpace = 14; {default spacing between paragraphs, etc.}
-  ImageSpace = 3; {extra space for left, right images}
-  ListIndent = 40;
-  
   varInt = [varInteger, varByte, varSmallInt, varShortInt, varWord, varLongWord, varInt64];
   varFloat = [varSingle, varDouble, varCurrency];
   varNum = varInt + varFloat;
-
-  EastEurope8859_2 = 31; {for 8859-2}
   CrLf = #$D#$A;
 
 //BG, 16.09.2010: CSS2.2: same sizes like html font size:
-type
-  TFontSizeIncrement = -6..6;
+
 const
   FontConvBase: array[1..7] of Double = (8.0, 10.0, 12.0, 14.0, 18.0, 24.0, 36.0);
   PreFontConvBase: array[1..7] of Double = (7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 30.0);
+  
 var
   FontConv: array[1..7] of Double;
   PreFontConv: array[1..7] of Double;
 
 type
-  AlignmentType = (ANone, ATop, AMiddle, ABaseline, ABottom, ALeft, ARight, AJustify, ASub, ASuper);
-  BoxSizingType = (ContentBox, BorderBox);
+  // Notice: in TPropertyIndex order of rectangle properties required:
+  //
+  //  Top, Right, Bottom, Left.
+  //
+  // Some code relies on this order.
+  //
+  ThtPropertyIndex = (
+    FontFamily, FontSize, FontStyle, FontWeight,
+    TextAlign, TextDecoration, LetterSpacing, Color,
 
-const
-  CBoxSizing: array[BoxSizingType] of ThtString = (
-    'content-box',
-    'border-box');
-
-type
-  BorderStyleType = (bssNone, bssSolid, bssInset, bssOutset, bssGroove, bssRidge,
-    bssDashed, bssDotted, bssDouble);
-
-const
-  CBorderStyle: array[BorderStyleType] of ThtString = (
-    'none',
-    'solid',
-    'inset',
-    'outset',
-    'groove',
-    'ridge',
-    'dashed',
-    'dotted',
-    'double');
-
-type
-  ListBulletType = (lbBlank, lbCircle, lbDecimal, lbDisc, lbLowerAlpha, lbLowerRoman,
-    lbNone, lbSquare, lbUpperAlpha, lbUpperRoman);
-  ClearAttrType = (clrNone, clLeft, clRight, clAll);
-  PositionType = (posStatic, posRelative, posAbsolute, posFixed);
-  VisibilityType = (viInherit, viHidden, viVisible);
-  TextTransformType = (txNone, txUpper, txLower, txCaps);
-  TBackgroundPosition = (bpTop, bpCenter, bpBottom, bpLeft, bpRight, bpPercent, bpDim);
-  PositionRec = record
-    PosType: TBackgroundPosition;
-    Value: Integer;
-    RepeatD: Boolean;
-    Fixed: Boolean;
-  end;
-  PPositionRec = ^PositionRec;
-  PtPositionRec = record
-    X, Y: PositionRec;
-  end;
-
-{$IFDEF Ver90}
-  TFontCharSet = Integer; {dummy for Delphi 2}
-{$ENDIF}
-
-  ThtFontInfo = class
-  public
-    iName: ThtString;
-    iSize: Double;
-    iStyle: TFontStyles;
-    iColor: TColor;
-    ibgColor: TColor;
-    iCharSet: TFontCharSet;
-    iCharExtra: Variant;
-    procedure Assign(Source: ThtFontInfo);
-  end;
-
-  FIIndex = (LFont, VFont, HLFont, HVFont);
-  TFontInfoArray = class
-  public
-    Ar: array[LFont..HVFont] of ThtFontInfo;
-    constructor Create;
-    destructor Destroy; override;
-    procedure Assign(Source: TFontInfoArray);
-  end;
-
-  TMyFont = class(TFont)
-  public
-    bgColor: TColor;
-    tmHeight: Integer;
-    tmDescent: Integer;
-    tmExternalLeading: Integer;
-    tmAveCharWidth: Integer;
-    tmMaxCharWidth: Integer;
-    tmCharset: Integer;
-    CharExtra: Integer;
-    EmSize: Integer;
-    ExSize: Integer;
-    procedure Assign(Source: TPersistent); override;
-    procedure AssignToCanvas(Canvas: TCanvas);
-    destructor Destroy; override;
-    constructor Create; {$ifdef LCL} override; {$endif}
-  end;
-
-  PropIndices = (
-    FontFamily, FontSize, FontStyle, FontWeight, TextAlign, TextDecoration,
-    LetterSpacing, 
-    //BG, 12.03.2011 removed: BorderStyle,
-    Color,
-    // these properties are in MarginArrays
-    BackgroundColor,
-    //BG, 12.03.2011 removed: BorderColor,
+    // the below properties are in MarginArrays
+    BackgroundColor, BackgroundImage, BackgroundPosition, BackgroundRepeat, BackgroundAttachment,
+    piMinHeight, piMinWidth, piMaxHeight, piMaxWidth, BoxSizing,
     MarginTop, MarginRight, MarginBottom, MarginLeft,
-    piMinHeight, piMinWidth, piMaxHeight, piMaxWidth,
-    BoxSizing,
     PaddingTop, PaddingRight, PaddingBottom, PaddingLeft,
-    // BG, 31.01.2012: don't change the order of the border properties:
     BorderTopWidth, BorderRightWidth, BorderBottomWidth, BorderLeftWidth,
     BorderTopColor, BorderRightColor, BorderBottomColor, BorderLeftColor,
     BorderTopStyle, BorderRightStyle, BorderBottomStyle, BorderLeftStyle,
-    //
-    piWidth, piHeight, TopPos, BottomPos, RightPos, LeftPos,
+    piWidth, piHeight, piTop, piRight, piBottom, piLeft,
+    // the above properties are in MarginArrays
 
-    Visibility, LineHeight, BackgroundImage, BackgroundPosition,
-    BackgroundRepeat, BackgroundAttachment, VerticalAlign, Position, ZIndex,
+    Visibility, LineHeight, VerticalAlign, Position, ZIndex,
     ListStyleType, ListStyleImage, Float, Clear, TextIndent,
     PageBreakBefore, PageBreakAfter, PageBreakInside, TextTransform,
     WordWrap, FontVariant, BorderCollapse, OverFlow, piDisplay, piEmptyCells,
-    piWhiteSpace);
+    piWhiteSpace,
 
-  TPropIndexSet = Set of PropIndices;
+    // the below properties are short hands
+    MarginX, PaddingX, BorderWidthX, BorderX,
+    BorderTX, BorderRX, BorderBX, BorderLX,
+    FontX, BackgroundX, ListStyleX, BorderColorX,
+    BorderStyleX
+    // the above properties are short hands
+  );
 
-  TVMarginArray = array[BackgroundColor..LeftPos] of Variant;
-  TMarginArray = array[BackgroundColor..LeftPos] of Integer;
+  TShortHand = MarginX..BorderStyleX;
 
-type
-  TPropDisplay = (
-    pdUnassigned,
-    pdBlock,
-    pdInline,
-    pdInlineBlock,
-    pdListItem,
-    pdRunIn,
-    pdNone);
+  ThtPropIndices = FontFamily..piWhiteSpace;
+  ThtPropertyArray = array [ThtPropIndices] of Variant;
+  ThtPropIndexSet = Set of ThtPropIndices;
+
+  ThtMarginIndices = BackgroundColor..piLeft;
+  ThtVMarginArray = array [ThtMarginIndices] of Variant;
+  ThtMarginArray = array [ThtMarginIndices] of Integer;
+
 const
-  CPropDisplay: array [TPropDisplay] of ThtString = (
-    '',
-    'block',
-    'inline',
-    'inline-block',
-    'list-item',
-    'run-in',
-    'none');
+  PropWords: array [ThtPropertyIndex] of ThtString = (
+    'font-family', 'font-size', 'font-style', 'font-weight',
+    'text-align', 'text-decoration', 'letter-spacing', 'color',
 
-  CListStyleType: array[Low(ListBulletType)..High(ListBulletType)] of ThtString =
-  ('blank', 'circle', 'decimal', 'disc', 'lower-alpha', 'lower-roman',
-    'none', 'square', 'upper-alpha', 'upper-roman');
+    // these properties are in MarginArrays
+    'background-color', 'background-image', 'background-position', 'background-repeat', 'background-attachment',
+    'min-height', 'min-width', 'max-height', 'max-width', 'box-sizing',
+    'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+    'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+    'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+    'width', 'height', 'top', 'bottom', 'right', 'left',
+
+    'visibility', 'line-height', 'vertical-align', 'position', 'z-index',
+    'list-style-type', 'list-style-image', 'float', 'clear', 'text-indent',
+    'page-break-before', 'page-break-after', 'page-break-inside', 'text-transform',
+    'word-wrap', 'font-variant', 'border-collapse', 'overflow', 'display', 'empty-cells',
+    'white-space',
+
+    // short hand names
+    'margin', 'padding', 'border-width', 'border',
+    'border-top', 'border-right', 'border-bottom', 'border-left',
+    'font', 'background', 'list-style', 'border-color',
+    'border-style'
+  );
 
 type
   TStyleList = class;
   TPropStack = class;
 
-  TProperties = class(TObject)
+  TProperties = class
   private
+    FDefPointSize : Double;
     PropStack: TPropStack; // owner
-    TheFont: TMyFont;
+    TheFont: ThtFont;
     InLink: Boolean;
     DefFontname: ThtString;
     FUseQuirksMode : Boolean;
-    procedure AddPropertyByIndex(Index: PropIndices; PropValue: ThtString);
+    procedure AddPropertyByIndex(Index: ThtPropIndices; PropValue: ThtString);
 //    procedure AssignCharSet(CS: TFontCharset);
     procedure AssignCodePage(const CP: Integer);
     procedure CalcLinkFontInfo(Styles: TStyleList; I: Integer);
@@ -233,8 +174,8 @@ type
     FCharSet: TFontCharSet;
     FCodePage: Integer;
     FEmSize, FExSize: Integer; {# pixels for Em and Ex dimensions}
-    Props: array[Low(PropIndices)..High(PropIndices)] of Variant;
-    Originals: array[Low(PropIndices)..High(PropIndices)] of Boolean;
+    Props: ThtPropertyArray;
+    Originals: array[ThtPropIndices] of Boolean;
     FIArray: TFontInfoArray;
     ID: Integer;
 
@@ -248,30 +189,30 @@ type
     function Collapse: Boolean;
     function GetBackgroundColor: TColor;
     function GetBackgroundImage(var Image: ThtString): Boolean;
-    function GetBorderStyle(Index: PropIndices; var BorderStyle: BorderStyleType): Boolean;
-    function GetClear(var Clr: ClearAttrType): Boolean;
-    function GetDisplay: TPropDisplay; //BG, 15.09.2009
-    function GetFloat(var Align: AlignmentType): Boolean;
-    function GetFont: TMyFont;
+    function GetBorderStyle(Index: ThtPropIndices; var BorderStyle: ThtBorderStyle): Boolean;
+    function GetClear(var Clr: ThtClearStyle): Boolean;
+    function GetDisplay: ThtDisplayStyle; //BG, 15.09.2009
+    function GetFloat(var Align: ThtAlignmentStyle): Boolean;
+    function GetFont: ThtFont;
     function GetFontVariant: ThtString;
     function GetLineHeight(NewHeight: Integer): Integer;
     function GetListStyleImage: ThtString;
-    function GetListStyleType: ListBulletType;
+    function GetListStyleType: ThtBulletStyle;
     function GetOriginalForegroundColor: TColor;
-    function GetPosition: PositionType;
+    function GetPosition: ThtBoxPositionStyle;
     function GetTextIndent(out PC: Boolean): Integer;
-    function GetTextTransform: TextTransformType;
-    function GetVertAlign(var Align: AlignmentType): Boolean;
-    function GetVisibility: VisibilityType;
+    function GetTextTransform: ThtTextTransformStyle;
+    function GetVertAlign(var Align: ThtAlignmentStyle): Boolean;
+    function GetVisibility: ThtVisibilityStyle;
     function GetZIndex: Integer;
     function HasBorderStyle: Boolean;
     function HasBorderWidth: Boolean;
     function IsOverflowHidden: Boolean;
     function ShowEmptyCells: Boolean;
     procedure AddPropertyByName(const PropName, PropValue: ThtString);
-    procedure SetPropertyDefault(Index: PropIndices; const Value: Variant);
-    procedure SetPropertyDefaults(Indexes: TPropIndexSet; const Value: Variant);
-    procedure Assign(const Item: Variant; Index: PropIndices);
+    procedure SetPropertyDefault(Index: ThtPropIndices; const Value: Variant);
+    procedure SetPropertyDefaults(Indexes: ThtPropIndexSet; const Value: Variant);
+    procedure Assign(const Item: Variant; Index: ThtPropIndices);
     procedure AssignCharSetAndCodePage(CS: TFontCharset; CP: Integer);
     procedure Combine(Styles: TStyleList; const Tag, AClass, AnID, Pseudo, ATitle: ThtString; AProp: TProperties; ParentIndexInPropStack: Integer);
     procedure Copy(Source: TProperties);
@@ -279,16 +220,17 @@ type
     procedure GetBackgroundPos(EmSize, ExSize: Integer; out P: PtPositionRec);
     procedure GetFontInfo(AFI: TFontInfoArray);
     procedure GetPageBreaks(out Before, After, Intact: Boolean);
-    function GetBoxSizing(var VBoxSizing : BoxSizingType) : Boolean;
-    procedure GetVMarginArrayDefBorder(var MArray: TVMarginArray; const ADefColor : Variant);
-    procedure GetVMarginArray(var MArray: TVMarginArray);
+    function GetBoxSizing(var VBoxSizing : ThtBoxSizing) : Boolean;
+    procedure GetVMarginArrayDefBorder(var MArray: ThtVMarginArray; const ADefColor : Variant);
+    procedure GetVMarginArray(var MArray: ThtVMarginArray);
     procedure Inherit(Tag: ThtString; Source: TProperties);
     procedure SetFontBG;
     procedure Update(Source: TProperties; Styles: TStyleList; I: Integer);
     //BG, 20.09.2009:
-    property Display: TPropDisplay read GetDisplay;
+    property Display: ThtDisplayStyle read GetDisplay;
     property CharSet: TFontCharset read FCharSet write FCharSet;
     property CodePage: Integer read FCodePage write AssignCodePage;
+    property DefPointSize : Double read FDefPointSize write FDefPointSize;
     property EmSize: Integer read FEmSize;
     property ExSize: Integer read FExSize;
     property UseQuirksMode : Boolean read FUseQuirksMode;
@@ -297,14 +239,15 @@ type
   TStyleList = class(ThtStringList)
   private
     SeqNo: Integer;
+    FDefProp: TProperties;
   protected
+    FDefPointSize : Double;
     //this must be protected so that the property can be changed in
     //a descendant while being read only.
     FUseQuirksMode : Boolean;
     procedure SetLinksActive(Value: Boolean); virtual; abstract;
     property LinksActive: Boolean write SetLinksActive;
   public
-    DefProp: TProperties;
     constructor Create; overload;
     constructor Create(AUseQuirksMode : Boolean); overload;
     destructor Destroy; override;
@@ -319,6 +262,8 @@ type
       ACodePage: TBuffCodePage; ACharSet: TFontCharSet; MarginHeight, MarginWidth: Integer);
     procedure ModifyLinkColor(Pseudo: ThtString; AColor: TColor);
     property UseQuirksMode : Boolean read FUseQuirksMode write FUseQuirksMode;
+    property DefProp: TProperties read FDefProp;
+    property DefPointSize : Double read FDefPointSize write FDefPointSize;
   end;
 
   TPropStack = class(TObjectList)
@@ -329,73 +274,25 @@ type
     property Items[Index: Integer]: TProperties read GetProp; default;
   end;
 
-const
-  PropWords: array[Low(PropIndices)..High(PropIndices)] of ThtString =
-  ('font-family', 'font-size', 'font-style', 'font-weight', 'text-align',
-    'text-decoration', 'letter-spacing',
-    //'border-style',
-    'color', 'background-color',
-    //'border-color',
-    'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-    'min-height', 'min-width',    'max-height',    'max-width',
-    'box-sizing',
-    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-    'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
-    'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
-    'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
-    'width', 'height', 'top', 'bottom', 'right', 'left', 'visibility',
-    'line-height', 'background-image', 'background-position',
-    'background-repeat', 'background-attachment', 'vertical-align', 'position', 'z-index',
-    'list-style-type', 'list-style-image', 'float', 'clear', 'text-indent',
-    'page-break-before', 'page-break-after', 'page-break-inside', 'text-transform',
-    'word-wrap', 'font-variant', 'border-collapse', 'overflow', 'display', 'empty-cells',
-    'white-space');
-
-//------------------------------------------------------------------------------
-// media types
-//------------------------------------------------------------------------------
-
 type
-  // http://www.w3.org/TR/2010/WD-CSS2-20101207/media.html
-  TMediaType = (
-    mtAll,        // Suitable for all devices.
-    mtBraille,    // Intended for braille tactile feedback devices.
-    mtEmbossed,   // Intended for paged braille printers.
-    mtHandheld,   // Intended for handheld devices (typically small screen, limited bandwidth).
-    mtPrint,      // Intended for paged material and for documents viewed on screen in print preview mode. Please consult the section on paged media for information about formatting issues that are specific to paged media.
-    mtProjection, // Intended for projected presentations, for example projectors. Please consult the section on paged media for information about formatting issues that are specific to paged media.
-    mtScreen,     // Intended primarily for color computer screens.
-    mtSpeech,     // Intended for speech synthesizers. Note: CSS2 had a similar media type called 'aural' for this purpose. See the appendix on aural style sheets for details.
-    mtTty,        // Intended for media using a fixed-pitch character grid (such as teletypes, terminals, or portable devices with limited display capabilities). Authors should not use pixel units with the "tty" media type.
-    mtTv          // Intended for television-type devices (low resolution, color, limited-scrollability screens, sound available).
-  );
-  TMediaTypes = set of TMediaType;
+  ThtConvData = record
+    BaseWidth, BaseHeight: Integer;
+    EmSize, ExSize: Integer;
+    BorderWidth: Integer;
+    AutoCount: Integer;
+    IsAutoParagraph: set of ThtPropertyIndex;
+  end;
 
 const
-  CMediaTypes: array[TMediaType] of ThtString = (
-    'all',
-    'braille',
-    'embossed',
-    'handheld',
-    'print',
-    'projection',
-    'screen',
-    'speech',
-    'tty',
-    'tv'
-  );
-  AllMediaTypes: TMediaTypes = [
-    //mtAll,        // Suitable for all devices.
-    mtBraille,    // Intended for braille tactile feedback devices.
-    mtEmbossed,   // Intended for paged braille printers.
-    mtHandheld,   // Intended for handheld devices (typically small screen, limited bandwidth).
-    mtPrint,      // Intended for paged material and for documents viewed on screen in print preview mode. Please consult the section on paged media for information about formatting issues that are specific to paged media.
-    mtProjection, // Intended for projected presentations, for example projectors. Please consult the section on paged media for information about formatting issues that are specific to paged media.
-    mtScreen,     // Intended primarily for color computer screens.
-    mtSpeech,     // Intended for speech synthesizers. Note: CSS2 had a similar media type called 'aural' for this purpose. See the appendix on aural style sheets for details.
-    mtTty,        // Intended for media using a fixed-pitch character grid (such as teletypes, terminals, or portable devices with limited display capabilities). Authors should not use pixel units with the "tty" media type.
-    mtTv          // Intended for television-type devices (low resolution, color, limited-scrollability screens, sound available).
-  ];
+  IntNull = -12345678;
+  Auto = -12348765;
+  AutoParagraph = -12348766;
+  ParagraphSpace = 14; {default spacing between paragraphs, etc.}
+  ImageSpace = 3; {extra space for left, right images}
+  ListIndent = 40;
+
+  EastEurope8859_2 = 31; {for 8859-2}
+
 
 // BG, 25.04.2012: Added:
 function IsAuto(const Value: Variant): Boolean; {$ifdef UseInline} inline; {$endif}
@@ -406,23 +303,19 @@ function VarIsAuto(const Value: Variant): Boolean; {$ifdef UseInline} inline; {$
 
 function VMargToMarg(const Value: Variant; Relative: Boolean; Base, EmSize, ExSize, Default: Integer): Integer;
 
-procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: Integer;
-  BorderWidth: Integer; out AutoCount: Integer; var M: TMarginArray);
+function ConvData(BaseWidth, BaseHeight, EmSize, ExSize, BorderWidth: Integer; AutoCount: Integer = 0): ThtConvData;
+procedure ConvMargProp(I: ThtPropIndices; const VM: ThtVMarginArray; var ConvData: ThtConvData; var M: ThtMarginArray);
 
-procedure ConvVertMargins(const VM: TVMarginArray;
-  BaseHeight, EmSize, ExSize: Integer;
-  var M: TMarginArray; out TopAuto, BottomAuto: Boolean);
+procedure ConvInlineMargArray(const VM: ThtVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: Integer; {BStyle: ThtBorderStyle;} out M: ThtMarginArray);
+procedure ConvMargArray(const VM: ThtVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize, BorderWidth: Integer; out AutoCount: Integer; var M: ThtMarginArray);
+procedure ConvMargArrayForCellPadding(const VM: ThtVMarginArray; EmSize, ExSize: Integer; var M: ThtMarginArray);
+procedure ConvVertMargins(const VM: ThtVMarginArray; var CD: ThtConvData; var M: ThtMarginArray);
 
-procedure ConvMargArrayForCellPadding(const VM: TVMarginArray; EmSize,
-  ExSize: Integer; var M: TMarginArray);
-
-procedure ConvInlineMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize,
-  ExSize: Integer; {BStyle: BorderStyleType;} out M: TMarginArray);
 
 function OpacityFromStr(S : ThtString) : Byte;
 
 function SortedColors: ThtStringList;
-function ColorFromString(S: ThtString; NeedPound: Boolean; out Color: TColor): Boolean;
+function TryStrToColor(S: ThtString; NeedPound: Boolean; out Color: TColor): Boolean;
 function ColorAndOpacityFromString(S: ThtString; NeedPound: Boolean; out Color: TColor; out VOpacity : Byte): Boolean;
 
 function ReadURL(Item: Variant): ThtString;
@@ -431,57 +324,21 @@ function LowerCaseUnquotedStr(const S : THtString) : THtString;
 function RemoveQuotes(const S: ThtString): ThtString;
 function ReadFontName(S: ThtString): ThtString;
 
-function GetPositionInRange(Which: TBackgroundPosition; Where, Range: Integer): Integer;
-{
- Returns a positon according to the given settings.
- Which: which position in the range to get. pLeft and pTop return 0, pBottom and pRight return Range.
- Where: percentage or pixels for Which = pPercentage resp. pDim.
- Range: the range in which the result can vary.
- In the usual alignment calculations the range is outer size - inner size.
- If you have to consider an offset to outer's parent, add it to the function result afterwards.
-}
-procedure AdjustForTiling(Tiled: Boolean; TileAreaMin, TileAreaMax, TileSize: Integer;
-  var Pos: Integer; out TiledEnd: Integer);
-{
- Returns the start and end value for tiling an object of given size.
- Tiled: if false returns a TiledEnd according to unmodified Pos, that allows to pass the tiling
-   process and depending on the visibility of the object in the cliparea the untiled object is
-   processes at most once. If true, Pos is moved to a position between ClipMin - ObjectSize and
-   ClipMin so that the tiling process will put one of the tiles to original Pos.
- TileAreaMin, TileAreaMax: the area in with the object is to tile.
- TileSize: the size of the tile.
- Pos: on input: the position to consider for tiling. on output the new position shifted by multiples
-   of the object size to where the object covers the tile area minimum.
- TiledEnd: a position on and after which no more tiles are processed.
-}
-procedure CalcBackgroundLocationAndTiling(const PRec: PtPositionRec; ARect: TRect;
-  XOff, YOff, IW, IH, BW, BH: Integer; out X, Y, X2, Y2: Integer);
-{
- PRec has the CSS information on the background image, it's starting location and
- whether it is tiled in x, y, neither, or both.
- ARect is the cliprect, no point in drawing tiled images outside it.
- XOff, YOff are offsets which allow for the fact that the viewable area may not be at 0,0.
- IW, IH are the total width and height of the document if you could see it all at once.
- BW, BH are bitmap dimensions used to calc tiling.
- X, Y are the position (window coordinates) where the first background iamge will be drawn.
- X2, Y2 are tiling limits.  X2 and Y2 may be such that 0, 1, or many images will
-   get drawn.  They're calculated so that only images within ARect are drawn.
-}
-
-{ Media type handling from trunk}
-function MediaTypesToStr(const MediaTypes: TMediaTypes): ThtString;
-function TranslateMediaTypes(const MediaTypes: TMediaTypes): TMediaTypes;
-function TryStrToMediaType(const Str: ThtString; out MediaType: TMediaType): Boolean;
-function TryStrToMediaTypes(const Str: ThtString; out MediaTypes: TMediaTypes): Boolean;
-
 {$ifdef JPM_DEBUGGING}
+const
+    CVis : array [0..2] of string = ('viInherit','viHidden','viVisible');
+
 procedure LogProperties(AProp : TProperties; const APropName : String);
+procedure LogThtMarginArray(AMarg : ThtMarginArray; const AMargName : String);
 {$endif}
 
-procedure ApplyBoxWidthSettings(var AMarg : TMarginArray; var VMinWidth, VMaxWidth : Integer; const AUseQuirksMode : Boolean);
+procedure ApplyBoxWidthSettings(var AMarg : ThtMarginArray; var VMinWidth, VMaxWidth : Integer; const AUseQuirksMode : Boolean);
+procedure ApplyBoxSettings(var AMarg : ThtMarginArray; const AUseQuirksMode : Boolean);
 
-procedure ApplyBorderBoxModel(var AMarg : TMarginArray);
-procedure ApplyBoxSettings(var AMarg : TMarginArray; const AUseQuirksMode : Boolean);
+//here for inlining
+function SkipWhiteSpace(const S: ThtString; I, L: Integer): Integer;
+function FontSizeConv(const Str: ThtString; OldSize, DefPointSize: Double; const AUseQuirksMode : Boolean): Double;
+function LengthConv(const Str: ThtString; Relative: Boolean; Base, EmSize, ExSize, Default: Integer): Integer;
 
 implementation
 uses
@@ -493,32 +350,20 @@ uses
  {$endif}
  HSLUtils;
 
-type
-  TMyFontCache = class
-  private
-    FFontsByName: ThtStringList;
-  public
-    constructor Create;
-    destructor Destroy; override;
-    procedure Add(Font: TMyFont);
-    function Find(FontInfo: ThtFontInfo): TMyFont;
-  end;
-
 var
-  DefPointSize: Double;
+//  DefPointSize: Double;
   CharsetPerCharset: array [TFontCharset] of record Inited: Boolean; Charset: TFontCharset; end;
-  AllMyFonts: TMyFontCache;
 
 {$ifdef JPM_DEBUGGING}
-const
-    CVis : array [0..2] of string = ('viInherit','viHidden','viVisible');
 
 function LogPropColor(const AInt : Integer): String; overload;
+{$ifdef UseInline} inline; {$endif}
 begin
   Result := Graphics.ColorToString( AInt);
 end;
 
 function LogPropColor(const AVar : Variant): String; overload;
+{$ifdef UseInline} inline; {$endif}
 begin
   if Variants.VarIsOrdinal(AVar) then
     Result := Graphics.ColorToString( AVar)
@@ -527,20 +372,23 @@ begin
 end;
 
 function LogPropDisplay(const AInt : Integer): String; overload;
+{$ifdef UseInline} inline; {$endif}
 begin
-  Result := CPropDisplay[ TPropDisplay(AInt)];
+  Result := CDisplayStyle[ ThtDisplayStyle(AInt)];
 end;
 
 function LogPropDisplay(const AVar : Variant): String; overload;
+{$ifdef UseInline} inline; {$endif}
 begin
   if Variants.VarIsOrdinal(AVar) then begin
-    Result := CPropDisplay[ TPropDisplay(AVar)]  + ' int = '+ IntToStr(AVar);;
+    Result := CDisplayStyle[ ThtDisplayStyle(AVar)]  + ' int = '+ IntToStr(AVar);;
   end else begin
     Result := VarToStr( AVar );
   end;
 end;
 
 function LogPropBoxSizing(const AInt : Integer): String; overload;
+{$ifdef UseInline} inline; {$endif}
 begin
   case AInt of
     0 : Result := CBoxSizing[ContentBox];
@@ -552,34 +400,76 @@ begin
 end;
 
 function LogPropBoxSizing(const AVar : Variant): String; overload;
+{$ifdef UseInline} inline; {$endif}
 begin
   if Variants.VarIsOrdinal(AVar) then begin
-    Result := CBoxSizing[BoxSizingType (AVar)]  + ' int = '+ IntToStr(AVar);;
+    Result := CBoxSizing[ThtBoxSizing (AVar)]  + ' int = '+ IntToStr(AVar);
   end else begin
     Result := VarToStr( AVar );
   end;
 end;
 
-function LogPropBorderStyle(const AVar : Variant): String;
+function LogPropBorderStyle(const AInt : Integer): String; overload;
+{$ifdef UseInline} inline; {$endif}
+begin
+  case AInt of
+    0 : Result := CBorderStyle[bssNone ];
+    1 : Result := CBorderStyle[bssSolid ];
+    2 : Result := CBorderStyle[ bssInset ];
+    3 : Result := CBorderStyle[ bssOutset ];
+    4 : Result := CBorderStyle[ bssGroove ];
+    5 : Result := CBorderStyle[ bssRidge ];
+    6 : Result := CBorderStyle[ bssDashed ];
+    7 : Result := CBorderStyle[ bssDotted ];
+    8 : Result := CBorderStyle[ bssDouble ];
+  else
+    Result := 'Error value is '+IntToStr(AInt);
+  end;
+end;
+
+function LogPropBorderStyle(const AVar : Variant): String; overload;
+{$ifdef UseInline} inline; {$endif}
 begin
   if Variants.VarIsOrdinal(AVar) then begin
-    Result := CBorderStyle[ BorderStyleType ( AVar )]  + ' int = '+ IntToStr(AVar);;
+    Result := CBorderStyle[ ThtBorderStyle ( AVar )]  + ' int = '+ IntToStr(AVar);
   end else begin
     Result := VarToStr( AVar);
   end;
 
 end;
 
-function LogPropListStyle(const AVar : Variant): String;
+function LogPropListStyle(const AInt : Integer): String; overload;
+{$ifdef UseInline} inline; {$endif}
+begin
+  case AInt of
+    0 : Result := CBulletStyle[ lbBlank ];
+    1 : Result := CBulletStyle[ lbCircle ];
+    2 : Result := CBulletStyle[ lbDecimal ];
+    3 : Result := CBulletStyle[ lbDisc ];
+    4 : Result := CBulletStyle[ lbLowerAlpha ];
+    5 : Result := CBulletStyle[ lbLowerRoman ];
+    6 : Result := CBulletStyle[ lbNone ];
+    7 : Result := CBulletStyle[ lbSquare ];
+    8 : Result := CBulletStyle[ lbUpperAlpha ];
+    9 : Result := CBulletStyle[ lbUpperRoman ];
+  else
+    Result := 'Error value is '+IntToStr(AInt);
+  end;
+//  Result := CBoxSizing[BoxSizingType (AInt)];
+end;
+
+function LogPropListStyle(const AVar : Variant): String; overload;
+{$ifdef UseInline} inline; {$endif}
 begin
   if Variants.VarIsOrdinal(AVar) then begin
-    Result := CListStyleType[ ListBulletType ( AVar )]  + ' int = '+ IntToStr(AVar);;
+    Result := CBulletStyle[ ThtBulletStyle ( AVar )]  + ' int = '+ IntToStr(AVar);;
   end else begin
     Result := VarToStr( AVar);
   end;
 end;
 
 function LogVisibility(const AVar : Variant): String;
+{$ifdef UseInline} inline; {$endif}
 begin
   if Variants.VarIsOrdinal(AVar) then begin
     Result := CVis[Integer( AVar )] + ' int = '+ IntToStr(AVar);
@@ -588,8 +478,9 @@ begin
   end;
 end;
 
-procedure LogTVMarginArray(const AMarg : TVMarginArray; const AMargName : String);
-var i : PropIndices;
+procedure LogTVMarginArray(const AMarg : ThtVMarginArray; const AMargName : String);
+{$ifdef UseInline} inline; {$endif}
+var i : ThtPropIndices;
 begin
   for i := Low(AMarg) to High(AMarg) do
         case I of
@@ -612,8 +503,9 @@ begin
         end;
 end;
 
-procedure LogTMarginArray(AMarg : TMarginArray; const AMargName : String);
-var i : PropIndices;
+procedure LogThtMarginArray(AMarg : ThtMarginArray; const AMargName : String);
+{$ifdef UseInline} inline; {$endif}
+var i : ThtPropIndices;
 begin
   for i := Low(AMarg) to High(AMarg) do
     if VarIsIntNull(AMarg[I]) then begin
@@ -647,7 +539,7 @@ end;
 
 procedure LogProperties(AProp : TProperties; const APropName : String);
 
-var i : PropIndices;
+var i : ThtPropIndices;
 begin
   if not Assigned(AProp) then begin
     CodeSiteLogging.CodeSite.SendFmtMsg('%s = nil',[APropName]);
@@ -706,25 +598,11 @@ begin
 end;
 {$endif}
 
-function FontSizeConv(const Str: ThtString; OldSize: Double; const AUseQuirksMode : Boolean): Double; forward;
-function LengthConv(const Str: ThtString; Relative: Boolean; Base, EmSize, ExSize, Default: Integer): Integer; forward;
 
-function FindPropIndex(const PropWord: ThtString; out PropIndex: PropIndices): Boolean;
-var
-  I: PropIndices;
-begin
-  Result := True;
-  for I := Low(PropIndices) to High(PropIndices) do
-    if PropWord = PropWords[I] then
-    begin
-      PropIndex := I;
-      Exit;
-    end;
-  Result := False;
-end;
 
 //-- BG ---------------------------------------------------------- 17.02.2011 --
 function SkipWhiteSpace(const S: ThtString; I, L: Integer): Integer;
+ {$ifdef UseInline} inline; {$endif}
 begin
   while I <= L do
   begin
@@ -743,6 +621,7 @@ end;
 
 //-- BG ---------------------------------------------------------- 17.02.2011 --
 function FindChar(const S: ThtString; C: ThtChar; I, L: Integer): Integer;
+ {$ifdef UseInline} inline; {$endif}
 begin
   while (I <= L) and (S[I] <> C) do
     Inc(I);
@@ -752,6 +631,7 @@ end;
 {----------------ReadURL}
 
 function ReadURL(Item: Variant): ThtString;
+ {$ifdef UseInline} inline; {$endif}
 {
   If Item is a string try to find and parse:
 
@@ -832,137 +712,42 @@ begin
   end;
 end;
 
-//-- BG ---------------------------------------------------------- 07.04.2011 --
-function GetPositionInRange(Which: TBackgroundPosition; Where, Range: Integer): Integer;
-{
- Returns a positon according to the given settings.
- Which: which position in the range to get. pLeft and pTop return 0, pBottom and pRight return Range.
- Where: percentage or pixels for Which = pPercentage resp. pDim.
- Range: the range in which the result can vary.
- In the usual alignment calculations the range is outer size - inner size.
- If you have to consider an offset to outer's parent, add it to the function result afterwards.
-}
-begin
-  case Which of
-    bpTop,
-    bpLeft:
-      Result := 0;
-
-    bpCenter:
-      Result := Range div 2;
-
-    bpBottom,
-    bpRight:
-      Result := Range;
-
-    bpPercent:
-      Result := (Range * Where) div 100;
-
-    bpDim:
-      Result := Where;
-  else
-    Result := 0;
-  end;
-end;
-
-//-- BG ---------------------------------------------------------- 07.04.2011 --
-procedure AdjustForTiling(Tiled: Boolean; TileAreaMin, TileAreaMax, TileSize: Integer;
-  var Pos: Integer; out TiledEnd: Integer);
-{
- Returns the start and end value for tiling a tile of given size.
- Tiled: if false returns a TiledEnd according to unmodified Pos, that allows to pass the tiling
-   process and depending on the visibility of the object in the cliparea the untiled object is
-   processes at most once. If true, Pos is moved to a position between ClipMin - ObjectSize and
-   ClipMin so that the tiling process will put one of the tiles to original Pos.
- TileAreaMin, TileAreaMax: the area in which the object is to tile.
- TileSize: the size of the tile.
- Pos: on input: the position to consider for tiling. on output the new position shifted by multiples
-   of the object size to where the object covers the tile area minimum.
- TiledEnd: a position on and after which no more tiles are processed.
-}
+//-- BG ---------------------------------------------------------- 15.03.2011 --
 var
-  TileAreaMinPos: Integer;
+  PropertyStrings: ThtStringList;
+
+function StyleProperties: ThtStringList;
+ {$ifdef UseInline} inline; {$endif}
+var
+  I: ThtPropertyIndex;
 begin
-  if Tiled then
+  // Put the Properties into a sorted StringList for faster access.
+  if PropertyStrings = nil then
   begin
-    TileAreaMinPos := TileAreaMin - Pos;
-    {figure a starting point for tiling.  This will be less that one object size less than the tile area min}
-    if TileSize <= TileAreaMinPos then
-      Pos := TileAreaMin - TileAreaMinPos mod TileSize
-    else if TileAreaMinPos < 0 then
-      Pos := TileAreaMin - (TileSize - -TileAreaMinPos mod TileSize);
-    TiledEnd := TileAreaMax;
-  end
-  else
-  begin {a single image or row}
-    TiledEnd := Pos; {assume it's not in the tile area and won't be output}
-    if (TileAreaMin < Pos + TileSize) and (Pos < TileAreaMax) then
-      Inc(TiledEnd); {it is in the tile area, show it}
+    PropertyStrings := ThtStringList.Create;
+    for I := Low(I) to High(I) do
+      PropertyStrings.AddObject(PropWords[I], Pointer(I));
+    PropertyStrings.Sort;
   end;
+  Result := PropertyStrings;
 end;
 
-//-- BG ---------------------------------------------------------- 07.04.2011 --
-procedure CalcBackgroundLocationAndTiling(const PRec: PtPositionRec; ARect: TRect;
-  XOff, YOff, IW, IH, BW, BH: Integer; out X, Y, X2, Y2: Integer);
-{
- PRec has the CSS information on the background image, it's starting location and
- whether it is tiled in x, y, neither, or both.
- ARect is the cliprect, no point in drawing tiled images outside it.
- XOff, YOff are offsets which allow for the fact that the viewable area may not be at 0,0.
- IW, IH are the total width and height of the document if you could see it all at once.
- BW, BH are bitmap dimensions used to calc tiling.
- X, Y are the position (window coordinates) where the first background iamge will be drawn.
- X2, Y2 are tiling limits.  X2 and Y2 may be such that 0, 1, or many images will
-   get drawn.  They're calculated so that only images within ARect are drawn.
-}
+//-- BG ---------------------------------------------------------- 15.03.2011 --
+function TryStrToPropIndex(const PropWord: ThtString; var PropIndex: ThtPropIndices): Boolean;
+ {$ifdef UseInline} inline; {$endif}
+var
+  I: Integer;
+  P: ThtPropertyIndex;
 begin
-  with PRec.X do
+  I := StyleProperties.IndexOf(PropWord);
+  Result := I >= 0;
+  if Result then
   begin
-    X := GetPositionInRange(PosType, Value, IW - BW) - XOff;
-    AdjustForTiling(RepeatD, ARect.Left, ARect.Right, BW, X, X2);
+    P := ThtPropertyIndex(StyleProperties.Objects[I]);
+    Result := P in [Low(ThtPropIndices)..High(ThtPropIndices)];
+    if Result then
+      PropIndex := P;
   end;
-  with PRec.Y do
-  begin
-    Y := GetPositionInRange(PosType, Value, IH - BH) - YOff;
-    AdjustForTiling(RepeatD, ARect.Top, ARect.Bottom, BH, Y, Y2);
-  end;
-end;
-
-{----------------TMyFont.Assign}
-
-procedure TMyFont.Assign(Source: TPersistent);
-begin
-  if Source is TMyFont then
-  begin
-    bgColor := TMyFont(Source).bgColor;
-    tmHeight := TMyFont(Source).tmHeight;
-    tmDescent := TMyFont(Source).tmDescent;
-    tmExternalLeading := TMyFont(Source).tmExternalLeading;
-    tmAveCharWidth := TMyFont(Source).tmAveCharWidth;
-    tmMaxCharWidth := TMyFont(Source).tmMaxCharWidth;
-    tmCharset := TMyFont(Source).tmCharset;
-    CharExtra := TMyFont(Source).CharExtra;
-    EmSize := TMyFont(Source).EmSize;
-    ExSize := TMyFont(Source).ExSize;
-  end;
-  inherited Assign(Source);
-end;
-
-procedure TMyFont.AssignToCanvas(Canvas: TCanvas);
-begin
-  Canvas.Font := Self;
-  SetTextCharacterExtra(Canvas.Handle, CharExtra);
-end;
-
-destructor TMyFont.destroy;
-begin
-  inherited;
-end;
-
-constructor TMyFont.Create;
-begin
-  inherited;
-  Charset := DEFAULT_CHARSET;
 end;
 
 var
@@ -972,13 +757,13 @@ var
 
 constructor TProperties.Create;
 var
-  I: PropIndices;
+  I: ThtPropIndices;
 begin
   inherited Create;
   ID := Sequence;
   Inc(Sequence);
   FontBG := clNone;
-  for I := MarginTop to LeftPos do
+  for I := MarginTop to piLeft do
     Props[I] := IntNull;
   Props[ZIndex] := 0;
   FUseQuirksMode := False;
@@ -988,7 +773,7 @@ end;
 constructor TProperties.Create(APropStack: TPropStack; const AUseQuirksMode : Boolean);
 begin
   Create;
-  self.PropStack := APropStack;
+  Self.PropStack := APropStack;
   FUseQuirksMode := AUseQuirksMode;
 end;
 
@@ -1001,6 +786,7 @@ end;
 //-- BG ---------------------------------------------------------- 20.01.2013 --
 constructor TProperties.CreateCopy(ASource: TProperties);
 begin
+  FDefPointSize   := ASource.DefPointSize;
   PropStack       := ASource.PropStack     ;
   InLink          := ASource.InLink        ;
   DefFontname     := ASource.DefFontname   ;
@@ -1026,7 +812,7 @@ begin
   end;
   if ASource.TheFont <> nil then
   begin
-    TheFont := TMyFont.Create;
+    TheFont := ThtFont.Create;
     TheFont.Assign(ASource.TheFont);
   end;
 end;
@@ -1042,13 +828,14 @@ end;
 
 procedure TProperties.Copy(Source: TProperties);
 var
-  I: PropIndices;
+  I: ThtPropIndices;
 begin
   {$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod(Self,'Copy');
   CodeSiteLogging.CodeSite.AddSeparator;
   StyleUn.LogProperties(Source,'Source');
   {$ENDIF}
+  FDefPointSize := Source.DefPointSize;
   for I := Low(I) to High(I) do
     Props[I] := Source.Props[I];
   {$IFDEF JPM_DEBUGGING}
@@ -1062,7 +849,7 @@ end;
 
 procedure TProperties.CopyDefault(Source: TProperties);
 var
-  I: PropIndices;
+  I: ThtPropIndices;
 begin
   {$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod(Self,'CopyDefault');
@@ -1073,6 +860,7 @@ begin
     Props[I] := Source.Props[I];
   CodePage := Source.CodePage;
   DefFontname := Source.DefFontname;
+  FDefPointSize := Source.DefPointSize;
   PropTag := 'default';
   {$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.AddSeparator;
@@ -1084,7 +872,7 @@ end;
 procedure TProperties.Inherit(Tag: ThtString; Source: TProperties);
 {copy the properties that are inheritable}
 var
-  I: PropIndices;
+  I: ThtPropIndices;
   Span, HBF: Boolean;
   isTable: Boolean;
 begin
@@ -1105,14 +893,19 @@ begin
       Props[I] := Source.Props[I]; {tr gets them all}
       Originals[I] := Source.Originals[I];
     end
-    else if (I = WordWrap) and isTable then {table doesn't inherit word wrap}
-      Props[WordWrap] := 'normal'
     else
       case I of
         MarginTop..BorderLeftStyle,
         piWidth, piHeight,
-        TopPos..LeftPos:
+        piTop..piLeft:
           Props[I] := IntNull;
+
+        WordWrap:
+          if isTable then
+            Props[I] := 'normal'
+          else
+            Props[I] := Source.Props[I];
+
         BackgroundColor, BackgroundImage, BackgroundPosition,
         BackgroundRepeat, BackgroundAttachment,
         //BorderColor, BorderStyle,
@@ -1123,6 +916,7 @@ begin
       else
         Props[I] := Source.Props[I];
       end;
+  DefPointSize := Source.DefPointSize;
   DefFontname := Source.DefFontname;
   FontBG := Source.FontBG;
   CodePage := Source.CodePage;
@@ -1149,7 +943,7 @@ end;
 procedure TProperties.Update(Source: TProperties; Styles: TStyleList; I: Integer);
 {Change the inherited properties for this item to those of Source}
 var
-  Index: PropIndices;
+  Index: ThtPropIndices;
 begin
   {$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod(Self,'TProperties.Update');
@@ -1179,7 +973,7 @@ end;
 
 {----------------TProperties.Assign}
 
-procedure TProperties.Assign(const Item: Variant; Index: PropIndices);
+procedure TProperties.Assign(const Item: Variant; Index: ThtPropIndices);
 {Assignment should be made in order of importance as the first one in
  predominates}
 var
@@ -1228,6 +1022,7 @@ end;
 
 //-- BG ---------------------------------------------------------- 30.01.2011 --
 function TranslateCharset(CS: TFontCharset): TFontCharset;
+ {$ifdef UseInline} inline; {$endif}
 // extracted from TProperties.AssignCharSetAndCodePage()
 var
   Save: THandle;
@@ -1403,7 +1198,7 @@ begin
   P.Y.Fixed := P.X.Fixed;
 end;
 
-function TProperties.GetVertAlign(var Align: AlignmentType): Boolean;
+function TProperties.GetVertAlign(var Align: ThtAlignmentStyle): Boolean;
 {note:  'top' should have a catagory of its own}
 var
   S: ThtString;
@@ -1436,7 +1231,7 @@ begin
   Result := (VarIsStr(Props[OverFlow])) and (Props[OverFlow] = 'hidden');
 end;
 
-function TProperties.GetFloat(var Align: AlignmentType): Boolean;
+function TProperties.GetFloat(var Align: ThtAlignmentStyle): Boolean;
 var
   S: ThtString;
 begin
@@ -1457,7 +1252,7 @@ begin
     Result := False;
 end;
 
-function TProperties.GetClear(var Clr: ClearAttrType): Boolean;
+function TProperties.GetClear(var Clr: ThtClearStyle): Boolean;
 var
   S: ThtString;
 begin
@@ -1482,37 +1277,20 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 15.09.2009 --
-function TProperties.GetDisplay: TPropDisplay;
-var
-  S: ThtString;
+function TProperties.GetDisplay: ThtDisplayStyle;
 begin
   if VarIsStr(Props[piDisplay]) then
-  begin
-    S := Props[piDisplay];
-    Result := high(TPropDisplay);
-    while Result > pdUnassigned do
-    begin
-      if S = CPropDisplay[Result] then
-        exit;
-      dec(Result);
-    end;
-  end
-  else
-    Result := pdUnassigned;
+    if TryStrToDisplayStyle(Props[piDisplay], Result) then
+      exit;
+  Result := pdUnassigned;
 end;
 
-function TProperties.GetListStyleType: ListBulletType;
-var
-  I: ListBulletType;
-
+//-- BG ---------------------------------------------------------- 16.04.2011 --
+function TProperties.GetListStyleType: ThtBulletStyle;
 begin
   if VarIsStr(Props[ListStyleType]) then
-    for I := Low(ListBulletType) to High(ListBulletType) do
-      if CListStyleType[I] = Props[ListStyleType] then
-      begin
-        Result := I;
-        Exit;
-      end;
+    if TryStrToBulletStyle(Props[ListStyleType], Result) then
+      Exit;
   Result := lbBlank;
 end;
 
@@ -1521,7 +1299,7 @@ begin
   Result := ReadURL(Props[ListStyleImage])
 end;
 
-function TProperties.GetPosition: PositionType;
+function TProperties.GetPosition: ThtBoxPositionStyle;
 begin
   Result := posStatic;
   if VarIsStr(Props[Position]) then
@@ -1535,7 +1313,7 @@ begin
   end;
 end;
 
-function TProperties.GetVisibility: VisibilityType;
+function TProperties.GetVisibility: ThtVisibilityStyle;
 begin
   Result := viVisible;
   if VarType(Props[Visibility]) in varInt then
@@ -1604,7 +1382,7 @@ begin
     Result := 0;
 end;
 
-function TProperties.GetTextTransform: TextTransformType;
+function TProperties.GetTextTransform: ThtTextTransformStyle;
 begin
   try
     if VarType(Props[TextTransform]) in VarInt then
@@ -1652,60 +1430,22 @@ begin {return a color only if it hasn't been inherited}
     Result := clNone;
 end;
 
-
-//-- JPM --------------------------------------------------------- 03.02-2012 --
-
-function TryStrToBoxSizing(const Str: ThtString; out ABoxSizing: BoxSizingType): Boolean;
-var
-  I: BoxSizingType;
-begin
-  for I := low(I) to high(I) do
-    if CBoxSizing[I] = Str then
-    begin
-      Result := True;
-      ABoxSizing := I;
-      exit;
-    end;
-  Result := False;
-end;
-
-//-- BG ---------------------------------------------------------- 16.03.2011 --
-function TryStrToBorderStyle(const Str: ThtString; out BorderStyle: BorderStyleType): Boolean;
-var
-  I: BorderStyleType;
-begin
-  for I := low(I) to high(I) do
-    if CBorderStyle[I] = Str then
-    begin
-      Result := True;
-      BorderStyle := I;
-      exit;
-    end;
-  Result := False;
-end;
-
-function BorderStyleFromString(const S: ThtString): BorderStyleType;
-begin
-  if not TryStrToBorderStyle(S, Result) then
-    Result := bssNone;
-end;
-
 //-- BG ---------------------------------------------------------- 12.03.2011 --
-function TProperties.GetBorderStyle(Index: PropIndices; var BorderStyle: BorderStyleType): Boolean;
-// Returns True, if there is a valid border style property. 
+function TProperties.GetBorderStyle(Index: ThtPropIndices; var BorderStyle: ThtBorderStyle): Boolean;
+// Returns True, if there is a valid border style property.
 begin
   Result := False;
   if VarIsStr(Props[Index]) then
     Result := TryStrToBorderStyle(Props[Index], BorderStyle)
   else if VarType(Props[Index]) in varInt then
-    if (Props[Index] >= low(BorderStyleType)) and (Props[Index] <= high(BorderStyleType)) then
+    if (Props[Index] >= Low(ThtBorderStyle)) and (Props[Index] <= High(ThtBorderStyle)) then
     begin
-      BorderStyle := BorderStyleType(Props[Index]);
+      BorderStyle := ThtBorderStyle(Props[Index]);
       Result := True;
     end;
 end;
 
-function TProperties.GetBoxSizing(var VBoxSizing: BoxSizingType): Boolean;
+function TProperties.GetBoxSizing(var VBoxSizing: ThtBoxSizing): Boolean;
 begin
   Result := TryStrToBoxSizing(Props[BoxSizing], VBoxSizing);
 end;
@@ -1713,7 +1453,7 @@ end;
 function TProperties.BorderStyleNotBlank: Boolean;
 {was a border of some type (including bssNone) requested?}
 var
-  Dummy: BorderStyleType;
+  Dummy: ThtBorderStyle;
 begin
   Dummy := bssNone;
   Result :=
@@ -1727,7 +1467,7 @@ end;
 function TProperties.HasBorderStyle: Boolean;
 // Returns True, if at least one border has a style.
 var
-  Dummy: BorderStyleType;
+  Dummy: ThtBorderStyle;
 begin
   Dummy := bssNone;
 
@@ -1758,16 +1498,16 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 20.01.2013 --
-procedure TProperties.SetPropertyDefault(Index: PropIndices; const Value: Variant);
+procedure TProperties.SetPropertyDefault(Index: ThtPropIndices; const Value: Variant);
 begin
   if (Props[Index] = Unassigned) or ((VarType(Props[Index]) in varInt) and (Props[Index] = IntNull)) then
     Props[Index] := Value;
 end;
 
 //-- BG ---------------------------------------------------------- 20.01.2013 --
-procedure TProperties.SetPropertyDefaults(Indexes: TPropIndexSet; const Value: Variant);
+procedure TProperties.SetPropertyDefaults(Indexes: ThtPropIndexSet; const Value: Variant);
 var
-  Index: PropIndices;
+  Index: ThtPropIndices;
 begin
   for Index := Low(Index) to High(Index) do
     if Index in Indexes then
@@ -1780,69 +1520,52 @@ begin
   Result := (VarIsStr(Props[piEmptyCells])) and (Props[piEmptyCells] = 'show');
 end;
 
-procedure ConvVertMargins(const VM: TVMarginArray;
-  BaseHeight, EmSize, ExSize: Integer;
-  var M: TMarginArray; out TopAuto, BottomAuto: Boolean);
-
-  function Convert(V: Variant; out IsAutoParagraph: Boolean): Integer;
-  begin
-    IsAutoParagraph := False;
-    if VarIsStr(V) then
-      Result := LengthConv(V, False, BaseHeight, EmSize, ExSize, 0) {Auto will be 0}
-    else if VarType(V) in varInt then
-    begin
-      if V = IntNull then
-        Result := 0
-      else if V = AutoParagraph then
-      begin
-        Result := ParagraphSpace;
-        IsAutoParagraph := True;
-      end
-      else
-        Result := V;
-    end
-    else
-      Result := 0;
-  end;
-
+procedure ConvVertMargins(const VM: ThtVMarginArray; var CD: ThtConvData; var M: ThtMarginArray);
 begin
-  {$IFDEF JPM_DEBUGGING}
+{$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod('ConvVertMargins');
   CodeSiteLogging.CodeSite.Send('BaseHeight  = [%d]',[BaseHeight]);
   CodeSiteLogging.CodeSite.Send('EmSize      = [%d]',[EmSize]);
   CodeSiteLogging.CodeSite.Send('ExSize      = [%d]',[ExSize]);
   StyleUn.LogTVMarginArray(VM,'VM');
-  {$ENDIF}
-  M[MarginTop] := Convert(VM[MarginTop], TopAuto);
-  M[MarginBottom] := Convert(VM[MarginBottom], BottomAuto);
-    {$IFDEF JPM_DEBUGGING}
+{$ENDIF}
+
+  ConvMargProp(MarginTop, VM, CD, M);
+  ConvMargProp(MarginBottom, VM, CD, M);
+  ConvMargProp(piMinHeight, VM, CD, M);
+
+{$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.AddSeparator;
   CodeSiteLogging.CodeSite.Send('Results');
   CodeSiteLogging.CodeSite.ExitMethod('ConvVertMargins');
-  StyleUn.LogTMarginArray(M,'M');
-  {$ENDIF}
+  StyleUn.LogThtMarginArray(M,'M');
+{$ENDIF}
 end;
 
 //-- BG ---------------------------------------------------------- 25.04.2012 --
 function IsAuto(const Value: Variant): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 begin
   Result := Value = Auto;
 end;
 
 //-- BG ---------------------------------------------------------- 05.10.2010 --
 function VarIsIntNull(const Value: Variant): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 begin
   Result := (VarType(Value) in varInt) and (Value = IntNull);
 end;
 
 //-- BG ---------------------------------------------------------- 05.10.2010 --
 function VarIsAuto(const Value: Variant): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 begin
   Result := (VarType(Value) in varInt) and (Value = Auto);
 end;
 
 //-- BG ---------------------------------------------------------- 05.10.2010 --
 function VMargToMarg(const Value: Variant; Relative: Boolean; Base, EmSize, ExSize, Default: Integer): Integer;
+ {$ifdef UseInline} inline; {$endif}
 begin
   if VarIsStr(Value) then
     Result := LengthConv(Value, Relative, Base, EmSize, ExSize, Default)
@@ -1852,7 +1575,8 @@ begin
     Result := Default;
 end;
 
-procedure ApplyBoxWidthSettings(var AMarg : TMarginArray; var VMinWidth, VMaxWidth : Integer; const AUseQuirksMode : Boolean);
+procedure ApplyBoxWidthSettings(var AMarg : ThtMarginArray; var VMinWidth, VMaxWidth : Integer; const AUseQuirksMode : Boolean);
+ {$ifdef UseInline} inline; {$endif}
 begin
   {Important!!!
 
@@ -1873,60 +1597,74 @@ begin
   end;
 end;
 
-procedure ApplyBoxSettings(var AMarg : TMarginArray; const AUseQuirksMode : Boolean);
+procedure ApplyBoxSettings(var AMarg : ThtMarginArray; const AUseQuirksMode : Boolean);
+
+  procedure ApplyBorderBoxModel(var AMarg : ThtMarginArray);
+  begin
+    if AMarg[piWidth] > -1 then
+      Dec(AMarg[piWidth], AMarg[BorderLeftWidth] + AMarg[PaddingLeft] + AMarg[PaddingRight] + AMarg[BorderRightWidth]);
+
+    if AMarg[piHeight] > -1 then
+      Dec(AMarg[piHeight], AMarg[BorderTopWidth] + AMarg[PaddingTop] + AMarg[PaddingBottom] + AMarg[BorderBottomWidth]);
+  end;
+
 begin
-  if AUseQuirksMode then begin
-    ApplyBorderBoxModel(AMarg);
-  end else begin
+  if AUseQuirksMode then
+    ApplyBorderBoxModel(AMarg)
+  else
+  begin
     {JPM:  This test is here to prevent AMarg[piWidth] from being ruined
     if it is set to Auto.  If it is ruined, AutoCount might be incremented
     correctly causing a rendering bug. }
-    if AMarg[piWidth] > -1 then begin
-    //width
-      if AMarg[piMaxWidth] > 0 then begin
-        AMarg[piWidth] := Min(AMarg[piWidth],AMarg[piMaxWidth]);
-      end;
 
-      if AMarg[piMinWidth] > 0 then begin
-        AMarg[piWidth] := Max(AMarg[piWidth],AMarg[piMinWidth]);
-      end;
-    end;
-    //height
-    if AMarg[piMaxHeight] > 0 then begin
-      AMarg[piHeight] := Min(AMarg[piHeight],AMarg[piMaxHeight]);
-    end;
-    if AMarg[piMinHeight] > 0 then begin
-      AMarg[piHeight] := Max(AMarg[piHeight],AMarg[piMinHeight]);
-    end;
-    case AMarg[BoxSizing] of
-        0 : ;
-        1 : ApplyBorderBoxModel(AMarg);
-    else
-    end;
-  end;
-end;
+    //min max width
+    if AMarg[piWidth] > -1 then
+    begin
+      if AMarg[piMaxWidth] > 0 then
+        AMarg[piWidth] := Min(AMarg[piWidth], AMarg[piMaxWidth]);
 
-procedure ApplyBorderBoxModel(var AMarg : TMarginArray);
-begin
-  if AMarg[piWidth] > -1 then begin
-    AMarg[piWidth] := AMarg[piWidth] -
-      (AMarg[BorderLeftWidth] + AMarg[BorderRightWidth] +
-       AMarg[PaddingLeft] + AMarg[PaddingRight]);
-  end;
-  if AMarg[piHeight] > -1 then begin
-    AMarg[piHeight] := AMarg[piHeight] -
-      (AMarg[BorderTopWidth] + AMarg[BorderBottomWidth] +
-       AMarg[PaddingTop] + AMarg[PaddingBottom]);
+      if AMarg[piMinWidth] > 0 then
+        AMarg[piWidth] := Max(AMarg[piWidth], AMarg[piMinWidth]);
+    end;
+
+    //min max height
+    if AMarg[piHeight] > -1 then
+    begin
+      if AMarg[piMaxHeight] > 0 then
+        AMarg[piHeight] := Min(AMarg[piHeight], AMarg[piMaxHeight]);
+
+      if AMarg[piMinHeight] > 0 then
+        AMarg[piHeight] := Max(AMarg[piHeight], AMarg[piMinHeight]);
+    end;
+
+    case ThtBoxSizing(AMarg[BoxSizing]) of
+      BorderBox: ApplyBorderBoxModel(AMarg);
+    end;
   end;
 end;
 
 {----------------ConvMargArray}
 
-procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: Integer;
-  BorderWidth: Integer; out AutoCount: Integer; var M: TMarginArray);
-{This routine does not do MarginTop and MarginBottom as they are done by ConvVertMargins}
+//-- BG ---------------------------------------------------------- 16.05.2014 --
+function ConvData(
+    BaseWidth, BaseHeight: Integer;
+    EmSize, ExSize: Integer;
+    BorderWidth: Integer;
+    AutoCount: Integer = 0): ThtConvData;
+begin
+  Result.BaseWidth := BaseWidth;
+  Result.BaseHeight := BaseHeight;
+  Result.EmSize := EmSize;
+  Result.ExSize := ExSize;
+  Result.BorderWidth := BorderWidth;
+  Result.AutoCount := AutoCount;
+  Result.IsAutoParagraph := [];
+end;
 
-  function Base(I: PropIndices): Integer;
+//-- BG ---------------------------------------------------------- 16.05.2014 --
+procedure ConvMargProp(I: ThtPropIndices; const VM: ThtVMarginArray; var ConvData: ThtConvData; var M: ThtMarginArray);
+
+  function Base(I: ThtPropIndices): Integer;
   begin
     case I of
       BorderTopWidth, BorderBottomWidth,
@@ -1934,34 +1672,17 @@ procedure ConvMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize, 
       piMinHeight, piMaxHeight,
       PaddingTop, PaddingBottom,
       LineHeight,
-      piHeight, TopPos:
-        Base := BaseHeight
+      piHeight, piTop:
+        Base := ConvData.BaseHeight
     else
-      Base := BaseWidth;
+      Base := ConvData.BaseWidth;
     end;
   end;
 
 var
-  I: PropIndices;
-  LBoxSizing : BoxSizingType;
+  LBoxSizing : ThtBoxSizing;
 begin
-  {$IFDEF JPM_DEBUGGING}
-  CodeSiteLogging.CodeSite.EnterMethod('ConvMargArray');
- CodeSiteLogging.CodeSite.AddSeparator;
- CodeSiteLogging.CodeSite.Send('Input');
-
- CodeSiteLogging.CodeSite.AddSeparator;
-   LogTVMarginArray(VM,'VM');
-   CodeSiteLogging.CodeSite.Send('BaseWidth   = [%d]',[BaseWidth]);
-   CodeSiteLogging.CodeSite.Send('BaseHeight  = [%d]',[BaseHeight]);
-   CodeSiteLogging.CodeSite.Send('BorderWidth  = [%d]',[BorderWidth]);
-
-   CodeSiteLogging.CodeSite.Send('EmSize      = [%d]',[EmSize]);
-   CodeSiteLogging.CodeSite.Send('ExSize      = [%d]',[ExSize]);
-   CodeSiteLogging.CodeSite.Send('BorderWidth = [%d]',[BorderWidth]);
-  {$ENDIF}
-  AutoCount := 0; {count of 'auto's in width items}
-  for I := Low(VM) to High(VM) do
+  with ConvData do
   begin
     case I of
       BackgroundColor, BorderTopColor..BorderLeftColor:
@@ -1971,9 +1692,10 @@ begin
           else
             M[I] := VM[I];
         end;
+
       BorderTopWidth..BorderLeftWidth:
         begin
-          if VM[PropIndices(Ord(BorderTopStyle) + (Ord(I) - Ord(BorderTopWidth)))] = bssNone then
+          if VM[ThtPropIndices(Ord(BorderTopStyle) + (Ord(I) - Ord(BorderTopWidth)))] = bssNone then
             M[I] := 0
           else
           begin
@@ -1997,6 +1719,7 @@ begin
             end;
           end;
         end;
+
       piMinHeight, piMaxHeight,
       piHeight:
         begin
@@ -2016,6 +1739,7 @@ begin
           else
             M[I] := 0;
         end;
+
       PaddingTop..PaddingLeft:
         begin
           if VarIsStr(VM[I]) then
@@ -2032,7 +1756,8 @@ begin
           else
             M[I] := 0;
         end;
-      TopPos, RightPos, BottomPos, LeftPos:
+
+      piTop..piLeft:
         begin
           if VarIsStr(VM[I]) then
             M[I] := LengthConv(VM[I], False, Base(I), EmSize, ExSize, Auto) {Auto will be Auto}
@@ -2046,6 +1771,7 @@ begin
           else
             M[I] := Auto;
         end;
+
       BoxSizing:
         if TryStrToBoxSizing(VM[I],LBoxSizing) then begin
            M[I] := Ord(LBoxSizing);
@@ -2053,7 +1779,8 @@ begin
           //assume content-box
            M[I] := 0;
         end;
-      MarginLeft, MarginRight:
+
+      MarginRight, MarginLeft:
         begin
           if VarIsStr(VM[I]) then
           begin
@@ -2075,6 +1802,27 @@ begin
           else
             M[I] := 0;
         end;
+
+      MarginTop, MarginBottom:
+        begin
+          if VarIsStr(VM[I]) then
+            M[I] := LengthConv(VM[I], False, BaseHeight, EmSize, ExSize, 0) {Auto will be 0}
+          else if VarType(VM[I]) in varInt then
+          begin
+            if VM[I] = IntNull then
+              M[I] := 0
+            else if VM[I] = AutoParagraph then
+            begin
+              M[I] := ParagraphSpace;
+              Include(IsAutoParagraph, I);
+            end
+            else
+              M[I] := VM[I];
+          end
+          else
+            M[I] := 0;
+        end;
+
       piMinWidth,
       piMaxWidth:
         begin
@@ -2090,6 +1838,7 @@ begin
           else
             M[I] := 0;
         end;
+
       piWidth:
         begin
           if VarIsStr(VM[I]) then
@@ -2106,21 +1855,6 @@ begin
           if M[I] = Auto then
             Inc(AutoCount);
         end;
-      MarginTop, MarginBottom:
-//        if VarType(VM[I]) in varInt then
-//          case VM[I] of
-//            AutoParagraph: ; // do nothing
-//
-//            IntNull:
-//              M[I] := 0;
-//          else
-//            M[I] := VM[I];
-//          end
-//        else if VarIsStr(VM[I]) then
-//          M[I] := LengthConv(VM[I], False, BaseHeight, EmSize, ExSize, 0)
-//        else
-//          M[I] := 0
-        ;
     else
       begin
         if VarIsStr(VM[I]) then
@@ -2137,20 +1871,51 @@ begin
       end;
     end;
   end;
-  {$IFDEF JPM_DEBUGGING}
-  CodeSiteLogging.CodeSite.AddSeparator;
-  CodeSiteLogging.CodeSite.Send('Results');
-  LogTMarginArray(M,'M');
-  CodeSiteLogging.CodeSite.Send('AutoCount  = [%d]',[AutoCount]);
-  CodeSiteLogging.CodeSite.ExitMethod('ConvMargArray');
-  {$ENDIF}
 end;
 
-procedure ConvMargArrayForCellPadding(const VM: TVMarginArray; EmSize,
-  ExSize: Integer; var M: TMarginArray);
+procedure ConvMargArray(const VM: ThtVMarginArray; BaseWidth, BaseHeight, EmSize, ExSize: Integer;
+  BorderWidth: Integer; out AutoCount: Integer; var M: ThtMarginArray);
+{This routine does not do MarginTop and MarginBottom as they are done by ConvVertMargins}
+var
+  I: ThtPropIndices;
+  CD: ThtConvData;
+begin
+{$IFDEF JPM_DEBUGGING}
+  CodeSiteLogging.CodeSite.EnterMethod('ConvMargArray');
+  CodeSiteLogging.CodeSite.AddSeparator;
+  CodeSiteLogging.CodeSite.Send('Input');
+
+  CodeSiteLogging.CodeSite.AddSeparator;
+  LogTVMarginArray(VM,'VM');
+  CodeSiteLogging.CodeSite.Send('BaseWidth   = [%d]',[BaseWidth]);
+  CodeSiteLogging.CodeSite.Send('BaseHeight  = [%d]',[BaseHeight]);
+  CodeSiteLogging.CodeSite.Send('BorderWidth  = [%d]',[BorderWidth]);
+
+  CodeSiteLogging.CodeSite.Send('EmSize      = [%d]',[EmSize]);
+  CodeSiteLogging.CodeSite.Send('ExSize      = [%d]',[ExSize]);
+  CodeSiteLogging.CodeSite.Send('BorderWidth = [%d]',[BorderWidth]);
+{$ENDIF}
+
+  CD := ConvData(BaseWidth, BaseHeight, EmSize, ExSize, BorderWidth);
+  for I := Low(VM) to High(VM) do
+    if not (I in [MarginTop, MarginBottom]) then
+      ConvMargProp(I, VM, CD, M);
+  AutoCount := CD.AutoCount; {count of 'auto's in width items}
+
+{$IFDEF JPM_DEBUGGING}
+  CodeSiteLogging.CodeSite.AddSeparator;
+  CodeSiteLogging.CodeSite.Send('Results');
+  LogThtMarginArray(M,'M');
+  CodeSiteLogging.CodeSite.Send('AutoCount  = [%d]',[AutoCount]);
+  CodeSiteLogging.CodeSite.ExitMethod('ConvMargArray');
+{$ENDIF}
+end;
+
+procedure ConvMargArrayForCellPadding(const VM: ThtVMarginArray; EmSize,
+  ExSize: Integer; var M: ThtMarginArray);
 {Return negative for no entry or percent entry}
 var
-  I: PropIndices;
+  I: ThtPropIndices;
 begin
   {$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod('ConvMargArrayForCellPadding');
@@ -2173,18 +1938,19 @@ begin
       M[I] := -1;
   {$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.AddSeparator;
-  LogTMarginArray(M,'M');
+  LogThtMarginArray(M,'M');
   CodeSiteLogging.CodeSite.ExitMethod('ConvMargArrayForCellPadding');
   {$ENDIF}
 end;
 
 {----------------ConvInlineMargArray}
 
-procedure ConvInlineMargArray(const VM: TVMarginArray; BaseWidth, BaseHeight, EmSize,
-  ExSize: Integer; {BStyle: BorderStyleType;} out M: TMarginArray);
+procedure ConvInlineMargArray(const VM: ThtVMarginArray; BaseWidth, BaseHeight, EmSize,
+  ExSize: Integer; {BStyle: ThtBorderStyle;} out M: ThtMarginArray);
+ {$ifdef UseInline} inline; {$endif}
 {currently for images, form controls.  BaseWidth/Height and BStyle currently not supported}
 var
-  I: PropIndices;
+  I: ThtPropIndices;
 begin
   {$IFDEF JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod('ConvInlineMargArray');
@@ -2213,7 +1979,6 @@ begin
             M[I] := IntNull;
         end;
       piMinHeight, piMinWidth, piMaxHeight, piMaxWidth,
-
       MarginLeft, MarginRight, MarginTop, MarginBottom:
         begin
           if VarIsStr(VM[I]) then
@@ -2230,7 +1995,7 @@ begin
         end;
       BorderTopWidth..BorderLeftWidth:
         begin
-          if VM[PropIndices(Ord(BorderTopStyle) + (Ord(I) - Ord(BorderTopWidth)))] = bssNone then
+          if VM[ThtPropIndices(Ord(BorderTopStyle) + (Ord(I) - Ord(BorderTopWidth)))] = bssNone then
             M[I] := 0
           else
           begin
@@ -2259,7 +2024,7 @@ begin
     end;
   {$IFDEF JPM_DEBUGGING}
    CodeSiteLogging.CodeSite.AddSeparator;
-   LogTMarginArray(M,'M');
+   LogThtMarginArray(M,'M');
    CodeSiteLogging.CodeSite.ExitMethod('ConvInlineMargArray');
   {$ENDIF}
 end;
@@ -2283,7 +2048,7 @@ procedure TProperties.Combine(Styles: TStyleList;
 
     procedure Merge(Source: TProperties; Reverse: Boolean = False);
     var
-      Index: PropIndices;
+      Index: ThtPropIndices;
       I: FIIndex;
       Wt: Integer;
       S1: ThtString;
@@ -2294,7 +2059,7 @@ procedure TProperties.Combine(Styles: TStyleList;
       CodeSiteLogging.CodeSite.AddSeparator;
       LogProperties(Source,'Source');
 {$endif}
-      for Index := Low(Index) to High(PropIndices) do
+      for Index := Low(Index) to High(ThtPropIndices) do
       begin
         if Reverse then
         begin
@@ -2303,7 +2068,7 @@ procedure TProperties.Combine(Styles: TStyleList;
         end;
         if (VarType(Source.Props[Index]) <> varEmpty) and (Vartype(Source.Props[Index]) <> varNull) then
           case Index of
-            MarginTop..LeftPos:
+            MarginTop..piLeft:
               if VarIsStr(Source.Props[Index]) then // if VarType(Source.Props[Index]) = VarString then
               begin
                 Props[Index] := Source.Props[Index];
@@ -2331,7 +2096,7 @@ procedure TProperties.Combine(Styles: TStyleList;
                           end;
 
                         FontSize:
-                          iSize := FontSizeConv(Props[FontSize], iSize, FUseQuirksMode);
+                          iSize := FontSizeConv(Props[FontSize], iSize, DefPointSize, FUseQuirksMode);
 
                         Color:
                           iColor := Props[Color];
@@ -2710,7 +2475,7 @@ procedure TProperties.Combine(Styles: TStyleList;
       MergeItems('::' + Pseudo, True); {default Pseudo definition}
 
     if not (VarType(Props[FontSize]) in varNum) then {if still a ThtString, hasn't been converted}
-      Props[FontSize] := FontSizeConv(Props[FontSize], OldSize, FUseQuirksMode);
+      Props[FontSize] := FontSizeConv(Props[FontSize], OldSize, FDefPointSize, FUseQuirksMode);
   end;
 
 var
@@ -2749,91 +2514,18 @@ begin
   end;
 end;
 
-function TProperties.GetFont: TMyFont;
+function TProperties.GetFont: ThtFont;
 var
   Font: ThtFontInfo;
-  Save: THandle;
-  SaveCharSet: TFontCharSet;
-  tm: TTextmetric;
-  DC: HDC;
-  V: Variant;
-  SameFont: TMyFont;
 begin {call only if all things valid}
   if TheFont = nil then
   begin
-    Font := ThtFontInfo.Create;
-    try
-      GetSingleFontInfo(Font);
-      SameFont := AllMyFonts.Find(Font);
-      if SameFont = nil then
-      begin
-        SameFont := TMyFont.Create;
-        SameFont.Name := Font.iName;
-        SameFont.Height := -Round(Font.iSize * Screen.PixelsPerInch / 72);
-        SameFont.Style := Font.iStyle;
-        SameFont.Charset := Font.iCharSet;
-        AllMyFonts.Add(SameFont);
-
-        // If this is a Symbol charset, then keep it that way.
-        // To check the font's real charset, use Default_Charset
-        SaveCharSet := SameFont.CharSet;
-        SameFont.CharSet := Default_Charset;
-        DC := GetDC(0);
-        try
-          Save := SelectObject(DC, SameFont.Handle);
-          try
-            GetTextMetrics(DC, tm);
-          finally
-            SelectObject(DC, Save);
-          end;
-          if tm.tmCharset = Symbol_Charset then
-            SameFont.Charset := Symbol_CharSet
-          else
-            SameFont.Charset := SaveCharSet;
-          {now get the info on the finalized font}
-          if SameFont.Charset <> Default_Charset then {else already have the textmetrics}
-          begin
-            Save := SelectObject(DC, SameFont.Handle);
-            try
-              GetTextMetrics(DC, tm);
-            finally
-              SelectObject(DC, Save);
-            end;
-          end;
-        finally
-          ReleaseDC(0, DC);
-        end;
-        {calculate EmSize with current font rather than inherited}
-        SameFont.EmSize := tm.tmHeight - tm.tmInternalLeading;
-        SameFont.ExSize := SameFont.EmSize div 2; {apparently correlates with what browsers are doing}
-        SameFont.tmHeight := tm.tmHeight;
-        SameFont.tmDescent := tm.tmDescent;
-        SameFont.tmExternalLeading := tm.tmExternalLeading;
-        SameFont.tmMaxCharWidth := tm.tmMaxCharWidth;
-        SameFont.tmAveCharWidth := tm.tmAveCharWidth;
-        SameFont.tmCharset := tm.tmCharset;
-      end;
-      TheFont := TMyFont.Create;
-      TheFont.Assign(SameFont);
-      TheFont.bgColor := Font.ibgColor;
-      TheFont.Color := Font.iColor;
-      V := Font.iCharExtra;
-    finally
-      Font.Free;
-    end;
+    GetSingleFontInfo(Font);
+    TheFont := AllMyFonts.GetFontLike(Font);
     FEmSize := TheFont.EmSize;
     FExSize := TheFont.ExSize;
-    if VarType(V) in VarInt then
-      TheFont.CharExtra := V
-    else if VarIsStr(V) then
-      if V = 'normal' then
-        TheFont.CharExtra := 0
-      else
-        TheFont.CharExtra := LengthConv(V, False, EmSize, EmSize, ExSize, 0)
-    else
-      TheFont.CharExtra := 0;
   end;
-  Result := TMyFont.Create;
+  Result := ThtFont.Create;
   Result.Assign(TheFont);
 end;
 
@@ -2918,6 +2610,7 @@ end;
 {----------------RemoveQuotes}
 
 function RemoveQuotes(const S: ThtString): ThtString;
+ {$ifdef UseInline} inline; {$endif}
 {if ThtString is a quoted ThtString, remove the quotes (either ' or ")}
 var
   L: Integer;
@@ -3045,10 +2738,10 @@ begin
   AFI.Assign(FIArray);
 end;
 
-procedure TProperties.GetVMarginArrayDefBorder(var MArray: TVMarginArray; const ADefColor : Variant);
+procedure TProperties.GetVMarginArrayDefBorder(var MArray: ThtVMarginArray; const ADefColor : Variant);
 var
-  I: PropIndices;
-  BS: BorderStyleType;
+  I: ThtPropIndices;
+  BS: ThtBorderStyle;
   NewColor : TColor;
   LVal : THtString;
 begin
@@ -3068,7 +2761,7 @@ begin
       end;
       BorderTopColor..BorderLeftColor:
       begin
-        if ColorFromString(Props[I],False,NewColor) then begin
+        if TryStrToColor(Props[I],False,NewColor) then begin
           MArray[I] := Props[I]
         end else begin
           LVal := Props[I];
@@ -3090,7 +2783,7 @@ begin
   {$ENDIF}
 end;
 
-procedure TProperties.GetVMarginArray(var MArray: TVMarginArray);
+procedure TProperties.GetVMarginArray(var MArray: ThtVMarginArray);
 {From: http://www.w3.org/TR/CSS21/box.html#x49
 
 If an element's border color is not specified with a
@@ -3111,9 +2804,10 @@ begin
   {$ENDIF}
 end;
 
-procedure TProperties.AddPropertyByIndex(Index: PropIndices; PropValue: ThtString);
+procedure TProperties.AddPropertyByIndex(Index: ThtPropIndices; PropValue: ThtString);
 var
   NewColor: TColor;
+  WhiteSpaceStyle : ThtWhiteSpaceStyle;
 begin
 {$ifdef JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod(Self,'TProperties.AddPropertyByIndex');
@@ -3124,7 +2818,7 @@ begin
 {$endif}
   case Index of
 //    BorderColor:
-//      if ColorFromString(PropValue, False, NewColor) then
+//      if TryStrToColor(PropValue, False, NewColor) then
 //      begin
 //        Props[BorderColor] := NewColor;
 //        Props[BorderLeftColor] := NewColor;
@@ -3133,55 +2827,61 @@ begin
 //        Props[BorderBottomColor] := NewColor;
 //      end;
     BorderTopColor..BorderLeftColor:
-      if ColorFromString(PropValue, False, NewColor) then begin
-        Props[Index] := NewColor;
-      end else begin
-        if LowerCase(PropValue) = CurColorStr then begin
-          Props[Index] := CurColor_Val;
-        end;
-      end;
+      if TryStrToColor(PropValue, False, NewColor) then
+        Props[Index] := NewColor
+      else if LowerCase(PropValue) = CurColorStr then
+        Props[Index] := CurColor_Val;
+
     Color, BackgroundColor:
-      if ColorFromString(PropValue, False, NewColor) then
+      if TryStrToColor(PropValue, False, NewColor) then
         Props[Index] := NewColor
       else if Index = Color then
         Props[Index] := clBlack
       else
         Props[Index] := clNone;
-    MarginTop..BorderLeftWidth, piWidth..LeftPos:
+
+    MarginTop..BorderLeftWidth, piWidth..piLeft:
       Props[Index] := PropValue;
+
     FontSize:
       Props[FontSize] := PropValue;
+
     Visibility:
-      begin
-        if PropValue = 'visible' then
-          Props[Visibility] := viVisible
-        else if PropValue = 'hidden' then
-          Props[Visibility] := viHidden;
-      end;
+      if PropValue = 'visible' then
+        Props[Visibility] := viVisible
+      else if PropValue = 'hidden' then
+        Props[Visibility] := viHidden;
+
     TextTransform:
-      begin
-        if PropValue = 'uppercase' then
-          Props[TextTransform] := txUpper
-        else if PropValue = 'lowercase' then
-          Props[TextTransform] := txLower
-        else
-          Props[TextTransform] := txNone;
-      end;
+      if PropValue = 'uppercase' then
+        Props[TextTransform] := txUpper
+      else if PropValue = 'lowercase' then
+        Props[TextTransform] := txLower
+      else
+        Props[TextTransform] := txNone;
+
     WordWrap:
       if PropValue = 'break-word' then
         Props[WordWrap] := PropValue
       else
         Props[WordWrap] := 'normal';
+
     piWhiteSpace:
-      if PropValue = 'nowrap' then
-        Props[piWhiteSpace] := PropValue
-      else if PropValue = 'normal' then
-        Props[piWhiteSpace] := 'normal';
+      if TryStrToWhiteSpace(PropValue,WhiteSpaceStyle) then
+      begin
+        Props[piWhiteSpace] := PropValue;
+      end;
+//      if PropValue = 'nowrap' then
+//        Props[piWhiteSpace] := PropValue
+//      else if PropValue = 'normal' then
+//        Props[piWhiteSpace] := 'normal';
+
     FontVariant:
       if PropValue = 'small-caps' then
         Props[FontVariant] := PropValue
       else if PropValue = 'normal' then
         Props[FontVariant] := 'normal';
+
     BorderTopStyle..BorderLeftStyle:
       begin
 //        if PropValue <> 'none' then
@@ -3210,12 +2910,12 @@ end;
 
 procedure TProperties.AddPropertyByName(const PropName, PropValue: ThtString);
 var
-  Index: PropIndices;
+  Index: ThtPropIndices;
 begin
 {$ifdef JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod(Self,'TProperties.AddPropertyByName');
 {$endif}
-  if FindPropIndex(PropName, Index) then
+  if TryStrToPropIndex(PropName, Index) then
     AddPropertyByIndex(Index, PropValue);
 {$ifdef JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.ExitMethod(Self,'TProperties.AddPropertyByName');
@@ -3230,6 +2930,7 @@ begin
   Sorted := True;
   Duplicates := dupAccept;
   SeqNo := 10;
+  FUseQuirksMode := False;
 end;
 
 constructor TStyleList.Create(AUseQuirksMode: Boolean);
@@ -3237,7 +2938,7 @@ begin
   // Do not call the inherited constructor with 1 boolean parameter!
   // It's purpose is different (OwnsObjects: Boolean)!
   Create;
-  DefProp := nil;
+  FDefProp := nil;
   FUseQuirksMode := AUseQuirksMode;
 end;
 
@@ -3271,7 +2972,8 @@ begin
 end;
 
 procedure FixBordProps(AProp, BodyProp : TProperties);
-var i : PropIndices;
+ {$ifdef UseInline} inline; {$endif}
+var i : ThtPropIndices;
 begin
   for i := BorderTopColor to BorderLeftColor do
     AProp.Props[I] := BodyProp.Props[I];
@@ -3312,10 +3014,11 @@ procedure TStyleList.AddModifyProp(const Selector, Prop, Value: ThtString);
 {strings are all lowercase here}
 var
   I: Integer;
-  PropIndex: PropIndices;
+  PropIndex: ThtPropIndices;
   Propty: TProperties;
   NewColor: TColor;
   NewProp: Boolean;
+  WhiteSpaceStyle : ThtWhiteSpaceStyle;
 begin
 {$ifdef JPM_DEBUGGING}
   CodeSiteLogging.CodeSite.EnterMethod(Self,'TStyleList.AddModifyProp');
@@ -3324,14 +3027,15 @@ begin
   CodeSiteLogging.CodeSite.SendFmtMsg('Selector = %s',[Selector]);
   CodeSiteLogging.CodeSite.SendFmtMsg('Prop = %s',[Prop]);
   CodeSiteLogging.CodeSite.SendFmtMsg('Value = %s',[Value]);
-CodeSiteLogging.CodeSite.AddSeparator;
+  CodeSiteLogging.CodeSite.AddSeparator;
   {$endif}
-  if FindPropIndex(Prop, PropIndex) then
+  if TryStrToPropIndex(Prop, PropIndex) then
   begin
     if not Find(Selector, I) then
     begin
       NewProp := True;
       Propty := TProperties.Create(); {newly created property}
+      Propty.DefPointSize := FDefPointSize;
     end
     else
     begin
@@ -3340,7 +3044,7 @@ CodeSiteLogging.CodeSite.AddSeparator;
     end;
     case PropIndex of
       Color:
-        if ColorFromString(Value, False, NewColor) then
+        if TryStrToColor(Value, False, NewColor) then
         begin
           if Selector = ':link' then
           begin {changed the defaults to be the same as link}
@@ -3352,7 +3056,7 @@ CodeSiteLogging.CodeSite.AddSeparator;
           Propty.Props[PropIndex] := NewColor;
         end;
 //      BorderColor:
-//        if ColorFromString(Value, False, NewColor) then
+//        if TryStrToColor(Value, False, NewColor) then
 //        begin
 //          Propty.Props[BorderColor] := NewColor;
 //          Propty.Props[BorderLeftColor] := NewColor;
@@ -3360,49 +3064,55 @@ CodeSiteLogging.CodeSite.AddSeparator;
 //          Propty.Props[BorderRightColor] := NewColor;
 //          Propty.Props[BorderBottomColor] := NewColor;
 //        end;
+
       BorderTopColor..BorderLeftColor:
-        if ColorFromString(Value, False, NewColor) then begin
-          Propty.Props[PropIndex] := NewColor;
-        end else begin
-          if LowerCase(Value) = CurColorStr then
-            Propty.Props[PropIndex] := CurColor_Val;
-        end;
+        if TryStrToColor(Value, False, NewColor) then
+          Propty.Props[PropIndex] := NewColor
+        else if LowerCase(Value) = CurColorStr then
+          Propty.Props[PropIndex] := CurColor_Val;
+
       BackgroundColor:
-        if ColorFromString(Value, False, NewColor) then
+        if TryStrToColor(Value, False, NewColor) then
           Propty.Props[PropIndex] := NewColor
         else
           Propty.Props[PropIndex] := clNone;
+
       Visibility:
-        begin
-          if Value = 'visible' then
-            Propty.Props[Visibility] := viVisible
-          else if Value = 'hidden' then
-            Propty.Props[Visibility] := viHidden;
-        end;
+        if Value = 'visible' then
+          Propty.Props[Visibility] := viVisible
+        else if Value = 'hidden' then
+          Propty.Props[Visibility] := viHidden;
+
       TextTransform:
-        begin
-          if Value = 'uppercase' then
-            Propty.Props[TextTransform] := txUpper
-          else if Value = 'lowercase' then
-            Propty.Props[TextTransform] := txLower
-          else
-            Propty.Props[TextTransform] := txNone;
-        end;
+        if Value = 'uppercase' then
+          Propty.Props[TextTransform] := txUpper
+        else if Value = 'lowercase' then
+          Propty.Props[TextTransform] := txLower
+        else
+          Propty.Props[TextTransform] := txNone;
+
       WordWrap:
         if Value = 'break-word' then
           Propty.Props[WordWrap] := Value
         else
           Propty.Props[WordWrap] := 'normal';
+
       piWhiteSpace:
-        if Value = 'nowrap' then
-          Propty.Props[piWhiteSpace] := Value
-        else if Value = 'normal' then
-          Propty.Props[piWhiteSpace] := 'normal';
+        if TryStrToWhiteSpace(Value,WhiteSpaceStyle) then
+        begin
+          Propty.Props[piWhiteSpace] := Value;
+        end;
+//        if Value = 'nowrap' then
+//          Propty.Props[piWhiteSpace] := Value
+//        else if Value = 'normal' then
+//          Propty.Props[piWhiteSpace] := 'normal';
+
       FontVariant:
         if Value = 'small-caps' then
           Propty.Props[FontVariant] := Value
         else if Value = 'normal' then
           Propty.Props[FontVariant] := 'normal';
+          
       BorderTopStyle..BorderLeftStyle:
         begin
 //          if Value <> 'none' then
@@ -3445,6 +3155,7 @@ function TStyleList.AddObject(const S: ThtString; AObject: TObject): Integer;
 begin
   Result := inherited AddObject(S, AObject);
   TProperties(AObject).PropTag := S;
+  TProperties(AObject).FDefPointSize := DefPointSize;
 end;
 
 function TStyleList.AddDuplicate(const Tag: ThtString; Prop: TProperties): TProperties;
@@ -3504,7 +3215,7 @@ begin
   Properties.CodePage := ACodePage;
   Properties.CharSet := ACharSet;
   AddObject('default', Properties);
-  DefProp := Properties;
+  FDefProp := Properties;
 
   if UseQuirksMode then begin
     Properties := TProperties.Create(UseQuirksMode);
@@ -3544,6 +3255,7 @@ begin
   Properties.Props[FontStyle] := 'none';
   Properties.Props[FontWeight] := 'normal';
   Properties.Props[TextDecoration] := 'none';
+  Properties.Props[piWhiteSpace] := 'pre';
   AddObject('pre', Properties);
 
   Properties := TProperties.Create(UseQuirksMode);
@@ -3717,70 +3429,6 @@ begin
   AddDuplicate('acronym',Properties);
 end;
 
-
-//-- BG ---------------------------------------------------------- 20.03.2011 --
-function MediaTypesToStr(const MediaTypes: TMediaTypes): ThtString;
-var
-  I: TMediaType;
-begin
-  SetLength(Result, 0);
-  for I := low(I) to high(I) do
-    if I in MediaTypes then
-    begin
-      if Length(Result) = 0 then
-        Result := CMediaTypes[I]
-      else
-        Result := Result + ', ' + CMediaTypes[I];
-    end;
-end;
-
-//-- BG ---------------------------------------------------------- 20.03.2011 --
-function TranslateMediaTypes(const MediaTypes: TMediaTypes): TMediaTypes;
-begin
-  if mtAll in MediaTypes then
-    Result := AllMediaTypes
-  else
-    Result := MediaTypes;
-end;
-
-//-- BG ---------------------------------------------------------- 15.03.2011 --
-function TryStrToMediaType(const Str: ThtString; out MediaType: TMediaType): Boolean;
-var
-  I: TMediaType;
-begin
-  for I := low(I) to high(I) do
-    if CMediaTypes[I] = Str then
-    begin
-      Result := True;
-      MediaType := I;
-      exit;
-    end;
-  Result := False;
-end;
-
-//-- BG ---------------------------------------------------------- 17.04.2011 --
-function TryStrToMediaTypes(const Str: ThtString; out MediaTypes: TMediaTypes): Boolean;
-var
-  I, J: Integer;
-  MediaType: TMediaType;
-begin
-  Result := False;
-  MediaTypes := [];
-  I := 1;
-  repeat
-    J := PosX(',', Str, I);
-    if J = 0 then
-      // no more commas, try the rest
-      J := Length(Str) + 1;
-    if TryStrToMediaType(htLowerCase(Trim(Copy(Str, I, J - I))), MediaType) then
-    begin
-      Include(MediaTypes, MediaType);
-      Result := True;
-    end;
-    I := J + 1;
-  until J > Length(Str);
-end;
-
 { TPropStack }
 
 function TPropStack.GetProp(Index: Integer): TProperties;
@@ -3792,7 +3440,6 @@ function TPropStack.Last: TProperties;
 begin
   Result := Get(Count - 1);
 end;
-
 
 const
   NumColors = 176;
@@ -3888,6 +3535,7 @@ begin
 end;
 
 function OpacityFromStr(S : ThtString) : Byte;
+ {$ifdef UseInline} inline; {$endif}
 var LErr : Integer;
   LR : Real;
 begin
@@ -3899,7 +3547,8 @@ begin
   end;
 end;
 
-function ColorFromString(S: ThtString; NeedPound: Boolean; out Color: TColor): Boolean;
+function TryStrToColor(S: ThtString; NeedPound: Boolean; out Color: TColor): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 var LDummy : Byte;
 begin
   Result := ColorAndOpacityFromString(S,NeedPound,Color,LDummy);
@@ -4117,49 +3766,9 @@ begin
   end;
 end;
 
-{ ThtFontInfo }
-
-procedure ThtFontInfo.Assign(Source: ThtFontInfo);
-begin
-  iName := Source.iName;
-  iSize := Source.iSize;
-  iStyle := Source.iStyle;
-  iColor := Source.iColor;
-  ibgColor := Source.ibgColor;
-  iCharSet := Source.iCharSet;
-  iCharExtra := Source.iCharExtra;
-end;
-
-{ TFontInfoArray }
-
-constructor TFontInfoArray.Create;
-var
-  I: FIIndex;
-begin
-  inherited Create;
-  for I := LFont to HVFont do
-    Ar[I] := ThtFontInfo.Create;
-end;
-
-destructor TFontInfoArray.Destroy;
-var
-  I: FIIndex;
-begin
-  for I := LFont to HVFont do
-    Ar[I].Free;
-  inherited;
-end;
-
-procedure TFontInfoArray.Assign(Source: TFontInfoArray);
-var
-  I: FIIndex;
-begin
-  for I := LFont to HVFont do
-    Ar[I].Assign(Source.Ar[I]);
-end;
-
 //BG, 14.07.2010:
 function decodeSize(const Str: ThtString; out V: extended; out U: ThtString): Boolean;
+ {$ifdef UseInline} inline; {$endif}
 var
   I, J, L: Integer;
 begin
@@ -4189,7 +3798,8 @@ const
   f_pt = 1.0 / 72.0;
   f_pc = 1.0 / 100.0;
 
-function IncFontSize(OldSize: Double; Increment: TFontSizeIncrement): Double;
+function IncFontSize(OldSize: Double; Increment: ThtFontSizeIncrement): Double;
+ {$ifdef UseInline} inline; {$endif}
 var
   OldIndex, NewIndex: Byte;
   D1, D2: Double;
@@ -4248,7 +3858,8 @@ begin
     Result := OldSize * FontConv[NewIndex] / FontConv[OldIndex];
 end;
 
-function FontSizeConv(const Str: ThtString; OldSize: Double; const AUseQuirksMode : Boolean): Double;
+function FontSizeConv(const Str: ThtString; OldSize, DefPointSize : Double; const AUseQuirksMode : Boolean): Double;
+ {$ifdef UseInline} inline; {$endif}
 {given a font-size ThtString, return the point size}
 var
   V: extended;
@@ -4315,6 +3926,7 @@ end;
 
 function LengthConv(const Str: ThtString; Relative: Boolean; Base, EmSize, ExSize,
   Default: Integer): Integer;
+ {$ifdef UseInline} inline; {$endif}
 {given a length ThtString, return the appropriate pixel value.  Base is the
  base value for percentage. EmSize, ExSize for units relative to the font.
  Relative makes a numerical entry relative to Base.
@@ -4359,78 +3971,8 @@ begin
     Result := Default;
 end;
 
-{ TMyFontCache }
-
-//-- BG ---------------------------------------------------------- 30.01.2011 --
-procedure TMyFontCache.Add(Font: TMyFont);
-var
-  I: Integer;
-  FontName: ThtString;
-begin
-  FontName := htLowerCase(Font.Name);
-  if not FFontsByName.Find(FontName, I) then
-  begin
-    I := FFontsByName.Add(FontName);
-    FFontsByName.Objects[I] := TObjectList.Create(True);
-  end;
-  TObjectList(FFontsByName.Objects[I]).Add(Font);
-end;
-
-//-- BG ---------------------------------------------------------- 30.01.2011 --
-constructor TMyFontCache.Create;
-begin
-  inherited;
-  FFontsByName := ThtStringList.Create;
-  FFontsByName.Sorted := True;
-end;
-
-//-- BG ---------------------------------------------------------- 30.01.2011 --
-destructor TMyFontCache.Destroy;
-var
-  I: Integer;
-begin
-  for I := 0 to FFontsByName.Count - 1 do
-    FFontsByName.Objects[I].Free;
-  FFontsByName.Free;
-  inherited;
-end;
-
-//-- BG ---------------------------------------------------------- 30.01.2011 --
-function TMyFontCache.Find(FontInfo: ThtFontInfo): TMyFont;
-
-  function SameFonts(F1: TMyFont; F2: ThtFontInfo): Boolean;
-  begin
-    if F2 <> nil then
-      if F1.Height = -Round(F2.iSize * Screen.PixelsPerInch / 72) then
-        if F1.Style = F2.iStyle then
-          if F1.Charset = F2.iCharset then
-          begin
-            Result := True;
-            exit;
-          end;
-    Result := False;
-  end;
-
-var
-  I: Integer;
-  Fonts: TObjectList;
-begin
-  if FFontsByName.Find(htLowerCase(FontInfo.iName), I) then
-  begin
-    Fonts := TObjectList(FFontsByName.Objects[I]);
-    for I := 0 to Fonts.Count - 1 do
-    begin
-      Result := TMyFont(Fonts[I]);
-      if SameFonts(Result, FontInfo) then
-        exit;
-    end;
-  end;
-  Result := nil;
-end;
-
 initialization
-  AllMyFonts := TMyFontCache.Create;
 finalization
-  FreeAndNil(AllMyFonts);
   FreeAndNil(ColorStrings);
+  FreeAndNil(PropertyStrings);
 end.

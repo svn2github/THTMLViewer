@@ -1,7 +1,7 @@
 {
-Version   11.4
+Version   11.5
 Copyright (c) 1995-2008 by L. David Baldwin
-Copyright (c) 2008-2013 by HtmlViewer Team
+Copyright (c) 2008-2014 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -35,16 +35,16 @@ uses
   Windows,  // needed to expand inline function htUpCase
 {$endif}
   Classes, Graphics, SysUtils,
-  HtmlGlobals, HtmlBuffer, UrlSubs, StyleUn;
+  HtmlGlobals, HtmlBuffer, UrlSubs, StyleUn, StyleTypes;
 
 
 {---------  Detect Shorthand syntax }
 type
-  TShortHand = (
-    MarginX, PaddingX, BorderWidthX, BorderX,
-    BorderTX, BorderRX, BorderBX, BorderLX,
-    FontX, BackgroundX, ListStyleX, BorderColorX,
-    BorderStyleX);
+//  TShortHand = (
+//    MarginX, PaddingX, BorderWidthX, BorderX,
+//    BorderTX, BorderRX, BorderBX, BorderLX,
+//    FontX, BackgroundX, ListStyleX, BorderColorX,
+//    BorderStyleX);
 
   EParseError = class(Exception);
 
@@ -100,13 +100,6 @@ procedure ParsePropertyStr(PropertyStr: ThtString; Propty: TProperties);
 function SortContextualItems(S: ThtString): ThtString;
 
 implementation
-
-const
-  ShortHands: array[Low(TShortHand)..High(TShortHand)] of ThtString = (
-    'margin', 'padding', 'border-width', 'border',
-    'border-top', 'border-right', 'border-bottom', 'border-left',
-    'font', 'background', 'list-style', 'border-color',
-    'border-style');
 
 const
   NeedPound = True;
@@ -329,7 +322,7 @@ procedure THtmlStyleParser.ProcessPropertyOrShortHand(Prop, Value: ThtString);
     I: TShortHand;
   begin
     for I := Low(TShortHand) to High(TShortHand) do
-      if S = ShortHands[I] then
+      if S = PropWords[I] then
       begin
         Result := True;
         Index := I;
@@ -358,83 +351,6 @@ begin
 end;
 
 procedure SplitString(Src: ThtString; out Dest: array of ThtString; out Count: integer);
-{Split a Src ThtString into pieces returned in the Dest ThtString array.  Splitting
- is on spaces with spaces within quotes being ignored.  Do NOT split the string
- for the  "size/line-height" Font construct because "/" also is base-64 encoded-data
- and something like "image/gif" mime type specifier. }
-var
-  I, Q, Q1, N: integer;
-  Z: ThtString;
-  Done: boolean;
-  Match: ThtChar;
-begin
-  Src := Trim(Src);
-  I := Pos('  ', Src);
-  while I > 0 do {simplify operation by removing extra white space}
-  begin
-    Delete(Src, I + 1, 1);
-    I := Pos('  ', Src);
-  end;
-  I := Pos(', ', Src);
-  while I > 0 do {simplify operation by removing spaces after commas}
-  begin
-    Delete(Src, I + 1, 1);
-    I := Pos(', ', Src);
-  end;
-
-  N := 0;
-  while (N <= High(Dest)) and (Src <> '') do
-  begin
-    Z := '';
-    repeat
-      Done := True;
-      I := Pos(' ', Src);
-      Q := Pos('"', Src);
-      Q1 := Pos('''', Src);
-      if (Q1 > 0) and ((Q > 0) and (Q1 < Q) or (Q = 0)) then
-      begin
-        Q := Q1;
-        Match := ''''; {the matching quote ThtChar}
-      end
-      else
-        Match := '"';
-      if I = 0 then
-      begin
-        Z := Z + Src;
-        Src := '';
-      end
-      else if (Q = 0) or (I < Q) then
-      begin
-        Z := Z + Copy(Src, 1, I - 1);
-        Delete(Src, 1, I);
-      end
-      else {Q<I} {quoted ThtString found}
-      begin
-        Z := Z + Copy(Src, 1, Q); {copy to quote}
-        Delete(Src, 1, Q);
-        Q := Pos(Match, Src); {find next quote}
-        if Q > 0 then
-        begin
-          Z := Z + Copy(Src, 1, Q); {copy to second quote}
-          Delete(Src, 1, Q);
-          Done := False; {go back and find the space}
-        end
-        else {oops, missing second quote, copy remaining}
-        begin
-          Z := Z + Src;
-          Src := '';
-        end;
-      end;
-    until Done;
-    if N <= High(Dest) then
-      Dest[N] := Z;
-    Inc(N);
-  end;
-  Count := N;
-end;
-
-
-procedure SplitStringSizeLineHeight(Src: ThtString; out Dest: array of ThtString; out Count: integer);
 {Split a Src ThtString into pieces returned in the Dest ThtString array.  Splitting
  is on spaces with spaces within quotes being ignored.  ThtString containing a '/'
  are also split to allow for the "size/line-height" Font construct. }
@@ -591,7 +507,7 @@ procedure THtmlStyleParser.ProcessShortHand(Index: TShortHand; const Prop, OrigV
 
     SplitString(Value, S, Count);
     for I := 0 to Count - 1 do
-      if ColorFromString(S[I], NeedPound, Dummy) then
+      if TryStrToColor(S[I], NeedPound, Dummy) then
       begin
         Values[shColor] := S[I];
         S[I] := '';
@@ -687,13 +603,13 @@ procedure THtmlStyleParser.ProcessShortHand(Index: TShortHand; const Prop, OrigV
 
     ExtractParn(Value, S, Count);
     for I := 0 to Count - 1 do
-      if ColorFromString(S[I], NeedPound, Dummy) then
+      if TryStrToColor(S[I], NeedPound, Dummy) then
         Values[shColor] := S[I];
 
     SplitString(Value, S, Count);
     for I := 0 to Count - 1 do
     begin
-      if ColorFromString(S[I], NeedPound, Dummy) then
+      if TryStrToColor(S[I], NeedPound, Dummy) then
         Values[shColor] := S[I]
       else if FindStyle(S[I]) then
         Values[shStyle] := S[I]
@@ -763,7 +679,7 @@ procedure THtmlStyleParser.ProcessShortHand(Index: TShortHand; const Prop, OrigV
     Values[shFamily] := '';
 
     // specified values
-    SplitStringSizeLineHeight(Value, S, Count);
+    SplitString(Value, S, Count);
     for I := 0 to Count - 1 do
     begin
       case S[I, 1] of
@@ -863,7 +779,7 @@ procedure THtmlStyleParser.ProcessShortHand(Index: TShortHand; const Prop, OrigV
   var
     S: array[0..3] of ThtString;
     I, Count: integer;
-    Index: array[0..3] of PropIndices;
+    Index: array[0..3] of ThtPropIndices;
 
   begin
     if Value = '' then
@@ -1010,17 +926,17 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 29.12.2010 --
-procedure THtmlStyleTagParser.DoStyle(Styles: TStyleList; var C: ThtChar; Doc: TBuffer; const APath: ThtString; FromLink: boolean);
+procedure THtmlStyleTagParser.DoStyle(Styles: TStyleList; var C: ThtChar; Doc: TBuffer; const APath: ThtString; FromLink: Boolean);
 var
-  AvailableMedia: TMediaTypes;
+  AvailableMedia: ThtMediaTypes;
 
   procedure ReadAt;
   {read @import and @media}
 
-    function GetMediaTypes: TMediaTypes;
+    function GetMediaTypes: ThtMediaTypes;
     var
       Identifier: ThtString;
-      MediaType: TMediaType;
+      MediaType: ThtMediaType;
     begin
       Result := [];
       SkipWhiteSpace;
@@ -1065,7 +981,7 @@ var
 
     procedure DoMedia;
     var
-      Media: TMediaTypes;
+      Media: ThtMediaTypes;
     begin
       Media := GetMediaTypes;
       if Media = [] then
@@ -1112,7 +1028,7 @@ var
     var
       Result: Boolean;
       URL: ThtString;
-      Media: TMediaTypes;
+      Media: ThtMediaTypes;
     begin
       Result := False;
       SkipWhiteSpace;

@@ -394,6 +394,10 @@ begin
   {$ifdef LogIt}
   logwin.LogForm := TLogForm.Create(nil);
   {$endif}
+{$ifdef HasGestures}
+  FrameBrowser.Touch.InteractiveGestureOptions := [igoPanSingleFingerHorizontal, igoPanSingleFingerVertical, igoPanInertia];
+  FrameBrowser.Touch.InteractiveGestures := [igPan];
+{$endif}
   Top := Top div 2;
   if Screen.Width <= 800 then   {make window fit appropriately}
   begin
@@ -2106,14 +2110,17 @@ end;
 procedure THTTPForm.SaveCookies(ASender: TObject; ACookieCollection: TIdCookies);
 var
   M : TMemIniFile;
+{$ifdef HasCookieCollectionPersistent}
   i : Integer;
   LU : TIdURI;
+{$endif}
 begin
   if Monitor1 then  {write only if first instance}
   begin
       M := TMemIniFile.Create(Cache+CookieFile );
       try
         m.Clear;
+{$ifdef HasCookieCollectionPersistent}
           LU := TIdURI.Create;
           try
             m.Clear;
@@ -2137,6 +2144,7 @@ begin
           finally
             LU.Free;
           end;
+{$endif}
         m.UpdateFile;
       finally
         m.Free;
@@ -2165,7 +2173,6 @@ var i : Integer;
   s, LC, LA : String;
   LCookie : TIdCookie;
 begin
-
   for i := 0 to AValues.Count - 1 do begin
     s := AValues[i];
     Fetch(s,'=');

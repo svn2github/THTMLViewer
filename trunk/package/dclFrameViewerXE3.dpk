@@ -35,8 +35,8 @@ requires
   designide,
   vclimg,
   soaprtl,
-  FrameViewerXE3,
-  VclSmp;
+  VclSmp,
+  FrameViewerXE3;
 
 contains
   FrameViewerReg in '..\source\FrameViewerReg.pas',

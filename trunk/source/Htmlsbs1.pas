@@ -1,7 +1,7 @@
 {
-Version   11.4
+Version   11.5
 Copyright (c) 1995-2008 by L. David Baldwin,
-Copyright (c) 2008-2012 by HtmlViewer Team
+Copyright (c) 2008-2014 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -31,24 +31,118 @@ unit Htmlsbs1;
 interface
 
 uses
-{$ifdef LCL}
-  LclIntf, LclType, Types, HtmlMisc, LclProc,
-{$else}
+{$ifdef VCL}
   Windows,
 {$endif}
- {$ifdef scrollbarInClasses}
- System.Classes,
- {$else}
+  Messages,
+{$ifdef LCL}
+  LclIntf, LclType, Types, HtmlMisc, LclProc,
+{$endif}
+{$ifdef scrollbarInClasses}
+  System.Classes,
+{$else}
   Classes,
-  {$endif}
+{$endif}
   Graphics, Controls,
+  //
   HtmlGlobals,
+  HtmlImages,
+  HtmlFonts,
   HtmlSymb,
   HTMLUn2,
   HTMLSubs,
+  StyleTypes,
   StyleUn;
 
 type
+  TTypedFormControlObj = class(TFormControlObj)
+  protected
+    FInputType : THtString;
+  public
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    property InputType : THtString read FInputType;
+  end;
+
+  THiddenFormControlObj = class(TFormControlObj)
+  protected
+    function GetControl: TWinControl; override;
+    function GetClientHeight: Integer; override;
+    function GetClientLeft: Integer; override;
+    function GetTabOrder: Integer; override;
+    function GetTabStop: Boolean; override;
+    function GetClientTop: Integer; override;
+    function GetClientWidth: Integer; override;
+    function IsHidden: Boolean; override;
+    procedure SetClientHeight(Value: Integer); override;
+    procedure SetClientLeft(Value: Integer); override;
+    procedure SetTabOrder(Value: Integer); override;
+    procedure SetTabStop(Value: Boolean); override;
+    procedure SetClientTop(Value: Integer); override;
+    procedure SetClientWidth(Value: Integer); override;
+  public
+    function GetSubmission(Index: Integer; out S: ThtString): boolean; override;
+    procedure Hide; override;
+    procedure SetData(Index: Integer; const V: ThtString); override;
+    procedure Show; override;
+  end;
+
+  TEditBaseFormControlObj = class(TTypedFormControlObj)
+  protected
+    FPlaceholder : ThtString;
+    FSpellCheck : Boolean;
+    FMaxLength : Integer;
+  public
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    property Placeholder : ThtString read FPlaceholder;
+    property SpellCheck : Boolean read FSpellCheck;
+    property MaxLength : Integer read FMaxLength;
+  end;
+  
+  TEditFormControlObj = class(TEditBaseFormControlObj)
+  private
+    FControl: ThtEdit;
+    EnterContents: ThtString;
+    tmAveCharWidth: Integer;
+
+    function getText: ThtString;
+    procedure setText(const Value: ThtString);
+  protected
+    function GetControl: TWinControl; override;
+    procedure DoOnChange; override;
+    procedure SaveContents; override;
+  public
+    EditSize: Integer;
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    destructor Destroy; override;
+    function GetSubmission(Index: Integer; out S: ThtString): boolean; override;
+    procedure DrawInline1(Canvas: TCanvas; X1, Y1: Integer); override;
+    procedure ProcessProperties(Prop: TProperties); override;
+    procedure ResetToValue; override;
+    procedure SetData(Index: Integer; const V: ThtString); override;
+    procedure SetHeightWidth(Canvas: TCanvas); override;
+    property Text: ThtString read getText write setText;
+  end;
+
+  TWhichType = (Submit, ResetB, Button, Browse);
+
+  TButtonFormControlObj = class(TTypedFormControlObj)
+  private
+    FControl: ThtButton;
+  protected
+    function GetControl: TWinControl; override;
+  public
+    Which: TWhichType;
+    MyEdit: TEditFormControlObj;
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    destructor Destroy; override;
+    procedure ButtonClick(Sender: TObject);
+    procedure DrawInline1(Canvas: TCanvas; X1, Y1: Integer); override;
+    procedure SetHeightWidth(Canvas: TCanvas); override;
+  end;
 
   TOptionObj = class(TObject) {used by TListBoxFormControlObj for <option> information}
   public
@@ -78,7 +172,8 @@ type
     FFont: TFont;
     LBSize, Longest: integer;
   public
-    constructor Create(AMasterList: ThtDocument; Position: Integer; L: TAttributeList);
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
     procedure AddStr(const S: ThtString; Selected: boolean; Attr: ThtStringList; CodePage: integer);
     property TheOptions: ThtOptionStringList read FOptions;
@@ -102,14 +197,43 @@ type
     procedure DoOnChange; override;
     procedure SaveContents; override;
   public
-    constructor Create(AMasterList: ThtDocument; Position: integer; L: TAttributeList; Prop: TProperties);
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
     function GetSubmission(Index: integer; out S: ThtString): boolean; override;
-    procedure Draw(Canvas: TCanvas; X1, Y1: integer); override;
+    procedure DrawInline1(Canvas: TCanvas; X1, Y1: integer); override;
     procedure ProcessProperties(Prop: TProperties); override;
     procedure ResetToValue; override;
     procedure SetData(Index: integer; const V: ThtString); override;
     procedure SetHeightWidth(Canvas: TCanvas); override;
+  end;
+
+  TFormCheckBox = class(ThtCheckBox)
+  private
+    procedure WMGetDlgCode(var Message: TMessage); message WM_GETDLGCODE;
+  end;
+
+  TCheckBoxFormControlObj = class(TFormControlObj)
+  private
+    FControl: TFormCheckBox;
+    WasChecked: Boolean;
+    function GetChecked: Boolean;
+    procedure SetChecked(Value: Boolean);
+  protected
+    function GetControl: TWinControl; override;
+    procedure DoOnChange; override;
+    procedure SaveContents; override;
+  public
+    IsChecked: Boolean;
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
+    destructor Destroy; override;
+    function GetSubmission(Index: Integer; out S: ThtString): Boolean; override;
+    procedure DrawInline1(Canvas: TCanvas; X1, Y1: Integer); override;
+    procedure ResetToValue; override;
+    procedure SetData(Index: Integer; const V: ThtString); override;
+    procedure SetDataInit; override;
+    property Checked: Boolean read GetChecked write SetChecked;
   end;
 
   TComboFormControlObj = class(TOptionsFormControlObj)
@@ -126,10 +250,11 @@ type
     procedure DoOnChange; override;
     procedure SaveContents; override;
   public
-    constructor Create(AMasterList: ThtDocument; Position: integer; L: TAttributeList; Prop: TProperties);
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
     function GetSubmission(Index: integer; out S: ThtString): boolean; override;
-    procedure Draw(Canvas: TCanvas; X1, Y1: integer); override;
+    procedure DrawInline1(Canvas: TCanvas; X1, Y1: integer); override;
     procedure ProcessProperties(Prop: TProperties); override;
     procedure ResetToValue; override;
     procedure SetData(Index: integer; const V: ThtString); override;
@@ -138,12 +263,11 @@ type
 
   { TTextAreaFormControlObj }
 
-  TTextAreaFormControlObj = class(TFormControlObj)
+  TTextAreaFormControlObj = class(TEditBaseFormControlObj)
   private
     FControl: ThtMemo;
     EnterContents: ThtString;
-    FPlaceholder : THtString;
-    FMaxLength : Integer;
+
     function GetLine(Index: Integer): ThtString;
     function GetText: ThtString;
     procedure SetText(const AValue: ThtString);
@@ -155,11 +279,12 @@ type
     Wrap: (wrOff, wrSoft, wrHard);
     Rows, Cols: integer;
     TheText: ThtString;
-    constructor Create(AMasterList: ThtDocument; Position: integer; L: TAttributeList; Prop: TProperties);
+    constructor Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties); override;
+    constructor CreateCopy(Parent: TCellBasic; Source: THtmlNode); override;
     destructor Destroy; override;
     function GetSubmission(Index: integer; out S: ThtString): boolean; override;
     procedure ProcessProperties(Prop: TProperties); override;
-    procedure Draw(Canvas: TCanvas; X1, Y1: integer); override;
+    procedure DrawInline1(Canvas: TCanvas; X1, Y1: integer); override;
     procedure AddStr(const S: ThtString);
     procedure ResetToValue; override;
     procedure SetHeightWidth(Canvas: TCanvas); override;
@@ -182,7 +307,7 @@ uses
 destructor TOptionObj.Destroy;
 begin
   Attributes.Free;
-  inherited;
+  inherited Destroy;
 end;
 
 function ThtOptionStringList.GetValue(Index: integer): ThtString;
@@ -221,23 +346,76 @@ var
 begin
   for I := 0 to Count - 1 do
     TOptionObj(Objects[I]).Free;
-  inherited;
+  inherited Destroy;
+end;
+
+{----------------TTypedFormControlObj.Create}
+constructor TTypedFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+var
+  T: TAttribute;
+begin
+  inherited Create(Parent,Position,L,Prop);
+  if L.Find(TypeSy,T) then begin
+      FInputType := lowercase(T.Name);
+  end;
+end;
+
+constructor TTypedFormControlObj.CreateCopy(Parent: TCellBasic;
+  Source: THtmlNode);
+var
+  T: TTypedFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FInputType := T.InputType;
+end;
+
+{ TEditBaseFormControlObj }
+
+constructor TEditBaseFormControlObj.Create(Parent: TCellBasic;
+  Position: Integer; L: TAttributeList; Prop: TProperties);
+var
+  T: TAttribute;
+begin
+  inherited Create(Parent,Position,L,Prop);
+  if L.Find(MaxLengthSy, T) then
+    FMaxLength := T.Value;
+  if L.Find(PlaceholderSy, T) then
+  begin
+    FPlaceholder := T.Name;
+  end;
+  // default is true
+  FSpellCheck := True;
+  if L.Find(SpellCheckSy,T) then begin
+    if Lowercase(T.Name) = 'false' then begin
+      FSpellCheck := False;
+    end;
+  end;
+end;
+
+constructor TEditBaseFormControlObj.CreateCopy(Parent: TCellBasic;
+  Source: THtmlNode);
+var
+  T: TEditBaseFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FMaxLength := T.MaxLength;
+  FPlaceholder := T.Placeholder;
+  FSpellCheck := T.SpellCheck;
 end;
 
 {----------------TListBoxFormControlObj.Create}
 
-constructor TListBoxFormControlObj.Create(AMasterList: ThtDocument;
-  Position: integer; L: TAttributeList; Prop: TProperties);
+constructor TListBoxFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
   T: TAttribute;
   Multiple: boolean;
   PntPanel: TWinControl; //TPaintPanel;
-  Tmp: TMyFont;
+  Tmp: ThtFont;
 begin
-  inherited Create(AMasterList, Position, L);
+  inherited Create(Parent,Position,L,Prop);
   CodePage := Prop.CodePage;
   Multiple := L.Find(MultipleSy, T);
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
+  PntPanel := Document.PPanel;
   FControl := ThtListbox.Create(PntPanel);
   with FControl do
   begin
@@ -261,51 +439,70 @@ begin
     OnMouseMove := HandleMouseMove;
     Enabled := not Disabled;
 {$ifdef has_StyleElements}
-    StyleElements := AMasterList.StyleElements;
+    StyleElements := Document.StyleElements;
 {$endif}
   end;
 end;
 
+//-- BG ---------------------------------------------------------- 30.08.2013 --
+constructor TListBoxFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TListBoxFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FControl := T.FControl;
+  EnterItems := T.EnterItems;
+  EnterSelected := T.EnterSelected;
+end;
+
 destructor TListBoxFormControlObj.Destroy;
 begin
-  FControl.Free;
+  if not IsCopy then
+  begin
+    FControl.Parent := nil;
+    FControl.Free;
+  end;
   inherited Destroy;
 end;
 
 procedure TListboxFormControlObj.ProcessProperties(Prop: TProperties);
 begin
-  inherited;
+  inherited ProcessProperties(Prop);
   if BkColor <> clNone then
     FControl.Color := BkColor;
 end;
 
-procedure TListBoxFormControlObj.Draw(Canvas: TCanvas; X1, Y1: integer);
+procedure TListBoxFormControlObj.DrawInline1(Canvas: TCanvas; X1, Y1: integer);
 var
   H2, I, Addon: integer;
   ARect: TRect;
 begin
-  ARect := Rect(X1, Y1, X1 + FControl.Width, Y1 + FControl.Height);
-  if FControl.BorderStyle <> bsNone then
+  inherited DrawInline1(Canvas,X1,Y1);
+  if IsCopy then
   begin
-    DrawFormControlRect(Canvas, ARect.Left, ARect.Top, ARect.Right, ARect.Bottom, False, MasterList.PrintMonoBlack, False, FControl.Color {$ifdef has_StyleElements}, MasterList.StyleElements{$endif});
-    Addon := 4;
-  end
-  else
-  begin
-    FillRectWhite(Canvas, ARect.Left, ARect.Top, ARect.Right, ARect.Bottom, FControl.Color {$ifdef has_StyleElements}, MasterList.StyleElements{$endif});
-    Addon := 2;
-  end;
+    ARect := Rect(X1, Y1, X1 + FControl.Width, Y1 + FControl.Height);
+    if FControl.BorderStyle <> bsNone then
+    begin
+      DrawFormControlRect(Canvas, ARect.Left, ARect.Top, ARect.Right, ARect.Bottom, False, Document.PrintMonoBlack, False, FControl.Color {$ifdef has_StyleElements}, Document.StyleElements{$endif});
+      Addon := 4;
+    end
+    else
+    begin
+      FillRectWhite(Canvas, ARect.Left, ARect.Top, ARect.Right, ARect.Bottom, FControl.Color {$ifdef has_StyleElements}, Document.StyleElements{$endif});
+      Addon := 2;
+    end;
 
-  Canvas.Brush.Style := bsClear;
-  Canvas.Font := FControl.Font;
-  Canvas.Font.Color := ThemedColor( Canvas.Font.Color{$ifdef has_StyleElements}, seFont in Self.MasterList.StyleElements{$endif});
-  H2 := Abs(Canvas.Font.Height);
-  SetTextAlign(Canvas.Handle, TA_Left + TA_Top);
-  InflateRect(ARect, -Addon, -Addon);
-  for I := FControl.TopIndex to Min(FControl.Items.Count - 1, FControl.TopIndex + LBSize - 1) do
-    ThtCanvas(Canvas).htTextRect(
-      ARect, ARect.Left, ARect.Top + (I - FControl.TopIndex) * H2,
-      {$ifdef LCL}Utf8Decode{$endif}(FControl.Items[I]));
+    Canvas.Brush.Style := bsClear;
+    Canvas.Font := FControl.Font;
+    Canvas.Font.Color := ThemedColor( FControl.Font.Color{$ifdef has_StyleElements}, seFont in Document.StyleElements{$endif});
+    H2 := Abs(Canvas.Font.Height);
+    SetTextAlign(Canvas.Handle, TA_Left + TA_Top);
+    InflateRect(ARect, -Addon, -Addon);
+    for I := FControl.TopIndex to Min(FControl.Items.Count - 1, FControl.TopIndex + LBSize - 1) do
+      ThtCanvas(Canvas).htTextRect(
+        ARect, ARect.Left, ARect.Top + (I - FControl.TopIndex) * H2,
+        {$ifdef LCL}Utf8Decode{$endif}(FControl.Items[I]));
+  end;
 end;
 
 procedure TListBoxFormControlObj.ResetToValue;
@@ -336,7 +533,7 @@ begin
   with FControl do
   begin
     Canvas.Font := Font;
-    Canvas.Font.Color := ThemedColor( Canvas.Font.Color{$ifdef has_StyleElements},seFont in Self.MasterList.StyleElements{$endif});
+    Canvas.Font.Color := ThemedColor( Canvas.Font.Color{$ifdef has_StyleElements},seFont in Document.StyleElements{$endif});
 
     if LBSize = -1 then
       LBSize := Max(1, Min(8, TheOptions.Count));
@@ -409,8 +606,8 @@ begin
         end;
   end;
   if Changed then
-    if Assigned(MasterList.ObjectChange) then
-      MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
+    if Assigned(Document.ObjectChange) then
+      Document.ObjectChange(Document.TheOwner, Self, OnChangeMessage);
 end;
 
 {$IFDEF OpOnChange}
@@ -452,16 +649,15 @@ end;
 
 {----------------TComboFormControlObj.Create}
 
-constructor TComboFormControlObj.Create(AMasterList: ThtDocument;
-  Position: integer; L: TAttributeList; Prop: TProperties);
+constructor TComboFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
   PntPanel: TWinControl; //TPaintPanel;
-  Tmp: TMyFont;
+  Tmp: ThtFont;
   T : TAttribute;
 begin
-  inherited Create(AMasterList, Position, L);
+  inherited Create(Parent,Position,L,Prop);
   CodePage := Prop.CodePage;
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
+  PntPanel := Document.PPanel;
   FControl := ThtCombobox.Create(PntPanel);
   with FControl do
   begin
@@ -473,18 +669,18 @@ begin
     Style := csDropDownList;
     OnEnter := EnterEvent;
     OnExit := ExitEvent;
-{$IFDEF OpOnChange}
+{$ifdef OpOnChange}
     OnChange := OptionalOnChange;
-{$ELSE}
+{$else}
     OnClick := FormControlClick;
-{$ENDIF}
-{$IFDEF UseElpack} {others don't have onmousemove}
+{$endif}
+{$ifdef UseElPack} {others don't have onmousemove}
     OnMouseMove := HandleMouseMove;
-{$ENDIF}
+{$endif}
     OnDropDown := FormControlClick;
     Enabled := not Disabled;
 {$ifdef has_StyleElements}
-    FControl.StyleElements := AMasterList.StyleElements;
+    FControl.StyleElements := Document.StyleElements;
 {$endif}
   end;
   FControl.Parent := PntPanel;
@@ -515,25 +711,28 @@ end;
 
 procedure TComboFormControlObj.ProcessProperties(Prop: TProperties);
 begin
-  inherited;
+  inherited  ProcessProperties(Prop);
   if BkColor <> clNone then
     FControl.Color := BkColor;
 end;
 
-procedure TComboFormControlObj.Draw(Canvas: TCanvas; X1, Y1: integer);
+procedure TComboFormControlObj.DrawInline1(Canvas: TCanvas; X1, Y1: integer);
 var
   ARect: TRect;
 begin
-  ARect := Rect(X1, Y1, X1 + FControl.Width, Y1 + FControl.Height);
-  DrawFormControlRect(Canvas, ARect.Left, ARect.Top, ARect.Right, ARect.Bottom, False, MasterList.PrintMonoBlack, False, FControl.Color{$ifdef has_StyleElements},MasterList.StyleElements{$endif});
-  Canvas.Brush.Style := bsClear;
-  Canvas.Font := FControl.Font;
-  Canvas.Font.Color := ThemedColor(FControl.Font.Color{$ifdef has_StyleElements},seFont in MasterList.StyleElements{$endif});
-  SetTextAlign(Canvas.Handle, TA_Left + TA_Top);
-  InflateRect(ARect, -4, -4);
-  Inc(ARect.Bottom, 5);
-  ThtCanvas(Canvas).htTextRect(ARect, ARect.Left, ARect.Top,
-    {$ifdef LCL}Utf8Decode{$endif}(FControl.Items[FControl.ItemIndex]));
+  inherited DrawInline1(Canvas,X1,Y1);
+  if IsCopy then
+  begin
+    ARect := Rect(X1, Y1, X1 + FControl.Width, Y1 + FControl.Height);
+    DrawFormControlRect(Canvas, ARect.Left, ARect.Top, ARect.Right, ARect.Bottom, False, Document.PrintMonoBlack, False, FControl.Color{$ifdef has_StyleElements}, Document.StyleElements{$endif});
+    Canvas.Brush.Style := bsClear;
+    Canvas.Font := FControl.Font;
+    Canvas.Font.Color := ThemedColor(FControl.Font.Color{$ifdef has_StyleElements}, seFont in Document.StyleElements{$endif});
+    SetTextAlign(Canvas.Handle, TA_Left + TA_Top);
+    InflateRect(ARect, -4, -4);
+    Inc(ARect.Bottom, 5);
+    ThtCanvas(Canvas).htTextRect(ARect, ARect.Left, ARect.Top, {$ifdef LCL}Utf8Decode{$endif}(FControl.Items[FControl.ItemIndex]));
+  end;
 end;
 
 procedure TComboFormControlObj.SetHeightWidth(ACanvas: TCanvas);
@@ -594,55 +793,68 @@ begin
   if FControl.ItemIndex <> EnterIndex then
   begin
     SaveContents;
-    if Assigned(MasterList.ObjectChange) then
-      MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
+    if Assigned(Document.ObjectChange) then
+      Document.ObjectChange(Document.TheOwner, Self, OnChangeMessage);
   end;
 end;
 {$ENDIF}
 
+//-- BG ---------------------------------------------------------- 30.08.2013 --
+constructor TComboFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TComboFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FControl := T.FControl;
+  EnterIndex := T.EnterIndex;
+  FPlaceholder := T.FPlaceholder;
+end;
+
 //-- BG ---------------------------------------------------------- 16.01.2011 --
 destructor TComboFormControlObj.Destroy;
 begin
-  FControl.Free;
-  inherited;
+  if not IsCopy then
+  begin
+    FControl.Parent := nil;
+    FControl.Free;
+  end;
+  inherited Destroy;
 end;
 
 procedure TComboFormControlObj.DoOnChange;
 begin
 {$IFNDEF OpOnChange}
   if FControl.ItemIndex <> EnterIndex then
-    if Assigned(MasterList.ObjectChange) then
-      MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
+    if Assigned(Document.ObjectChange) then
+      Document.ObjectChange(Document.TheOwner, Self, OnChangeMessage);
 {$ENDIF}
 end;
 
 {----------------TTextAreaFormControlObj.Create}
 
-constructor TTextAreaFormControlObj.Create(AMasterList: ThtDocument;
-  Position: integer; L: TAttributeList; Prop: TProperties);
+constructor TTextAreaFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
   PntPanel: TWinControl; //TPaintPanel;
   I: integer;
   SB: ThtScrollStyle;
-  Tmp: TMyFont;
-  T : TAttribute;
+ Tmp: ThtFont;
 begin
-  inherited Create(AMasterList, Position, L);
+  inherited Create(Parent,Position,L,Prop);
   CodePage := Prop.CodePage;
   Rows := 5;
   Cols := 30;
   Wrap := wrSoft;
-  SB := ssVertical;
+  SB := StdCtrls.ssVertical;
 
   for I := 0 to L.Count - 1 do
-    with TAttribute(L[I]) do
+    with L[I] do
       case Which of
         RowsSy: Rows := Value;
         ColsSy: Cols := Value;
         WrapSy:
           if (Lowercase(Name) = 'off') then
           begin
-            SB := ssBoth;
+            SB := StdCtrls.ssBoth;
             Wrap := wrOff;
           end
           else if (Lowercase(Name) = 'hard') then
@@ -651,7 +863,7 @@ begin
           end;
       end;
 
-  PntPanel := {TPaintPanel(}AMasterList.PPanel{)};
+  PntPanel := Document.PPanel;
   FControl := ThtMemo.Create(PntPanel);
   with FControl do
   begin
@@ -671,61 +883,76 @@ begin
     Enabled := not Disabled;
     ReadOnly := Self.Readonly;
      {$ifdef has_StyleElements}
-    FControl.StyleElements := AMasterList.StyleElements;
+    FControl.StyleElements := Document.StyleElements;
      {$endif}
   end;
   FControl.Parent := PntPanel;
   FControl.TextHint.Clear;
-  if L.Find(PlaceholderSy, T) then
-  begin
-    FPlaceholder := T.Name;
+  if FPlaceholder <> '' then begin
     FControl.TextHint.Add( FPlaceholder);
   end;
-  if L.Find(MaxLengthSy, T) then
-  begin
-      FMaxLength := T.Value;
-      FControl.MaxLength := T.Value;
+  if FMaxLength <> 0 then begin
+    FControl.MaxLength := FMaxLength;
   end;
+end;
+
+constructor TTextAreaFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TTextAreaFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FControl := T.FControl;
+  EnterContents := T.EnterContents;
+  Wrap := T.Wrap;
+  Rows := T.Rows;
+  Cols := T.Cols;
+  TheText := T.TheText;
 end;
 
 destructor TTextAreaFormControlObj.Destroy;
 begin
-  FControl.Free;
+  if not IsCopy then
+  begin
+    FControl.Parent := nil;
+    FControl.Free;
+  end;
   inherited Destroy;
 end;
 
 procedure TTextAreaFormControlObj.ProcessProperties(Prop: TProperties);
 begin
-  inherited;
+  inherited ProcessProperties(Prop);
   if BkColor <> clNone then
     FControl.Color := BkColor;
 end;
 
-procedure TTextAreaFormControlObj.Draw(Canvas: TCanvas; X1, Y1: integer);
+procedure TTextAreaFormControlObj.DrawInline1(Canvas: TCanvas; X1, Y1: integer);
 var
   H2, I, Addon: integer;
   ARect: TRect;
 begin
-  with FControl do
-  begin
-    if BorderStyle <> bsNone then
+  inherited DrawInline1(Canvas,X1,Y1);
+  if IsCopy then
+    with FControl do
     begin
-      DrawFormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, False, MasterList.PrintMonoBlack, False, FControl.Color{$ifdef has_StyleElements},MasterList.StyleElements{$endif});
-      Addon := 4;
-    end
-    else
-    begin
-      FillRectWhite(Canvas, X1, Y1, X1 + Width, Y1 + Height, FControl.Color {$ifdef has_StyleElements}, MasterList.StyleElements{$endif});
-      Addon := 2;
+      if BorderStyle <> bsNone then
+      begin
+        DrawFormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, False, Document.PrintMonoBlack, False, FControl.Color{$ifdef has_StyleElements}, Document.StyleElements{$endif});
+        Addon := 4;
+      end
+      else
+      begin
+        FillRectWhite(Canvas, X1, Y1, X1 + Width, Y1 + Height, FControl.Color {$ifdef has_StyleElements}, Document.StyleElements{$endif});
+        Addon := 2;
+      end;
+      Canvas.Brush.Style := bsClear;
+      Canvas.Font := Font;
+      H2 := Canvas.TextHeight('A');
+      SetTextAlign(Canvas.handle, TA_Left + TA_Top);
+      ARect := Rect(X1 + Addon, Y1 + Addon, X1 + Width - 2 * Addon, Y1 + Height - 2 * Addon);
+      for I := 0 to Min(Lines.Count - 1, Rows - 1) do
+        ThtCanvas(Canvas).htTextRect(ARect, X1 + Addon, Y1 + Addon + I * H2, Lines[I]);
     end;
-    Canvas.Brush.Style := bsClear;
-    Canvas.Font := Font;
-    H2 := Canvas.TextHeight('A');
-    SetTextAlign(Canvas.handle, TA_Left + TA_Top);
-    ARect := Rect(X1 + Addon, Y1 + Addon, X1 + Width - 2 * Addon, Y1 + Height - 2 * Addon);
-    for I := 0 to Min(Lines.Count - 1, Rows - 1) do
-      ThtCanvas(Canvas).htTextRect(ARect, X1 + Addon, Y1 + Addon + I * H2, Lines[I]);
-  end;
 end;
 
 procedure TTextAreaFormControlObj.SetHeightWidth(Canvas: TCanvas);
@@ -822,8 +1049,8 @@ end;
 procedure TTextAreaFormControlObj.DoOnChange;
 begin
   if Text <> EnterContents then
-    if Assigned(MasterList.ObjectChange) then
-      MasterList.ObjectChange(MasterList.TheOwner, Self, OnChangeMessage);
+    if Assigned(Document.ObjectChange) then
+      Document.ObjectChange(Document.TheOwner, Self, OnChangeMessage);
 end;
 
 { TOptionsFormControlObj }
@@ -865,12 +1092,11 @@ begin
   Longest := Max(Longest, ExtS.cx);
 end;
 
-constructor TOptionsFormControlObj.Create(AMasterList: ThtDocument; Position: Integer;
-  L: TAttributeList);
+constructor TOptionsFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
 var
   T: TAttribute;
 begin
-  inherited;
+  inherited Create(Parent,Position,L,Prop);
   FOptions := ThtOptionStringList.Create;
   if L.Find(SizeSy, T) then
     LBSize := T.Value
@@ -879,10 +1105,638 @@ begin
   Longest := 3; {the minimum size}
 end;
 
+//-- BG ---------------------------------------------------------- 29.08.2013 --
+constructor TOptionsFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TOptionsFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FOptions := T.FOptions;
+  FFont := T.FFont;
+  LBSize := T.LBSize;
+  Longest := T.Longest;
+end;
+
 destructor TOptionsFormControlObj.Destroy;
 begin
-  FOptions.Free;
-  inherited;
+  if not IsCopy then
+  begin
+    FOptions.Free;
+  end;
+  inherited Destroy;
+end;
+
+{----------------THiddenFormControlObj.GetSubmission}
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function THiddenFormControlObj.GetControl: TWinControl;
+begin
+  Result := nil;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetClientHeight: Integer;
+begin
+  Result := 0;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetClientLeft: Integer;
+begin
+  Result := -4000;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetSubmission(Index: Integer; out S: ThtString): boolean;
+begin
+  Result := Index = 0;
+  if Result then
+    S := Name + '=' + Value;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function THiddenFormControlObj.GetTabOrder: Integer;
+begin
+  Result := -1;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function THiddenFormControlObj.GetTabStop: Boolean;
+begin
+  Result := False;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetClientTop: Integer;
+begin
+  Result := 0;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.GetClientWidth: Integer;
+begin
+  Result := 0;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.Hide;
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function THiddenFormControlObj.IsHidden: Boolean;
+begin
+  Result := True;
+end;
+
+procedure THiddenFormControlObj.SetData(Index: Integer; const V: ThtString);
+begin
+  Value := V;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.SetClientHeight(Value: Integer);
+begin
+// do nothing
+end;
+
+procedure THiddenFormControlObj.SetClientLeft(Value: Integer);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure THiddenFormControlObj.SetTabOrder(Value: Integer);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure THiddenFormControlObj.SetTabStop(Value: Boolean);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.SetClientTop(Value: Integer);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.SetClientWidth(Value: Integer);
+begin
+// do nothing
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure THiddenFormControlObj.Show;
+begin
+// do nothing
+end;
+
+{----------------TEditFormControlObj.Create}
+
+constructor TEditFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+var
+  T: TAttribute;
+  PntPanel: TWinControl; //TPaintPanel;
+  I: Integer;
+  Tmp: ThtFont;
+
+begin
+  inherited Create(Parent, Position, L, Prop);
+  CodePage := Prop.CodePage;
+  EditSize := 15;
+  if L.Find(SizeSy, T) then
+  begin
+    if T.Value > 0 then
+      EditSize := T.Value
+    else
+    begin {see if it's comma delimited list}
+      I := Min(System.Pos(',', T.Name), System.Pos(' ', T.Name));
+      if I > 1 then
+        EditSize := StrToIntDef(copy(T.Name, 1, I - 1), 20);
+    end;
+  end;
+  PntPanel := Document.PPanel;
+  FControl := ThtEdit.Create(PntPanel);
+  with FControl do
+  begin
+    Left := -4000; {so will be invisible until placed}
+    Width := 120;
+    if Prop.HasBorderStyle then
+      BorderStyle := bsNone;
+    Parent := PntPanel;
+    Tmp := Prop.GetFont;
+    Font.Assign(Tmp);
+    FHeight := Height; {Height can change when font assigned}
+    tmAveCharWidth := Tmp.tmAveCharWidth;
+    Tmp.Free;
+    Text := Value;
+
+    if FInputType= 'password'  then begin
+      PassWordChar := '*';
+    end;
+    OnKeyPress := MyForm.ControlKeyPress;
+    OnEnter := EnterEvent;
+    OnExit := ExitEvent;
+    OnClick := FormControlClick;
+    OnMouseMove := HandleMouseMove;
+    Enabled := not Disabled;
+    ReadOnly := Self.Readonly;
+    {$ifdef has_StyleElements}
+    StyleElements := Document.StyleElements;
+    {$endif}
+    if FPlaceholder <> '' then begin
+      TextHint := FPlaceholder;
+    end;
+    if FMaxLength <> 0 then begin
+      MaxLength := FMaxLength;
+    end;
+  end;
+end;
+
+procedure TEditFormControlObj.ProcessProperties(Prop: TProperties);
+begin
+  inherited ProcessProperties(Prop);
+  if BkColor <> clNone then
+    FControl.Color := BkColor;
+end;
+
+procedure TEditFormControlObj.ResetToValue;
+begin
+  Text := Value;
+end;
+
+procedure TEditFormControlObj.DrawInline1(Canvas: TCanvas; X1, Y1: Integer);
+var
+  H2, Addon: Integer;
+  ARect: TRect;
+begin
+  inherited DrawInline1(Canvas,X1,Y1);
+  if IsCopy then
+  begin
+    if FControl.BorderStyle <> bsNone then
+      Addon := 4 {normal 3D border}
+    else
+      Addon := 2; {inline border, 3D Border removed}
+    with FControl do
+    begin
+      Canvas.Font := Font;
+      H2 := Abs(Font.Height);
+      if BorderStyle <> bsNone then
+        DrawFormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, False, Document.PrintMonoBlack, False, Color{$ifdef has_StyleElements},Document.StyleElements{$endif})
+      else
+        FillRectWhite(Canvas, X1, Y1, X1 + Width, Y1 + Height, Color {$ifdef has_StyleElements}, Document.StyleElements{$endif});
+      SetTextAlign(Canvas.handle, TA_Left);
+      SetBkMode(Canvas.Handle, {$ifdef FPC}Lcltype.{$endif}Transparent);
+      Canvas.Brush.Style := bsClear;
+      ARect := Rect(X1 + Addon, Y1, X1 + Width - (Addon div 2), Y1 + Height);
+      ThtCanvas(Canvas).htTextRect(ARect, ARect.Left, Y1 + (Height - H2) div 2 - 1, Text);
+    end;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TEditFormControlObj.GetControl: TWinControl;
+begin
+  Result := FControl;
+end;
+
+function TEditFormControlObj.GetSubmission(Index: Integer; out S: ThtString): boolean;
+begin
+  Result := Index = 0;
+  if Result then
+    S := Name + '=' + Text;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+function TEditFormControlObj.getText: ThtString;
+begin
+  Result := {$ifdef LCL}UTF8Decode{$endif}(FControl.Text);
+end;
+
+procedure TEditFormControlObj.SetData(Index: Integer; const V: ThtString);
+begin
+  Text := V;
+end;
+
+procedure TEditFormControlObj.SetHeightWidth(Canvas: TCanvas);
+begin
+  with FControl do
+  begin
+    Canvas.Font := Font;
+    if not PercentWidth then
+      if (FWidth >= 10) then
+        Width := FWidth
+      else
+        Width := tmAveCharWidth * EditSize + 23
+    else
+    begin {percent width set later}
+      Left := -4000;
+      Width := 10;
+    end;
+    Height := Max(FHeight, Max(Canvas.TextHeight('A'), 10));
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+procedure TEditFormControlObj.setText(const Value: ThtString);
+begin
+  FControl.Text := {$ifdef LCL}Utf8Encode{$endif}(Value);
+end;
+
+procedure TEditFormControlObj.SaveContents;
+{Save the current value to see if it has changed when focus is lost}
+begin
+  EnterContents := Text;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+constructor TEditFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TEditFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FControl := T.FControl;
+  EnterContents := T.EnterContents;
+  tmAveCharWidth := T.tmAveCharWidth;
+  FPlaceholder := T.FPlaceholder;
+end;
+
+destructor TEditFormControlObj.Destroy;
+begin
+  if not IsCopy then
+  begin
+    FControl.Parent := nil;
+    FControl.Free;
+  end;
+  inherited Destroy;
+end;
+
+procedure TEditFormControlObj.DoOnChange;
+begin
+  if Text <> EnterContents then
+    if Assigned(Document.ObjectChange) then
+      Document.ObjectChange(Document.TheOwner, Self, OnChangeMessage);
+end;
+
+{----------------TButtonFormControlObj.Create}
+
+constructor TButtonFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+var
+  PntPanel: TWinControl; //TPaintPanel;
+  Tmp: ThtFont;
+begin
+  inherited Create(Parent, Position, L, Prop);
+  if FInputType = 'submit' then
+  begin
+    Which := Submit;
+    if Value = '' then
+      Value := 'Submit';
+  end
+  else if FInputType = 'reset' then
+  begin
+    Which := ResetB;
+    if Value = '' then
+      Value := 'Reset';
+  end
+  else if FInputType = 'file' then
+  begin
+    Which := Browse;
+    Value := '';
+    Name := '';
+    Id := '';
+  end
+  else
+  begin
+    Which := Button;
+    if Value = '' then
+      Value := 'Button';
+  end;
+  PntPanel := Document.PPanel;
+  FControl := ThtButton.Create(PntPanel);
+  with FControl do
+  begin
+    Left := -4000; {so will be invisible until placed}
+    Tmp := Prop.GetFont;
+    Font.Assign(Tmp);
+    Tmp.Free;
+    OnClick := Self.ButtonClick;
+    if Which = Browse then
+      Caption := 'Browse...'
+    else
+      Caption := {$ifdef LCL}Utf8Encode{$endif}(Value);
+    OnEnter := EnterEvent;
+    OnExit := ExitEvent;
+    OnMouseMove := HandleMouseMove;
+    Enabled := not Disabled;
+     {$ifdef has_StyleElements}
+    StyleElements := Document.StyleElements;
+     {$endif}
+  end;
+  FControl.Parent := PntPanel;
+{$ifdef UseElPack}
+      FControl.Color := clBtnFace;
+{$endif}
+end;
+
+//-- BG ---------------------------------------------------------- 29.08.2013 --
+constructor TButtonFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TButtonFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FControl := T.FControl;
+  Which := T.Which;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+destructor TButtonFormControlObj.Destroy;
+begin
+  if not IsCopy then
+  begin
+    FControl.Parent := nil;
+    FControl.Free;
+  end;
+  inherited Destroy;
+end;
+
+procedure TButtonFormControlObj.DrawInline1(Canvas: TCanvas; X1, Y1: Integer);
+var
+  H2: Integer;
+  MonoBlack: boolean;
+begin
+  inherited DrawInline1(Canvas,X1,Y1);
+  if IsCopy then
+    with FControl do
+    begin
+      MonoBlack := Document.PrintMonoBlack and (GetDeviceCaps(Canvas.Handle, BITSPIXEL) = 1) and
+        (GetDeviceCaps(Canvas.Handle, PLANES) = 1);
+      if not MonoBlack then
+      begin
+        try
+          if not Assigned(PaintBitmap) then
+          begin
+            PaintBitmap := TBitmap.Create;
+            PaintBitmap.Width := Width;
+            PaintBitmap.Height := Height;
+            PaintBitmap.Canvas.Lock;
+            PaintTo(PaintBitmap.Canvas.Handle, 0, 0);
+            PaintBitmap.Canvas.UnLock;
+          end;
+          PrintBitmap(Canvas, X1, Y1, Width, Height, PaintBitmap);
+        except end;
+      end
+      else
+      begin
+        Canvas.Brush.Style := bsClear;
+        Canvas.Font := Font;
+        Canvas.Font.Color := ThemedColor(Font.Color{$ifdef has_StyleElements},seFont in Document.StyleElements{$endif});
+        DrawFormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, True, Document.PrintMonoBlack, False, clWhite{$ifdef has_StyleElements},Document.StyleElements{$endif});
+        H2 := Canvas.TextHeight('A');
+        SetTextAlign(Canvas.handle, TA_Center + TA_Top);
+        ThtCanvas(Canvas).htTextRect(Rect(X1, Y1, X1 + Width, Y1 + Height), X1 + (Width div 2), Y1 + (Height - H2) div 2, Value);
+      end;
+    end;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TButtonFormControlObj.GetControl: TWinControl;
+begin
+  Result := FControl;
+end;
+
+procedure TButtonFormControlObj.ButtonClick(Sender: TObject);
+var
+  S: ThtString;
+begin
+  FormControlClick(Self);
+  if Which = ResetB then
+    MyForm.ResetControls
+  else if Which = Submit then
+    if Name = '' then
+      MyForm.SubmitTheForm('')
+    else
+    begin
+      S := Name;
+      MyForm.SubmitTheForm(S + '=' + Value);
+    end
+  else if Which = Browse then
+    if Assigned(Document.FileBrowse) and (MyEdit is TEditFormControlObj) then
+    begin
+      S := MyEdit.Text;
+      Document.FileBrowse(Document.TheOwner, MyEdit, S);
+      MyEdit.Text := S;
+    end;
+end;
+
+procedure TButtonFormControlObj.SetHeightWidth(Canvas: TCanvas);
+begin
+  with FControl do
+  begin
+    Canvas.Font := Font;
+    if FHeight >= Canvas.TextHeight('A') then
+      Height := FHeight
+    else
+      Height := Canvas.TextHeight('A') + 8;
+    if (FWidth >= 10) and not PercentWidth then {percent width set later}
+      Width := FWidth
+    else
+      Width := Canvas.TextWidth(Caption) + 20;
+  end;
+end;
+
+{----------------TFormCheckBox.WMGetDlgCode}
+
+procedure TFormCheckBox.WMGetDlgCode(var Message: TMessage);
+begin
+  Message.Result := DLGC_WantArrows; {this to eat the arrow keys}
+end;
+
+{----------------TCheckBoxFormControlObj.Create}
+
+type
+  THtmlFormOpener = class(THtmlForm)
+  end;
+
+constructor TCheckBoxFormControlObj.Create(Parent: TCellBasic; Position: Integer; L: TAttributeList; Prop: TProperties);
+var
+  T: TAttribute;
+  PntPanel: TWinControl; //TPaintPanel;
+begin
+  inherited Create(Parent,Position,L,Prop);
+  if Value = '' then
+    Value := 'on';
+  VertAlign := ABaseline;
+  if L.Find(CheckedSy, T) then
+    IsChecked := True;
+  PntPanel := Document.PPanel;
+  FControl := TFormCheckBox.Create(PntPanel);
+  with FControl do
+  begin
+    Left := -4000; {so will be invisible until placed}
+    Width := 13;
+    Height := 13;
+    OnKeyDown := THtmlFormOpener(MyForm).AKeyDown;
+    OnEnter := EnterEvent;
+    OnExit := ExitEvent;
+    OnMouseMove := HandleMouseMove;
+    Enabled := not Disabled;
+    Parent := PntPanel;
+    Checked := IsChecked; {must precede setting OnClick}
+    OnClick := FormControlClick;
+    {$ifdef has_StyleElements}
+    StyleElements := Document.StyleElements;
+    {$endif}
+  end;
+end;
+
+procedure TCheckBoxFormControlObj.ResetToValue;
+begin
+  FControl.Checked := IsChecked;
+end;
+
+procedure TCheckBoxFormControlObj.DrawInline1(Canvas: TCanvas; X1, Y1: Integer);
+var
+  x, y: Integer;
+begin
+  inherited DrawInline1(Canvas,X1,Y1);
+  if IsCopy then
+    with FControl do
+    begin
+      DrawFormControlRect(Canvas, X1, Y1, X1 + Width, Y1 + Height, False, Document.PrintMonoBlack, Disabled, clWhite{$ifdef has_StyleElements},Document.StyleElements{$endif});
+      if Checked then
+        with Canvas do
+        begin
+          Pen.Color := clBlack;
+          x := X1 + 3; y := Y1 + Height div 2;
+          MoveTo(x, y);
+          LineTo(x + 2, y + 2);
+          LineTo(x + 6, y - 2);
+        end;
+    end
+  else
+  begin
+    if Active and Document.TheOwner.ShowFocusRect then //MK20091107
+    begin
+      Canvas.Brush.Color := clWhite;
+      Canvas.DrawFocusRect(Rect(Left - 3, Top - 3, Left + 16, Top + 16));
+    end;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TCheckBoxFormControlObj.GetChecked: Boolean;
+begin
+  Result := FControl.Checked;
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+function TCheckBoxFormControlObj.GetControl: TWinControl;
+begin
+  Result := FControl;
+end;
+
+function TCheckBoxFormControlObj.GetSubmission(Index: Integer; out S: ThtString): boolean;
+begin
+  Result := (Index = 0) and FControl.Checked;
+  if Result then
+    S := Name + '=' + Value;
+end;
+
+procedure TCheckBoxFormControlObj.SetDataInit;
+begin
+  FControl.Checked := False; {not checked unless later data says so}
+end;
+
+//-- BG ---------------------------------------------------------- 16.01.2011 --
+procedure TCheckBoxFormControlObj.SetChecked(Value: Boolean);
+begin
+  FControl.Checked := Value;
+end;
+
+procedure TCheckBoxFormControlObj.SetData(Index: Integer; const V: ThtString);
+begin
+  if htCompareText(V, Value) = 0 then
+    FControl.Checked := True;
+end;
+
+procedure TCheckBoxFormControlObj.SaveContents;
+{Save the current value to see if it has changed when focus is lost}
+begin
+  WasChecked := FControl.Checked;
+end;
+
+//-- BG ---------------------------------------------------------- 30.08.2013 --
+constructor TCheckBoxFormControlObj.CreateCopy(Parent: TCellBasic; Source: THtmlNode);
+var
+  T: TCheckBoxFormControlObj absolute Source;
+begin
+  inherited CreateCopy(Parent,Source);
+  FControl := T.FControl;
+  WasChecked := T.WasChecked;
+  IsChecked := T.IsChecked;
+end;
+
+//-- BG ---------------------------------------------------------- 15.01.2011 --
+destructor TCheckBoxFormControlObj.Destroy;
+begin
+  if not IsCopy then
+  begin
+    FControl.Parent := nil;
+    FControl.Free;
+  end;
+  inherited Destroy;
+end;
+
+procedure TCheckBoxFormControlObj.DoOnChange;
+begin
+  if FControl.Checked <> WasChecked then
+    if Assigned(Document.ObjectChange) then
+      Document.ObjectChange(Document.TheOwner, Self, OnChangeMessage);
 end;
 
 end.

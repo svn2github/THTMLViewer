@@ -7,11 +7,11 @@
 <BODY>
 <UL>
 	<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="HtmlViewer Version 11.4">
+		<param name="Name" value="HtmlViewer Version 11.5">
 		</OBJECT>
     <UL>
       <LI> <OBJECT type="text/sitemap">
-        <param name="Name" value="Contents">
+        <param name="Name" value="Introduction">
         <param name="Local" value="html/contents.htm">
         </OBJECT>
       <LI> <OBJECT type="text/sitemap">
@@ -81,6 +81,10 @@
             </OBJECT>
         </UL>
       <LI> <OBJECT type="text/sitemap">
+        <param name="Name" value="Class Hierarchie">
+        <param name="Local" value="html/class_hierarchy.htm">
+        </OBJECT>
+      <LI> <OBJECT type="text/sitemap">
         <param name="Name" value="Things You Should Know">
         <param name="Local" value="html/things_you_should_know.htm">
         </OBJECT>
@@ -88,6 +92,14 @@
         <param name="Name" value="HTML And CSS">
         </OBJECT>
         <UL>
+          <LI> <OBJECT type="text/sitemap">
+            <param name="Name" value="Supported HTML Tags And Attributes">
+            <param name="Local" value="html/supported_elements.htm">
+            </OBJECT>
+          <LI> <OBJECT type="text/sitemap">
+            <param name="Name" value="Supported CSS Properties">
+            <param name="Local" value="html/supported_properties.htm">
+            </OBJECT>
           <LI> <OBJECT type="text/sitemap">
             <param name="Name" value="Special HTML Tags and Attributes">
             <param name="Local" value="html/special_html_tags_and_attributes.htm">
@@ -244,6 +256,10 @@
           <param name="Local" value="html/processing_property.htm">
           </OBJECT>
         <LI> <OBJECT type="text/sitemap">
+          <param name="Name" value="QuirksMode Property">
+		  <param name="Local" value="html/prop_thtmlviewer_quirksmode.htm">
+		  </OBJECT>
+		<LI> <OBJECT type="text/sitemap">
           <param name="Name" value="SelLength Property">
           <param name="Local" value="html/sellength_property.htm">
           </OBJECT>
@@ -756,6 +772,10 @@
             <param name="Local" value="html/type_thtprogressevent.htm">
             </OBJECT>
           <LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="Type THtQuirksMode">
+			<param name="Local" value="html/type_thtquirksmode.htm">
+			</OBJECT>
+		  <LI> <OBJECT type="text/sitemap">
             <param name="Name" value="Type ThtChar">
             <param name="Local" value="html/type_thtchar.htm">
             </OBJECT>

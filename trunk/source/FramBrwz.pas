@@ -1,7 +1,7 @@
 {
-Version   11.4
+Version   11.5
 Copyright (c) 1995-2008 by L. David Baldwin
-Copyright (c) 2008-2012 by HtmlViewer Team
+Copyright (c) 2008-2014 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -135,9 +135,11 @@ type
       out Stream: TMemoryStream); virtual;
   public
     constructor Create(AOwner: TComponent); override;
+    constructor CreateCopy(Owner: TComponent; Source: TViewerBase); override;
     function GetViewerUrlBase(Viewer: ThtmlViewer): ThtString;
     procedure GetPostQuery(const URL, Query, EncType: ThtString; IsGet: boolean);
     procedure HotSpotClick(Sender: TObject; const AnURL: ThtString; var Handled: boolean); override;
+    procedure Load(const SRC: ThtString); override;
     procedure LoadFromFile(const Name: ThtString); override;
     procedure LoadURL(const URL: ThtString);
     property EncodePostArgs: boolean read FEncodePostArgs write FEncodePostArgs;
@@ -281,7 +283,9 @@ begin
             FrameSet.SendToBack;
             FrameSet.Visible := True;
             MasterSet.FrameViewer.ParseFrame(FrameSet, Doc, Source, FrameSet.HandleMeta);
-            Self.BevelOuter := bvNone;
+{$ifndef LCL}
+            BevelOuter := bvNone;
+{$endif}
             frBumpHistory1(Source, 0);
             with FrameSet do
             begin
@@ -511,7 +515,9 @@ begin
           FrameSet.Visible := True;
           MasterSet.FrameViewer.ParseFrame(FrameSet, Doc, Source, FrameSet.HandleMeta);
           MasterSet.FrameViewer.AddVisitedLink(URL);
-          Self.BevelOuter := bvNone;
+{$ifndef LCL}
+          BevelOuter := bvNone;
+{$endif}
           with FrameSet do
           begin
             for I := 0 to List.Count - 1 do
@@ -544,6 +550,7 @@ begin
           end;
         if Assigned(Viewer) then
         begin
+{$ifndef LCL}
           if MasterSet.BorderSize = 0 then
             BevelOuter := bvNone
           else
@@ -551,6 +558,7 @@ begin
             BevelOuter := bvLowered;
             BevelWidth := MasterSet.BorderSize;
           end;
+{$endif}
           if (Dest <> '') then
             Viewer.PositionTo(Dest);
         end;
@@ -740,6 +748,27 @@ begin
   FEncodePostArgs := True;
 end;
 
+//-- BG ---------------------------------------------------------- 25.11.2011 --
+constructor TFrameBrowser.CreateCopy(Owner: TComponent; Source: TViewerBase);
+var
+  Viewer: TFrameBrowser absolute Source;
+begin
+  inherited;
+  if Source is TFrameBrowser then
+  begin
+    OnGetPostRequest := Viewer.OnGetPostRequest;
+    OnGetPostRequestEx := Viewer.OnGetPostRequestEx;
+    OnFormSubmit := Viewer.OnFormSubmit;
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 24.11.2011 --
+procedure TFrameBrowser.Load(const SRC: ThtString);
+begin
+  inherited;
+  LoadUrl(SRC);
+end;
+
 //-- BG ---------------------------------------------------------- 24.09.2010 --
 procedure TFrameBrowser.LoadFromFile(const Name: ThtString);
 begin
@@ -837,7 +866,7 @@ begin
           S := CombineURL(CurbrFrameSet.URLBase, S);
         end;
 
-        (CurbrFrameSet as TbrFrameSet).LoadFromBrzFile(Stream, StreamType, S, Dest);
+        CurbrFrameSet.LoadFromBrzFile(Stream, StreamType, S, Dest);
       except
         RemoveControl(CurbrFrameSet);
         CurbrFrameSet.Free;
@@ -899,7 +928,7 @@ begin
 end;
 
 //-- BG ---------------------------------------------------------- 23.09.2010 --
-// concentrate all FOnGetPostRequet* calls here:
+// concentrate all FOnGetPostRequest* calls here:
 procedure TFrameBrowser.PostRequest(Sender: TObject; IsGet: boolean; const Source, Query, EncType,
   Referer: ThtString; Reload: boolean; out NewURL: ThtString; out DocType: ThtmlFileType;
   out Stream: TMemoryStream);
@@ -931,12 +960,12 @@ var
   FrameTarget: TFrameBase;
   S, Dest, FullUrl, Target: ThtString;
 begin
-  Handled := True;
-  if Processing then
+  Handled := Processing;
+  if Handled then
     Exit;
 
   Viewer := Sender as ThtmlViewer;
-  Target := GetActiveTarget;
+  Target := GetViewerTarget(Viewer);
   FLinkAttributes.Text := Viewer.LinkAttributes.Text;
   FLinkText := Viewer.LinkText;
 
@@ -952,7 +981,8 @@ begin
     FullUrl := CombineURL((Viewer.FrameOwner as TbrFrame).URLBase, S);
   FullUrl := Normalize(FullUrl);  // ANGUS
 
-  if not HotSpotClickHandled(FullUrl + Dest, Target) then
+  Handled := HotSpotClickHandled(FullUrl + Dest, Target);
+  if not Handled then
   begin
     Handled := True;
     if (Target = '') or (CompareText(Target, '_self') = 0) then {no target or _self target}

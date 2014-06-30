@@ -1,6 +1,6 @@
 {
-Version   11.4
-Copyright (c) 2013 by HtmlViewer Team
+Version   11.5
+Copyright (c) 2014 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -65,6 +65,9 @@ type
 
     ImageSy,
     PanelSy,
+    IFrameSy, IFrameEndSy,
+    ProgressSy, ProgressEndSy,
+    MeterSy, MeterEndSy,
 
     MapSy, MapEndSy,
     AreaSy,
@@ -98,8 +101,8 @@ type
     BodySy,    PSy,    DivSy,    CenterSy,
     BodyEndSy, PEndSy, DivEndSy, CenterEndSy,
 
-    ArticleSy,    SectionSy,    NavSy,    AsideSy,
-    ArticleEndSy, SectionEndSy, NavEndSy, AsideEndSy,
+    ArticleSy,    SectionSy,    MainSy, NavSy,    AsideSy,
+    ArticleEndSy, SectionEndSy, MainEndSy, NavEndSy, AsideEndSy,
 
     {Keep order} H1Sy,    H2Sy,    H3Sy,    H4Sy,    H5Sy,    H6Sy,    {end order}
     {Keep order} H1EndSy, H2EndSy, H3EndSy, H4EndSy, H5EndSy, H6EndSy, {end order}
@@ -129,8 +132,8 @@ type
     FieldsetSy, FieldsetEndSy,
     LegendSy, LegendEndSy,
     LabelSy, LabelEndSy,
-    TextAreaSy,    SelectSy,    OptionSy,    ButtonSy, ButtonEndSy, InputSy,
-    TextAreaEndSy, SelectEndSy, OptionEndSy
+    TextAreaSy,    SelectSy,     OptionSy,    ButtonSy, ButtonEndSy, InputSy,
+    TextAreaEndSy, SelectEndSy,  OptionEndSy
   );
   TElemSymbSet = set of TElemSymb;
 
@@ -165,6 +168,7 @@ type
     FrameAttrSy,
     FrameBorderSy,
     HeightSy,
+    HighSy,
     HrefSy,
     HSpaceSy,
     HttpEqSy,
@@ -175,11 +179,14 @@ type
     LeftMarginSy,
     LinkSy,
     LoopSy,
+    LowSy,
     MarginHeightSy,
     MarginWidthSy,
+    MaxSy,
     MaxLengthSy,
     MediaSy,
     MethodSy,
+    MinSy,
     MultipleSy,
     NameSy,
     NoHrefSy,
@@ -191,6 +198,7 @@ type
     OnChangeSy,
     OnClickSy,
     OnFocusSy,
+    OptimumSy,
     PlaceholderSy,
     PlainSy,
     RadioSy,
@@ -206,6 +214,7 @@ type
     ShapeSy,
     SizeSy,
     SpanAttrSy,
+    SpellCheckSy,
     SrcSy,
     StartSy,
     StyleAttrSy,
@@ -638,7 +647,7 @@ end;
 
 procedure InitElements;
 const
-  ElementDefinitions: array[1..98] of TResWord = (
+  ElementDefinitions: array[1..102] of TResWord = (
     (Name: 'HTML';        Symbol: HtmlSy;       EndSym: HtmlEndSy),
     (Name: 'TITLE';       Symbol: TitleElemSy;  EndSym: TitleEndSy),
     (Name: 'BODY';        Symbol: BodySy;       EndSym: BodyEndSy),
@@ -717,6 +726,7 @@ const
     (Name: 'BR';          Symbol: BRSy;         EndSym: CommandSy),
     (Name: 'HR';          Symbol: HRSy;         EndSym: CommandSy),
     (Name: 'IMG';         Symbol: ImageSy;      EndSym: CommandSy),
+    (Name: 'IFRAME';      Symbol: IFrameSy;     EndSym: IFrameEndSy),
     (Name: 'BASE';        Symbol: BaseSy;       EndSym: CommandSy),
     (Name: 'BUTTON';      Symbol: ButtonSy;     EndSym: ButtonEndSy),
     (Name: 'INPUT';       Symbol: InputSy;      EndSym: CommandSy),
@@ -732,6 +742,7 @@ const
     (Name: 'COL';         Symbol: ColSy;        EndSym: CommandSy),
     (Name: 'PARAM';       Symbol: ParamSy;      EndSym: CommandSy),
     {HTML5 }
+    (Name: 'MAIN';        Symbol: MainSy;       EndSym: MainEndSy),
     (Name: 'HEADER';      Symbol: HeaderSy;     EndSym: HeaderEndSy),
     (Name: 'SECTION';     Symbol: SectionSy;    EndSym: SectionEndSy),
     (Name: 'NAV';         Symbol: NavSy;        EndSym: NavEndSy),
@@ -740,7 +751,10 @@ const
     (Name: 'FOOTER';      Symbol: FooterSy;     EndSym: FooterEndSy),
     (Name: 'HGROUP';      Symbol: HGroupSy;     EndSym: HGroupEndSy),
     (Name: 'MARK';        Symbol: MarkSy;       EndSym: MarkEndSy),
-    (Name: 'TIME';        Symbol: TimeSy;       EndSym: TimeEndSy));
+    (Name: 'TIME';        Symbol: TimeSy;       EndSym: TimeEndSy),
+    (Name: 'PROGRESS';    Symbol: ProgressSy;   EndSym: ProgressEndSy),
+    (Name: 'METER';       Symbol: MeterSy;      EndSym: MeterEndSy));
+
 var
   I: Integer;
   P: PResWord;
@@ -775,7 +789,7 @@ end;
 
 procedure InitAttributes;
 const
-  AttribDefinitions: array[1..88] of TSymbolRec = (
+  AttribDefinitions: array[1..93] of TSymbolRec = (
     (Name: 'ACTION';            Value: ActionSy),
     (Name: 'ACTIVE';            Value: ActiveSy),
     (Name: 'ALIGN';             Value: AlignSy),
@@ -805,6 +819,7 @@ const
     (Name: 'FRAME';             Value: FrameAttrSy),
     (Name: 'FRAMEBORDER';       Value: FrameBorderSy),
     (Name: 'HEIGHT';            Value: HeightSy),
+    (Name: 'HIGH';              Value: HighSy),
     (Name: 'HREF';              Value: HrefSy),
     (Name: 'HSPACE';            Value: HSpaceSy),
     (Name: 'HTTP-EQUIV';        Value: HttpEqSy),
@@ -815,11 +830,14 @@ const
     (Name: 'LEFTMARGIN';        Value: LeftMarginSy),
     (Name: 'LINK';              Value: LinkSy),
     (Name: 'LOOP';              Value: LoopSy),
+    (Name: 'LOW';               Value: LowSy),
     (Name: 'MARGINHEIGHT';      Value: MarginHeightSy),
     (Name: 'MARGINWIDTH';       Value: MarginWidthSy),
+    (Name: 'MAX';               Value: MaxSy),
     (Name: 'MAXLENGTH';         Value: MaxLengthSy),
     (Name: 'MEDIA';             Value: MediaSy),
     (Name: 'METHOD';            Value: MethodSy),
+    (Name: 'MIN';               Value: MinSy),
     (Name: 'MULTIPLE';          Value: MultipleSy),
     (Name: 'NAME';              Value: NameSy),
     (Name: 'NOHREF';            Value: NoHrefSy),
@@ -831,6 +849,7 @@ const
     (Name: 'ONCHANGE';          Value: OnChangeSy),
     (Name: 'ONCLICK';           Value: OnClickSy),
     (Name: 'ONFOCUS';           Value: OnFocusSy),
+    (Name: 'OPTIMUM';           Value: OptimumSy),
     (Name: 'PLACEHOLDER';       Value: PlaceholderSy),
     (Name: 'PLAIN';             Value: PlainSy),
     (Name: 'RADIO';             Value: RadioSy),
@@ -846,6 +865,7 @@ const
     (Name: 'SHAPE';             Value: ShapeSy),
     (Name: 'SIZE';              Value: SizeSy),
     (Name: 'SPAN';              Value: SpanAttrSy),
+    (Name: 'SPELLCHECK';        Value: spellcheckSy),
     (Name: 'SRC';               Value: SrcSy),
     (Name: 'START';             Value: StartSy),
     (Name: 'STYLE';             Value: StyleAttrSy),
@@ -858,7 +878,6 @@ const
     (Name: 'TYPE';              Value: TypeSy),
     (Name: 'USEMAP';            Value: UseMapSy),
     (Name: 'VALIGN';            Value: VAlignSy),
-    (Name: 'VALUE';             Value: ValueSy),
     (Name: 'VALUE';             Value: ValueSy),
     (Name: 'VLINK';             Value: VLinkSy),
     (Name: 'VSPACE';            Value: VSpaceSy),

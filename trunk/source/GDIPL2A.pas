@@ -1,7 +1,7 @@
 {
-Version   11.4
+Version   11.5
 Copyright (c) 1995-2008 by L. David Baldwin
-Copyright (c) 2008-2013 by HtmlViewer Team
+Copyright (c) 2008-2014 by HtmlViewer Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -66,11 +66,12 @@ type
 {$endif}
 
 type
-  THtGpImage = class(TObject)
+  ThtGpImage = class(TObject)
   protected
     fHandle: GpImage;
     fWidth, fHeight: Cardinal;
     fFilename: string;
+    fBitmap: TBitmap;
     function GetHeight: Cardinal;
     function GetWidth: Cardinal;
   public
@@ -83,30 +84,30 @@ type
     property Width: Cardinal read GetWidth;
   end;
 
-  THtGpGraphics = class;
+  ThtGpGraphics = class;
 
-  THtGpBitmap = class(THtGpImage)
+  ThtGpBitmap = class(ThtGpImage)
   public
     constructor Create(W, H: integer); overload;
     constructor Create(IStr: IStream); overload;
     constructor Create(Stream: TStream); overload;
-    constructor Create(W, H: integer; Graphics: THtGpGraphics); overload;
+    constructor Create(W, H: integer; Graphics: ThtGpGraphics); overload;
     function GetPixel(X, Y: integer): DWord;
     procedure SetPixel(X, Y: integer; Color: DWord);
   end;
 
-  THtGpGraphics = class(TObject)
+  ThtGpGraphics = class(TObject)
   private
     fGraphics: GpGraphics;
     procedure DrawSmallStretchedImage(Image: THtGPImage; X, Y, Width, Height: Integer);
   public
     constructor Create(Handle: HDC); overload;
-    constructor Create(Image: THtGpImage); overload;
+    constructor Create(Image: ThtGpImage); overload;
     destructor Destroy; override;
     procedure DrawImage(Image: THtGPImage; X, Y: Cardinal); overload;
     procedure DrawImage(Image: THtGPImage; X, Y, Width, Height: Cardinal); overload;
-    procedure DrawImage(Image: THtGpImage; x, y, srcx, srcy, srcwidth, srcheight: integer); overload;
-    procedure DrawImage(Image: THtGpImage; dx, dy, dw, dh, sx, sy, sw, sh: integer); overload;
+    procedure DrawImage(Image: ThtGpImage; x, y, srcx, srcy, srcwidth, srcheight: integer); overload;
+    procedure DrawImage(Image: ThtGpImage; dx, dy, dw, dh, sx, sy, sw, sh: integer); overload;
     procedure Clear(Color: Cardinal);
     procedure ScaleTransform(sx, sy: Single);
   end;
@@ -186,12 +187,38 @@ implementation
     //TImageCodecInfo = ImageCodecInfo;
     //PImageCodecInfo = ^TImageCodecInfo;
 
+const
+  PixelFormatIndexed   = $00010000; // Indexes into a palette
+  PixelFormatGDI       = $00020000; // Is a GDI-supported format
+  PixelFormatAlpha     = $00040000; // Has an alpha component
+  PixelFormatPAlpha    = $00080000; // Pre-multiplied alpha
+  PixelFormatExtended  = $00100000; // Extended color 16 bits/channel
+  PixelFormatCanonical = $00200000;
+
+  PixelFormatUndefined = 0;
+  PixelFormatDontCare  = 0;
+
+  PixelFormat1bppIndexed = (1 or ( 1 shl 8) or PixelFormatIndexed or PixelFormatGDI);
+  PixelFormat4bppIndexed = (2 or ( 4 shl 8) or PixelFormatIndexed or PixelFormatGDI);
+  PixelFormat8bppIndexed = (3 or ( 8 shl 8) or PixelFormatIndexed or PixelFormatGDI);
+  PixelFormat16bppGrayScale = (4 or (16 shl 8) or PixelFormatExtended);
+  PixelFormat16bppRGB555 = (5 or (16 shl 8) or PixelFormatGDI);
+  PixelFormat16bppRGB565 = (6 or (16 shl 8) or PixelFormatGDI);
+  PixelFormat16bppARGB1555 = (7 or (16 shl 8) or PixelFormatAlpha or PixelFormatGDI);
+  PixelFormat24bppRGB = (8 or (24 shl 8) or PixelFormatGDI);
+  PixelFormat32bppRGB = (9 or (32 shl 8) or PixelFormatGDI);
+  PixelFormat32bppARGB   = (10 or (32 shl 8) or PixelFormatAlpha or PixelFormatGDI or PixelFormatCanonical);
+  PixelFormat32bppPARGB  = (11 or (32 shl 8) or PixelFormatAlpha or PixelFormatPAlpha or PixelFormatGDI);
+  PixelFormat48bppRGB  = (12 or (48 shl 8) or PixelFormatExtended);
+  PixelFormat64bppARGB = (13 or (64 shl 8) or PixelFormatAlpha or PixelFormatCanonical or PixelFormatExtended);
+  PixelFormat64bppPARGB = (14 or (64 shl 8) or PixelFormatAlpha or PixelFormatPAlpha or PixelFormatExtended);
+  PixelFormat32bppCMYK = (15 or (32 shl 8));
+  PixelFormatMax = 16;
+
   var
     GdiplusStartup: function(out Token: ULONG; const Input : PGdiplusStartupInput; const Output: PGdiplusStartupOutput): GpStatus stdcall;
     GdiplusShutdown: procedure(Token: ULONG) stdcall;
-
     // GpGraphics methods
-
     GdipCreateFromHDC: function(hdc: HDC; out Graphics: GpGraphics): GpStatus stdcall;
     GdipScaleWorldTransform: function(graphics: GpGraphics; sx, sy: Single; order: GpMatrixOrder): GpStatus stdcall;
 
@@ -240,6 +267,31 @@ implementation
     Result := Format('%d', [AErr]);
   end;
 
+function GetPixelFormatSize(const pixfmt : PixelFormat) : Cardinal; {$ifdef UseInline} inline; {$endif}
+begin
+  Result := (pixfmt shr 8) and $ff;
+end;
+
+function IsIndexedPixelFormat(const pixfmt : PixelFormat) : Boolean; {$ifdef UseInline} inline; {$endif}
+begin
+  Result := (pixfmt and PixelFormatIndexed) <> 0;
+end;
+
+function IsAlphaPixelFormat(const pixfmt : PixelFormat) : Boolean; {$ifdef UseInline} inline; {$endif}
+begin
+  Result := (pixfmt and PixelFormatAlpha) <> 0;
+end;
+
+function IsExtendedPixelFormat(const pixfmt : PixelFormat) : Boolean; {$ifdef UseInline} inline; {$endif}
+begin
+  Result := (pixfmt and PixelFormatExtended) <> 0;
+end;
+
+function IsCanonicalPixelFormat(const  pixfmt : PixelFormat) : Boolean; {$ifdef UseInline} inline; {$endif}
+begin
+  Result := (pixfmt and PixelFormatCanonical) <> 0;
+end;
+
 {$endif HasGDIPlus}
 
 type
@@ -270,44 +322,44 @@ begin
   end;
 end;
 
-{ THtGpGraphics }
+{ ThtGpGraphics }
 
-constructor THtGpGraphics.Create(Handle: HDC);
+constructor ThtGpGraphics.Create(Handle: HDC);
 begin
   inherited Create;
   GDICheck(SCannotCreateGraphics, GdipCreateFromHDC(Handle, fGraphics));
 end;
 
-constructor THtGpGraphics.Create(Image: THtGpImage);
+constructor ThtGpGraphics.Create(Image: ThtGpImage);
 begin
   inherited Create;
   GDICheck(SCannotCreateGraphics, GdipGetImageGraphicsContext(Image.fHandle, fGraphics));
 end;
 
-destructor THtGpGraphics.Destroy;
+destructor ThtGpGraphics.Destroy;
 begin
   if fGraphics <> nil then
-    GDICheck('THtGpGraphics.Destroy', GdipDeleteGraphics(fGraphics));
+    GDICheck('ThtGpGraphics.Destroy', GdipDeleteGraphics(fGraphics));
   inherited;
 end;
 
-procedure THtGpGraphics.DrawImage(Image: THtGPImage; X, Y, Width, Height: Cardinal);
+procedure ThtGpGraphics.DrawImage(Image: THtGPImage; X, Y, Width, Height: Cardinal);
 begin
   if ((Image.Width <= 10) and (Width > Image.Width)) or
     ((Image.Height <= 10) and (Height > Image.Height)) then
     DrawSmallStretchedImage(Image, X, Y, Width, Height)
   else
-    GDICheck('THtGpGraphics.DrawImage', GdipDrawImageRectI(fGraphics, Image.fHandle, X, Y, Width, Height));
+    GDICheck('ThtGpGraphics.DrawImage', GdipDrawImageRectI(fGraphics, Image.fHandle, X, Y, Width, Height));
 end;
 
-procedure THtGpGraphics.DrawSmallStretchedImage(Image: THtGPImage; X, Y, Width, Height: Integer);
+procedure ThtGpGraphics.DrawSmallStretchedImage(Image: THtGPImage; X, Y, Width, Height: Integer);
 {when a small image is getting enlarged, add a row and column to it copying
  the last row/column to the new row/column.  This gives much better interpolation.}
 //const
 //  NearestNeighbor = 5;
 var
-  g1, g2: THtGpGraphics;
-  BM1, BM2: THtGpBitmap;
+  g1, g2: ThtGpGraphics;
+  BM1, BM2: ThtGpBitmap;
   W, H: integer;
 begin
   {new bitmap with extra row and column}
@@ -316,24 +368,19 @@ begin
   BM1 := THtGpBitmap.Create(W, H);
   g1 := THtGpGraphics.Create(BM1);
   try
-
     {draw the original image to BM1}
     g1.DrawImage(Image, 0, 0);
-
     {copy the additional column inside BM1}
     g1.DrawImage(BM1, W - 1,     0, 1, H - 1,  W - 2,     0, 1, H - 1);
-
     {copy the additional row incl. additional pixel inside BM1}
     g1.DrawImage(BM1,     0, H - 1, W,     1,      0, H - 2, W,     1);
-
-    BM2 := THtGpBitmap.Create(Width, Height);
-    g2 := THtGpGraphics.Create(BM2);
+    BM2 := ThtGpBitmap.Create(Width, Height);
+    g2 := ThtGpGraphics.Create(BM2);
     try
-      // BG, 25.12.2011: Issue 59: Image scaling error
-      // - With InterpolationMode = NearestNeighbor only 50% of the stretch is visible.
-      // - Not setting it stretches the small image to the full width/height.
-      // GdipSetInterpolationMode(g2.fGraphics, NearestNeighbor);
-
+   // BG, 25.12.2011: Issue 59: Image scaling error
+   // - With InterpolationMode = NearestNeighbor only 50% of the stretch is visible.
+   // - Not setting it stretches the small image to the full width/height.
+   // GdipSetInterpolationMode(g2.fGraphics, NearestNeighbor);
       {now draw the image stretched where needed}
       g2.DrawImage(BM1, 0, 0, Width, Height, 0, 0, Image.Width, Image.Height);
       DrawImage(BM2, X, Y); {now draw the stretched image}
@@ -347,37 +394,37 @@ begin
   end;
 end;
 
-procedure THtGpGraphics.DrawImage(Image: THtGPImage; X, Y: Cardinal);
+procedure ThtGpGraphics.DrawImage(Image: THtGPImage; X, Y: Cardinal);
 begin
-  GDICheck('THtGpGraphics.DrawImage', GdipDrawImageRectI(fGraphics, Image.fHandle, X, Y, Image.Width, Image.Height));
+  GDICheck('ThtGpGraphics.DrawImage', GdipDrawImageRectI(fGraphics, Image.fHandle, X, Y, Image.Width, Image.Height));
 end;
 
-procedure THtGPGraphics.DrawImage(Image: THtGpImage; x, y,
+procedure THtGPGraphics.DrawImage(Image: ThtGpImage; x, y,
   srcx, srcy, srcwidth, srcheight: integer);
 begin
-  GDICheck('THtGpGraphics.DrawImage',GdipDrawImagePointRect(fGraphics, Image.fHandle, x, y,
+  GDICheck('ThtGpGraphics.DrawImage',GdipDrawImagePointRect(fGraphics, Image.fHandle, x, y,
     srcx, srcy, srcwidth, srcheight, UnitPixel));
 end;
 
-procedure THtGPGraphics.DrawImage(Image: THtGpImage; dx, dy, dw, dh, sx, sy, sw, sh: integer);
+procedure THtGPGraphics.DrawImage(Image: ThtGpImage; dx, dy, dw, dh, sx, sy, sw, sh: integer);
 begin
- GDICheck('THtGpGraphics.DrawImage', GdipDrawImageRectRectI(fGraphics, Image.fHandle, dx, dy, dw, dh,
+ GDICheck('ThtGpGraphics.DrawImage', GdipDrawImageRectRectI(fGraphics, Image.fHandle, dx, dy, dw, dh,
     sx, sy, sw, sh, UnitPixel, nil, nil, nil));
 end;
 
-procedure THtGpGraphics.Clear(Color: Cardinal);
+procedure ThtGpGraphics.Clear(Color: Cardinal);
 begin
-  GDICheck('THtGpGraphics.Clear', GdipGraphicsClear(fGraphics, Color));
+  GDICheck('ThtGpGraphics.Clear', GdipGraphicsClear(fGraphics, Color));
 end;
 
 procedure THtGPGraphics.ScaleTransform(sx, sy: Single);
 begin
-  GDICheck('THtGpGraphics.DrawImage', GdipScaleWorldTransform(fGraphics, sx, sy, MatrixOrderPrepend));
+  GDICheck('ThtGpGraphics.DrawImage', GdipScaleWorldTransform(fGraphics, sx, sy, MatrixOrderPrepend));
 end;
 
 { TGpImage }
 
-constructor THtGpImage.Create(Filename: ThtString; TmpFile: boolean = False);
+constructor ThtGpImage.Create(Filename: ThtString; TmpFile: boolean = False);
 var
   err: GpStatus;
 begin
@@ -392,21 +439,22 @@ begin
     fFilename := Filename;
 end;
 
-constructor THtGpImage.Create(IStr: IStream);
+constructor ThtGpImage.Create(IStr: IStream);
 begin
   inherited Create;
   GDICheck('Can''t load image stream.', GdipLoadImageFromStream(IStr, fHandle));
 end;
 
 //-- BG ---------------------------------------------------------- 01.04.2012 --
-constructor THtGpImage.Create(Stream: TStream);
+constructor ThtGpImage.Create(Stream: TStream);
 begin
   Create(IStreamFromStream(Stream));
 end;
 
-destructor THtGpImage.Destroy;
+destructor ThtGpImage.Destroy;
 begin
-  GDICheck('THtGpImage.Destroy', GdipDisposeImage(fHandle));
+  fBitmap.Free;
+  GDICheck('ThtGpImage.Destroy', GdipDisposeImage(fHandle));
   if Length(fFilename) > 0 then
     try
       DeleteFile(fFilename);
@@ -415,70 +463,69 @@ begin
   inherited;
 end;
 
-function THtGpImage.GetWidth: Cardinal;
+function ThtGpImage.GetWidth: Cardinal;
 begin
   if fWidth = 0 then
-     GDICheck('THtGpImage.GetWidth', GdipGetImageWidth(fHandle, fWidth));
+     GDICheck('ThtGpImage.GetWidth', GdipGetImageWidth(fHandle, fWidth));
   Result := fWidth;
 end;
 
-function THtGpImage.GetHeight: Cardinal;
+function ThtGpImage.GetHeight: Cardinal;
 begin
   if fHeight = 0 then
-     GDICheck('THtGpImage.GetWidth', GdipGetImageHeight(fHandle, fHeight));
+     GDICheck('ThtGpImage.GetWidth', GdipGetImageHeight(fHandle, fHeight));
   Result := fHeight;
 end;
 
-function THtGpImage.GetBitmap: TBitmap;
+function ThtGpImage.GetBitmap: TBitmap;
 var
-  g: THtGpGraphics;
+  g: ThtGpGraphics;
 begin
-  Result := TBitmap.Create;
+  if fBitmap = nil then
+    fBitmap := TBitmap.Create;
+  Result := fBitmap;
   Result.Width := GetWidth;
   Result.Height := GetHeight;
   PatBlt(Result.Canvas.Handle, 0, 0, Result.Width, Result.Height, Whiteness);
-  g := THtGpGraphics.Create(Result.Canvas.Handle);
+  g := ThtGpGraphics.Create(Result.Canvas.Handle);
   g.DrawImage(Self, 0, 0, Result.Width, Result.Height);
   g.Free;
 end;
 
-constructor THtGpBitmap.Create(W, H: integer);
-const
-  PixelFormatGDI = $00020000; // Is a GDI-supported format
-  PixelFormatAlpha = $00040000; // Has an alpha component
-  PixelFormatCanonical = $00200000;
-  PixelFormat32bppARGB = (10 or (32 shl 8) or PixelFormatAlpha or PixelFormatGDI or PixelFormatCanonical);
+constructor ThtGpBitmap.Create(W, H: integer);
+
+
 begin
   inherited Create;
   GDICheck(Format('Can''t create bitmap of size %d x %d.', [W, H]), GdipCreateBitmapFromScan0(W, H, 0, PixelFormat32bppARGB, nil, fHandle));
 end;
 
-constructor THtGpBitmap.Create(IStr: IStream);
+constructor ThtGpBitmap.Create(IStr: IStream);
 begin
   inherited Create;
   GDICheck('Can''t create bitmap from stream.', GdipCreateBitmapFromStream(IStr, fHandle));
 end;
 
-constructor THtGpBitmap.Create(W, H: integer; Graphics: THtGpGraphics);
+constructor ThtGpBitmap.Create(W, H: integer; Graphics: ThtGpGraphics);
 begin
   inherited Create;
   GDICheck(Format('Can''t create bitmap of size %d x %d from graphics.', [W, H]), GdipCreateBitmapFromGraphics(W, H, Graphics.fGraphics, fHandle));
 end;
 
 //-- BG ---------------------------------------------------------- 01.04.2012 --
-constructor THtGpBitmap.Create(Stream: TStream);
+constructor ThtGpBitmap.Create(Stream: TStream);
 begin
   Create(IStreamFromStream(Stream));
 end;
 
-function THtGpBitmap.GetPixel(X, Y: integer): DWord;
+function ThtGpBitmap.GetPixel(X, Y: integer): DWord;
 begin
-  GDICheck('THtGpBitmap.GetPixel', GdipBitmapGetPixel(fHandle, X, Y, Result));
+  GDICheck('ThtGpBitmap.GetPixel', GdipBitmapGetPixel(fHandle, X, Y, Result));
 end;
 
-procedure THtGpBitmap.SetPixel(X, Y: integer; Color: DWord);
+procedure ThtGpBitmap.SetPixel(X, Y: integer; Color: DWord);
 begin
-  GDICheck('THtGpBitmap.SetPixel', GdipBitmapSetPixel(fHandle, X, Y, Color));
+  GDICheck('ThtGpBitmap.SetPixel', GdipBitmapSetPixel(fHandle, X, Y, Color));
 end;
 
 var
