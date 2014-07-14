@@ -95,6 +95,7 @@ type
     BorderTopColor, BorderRightColor, BorderBottomColor, BorderLeftColor,
     BorderTopStyle, BorderRightStyle, BorderBottomStyle, BorderLeftStyle,
     piWidth, piHeight, piTop, piRight, piBottom, piLeft,
+    BorderSpacingHorz, BorderSpacingVert,  //These two are internal
     // the above properties are in MarginArrays
 
     Visibility, LineHeight, VerticalAlign, Position, ZIndex,
@@ -107,17 +108,21 @@ type
     MarginX, PaddingX, BorderWidthX, BorderX,
     BorderTX, BorderRX, BorderBX, BorderLX,
     FontX, BackgroundX, ListStyleX, BorderColorX,
-    BorderStyleX
+    BorderStyleX,
     // the above properties are short hands
+
+    //the following have multiple values sometimes
+    BorderSpacing
+    //the above have multiple values sometimes
   );
 
-  TShortHand = MarginX..BorderStyleX;
+  TShortHand = MarginX..BorderSpacing;//BorderStyleX;
 
   ThtPropIndices = FontFamily..piWhiteSpace;
   ThtPropertyArray = array [ThtPropIndices] of Variant;
   ThtPropIndexSet = Set of ThtPropIndices;
 
-  ThtMarginIndices = BackgroundColor..piLeft;
+  ThtMarginIndices = BackgroundColor..BorderSpacingVert; //piLeft;
   ThtVMarginArray = array [ThtMarginIndices] of Variant;
   ThtMarginArray = array [ThtMarginIndices] of Integer;
 
@@ -135,6 +140,7 @@ const
     'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
     'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
     'width', 'height', 'top', 'bottom', 'right', 'left',
+    'thv-border-spacing-horz', 'thv-border-spacing-vert', //These two are for internal use only
 
     'visibility', 'line-height', 'vertical-align', 'position', 'z-index',
     'list-style-type', 'list-style-image', 'float', 'clear', 'text-indent',
@@ -146,7 +152,9 @@ const
     'margin', 'padding', 'border-width', 'border',
     'border-top', 'border-right', 'border-bottom', 'border-left',
     'font', 'background', 'list-style', 'border-color',
-    'border-style'
+    'border-style',
+    //multiple values
+    'border-spacing'
   );
 
 type
@@ -221,8 +229,11 @@ type
     procedure GetFontInfo(AFI: TFontInfoArray);
     procedure GetPageBreaks(out Before, After, Intact: Boolean);
     function GetBoxSizing(var VBoxSizing : ThtBoxSizing) : Boolean;
+    function GetBorderSpacingHorz: Integer;
+    function GetBorderSpacingVert: Integer;
     procedure GetVMarginArrayDefBorder(var MArray: ThtVMarginArray; const ADefColor : Variant);
     procedure GetVMarginArray(var MArray: ThtVMarginArray);
+    function HasBorderSpacing: Boolean;
     procedure Inherit(Tag: ThtString; Source: TProperties);
     procedure SetFontBG;
     procedure Update(Source: TProperties; Styles: TStyleList; I: Integer);
@@ -763,7 +774,7 @@ begin
   ID := Sequence;
   Inc(Sequence);
   FontBG := clNone;
-  for I := MarginTop to piLeft do
+  for I := MarginTop to BorderSpacingVert do
     Props[I] := IntNull;
   Props[ZIndex] := 0;
   FUseQuirksMode := False;
@@ -1490,6 +1501,49 @@ begin
   Result := Dummy <> bssNone;
 end;
 
+function TProperties.GetBorderSpacingHorz: Integer;
+var
+  V: Double;
+  Code: Integer;
+
+begin
+  if VarIsStr(Props[BorderSpacingHorz]) then
+  begin
+    Val(Props[BorderSpacingHorz], V, Code);
+    if Code = 0 then {a numerical entry with no 'em', '%', etc.  }
+      Result := Round(V)
+    else
+    {note: 'normal' yields -1 in the next statement}
+      Result := LengthConv(Props[BorderSpacingHorz], True, EmSize, EmSize, ExSize, -1);
+  end
+  else
+    Result := -1;
+end;
+
+function TProperties.GetBorderSpacingVert: Integer;
+var
+  V: Double;
+  Code: Integer;
+
+begin
+  if VarIsStr(Props[BorderSpacingVert]) then
+  begin
+    Val(Props[BorderSpacingVert], V, Code);
+    if Code = 0 then {a numerical entry with no 'em', '%', etc.  }
+      Result := Round(V)
+    else
+    {note: 'normal' yields -1 in the next statement}
+      Result := LengthConv(Props[BorderSpacingVert], True, EmSize, EmSize, ExSize, -1);
+  end
+  else
+    Result := -1;
+end;
+
+function TProperties.HasBorderSpacing: Boolean;
+begin
+  Result := not (VarIsIntNull(Props[BorderSpacingHorz]) or VarIsEmpty(Props[BorderSpacingHorz]));
+end;
+
 procedure TProperties.SetFontBG;
 {called for font tags like <b>, <small>, etc.  Sets the font background color.}
 begin
@@ -1740,7 +1794,7 @@ begin
             M[I] := 0;
         end;
 
-      PaddingTop..PaddingLeft:
+      PaddingTop..PaddingLeft,BorderSpacingHorz,BorderSpacingVert:
         begin
           if VarIsStr(VM[I]) then
           begin
@@ -2068,7 +2122,7 @@ procedure TProperties.Combine(Styles: TStyleList;
         end;
         if (VarType(Source.Props[Index]) <> varEmpty) and (Vartype(Source.Props[Index]) <> varNull) then
           case Index of
-            MarginTop..piLeft:
+            MarginTop..BorderSpacingVert:
               if VarIsStr(Source.Props[Index]) then // if VarType(Source.Props[Index]) = VarString then
               begin
                 Props[Index] := Source.Props[Index];
@@ -2840,7 +2894,7 @@ begin
       else
         Props[Index] := clNone;
 
-    MarginTop..BorderLeftWidth, piWidth..piLeft:
+    MarginTop..BorderLeftWidth, piWidth..BorderSpacingVert:
       Props[Index] := PropValue;
 
     FontSize:

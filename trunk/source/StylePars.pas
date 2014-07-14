@@ -465,6 +465,28 @@ end;
 //-- BG ---------------------------------------------------------- 29.12.2010 --
 procedure THtmlStyleParser.ProcessShortHand(Index: TShortHand; const Prop, OrigValue, StrippedValue: ThtString);
 
+  //ProcessShortHand
+  procedure DoBorderSpacing(Value: THtString);
+  var
+    S : array[0..1] of THtString;
+    Count : Integer;
+  begin
+    SplitString(Value,S,Count);
+    case Count of
+      1:
+      begin
+        ProcessProperty('thv-border-spacing-horz', S[0]);
+        ProcessProperty('thv-border-spacing-vert', S[0]);
+      end;
+
+      2:
+      begin
+        ProcessProperty('thv-border-spacing-horz', S[0]);
+        ProcessProperty('thv-border-spacing-vert', S[1]);
+      end;
+    end;
+  end;
+
   procedure DoBackground(Value: ThtString);
   { do the Background shorthand property specifier }
   type
@@ -839,6 +861,8 @@ begin
 
     ListStyleX:
       DoListStyle(StrippedValue);
+    BorderSpacing:
+      DoBorderSpacing(StrippedValue);
   end;
 end;
 
