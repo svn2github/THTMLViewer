@@ -71,7 +71,9 @@ uses
  {$endif}
 {$ifdef VCL}
   Windows,
+  {$ifndef Compiler28_Plus}
   EncdDecd,
+  {$endif}
 {$endif}
   Messages, Graphics, Controls, ExtCtrls, Classes, SysUtils, Variants, Forms, Math, Contnrs, ComCtrls,
 {$ifdef LCL}
@@ -1630,6 +1632,9 @@ uses
 {$IFNDEF NoTabLink}
   HtmlView,
 {$endif}
+ {$ifdef Compiler28_Plus}
+ System.NetEncoding,
+ {$endif}
   HtmlSbs1;
 
 
@@ -6460,11 +6465,17 @@ begin
           FListStyleType := lbNone
         else
           if Tmp = lbBlank then
-            case ListLevel mod 3 of
-              1: FListStyleType := lbDisc;
-              2: FListStyleType := lbCircle;
-              0: FListStyleType := lbSquare;
-            end;
+            case AIndexType of // type="disc|circle|square"
+              'd': FListStyleType := lbDisc;
+              'c': FListStyleType := lbCircle;
+              's': FListStyleType := lbSquare;
+            else
+              case ListLevel mod 3 of
+                1: FListStyleType := lbDisc;
+                2: FListStyleType := lbCircle;
+                0: FListStyleType := lbSquare;
+              end;
+            end;  
       end;
 
     OLSy:
@@ -7462,7 +7473,11 @@ function ThtDocument.GetTheImage(const BMName: ThtString; var Transparent: TTran
       try
         Stream := TMemoryStream.Create;
         try
+          {$IFDEF Compiler28_Plus}
+          TNetEncoding.Base64.Decode(Source, Stream);
+          {$ELSE}
           DecodeStream(Source, Stream);
+          {$ENDIF}
           Result := LoadImageFromStream(Stream, Transparent);
         finally
           Stream.Free;
