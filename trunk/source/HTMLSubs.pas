@@ -407,7 +407,8 @@ type
     function GetChAtPos(Pos: Integer; out Ch: WideChar; out Obj: TSectionBase): boolean;
     function GetURL(Canvas: TCanvas; X, Y: Integer; out UrlTarg: TUrlTarget; out FormControl: TIDObject {TImageFormControlObj}; out ATitle: ThtString): ThtguResultType; virtual;
     function IsCopy: Boolean;
-    procedure Add(Item: TSectionBase; TagIndex: Integer);
+    procedure Add(Item: TSectionBase; TagIndex: Integer); overload;
+    procedure Add(var Section: TSection; TagIndex: Integer); overload;
     procedure AddSectionsToList;
     procedure CopyToClipboard;
 {$ifdef UseFormTree}
@@ -1139,6 +1140,7 @@ type
     FPRec: PtPositionRec; // background image position info
     FPad: TRect;
     FBrd: TRect;
+    FHideOverflow: Boolean;
     FHasBorderStyle: Boolean;
     FShowEmptyCells: Boolean;
     // END: this area is copied by move() in CreateCopy()
@@ -1178,7 +1180,7 @@ type
     MargArray: ThtMarginArray;
     MargArrayO: ThtVMarginArray;
     NoMask: boolean;
-    BreakBefore, BreakAfter, KeepIntact: boolean;
+    BreakBefore, BreakAfter, KeepIntact: Boolean;
 
     constructor Create(Parent: TTableBlock; AVAlign: ThtAlignmentStyle; Attr: TAttributeList; Prop: TProperties);
     constructor CreateCopy(Parent: TBlock; T: TCellObj);
@@ -1203,6 +1205,7 @@ type
     property PadTop: Integer read getPaddingTop write setPaddingTop;
     property PRec: PtPositionRec read FPRec write FPRec;
     property ShowEmptyCells: Boolean read FShowEmptyCells write FShowEmptyCells;
+    property HideOverflow: Boolean read FHideOverflow write FHideOverflow;
     property VAlign: ThtAlignmentStyle read FVAlign write FVAlign; {Top, Middle, or Bottom}
     property VSize: Integer read FVSize write FVSize; {Actual vertical size of contents}
     property Wd: Integer read FWd write FWd; {total width (may cover more than one column)}
@@ -1436,6 +1439,7 @@ type
     procedure AdjustFormControls;
     procedure AddSectionsToPositionList(Sections: TSectionBase);
     function CopyToBuffer(Buffer: TSelTextCount): Integer;
+    procedure InsertMissingImage(const UName: ThtString; J: Integer; Error: Boolean; out Reformat: Boolean);
     {$ifdef has_StyleElements}
     procedure SetStyleElements(const AValue : TStyleElements);
     {$endif}
@@ -1462,6 +1466,7 @@ type
     TheOwner: THtmlViewerBase; {the viewer that owns this document}
     PPanel: TWinControl; {the viewer's PaintPanel}
     GetBitmap: TGetBitmapEvent; {for OnBitmapRequest Event}
+    GottenBitmap: TGottenBitmapEvent; {for OnBitmapRequest Event}
     GetImage: TGetImageEvent; {for OnImageRequest Event}
     GottenImage: TGottenImageEvent; {for OnImageRequest Event}
     ExpandName: TExpandNameEvent;
@@ -1546,9 +1551,10 @@ type
     procedure CopyToClipboardA(Leng: Integer);
     procedure GetBackgroundBitmap;
     procedure HideControls;
-    procedure InsertImage(const Src: ThtString; Stream: TStream; out Reformat: boolean);
+    procedure InsertImage(const Src: ThtString; Stream: TStream; out Reformat: Boolean); overload;
+    procedure InsertImage(const Src: ThtString; Bitmap: TBitmap; Color: TColor; Transparent: TTransparency; OwnsBitmap: Boolean; out Reformat: Boolean); overload;
     procedure LButtonDown(Down: boolean);
-    procedure ProcessInlines(SIndex: Integer; Prop: TProperties; Start: boolean);
+    procedure ProcessInlines(SIndex: Integer; Prop: TProperties; Start: Boolean);
     procedure SetBackground(ABackground: TColor);
     procedure SetBackgroundBitmap(const Name: ThtString; const APrec: PtPositionRec);
     procedure SetFormcontrolData(T: TFreeList);
@@ -1610,6 +1616,8 @@ function htCompareText(const T1, T2: ThtString): Integer; {$ifdef UseInline} inl
 var
   WaitStream: TMemoryStream;
   ErrorStream: TMemoryStream;
+  WaitBitmap: TBitmap;
+  ErrorBitmap: TBitmap;
 {$ifdef UNICODE}
 {$else}
   UnicodeControls: Boolean;
@@ -4014,19 +4022,30 @@ begin
   if Assigned(Item) then
   begin
     if Item is TSection then
-      if Length(Section.XP) <> 0 then
-      begin
-        Section.ProcessText(TagIndex);
-        if not (Section.WhiteSpaceStyle in [wsPre, wsPreWrap, wsPreLine]) and (Section.Len = 0)
-          and not Section.AnchorName and (Section.ClearAttr = clrNone) then
-        begin
-          Section.CheckFree;
-          Item.Free; {discard empty TSections that aren't anchors}
-          Exit;
-        end;
-      end;
+      Add(Section, TagIndex);
     inherited Add(Item);
     Item.SetDocument(Document);
+  end;
+end;
+
+//-- BG ---------------------------------------------------------- 14.01.2015 --
+procedure TCellBasic.Add(var Section: TSection; TagIndex: Integer);
+begin
+  if Assigned(Section) then
+  begin
+    if Length(Section.XP) <> 0 then
+    begin
+      Section.ProcessText(TagIndex);
+      if not (Section.WhiteSpaceStyle in [wsPre, wsPreWrap, wsPreLine]) and (Section.Len = 0)
+        and not Section.AnchorName and (Section.ClearAttr = clrNone) then
+      begin
+        Section.CheckFree;
+        FreeAndNil(Section); {discard empty TSections that aren't anchors}
+        Exit;
+      end;
+    end;
+    inherited Add(Section);
+    Section.SetDocument(Document);
   end;
 end;
 
@@ -7361,14 +7380,37 @@ begin
 end;
 
 //------------------------------------------------------------------------------
+procedure ThtDocument.InsertMissingImage(const UName: ThtString; J: Integer; Error: Boolean; out Reformat: boolean);
+var
+  Rformat: Boolean;
+  Obj: TObject;
+begin
+  while J >= 0 do
+  begin
+    Obj := MissingImages.Objects[J];
+    if (Obj = Self) and not IsCopy and not Error then
+    begin
+      BitmapLoaded := False; {the background image, set to load}
+      GetBackgroundBitmap();
+    end
+    else if (Obj is TImageObj) then
+    begin
+      TImageObj(Obj).InsertImage(UName, Error, Rformat);
+      Reformat := Reformat or Rformat;
+    end;
+    MissingImages.Delete(J);
+    J := MissingImages.IndexOf(UName);
+  end;
+end;
+
+//------------------------------------------------------------------------------
 procedure ThtDocument.InsertImage(const Src: ThtString; Stream: TStream; out Reformat: boolean);
 var
   UName: ThtString;
   I, J: Integer;
   Image: ThtImage;
-  Rformat, Error: boolean;
+  Error: Boolean;
   Transparent: TTransparency;
-  Obj: TObject;
 begin
   Image := nil;
   Error := False;
@@ -7388,33 +7430,53 @@ begin
     else
       Error := True; {bad stream or Nil}
   end;
-  if (I >= 0) or Assigned(Image) or Error then {a valid image in the Cache or Bad stream}
+
+  if (I >= 0) or (Image <> nil) or Error then {a valid image in the Cache or Bad stream}
+    InsertMissingImage(UName, J, Error, Reformat);
+end;
+
+//-- BG ---------------------------------------------------------- 10.01.2015 --
+procedure ThtDocument.InsertImage(const Src: ThtString; Bitmap: TBitmap; Color: TColor; Transparent: TTransparency; OwnsBitmap: Boolean; out Reformat: Boolean);
+var
+  UName: ThtString;
+  I, J: Integer;
+  Image: ThtImage;
+  Error: Boolean;
+begin
+  Image := nil;
+  Error := False;
+  Reformat := False;
+  UName := htUpperCase(htTrim(Src));
+  I := ImageCache.IndexOf(UName); {first see if the bitmap is already loaded}
+  J := MissingImages.IndexOf(UName); {see if it's in missing image list}
+  if (I = -1) and (J >= 0) then
   begin
-    while J >= 0 do
+    if Bitmap <> nil then
     begin
-      Obj := MissingImages.Objects[J];
-      if (Obj = Self) and not IsCopy and not Error then
-      begin
-        BitmapLoaded := False; {the background image, set to load}
-        GetBackgroundBitmap();
-      end
-      else if (Obj is TImageObj) then
-      begin
-        TImageObj(Obj).InsertImage(UName, Error, Rformat);
-        Reformat := Reformat or Rformat;
-      end;
-      MissingImages.Delete(J);
-      J := MissingImages.IndexOf(UName);
+        if Color <> -1 then
+          Transparent := TrGif;
+        Image := ThtBitmapImage.Create(Bitmap, Transparent, Color, OwnsBitmap);
     end;
+
+    if Image <> nil then {put in Cache}
+    begin
+      ImageCache.AddObject(UName, Image); {put new bitmap in list}
+      ImageCache.DecUsage(UName); {this does not count as being used yet}
+    end
+    else
+      Error := True; {bad stream or Nil}
   end;
+
+  if (I >= 0) or Assigned(Image) or Error then {a valid image in the Cache or Bad stream}
+    InsertMissingImage(UName, J, Error, Reformat);
 end;
 
 //------------------------------------------------------------------------------
 function ThtDocument.GetTheImage(const BMName: ThtString; var Transparent: TTransparency; out FromCache, Delay: boolean): ThtImage;
-{Note: bitmaps and Mask returned by this routine are on "loan".  Do not destroy them}
-{Transparent may be set to NotTransp or LLCorner on entry but may discover it's TGif here}
+{Transparent may be set to NotTransp or LLCorner on entry but may discover it's TrGif here}
 
   procedure GetTheBitmap;
+  {Note: bitmaps gotten by OnBitmapRequest are on "loan".  We do not destroy them}
   var
     Color: TColor;
     Bitmap: TBitmap;
@@ -7424,17 +7486,26 @@ function ThtDocument.GetTheImage(const BMName: ThtString; var Transparent: TTran
       Bitmap := nil;
       Color := -1;
       GetBitmap(TheOwner, BMName, Bitmap, Color);
-      if Bitmap <> nil then
+      if Bitmap = WaitBitmap then
+        Delay := True
+      else if Bitmap = ErrorBitmap then
+        Result := nil
+      else if Bitmap <> nil then
+      begin
         if Color <> -1 then
-          Result := ThtBitmapImage.Create(Bitmap, GetImageMask(Bitmap, True, Color), TrGif)
-        else if Transparent = LLCorner then
-          Result := ThtBitmapImage.Create(Bitmap, GetImageMask(Bitmap, False, 0), LLCorner)
-        else
-          Result := ThtBitmapImage.Create(Bitmap, nil, NotTransp);
+          Transparent := TrGif;
+        try
+          Result := ThtBitmapImage.Create(Bitmap, Transparent, Color, False);
+        finally
+          if Assigned(GottenBitmap) then
+            GottenBitmap(TheOwner, BMName, Bitmap, Color);
+        end;
+      end;
     end;
   end;
 
   procedure GetTheStream;
+  {Note: streams gotten by OnImageRequest are on "loan".  We do not destroy them}
   var
     Stream: TStream;
   begin
@@ -7516,7 +7587,7 @@ begin
       else
       begin
         GetTheBitmap;
-        if Result = nil then
+        if (Result = nil) and not Delay then
           GetTheStream;
         if (Result = nil) and not Delay then
           Result := LoadImageFromFile(TheOwner.HtmlExpandFilename(BMName), Transparent);
@@ -7920,6 +7991,7 @@ begin
 
     Prop.GetPageBreaks(BreakBefore, BreakAfter, KeepIntact);
     ShowEmptyCells := Prop.ShowEmptyCells;
+    HideOverflow := Prop.IsOverflowHidden;
   end;
  {$ifdef JPM_DEBUGGING}
  CodeSite.ExitMethod(Self,'TCellObj.Create');
@@ -8084,7 +8156,6 @@ var
   HF, VF: double;
   BRect: TRect;
   IsVisible: Boolean;
-
 begin
   YO := Y - Cell.Document.YOff;
 
@@ -8218,42 +8289,51 @@ begin
   try
     if IsVisible and (Cell.Count > 0) then
     begin
-    {clip cell contents to prevent overflow.  First check to see if there is
-     already a clip region}
-      SaveRgn := CreateRectRgn(0, 0, 1, 1);
-      Rslt := GetClipRgn(Canvas.Handle, SaveRgn); {Rslt = 1 for existing region, 0 for none}
-    {Form the region for this cell}
-      GetWindowOrgEx(Canvas.Handle, Point); {when scrolling or animated Gifs, canvas may not start at X=0, Y=0}
-      if not Cell.Document.Printing then
-        if IsWin95 then
-          Rgn := CreateRectRgn(BL - Point.X, Max(BT - Point.Y, -32000), BR - Point.X, Min(BB - Point.Y, 32000))
-        else
-          Rgn := CreateRectRgn(BL - Point.X, BT - Point.Y, BR - Point.X, BB - Point.Y)
-      else
+      Rslt := 0;
+      Rgn := 0;
+      SaveRgn := 0;
+      if HideOverflow then
       begin
-        GetViewportExtEx(Canvas.Handle, SizeV);
-        GetWindowExtEx(Canvas.Handle, SizeW);
-        HF := (SizeV.cx / SizeW.cx); {Horizontal adjustment factor}
-        VF := (SizeV.cy / SizeW.cy); {Vertical adjustment factor}
-        if IsWin95 then
-          Rgn := CreateRectRgn(Round(HF * (BL - Point.X) - 1), Max(Round(VF * (BT - Point.Y) - 1), -32000), Round(HF * (X + Wd - Point.X) + 1), Min(Round(VF * (YO + Ht - Point.Y)), 32000))
+      {clip cell contents to prevent overflow.  First check to see if there is
+       already a clip region}
+        SaveRgn := CreateRectRgn(0, 0, 1, 1);
+        Rslt := GetClipRgn(Canvas.Handle, SaveRgn); {Rslt = 1 for existing region, 0 for none}
+      {Form the region for this cell}
+        GetWindowOrgEx(Canvas.Handle, Point); {when scrolling or animated Gifs, canvas may not start at X=0, Y=0}
+        if not Cell.Document.Printing then
+          if IsWin95 then
+            Rgn := CreateRectRgn(BL - Point.X, Max(BT - Point.Y, -32000), BR - Point.X, Min(BB - Point.Y, 32000))
+          else
+            Rgn := CreateRectRgn(BL - Point.X, BT - Point.Y, BR - Point.X, BB - Point.Y)
         else
-          Rgn := CreateRectRgn(Round(HF * (BL - Point.X) - 1), Round(VF * (BT - Point.Y) - 1), Round(HF * (X + Wd - Point.X) + 1), Round(VF * (YO + Ht - Point.Y)));
+        begin
+          GetViewportExtEx(Canvas.Handle, SizeV);
+          GetWindowExtEx(Canvas.Handle, SizeW);
+          HF := (SizeV.cx / SizeW.cx); {Horizontal adjustment factor}
+          VF := (SizeV.cy / SizeW.cy); {Vertical adjustment factor}
+          if IsWin95 then
+            Rgn := CreateRectRgn(Round(HF * (BL - Point.X) - 1), Max(Round(VF * (BT - Point.Y) - 1), -32000), Round(HF * (X + Wd - Point.X) + 1), Min(Round(VF * (YO + Ht - Point.Y)), 32000))
+          else
+            Rgn := CreateRectRgn(Round(HF * (BL - Point.X) - 1), Round(VF * (BT - Point.Y) - 1), Round(HF * (X + Wd - Point.X) + 1), Round(VF * (YO + Ht - Point.Y)));
+        end;
+        if Rslt = 1 then {if there was a region, use the intersection with this region}
+          CombineRgn(Rgn, Rgn, SaveRgn, Rgn_And);
+        SelectClipRgn(Canvas.Handle, Rgn);
       end;
-      if Rslt = 1 then {if there was a region, use the intersection with this region}
-        CombineRgn(Rgn, Rgn, SaveRgn, Rgn_And);
-      SelectClipRgn(Canvas.Handle, Rgn);
       try
         Cell.Draw(Canvas, ARect, Wd - HzSpace - CellSpacingHorz,
           X + FPad.Left + FBrd.Left + CellSpacingHorz,
           Y + FPad.Top + FBrd.Top + YIndent, ARect.Left, 0); {possibly should be IRgn.LfEdge}
       finally
-        if Rslt = 1 then {restore any previous clip region}
-          SelectClipRgn(Canvas.Handle, SaveRgn)
-        else
-          SelectClipRgn(Canvas.Handle, 0);
-        DeleteObject(Rgn);
-        DeleteObject(SaveRgn);
+        if HideOverflow then
+        begin
+          if Rslt = 1 then {restore any previous clip region}
+            SelectClipRgn(Canvas.Handle, SaveRgn)
+          else
+            SelectClipRgn(Canvas.Handle, 0);
+          DeleteObject(Rgn);
+          DeleteObject(SaveRgn);
+        end;
       end;
     end;
   except
@@ -16018,8 +16098,12 @@ initialization
 {$endif}
   WaitStream := TMemoryStream.Create;
   ErrorStream := TMemoryStream.Create;
+  WaitBitmap := TBitmap.Create;
+  ErrorBitmap := TBitmap.Create;
 finalization
-  WaitStream.Free;
+  ErrorBitmap.Free;
+  WaitBitmap.Free;
   ErrorStream.Free;
+  WaitStream.Free;
 end.
 
